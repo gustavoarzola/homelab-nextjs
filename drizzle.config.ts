@@ -5,6 +5,6 @@ export default {
   out: './src/db/migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/homelab',
+    url: process.env.DATABASE_URL || 'postgresql://homelab_user:homelab_password@localhost:5433/homelab_db',
   },
 } satisfies Config
