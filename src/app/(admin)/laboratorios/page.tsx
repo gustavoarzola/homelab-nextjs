@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { laboratories, branches } from '@/db/schema'
-import { eq, asc } from 'drizzle-orm'
+import { eq, asc, sql } from 'drizzle-orm'
 import { LabsManager } from '@/components/labs-manager'
 import {
   createCadena,
@@ -20,7 +20,7 @@ export default async function LaboratoriosPage() {
         nombre: branches.nombre,
         idLaboratorio: branches.idLaboratorio,
         activo: branches.activo,
-        labNombre: laboratories.nombre,
+        labNombre: sql<string | null>`${laboratories.nombre}`.as('lab_nombre'),
       })
       .from(branches)
       .leftJoin(laboratories, eq(branches.idLaboratorio, laboratories.id))
