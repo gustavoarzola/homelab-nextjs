@@ -4,22 +4,23 @@ Sistema de gestión de visitas de enfermería a domicilio.
 
 ## Stack Tecnológico
 
-- **Frontend**: Next.js 16 + React 19 + TypeScript
+- **Runtime**: Node 24 LTS
+- **Frontend**: Next.js 15 + React 18 + TypeScript
 - **Base de Datos**: PostgreSQL + Drizzle ORM
-- **UI**: shadcn/ui (Radix + Tailwind 4) + @tanstack/react-table
-- **Autenticación**: Auth.js v5 (Credentials)
-- **Utilidades**: sonner, lucide-react, next-themes, zod, exceljs, resend, recharts
+- **UI**: Tailwind CSS 4 + @tanstack/react-table
+- **Autenticación**: NextAuth.js v4 (Credentials)
+- **Utilidades**: sonner, lucide-react, next-themes, zod, exceljs, recharts
 - **Mapas**: @vis.gl/react-google-maps
 - **Drag & Drop**: @dnd-kit/core
 - **Fechas**: date-fns
-- **Package Manager**: pnpm
+- **Package Manager**: pnpm 9.x
 
 ## Configuración Local
 
 ### Requisitos Previos
 
-- Node.js 18+
-- pnpm
+- Node.js 24 LTS (recomendado usar nvm con `.nvmrc`)
+- pnpm 9.x
 - Docker y Docker Compose (para ejecutar PostgreSQL localmente)
 
 ### Instalación
@@ -28,6 +29,9 @@ Sistema de gestión de visitas de enfermería a domicilio.
 # Clonar repositorio
 git clone <repo-url>
 cd homelab-nextjs
+
+# (Opcional) Cambiar a Node 24 LTS usando nvm
+nvm use
 
 # Instalar dependencias
 pnpm install
