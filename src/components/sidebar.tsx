@@ -7,6 +7,8 @@ import {
   Calendar,
   Users,
   Stethoscope,
+  FlaskConical,
+  BookOpen,
   Settings,
   LogOut,
   ChevronLeft,
@@ -20,6 +22,8 @@ const navItems = [
   { href: '/visitas', label: 'Visitas', icon: Calendar },
   { href: '/pacientes', label: 'Pacientes', icon: Users },
   { href: '/enfermeras', label: 'Enfermeras', icon: Stethoscope },
+  { href: '/laboratorios', label: 'Laboratorios', icon: FlaskConical },
+  { href: '/catalogos', label: 'Catálogos', icon: BookOpen },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
