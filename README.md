@@ -5,15 +5,27 @@ Sistema de gestión de visitas de enfermería a domicilio.
 ## Stack Tecnológico
 
 - **Runtime**: Node 24 LTS
-- **Frontend**: Next.js 15 + React 18 + TypeScript
+- **Frontend**: Next.js 16 + React 19 + TypeScript
 - **Base de Datos**: PostgreSQL + Drizzle ORM
-- **UI**: Tailwind CSS 4 + @tanstack/react-table
-- **Autenticación**: NextAuth.js v4 (Credentials)
+- **UI**: Tailwind CSS 4 + shadcn/ui (tema Neutral) + @tanstack/react-table
+- **Autenticación**: Auth.js v5 (Credentials)
 - **Utilidades**: sonner, lucide-react, next-themes, zod, exceljs, recharts
 - **Mapas**: @vis.gl/react-google-maps
 - **Drag & Drop**: @dnd-kit/core
 - **Fechas**: date-fns
 - **Package Manager**: pnpm 9.x
+
+## shadcn/ui
+
+El proyecto utiliza **shadcn/ui** con el tema Neutral. Los componentes están configurados con CSS variables para soporte completo de dark mode.
+
+Para añadir nuevos componentes:
+
+```bash
+npx shadcn-ui@latest add <nombre-componente>
+```
+
+Los componentes se instalarán en `src/components/ui/` y estarán listos para usar en cualquier parte del proyecto.
 
 ## Configuración Local
 
@@ -38,6 +50,7 @@ pnpm install
 
 # Crear archivo .env.local basado en .env.example
 cp .env.example .env.local
+# Edita el archivo con tus valores reales (AUTH_SECRET, GOOGLE_MAPS_API_KEY, etc.)
 
 # Iniciar PostgreSQL con Docker Compose
 docker-compose up -d
@@ -126,10 +139,35 @@ pnpm db:push
 
 ### Variables de Entorno
 
-Consultar `.env.example` para todas las variables requeridas.
+Consultar `.env.example` para todas las variables requeridas:
+
+- **DATABASE_URL**: Conexión PostgreSQL
+- **AUTH_SECRET**: Secreto para Auth.js v5 (genera con `openssl rand -base64 33`)
+- **NEXT_PUBLIC_GOOGLE_MAPS_API_KEY**: API key de Google Maps
+- **RESEND_API_KEY**: API key de Resend (para emails)
+
+## Docker
+
+El proyecto incluye `docker-compose.yml` para ejecutar PostgreSQL y Adminer localmente.
+
+```bash
+# Ver estado de contenedores
+docker ps | grep homelab
+
+# Ver logs
+docker logs homelab-postgres-nextjs
+docker logs homelab-adminer
+
+# Detener servicios
+docker-compose down
+
+# Reiniciar
+docker-compose restart
+```
 
 ## Notas
 
 - Los campos en la base de datos usan convención `snake_case`
 - La aplicación usa convenciones TypeScript estándar (camelCase)
 - Mapeo automático entre ambas convenciones via Drizzle ORM
+- Puerto PostgreSQL: 5433 (no el estándar 5432)
