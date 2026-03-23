@@ -11,7 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx src/db/seed.ts",
+    "db:seed": "tsx --env-file=.env.local src/db/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -56,7 +56,7 @@
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {
-    "node": ">=24.0.0",
+    "node": ">=24.0.0 <25.0.0",
     "pnpm": ">=9.0.0"
   }
 }

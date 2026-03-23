@@ -1,0 +1,1 @@
+ALTER TABLE "enfermeras" ADD COLUMN "activo" boolean DEFAULT true NOT NULL;

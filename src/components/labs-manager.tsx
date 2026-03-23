@@ -92,6 +92,7 @@ function CadenasPanel({
   const [editingId, setEditingId] = useState<number | null>(null)
   const [addKey, setAddKey] = useState(0)
   const [isPending, startTransition] = useTransition()
+  const selectedLab = labs.find((l) => l.id === selectedLabId) ?? null
 
   const handleAdd = (fd: FormData) => {
     startTransition(async () => {
@@ -146,7 +147,7 @@ function CadenasPanel({
       {/* Add form */}
       <form
         key={addKey}
-        action={handleAdd}
+        onSubmit={(e) => { e.preventDefault(); handleAdd(new FormData(e.currentTarget)) }}
         className="flex gap-2 border-b px-4 py-3"
         style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}
       >
@@ -184,7 +185,7 @@ function CadenasPanel({
           }}
         >
           Mostrando sucursales de{' '}
-          <strong>{labs.find((l) => l.id === selectedLabId)?.nombre}</strong>{' '}
+          <strong>{selectedLab?.nombre}</strong>{' '}
           ·{' '}
           <button
             onClick={() => onSelectLab(null)}
@@ -201,11 +202,12 @@ function CadenasPanel({
           Sin cadenas. Agrega una arriba.
         </div>
       ) : (
-        labs.map((lab) =>
-          editingId === lab.id ? (
+        labs.map((lab) => {
+          const toggleSelect = () => onSelectLab(selectedLabId === lab.id ? null : lab.id)
+          return editingId === lab.id ? (
             <form
               key={lab.id}
-              action={handleUpdate}
+              onSubmit={(e) => { e.preventDefault(); handleUpdate(new FormData(e.currentTarget)) }}
               className="flex items-center gap-2 border-b px-4 py-2 last:border-0"
               style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}
             >
@@ -243,11 +245,14 @@ function CadenasPanel({
               </button>
             </form>
           ) : (
-            <button
+            <div
               key={lab.id}
-              onClick={() => onSelectLab(selectedLabId === lab.id ? null : lab.id)}
+              role="button"
+              tabIndex={0}
+              onClick={toggleSelect}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleSelect() }}
               className={cn(
-                'w-full border-b px-4 py-3 text-left last:border-0 transition-colors hover:opacity-80',
+                'w-full cursor-pointer border-b px-4 py-3 text-left last:border-0 transition-colors hover:opacity-80',
                 !lab.activo && 'opacity-50'
               )}
               style={{
@@ -296,9 +301,9 @@ function CadenasPanel({
                   </button>
                 </div>
               </div>
-            </button>
+            </div>
           )
-        )
+        })
       )}
     </div>
   )
@@ -388,7 +393,7 @@ function SucursalesPanel({
       {/* Add form */}
       <form
         key={addKey}
-        action={handleAdd}
+        onSubmit={(e) => { e.preventDefault(); handleAdd(new FormData(e.currentTarget)) }}
         className="flex gap-2 border-b px-4 py-3"
         style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}
       >
@@ -448,7 +453,7 @@ function SucursalesPanel({
           editingId === branch.id ? (
             <form
               key={branch.id}
-              action={handleUpdate}
+              onSubmit={(e) => { e.preventDefault(); handleUpdate(new FormData(e.currentTarget)) }}
               className="flex items-center gap-2 border-b px-4 py-2 last:border-0"
               style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}
             >

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterAll } from 'vitest'
 import { db } from '@/db'
 import { laboratories, branches } from '@/db/schema'
 import { eq, inArray } from 'drizzle-orm'
+import { P, fd } from './helpers'
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
@@ -13,16 +14,6 @@ import {
   updateSucursal,
   toggleSucursal,
 } from '../laboratorios'
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-const P = `_test_${Date.now()}_` // unique prefix for this test run
-
-function fd(data: Record<string, string | number>): FormData {
-  const form = new FormData()
-  Object.entries(data).forEach(([k, v]) => form.append(k, String(v)))
-  return form
-}
 
 const createdLabs: number[] = []
 const createdBranches: number[] = []
@@ -48,10 +39,14 @@ async function seedBranch(nombre: string, idLaboratorio: number) {
 }
 
 afterAll(async () => {
-  if (createdBranches.length)
-    await db.delete(branches).where(inArray(branches.id, createdBranches))
-  if (createdLabs.length)
-    await db.delete(laboratories).where(inArray(laboratories.id, createdLabs))
+  await Promise.all([
+    createdBranches.length
+      ? db.delete(branches).where(inArray(branches.id, createdBranches))
+      : null,
+    createdLabs.length
+      ? db.delete(laboratories).where(inArray(laboratories.id, createdLabs))
+      : null,
+  ])
 })
 
 // ─── createCadena ─────────────────────────────────────────────────────────────

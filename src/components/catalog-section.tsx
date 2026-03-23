@@ -73,7 +73,7 @@ export function CatalogSection({
       {/* Add form */}
       <form
         key={addKey}
-        action={handleAdd}
+        onSubmit={(e) => { e.preventDefault(); handleAdd(new FormData(e.currentTarget)) }}
         className="flex items-center gap-2 px-4 py-3 border-b"
         style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}
       >
@@ -154,7 +154,7 @@ export function CatalogSection({
               /* ── Edit mode ── */
               <form
                 key={item.id}
-                action={handleUpdate}
+                onSubmit={(e) => { e.preventDefault(); handleUpdate(new FormData(e.currentTarget)) }}
                 className="flex items-center gap-2 border-b px-4 py-2"
                 style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}
               >

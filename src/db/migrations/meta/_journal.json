@@ -8,6 +8,20 @@
       "when": 1774214872844,
       "tag": "0000_naive_ender_wiggin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774217407376,
+      "tag": "0001_neat_mysterio",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774220341199,
+      "tag": "0002_wakeful_bushwacker",
+      "breakpoints": true
     }
   ]
 }

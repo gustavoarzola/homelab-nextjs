@@ -48,6 +48,7 @@ export const nurses = pgTable(
     rut: varchar('rut', { length: 200 }),
     telefono: varchar('telefono', { length: 20 }),
     correo: varchar('correo', { length: 100 }),
+    activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -155,7 +156,7 @@ export const procedures = pgTable(
   {
     id: serial('id').primaryKey(),
     nombre: varchar('nombre', { length: 200 }).notNull(),
-    codigo: varchar('codigo', { length: 20 }).notNull(),
+    codigo: varchar('codigo', { length: 50 }).notNull(),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterAll } from 'vitest'
 import { db } from '@/db'
 import { procedures, exams, healthInsurances, elderlyResidences } from '@/db/schema'
 import { eq, inArray } from 'drizzle-orm'
+import { P, fd } from './helpers'
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
@@ -20,16 +21,6 @@ import {
   toggleResidencia,
 } from '../catalogos'
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-const P = `_test_${Date.now()}_`
-
-function fd(data: Record<string, string | number>): FormData {
-  const form = new FormData()
-  Object.entries(data).forEach(([k, v]) => form.append(k, String(v)))
-  return form
-}
-
 const created = {
   procedures: [] as number[],
   exams: [] as number[],
@@ -38,14 +29,20 @@ const created = {
 }
 
 afterAll(async () => {
-  if (created.procedures.length)
-    await db.delete(procedures).where(inArray(procedures.id, created.procedures))
-  if (created.exams.length)
-    await db.delete(exams).where(inArray(exams.id, created.exams))
-  if (created.healthInsurances.length)
-    await db.delete(healthInsurances).where(inArray(healthInsurances.id, created.healthInsurances))
-  if (created.elderlyResidences.length)
-    await db.delete(elderlyResidences).where(inArray(elderlyResidences.id, created.elderlyResidences))
+  await Promise.all([
+    created.procedures.length
+      ? db.delete(procedures).where(inArray(procedures.id, created.procedures))
+      : null,
+    created.exams.length
+      ? db.delete(exams).where(inArray(exams.id, created.exams))
+      : null,
+    created.healthInsurances.length
+      ? db.delete(healthInsurances).where(inArray(healthInsurances.id, created.healthInsurances))
+      : null,
+    created.elderlyResidences.length
+      ? db.delete(elderlyResidences).where(inArray(elderlyResidences.id, created.elderlyResidences))
+      : null,
+  ])
 })
 
 // Seeds

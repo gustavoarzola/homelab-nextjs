@@ -1,0 +1,1 @@
+ALTER TABLE "procedimientos" ALTER COLUMN "codigo" SET DATA TYPE varchar(50);
