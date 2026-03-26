@@ -41,11 +41,19 @@ const calendarStyles = {
 } as const
 
 const calendarComponents = {
-  Chevron: ({ orientation }: { orientation?: 'left' | 'right' | 'up' | 'down' }) =>
+  Chevron: ({
+    orientation,
+    className,
+    size = 16,
+  }: {
+    orientation?: 'left' | 'right' | 'up' | 'down'
+    className?: string
+    size?: number
+  }) =>
     orientation === 'left' || orientation === 'up' ? (
-      <ChevronLeft className="h-4 w-4" />
+      <ChevronLeft className={cn('h-4 w-4', className)} size={size} />
     ) : (
-      <ChevronRight className="h-4 w-4" />
+      <ChevronRight className={cn('h-4 w-4', className)} size={size} />
     ),
 }
 
@@ -75,8 +83,10 @@ export function DatePicker({
   disabled = false,
   className,
 }: DatePickerProps) {
+  const [open, setOpen] = React.useState(false)
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -97,7 +107,10 @@ export function DatePicker({
           locale={es}
           showOutsideDays
           selected={value}
-          onSelect={onChange}
+          onSelect={(date) => {
+            onChange(date)
+            if (date) setOpen(false)
+          }}
           defaultMonth={value}
           classNames={calendarStyles}
           components={calendarComponents}
@@ -125,6 +138,7 @@ export function DateRangePicker({
   disabled = false,
   className,
 }: DateRangePickerProps) {
+  const [open, setOpen] = React.useState(false)
   const today = React.useMemo(() => startOfDay(new Date()), [])
   const [month, setMonth] = React.useState<Date>(value?.from ?? today)
 
@@ -158,15 +172,17 @@ export function DateRangePicker({
       const yesterday = addDays(today, -1)
       onChange({ from: yesterday, to: yesterday })
       setMonth(yesterday)
+      setOpen(false)
       return
     }
     const from = addDays(today, -days)
     onChange({ from, to: today })
     setMonth(from)
+    setOpen(false)
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -182,8 +198,8 @@ export function DateRangePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <div className="flex min-w-[640px] overflow-hidden rounded-md">
-          <div className="border-r bg-muted/40 p-2">
+        <div className="flex w-[520px] max-w-[90vw] overflow-hidden rounded-md bg-popover">
+          <div className="w-44 border-r bg-muted/40 p-2">
             <div className="flex flex-col gap-1">
               {rangePresets.map((preset) => (
                 <Button
@@ -202,7 +218,10 @@ export function DateRangePicker({
             locale={es}
             showOutsideDays
             selected={value}
-            onSelect={onChange}
+            onSelect={(nextRange) => {
+              onChange(nextRange)
+              if (nextRange?.from && nextRange.to) setOpen(false)
+            }}
             month={month}
             onMonthChange={setMonth}
             numberOfMonths={1}
