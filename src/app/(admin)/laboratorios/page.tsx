@@ -1,52 +1,21 @@
-import { db } from '@/db'
-import { laboratories, branches } from '@/db/schema'
-import { eq, asc, sql } from 'drizzle-orm'
-import { LabsManager } from '@/components/labs-manager'
-import {
-  createCadena,
-  updateCadena,
-  toggleCadena,
-  createSucursal,
-  updateSucursal,
-  toggleSucursal,
-} from '@/lib/actions/laboratorios'
+import { LaboratoriosTable } from '@/components/laboratorios-table'
+import { searchLaboratorios, createLaboratorio, updateLaboratorio, toggleLaboratorio } from '@/lib/actions/laboratorios'
 
 export default async function LaboratoriosPage() {
-  const [labs, branchRows] = await Promise.all([
-    db.select().from(laboratories).orderBy(asc(laboratories.nombre)),
-    db
-      .select({
-        id: branches.id,
-        nombre: branches.nombre,
-        idLaboratorio: branches.idLaboratorio,
-        activo: branches.activo,
-        labNombre: sql<string | null>`${laboratories.nombre}`.as('lab_nombre'),
-      })
-      .from(branches)
-      .leftJoin(laboratories, eq(branches.idLaboratorio, laboratories.id))
-      .orderBy(asc(laboratories.nombre), asc(branches.nombre)),
-  ])
+  const initialData = await searchLaboratorios({ filters: {}, sort: null, page: 1, pageSize: 10 })
 
   return (
     <div className="p-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-          Laboratorios y Clínicas
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          Gestión de cadenas y sus sucursales. Selecciona una cadena para filtrar sus sucursales.
-        </p>
+        <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>Laboratorios</h1>
+        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Hospitales, clínicas y redes de laboratorios</p>
       </div>
-
-      <LabsManager
-        labs={labs}
-        branches={branchRows}
-        createCadena={createCadena}
-        updateCadena={updateCadena}
-        toggleCadena={toggleCadena}
-        createSucursal={createSucursal}
-        updateSucursal={updateSucursal}
-        toggleSucursal={toggleSucursal}
+      <LaboratoriosTable
+        initialData={initialData}
+        search={searchLaboratorios}
+        onCreate={createLaboratorio}
+        onUpdate={updateLaboratorio}
+        onToggle={toggleLaboratorio}
       />
     </div>
   )

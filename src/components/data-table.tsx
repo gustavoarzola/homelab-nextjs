@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
+import Link from 'next/link'
 import {
   useReactTable,
   getCoreRowModel,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { SelectCombobox } from './select-combobox'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -29,19 +31,25 @@ export type SearchParams = {
   pageSize: number
 }
 
+export type SelectOption = { value: string; label: string }
+
 export type FilterDef = {
   key: string
   label: string
-  type: 'text' | 'checkbox'
+  type: 'text' | 'checkbox' | 'select' | 'select-single' | 'date' | 'date-range'
   placeholder?: string
+  options?: SelectOption[]   // for type='select' or 'select-single'
+  keyFrom?: string           // for type='date-range'
+  keyTo?: string             // for type='date-range'
 }
 
 export type FormFieldDef = {
   name: string
   label: string
-  type?: 'text' | 'email' | 'tel'
+  type?: 'text' | 'email' | 'tel' | 'select' | 'select-single'
   required?: boolean
   placeholder?: string
+  options?: SelectOption[]   // for type='select' or 'select-single'
 }
 
 // ─── Internal ─────────────────────────────────────────────────────────────────
@@ -60,18 +68,29 @@ type Props<T extends { id: number; activo?: boolean }> = {
   filters: FilterDef[]
   formFields: FormFieldDef[]
   search: (params: SearchParams) => Promise<{ rows: T[]; total: number }>
-  onCreate: (fd: FormData) => Promise<Result>
-  onUpdate: (fd: FormData) => Promise<Result>
+  onCreate?: (fd: FormData) => Promise<Result>
+  onUpdate?: (fd: FormData) => Promise<Result>
   onToggle?: (id: number, activo: boolean) => Promise<Result>
   onDelete?: (id: number) => Promise<Result>
   entityLabel?: string
   createLabel?: string
+  createHref?: string
+  getEditHref?: (id: number) => string
+  extraRowActions?: (row: T) => React.ReactNode
 }
 
 // ─── Helpers (module-level, pure) ─────────────────────────────────────────────
 
 function initFilters(defs: FilterDef[]): Record<string, string | boolean> {
-  return Object.fromEntries(defs.map((f) => [f.key, f.type === 'checkbox' ? false : '']))
+  const entries: [string, string | boolean][] = []
+  for (const f of defs) {
+    if (f.type === 'date-range') {
+      entries.push([f.keyFrom!, ''], [f.keyTo!, ''])
+    } else {
+      entries.push([f.key, f.type === 'checkbox' ? false : ''])
+    }
+  }
+  return Object.fromEntries(entries)
 }
 
 function getPageNumbers(current: number, total: number): (number | '…')[] {
@@ -102,6 +121,9 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
   onDelete,
   entityLabel = 'registro',
   createLabel,
+  createHref,
+  getEditHref,
+  extraRowActions,
 }: Props<T>) {
   const [data, setData] = useState(initialData)
   const [draft, setDraft] = useState(() => initFilters(filterDefs))
@@ -110,6 +132,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [modal, setModal] = useState<ModalState<T>>({ type: 'none' })
+  const [formDraft, setFormDraft] = useState<Record<string, string>>({})
   const [isPending, startTransition] = useTransition()
 
   const totalPages = Math.ceil(data.total / pageSize)
@@ -119,9 +142,11 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
     return `${Array(dataColCount).fill('1fr').join(' ')} auto`
   }, [columns])
 
-  const hasActiveFilters = filterDefs.some((f) =>
-    f.type === 'checkbox' ? applied[f.key] === true : (applied[f.key] as string) !== ''
-  )
+  const hasActiveFilters = filterDefs.some((f) => {
+    if (f.type === 'checkbox') return applied[f.key] === true
+    if (f.type === 'date-range') return (applied[f.keyFrom!] as string) !== '' || (applied[f.keyTo!] as string) !== ''
+    return (applied[f.key] as string) !== ''
+  })
 
   // ── Search ─────────────────────────────────────────────────────────────────
 
@@ -174,6 +199,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
 
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (!onCreate) return
     startTransition(async () => {
       const r = await onCreate(new FormData(e.currentTarget))
       if (r.success) {
@@ -189,6 +215,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>, id: number) => {
     e.preventDefault()
+    if (!onUpdate) return
     const fd = new FormData(e.currentTarget)
     fd.set('id', String(id))
     startTransition(async () => {
@@ -254,7 +281,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
         style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
       >
         {filterDefs.map((f) => (
-          <div key={f.key} className="flex flex-col gap-1">
+          <div key={f.type === 'date-range' ? `${f.keyFrom}-${f.keyTo}` : f.key} className="flex flex-col gap-1">
             {f.type === 'checkbox' ? (
               <label className="flex cursor-pointer items-center gap-2 text-sm select-none" style={{ color: 'var(--foreground)' }}>
                 <input
@@ -265,6 +292,68 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                 />
                 {f.label}
               </label>
+            ) : f.type === 'select' ? (
+              <>
+                <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
+                <select
+                  value={draft[f.key] as string}
+                  onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                  className="rounded-lg px-3 py-2 text-sm outline-none w-52"
+                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                >
+                  {f.options?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+              </>
+            ) : f.type === 'select-single' ? (() => {
+              const opts = f.options ?? []
+              const comboOptions = opts.map((opt, idx) => ({ id: idx, label: opt.label }))
+              const selectedIdx = opts.findIndex((o) => o.value !== '' && o.value === (draft[f.key] as string))
+              return (
+                <>
+                  <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
+                  <div style={{ width: '208px' }}>
+                    <SelectCombobox
+                      mode="single"
+                      options={comboOptions}
+                      selected={selectedIdx >= 0 ? selectedIdx : null}
+                      onChange={(idx) => setDraft((d) => ({ ...d, [f.key]: idx !== null ? (opts[idx]?.value ?? '') : '' }))}
+                      placeholder={f.placeholder}
+                    />
+                  </div>
+                </>
+              )
+            })() : f.type === 'date-range' ? (
+              <>
+                <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={(draft[f.keyFrom!] as string) ?? ''}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.keyFrom!]: e.target.value }))}
+                    className="rounded-lg px-3 py-2 text-sm outline-none w-36"
+                    style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>→</span>
+                  <input
+                    type="date"
+                    value={(draft[f.keyTo!] as string) ?? ''}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.keyTo!]: e.target.value }))}
+                    className="rounded-lg px-3 py-2 text-sm outline-none w-36"
+                    style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                  />
+                </div>
+              </>
+            ) : f.type === 'date' ? (
+              <>
+                <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
+                <input
+                  type="date"
+                  value={(draft[f.key] as string) ?? ''}
+                  onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                  className="rounded-lg px-3 py-2 text-sm outline-none w-52"
+                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                />
+              </>
             ) : (
               <>
                 <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
@@ -274,7 +363,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                   placeholder={f.placeholder}
                   onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
                   onKeyDown={(e) => e.key === 'Enter' && handleApply()}
-                  className="rounded-lg px-3 py-1.5 text-sm outline-none w-52"
+                  className="rounded-lg px-3 py-2 text-sm outline-none w-52"
                   style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
                 />
               </>
@@ -306,15 +395,29 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
         <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
           {data.total} {data.total === 1 ? entityLabel : `${entityLabel}s`}
         </p>
-        <button
-          onClick={() => setModal({ type: 'create' })}
-          disabled={isPending}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
-          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-        >
-          <Plus className="h-4 w-4" />
-          {createLabel ?? `Nuevo/a ${entityLabel}`}
-        </button>
+        {createHref ? (
+          <Link
+            href={createHref}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium hover:opacity-80 transition-opacity"
+            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+          >
+            <Plus className="h-4 w-4" />
+            {createLabel ?? `Nuevo/a ${entityLabel}`}
+          </Link>
+        ) : (
+          <button
+            onClick={() => {
+              setFormDraft({})
+              setModal({ type: 'create' })
+            }}
+            disabled={isPending}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
+            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+          >
+            <Plus className="h-4 w-4" />
+            {createLabel ?? `Nuevo/a ${entityLabel}`}
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -382,15 +485,34 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
 
                 {/* Row actions */}
                 <div className="flex items-center justify-end gap-1">
-                  <button
-                    onClick={() => setModal({ type: 'edit', row: row.original })}
-                    disabled={isPending}
-                    title="Editar"
-                    className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
-                    style={{ color: 'var(--muted-foreground)' }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
+                  {extraRowActions?.(row.original)}
+                  {getEditHref ? (
+                    <Link
+                      href={getEditHref(row.original.id)}
+                      title="Editar"
+                      className="rounded p-1.5 hover:opacity-80 transition-opacity"
+                      style={{ color: 'var(--muted-foreground)' }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const initialDraft: Record<string, string> = {}
+                        formFields.forEach((f) => {
+                          initialDraft[f.name] = String((row.original as Record<string, unknown>)[f.name] ?? '')
+                        })
+                        setFormDraft(initialDraft)
+                        setModal({ type: 'edit', row: row.original })
+                      }}
+                      disabled={isPending}
+                      title="Editar"
+                      className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
+                      style={{ color: 'var(--muted-foreground)' }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
 
                   {onToggle && row.original.activo !== undefined && (
                     <button
@@ -553,16 +675,48 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                         {field.label}
                         {field.required && <span className="ml-0.5" style={{ color: 'var(--destructive)' }}>*</span>}
                       </label>
-                      <input
-                        name={field.name}
-                        type={field.type ?? 'text'}
-                        required={field.required}
-                        placeholder={field.placeholder}
-                        defaultValue={String(value)}
-                        disabled={isPending}
-                        className="rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50"
-                        style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                      />
+                      {field.type === 'select' ? (
+                        <select
+                          name={field.name}
+                          required={field.required}
+                          defaultValue={String(value)}
+                          disabled={isPending}
+                          className="rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50"
+                          style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                        >
+                          {!field.required && <option value="">— Seleccionar —</option>}
+                          {field.options?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </select>
+                      ) : field.type === 'select-single' ? (() => {
+                        const opts = field.options ?? []
+                        const selectedVal = formDraft[field.name] ?? String(value)
+                        const comboOptions = opts.map((opt, idx) => ({ id: idx, label: opt.label }))
+                        const selectedIdx = opts.findIndex((o) => o.value === selectedVal)
+                        return (
+                          <>
+                            <input type="hidden" name={field.name} value={selectedVal} required={field.required} />
+                            <SelectCombobox
+                              mode="single"
+                              options={comboOptions}
+                              selected={selectedIdx >= 0 ? selectedIdx : null}
+                              onChange={(idx) => setFormDraft((d) => ({ ...d, [field.name]: idx !== null ? (opts[idx]?.value ?? '') : '' }))}
+                              placeholder={field.placeholder}
+                              disabled={isPending}
+                            />
+                          </>
+                        )
+                      })() : (
+                        <input
+                          name={field.name}
+                          type={field.type ?? 'text'}
+                          required={field.required}
+                          placeholder={field.placeholder}
+                          defaultValue={String(value)}
+                          disabled={isPending}
+                          className="rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50"
+                          style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                        />
+                      )}
                     </div>
                   )
                 })}

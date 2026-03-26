@@ -5,14 +5,20 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   Calendar,
+  ClipboardCheck,
   Users,
   Stethoscope,
-  FlaskConical,
-  BookOpen,
+  Network,
+  MapPin,
+  ClipboardList,
+  Microscope,
+  Shield,
+  Building2,
   Settings,
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Mail,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -20,10 +26,16 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/visitas', label: 'Visitas', icon: Calendar },
+  { href: '/asignacion', label: 'Asignación', icon: ClipboardCheck },
+  { href: '/asignacion/envio-correos', label: 'Envío de correos', icon: Mail },
   { href: '/pacientes', label: 'Pacientes', icon: Users },
   { href: '/enfermeras', label: 'Enfermeras', icon: Stethoscope },
-  { href: '/laboratorios', label: 'Laboratorios', icon: FlaskConical },
-  { href: '/catalogos', label: 'Catálogos', icon: BookOpen },
+  { href: '/laboratorios', label: 'Laboratorios', icon: Network },
+  { href: '/sucursales', label: 'Sucursales', icon: MapPin },
+  { href: '/procedimientos', label: 'Procedimientos', icon: ClipboardList },
+  { href: '/examenes', label: 'Exámenes', icon: Microscope },
+  { href: '/previsiones', label: 'Previsiones', icon: Shield },
+  { href: '/residencias', label: 'Residencias', icon: Building2 },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
@@ -89,7 +101,15 @@ export function Sidebar({ userName, userRole, onSignOut }: Props) {
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
+          const active =
+            pathname === href ||
+            (pathname.startsWith(href + '/') &&
+              !navItems.some(
+                (other) =>
+                  other.href !== href &&
+                  other.href.startsWith(href) &&
+                  (pathname === other.href || pathname.startsWith(other.href + '/'))
+              ))
           return (
             <Link
               key={href}

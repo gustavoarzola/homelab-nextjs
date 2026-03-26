@@ -1,6 +1,131 @@
 import { db } from './index'
-import { users, nurses } from './schema'
+import {
+  users, nurses, patients, addresses, patientPhones,
+  visits, visitExams, visitProcedures,
+  healthInsurances, elderlyResidences,
+  laboratories, branches,
+  procedures, exams,
+  contactOrigins,
+} from './schema'
 import bcrypt from 'bcryptjs'
+
+// ─── RUT helpers ──────────────────────────────────────────────────────────────
+
+function calcDV(n: number): string {
+  let sum = 0, m = 2
+  while (n > 0) {
+    sum += (n % 10) * m
+    n = Math.floor(n / 10)
+    m = m === 7 ? 2 : m + 1
+  }
+  const r = 11 - (sum % 11)
+  if (r === 11) return '0'
+  if (r === 10) return 'K'
+  return String(r)
+}
+
+function formatRut(n: number): string {
+  return String(n) + calcDV(n)
+}
+
+// ─── Deterministic pseudo-random pick ────────────────────────────────────────
+
+function pick<T>(arr: T[], i: number, salt = 0): T {
+  const idx = ((i * 31 + salt * 997) % arr.length + arr.length) % arr.length
+  return arr[idx]!
+}
+
+// ─── Name & address pools ─────────────────────────────────────────────────────
+
+const NOMBRES_M = [
+  'Carlos', 'Juan', 'Luis', 'Pedro', 'Miguel', 'José', 'Roberto', 'Diego',
+  'Andrés', 'Felipe', 'Rodrigo', 'Sebastián', 'Cristian', 'Francisco', 'Manuel',
+  'Ricardo', 'Alejandro', 'Eduardo', 'Raúl', 'Héctor', 'Mario', 'Sergio',
+  'Gonzalo', 'Pablo', 'Fernando', 'Ignacio', 'Tomás', 'Nicolás', 'Matías',
+  'Marcelo', 'Armando', 'Enrique', 'Hugo', 'Jorge', 'Víctor', 'Jaime', 'Óscar',
+  'Ramón', 'Arturo', 'Gerardo', 'Alberto', 'Ernesto', 'Alfredo', 'Rubén',
+]
+
+const NOMBRES_F = [
+  'María', 'Ana', 'Carmen', 'Rosa', 'Claudia', 'Patricia', 'Daniela', 'Valentina',
+  'Carolina', 'Andrea', 'Pamela', 'Javiera', 'Camila', 'Francisca', 'Natalia',
+  'Alejandra', 'Constanza', 'Marcela', 'Lorena', 'Paola', 'Bárbara', 'Gabriela',
+  'Verónica', 'Susana', 'Macarena', 'Roxana', 'Isabel', 'Mónica', 'Karina',
+  'Sandra', 'Ingrid', 'Cecilia', 'Rosana', 'Elena', 'Jacqueline', 'Fabiola',
+  'Ximena', 'Viviana', 'Pilar', 'Laura', 'Tamara', 'Norma', 'Gloria', 'Miriam',
+]
+
+const APELLIDOS = [
+  'González', 'Muñoz', 'Rojas', 'Díaz', 'Pérez', 'Soto', 'Contreras', 'Silva',
+  'Martínez', 'Sepúlveda', 'Morales', 'Rodríguez', 'López', 'Fuentes', 'Hernández',
+  'Torres', 'Araya', 'Flores', 'Espinoza', 'Valenzuela', 'Castillo', 'Ramírez',
+  'Reyes', 'Gutiérrez', 'Castro', 'Vargas', 'Álvarez', 'Vásquez', 'Navarrete',
+  'Carrasco', 'Ibáñez', 'Farías', 'Vega', 'Herrera', 'Núñez', 'Ortiz', 'Medina',
+  'Riquelme', 'Bravo', 'Pizarro', 'Navarro', 'Cáceres', 'Poblete', 'Figueroa',
+  'Cortés', 'Acevedo', 'Vera', 'Meza', 'Leiva', 'Saavedra', 'Salinas', 'Tapia',
+  'Orellana', 'Alvarado', 'Benavides', 'Céspedes', 'Donoso', 'Arriagada', 'Molina',
+  'Palma', 'Lagos', 'Ríos', 'Uribe', 'Garrido', 'Villalobos', 'Pino', 'Gatica',
+  'Henríquez', 'Moya', 'Paredes', 'Yáñez', 'Zamora', 'Bustos', 'Aguilera', 'Ruiz',
+]
+
+const CALLES = [
+  'Av. Providencia', 'Calle Las Rosas', 'Av. Las Condes', 'Pasaje Los Pinos',
+  'Calle O\'Higgins', 'Av. Irarrázaval', 'Calle Lota', 'Av. Apoquindo',
+  'Calle Suecia', 'Av. Vicuña Mackenna', 'Calle Teatinos', 'Av. Libertador',
+  'Calle Moneda', 'Av. Grecia', 'Calle Huérfanos', 'Av. Santa Rosa',
+  'Calle Estado', 'Av. España', 'Calle Serrano', 'Av. Tobalaba',
+  'Calle Compañía', 'Av. Matta', 'Calle Agustinas', 'Av. República',
+  'Pasaje Atacama', 'Calle Catedral', 'Av. Bulnes', 'Calle Morandé',
+  'Av. Alameda', 'Calle Bandera', 'Pasaje Los Aromos', 'Calle San Martín',
+  'Av. Kennedy', 'Calle Ebro', 'Av. Cristóbal Colón', 'Calle El Bosque',
+  'Av. Ossa', 'Calle Príncipe de Gales', 'Av. Américo Vespucio', 'Calle Pocuro',
+  'Av. Pedro de Valdivia', 'Calle Los Leones', 'Av. Quilín', 'Calle Manuel Montt',
+]
+
+const COMUNAS = [
+  { nombre: 'Santiago',      region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4489, lng: -70.6693 },
+  { nombre: 'Providencia',   region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4237, lng: -70.6058 },
+  { nombre: 'Las Condes',    region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.3902, lng: -70.5737 },
+  { nombre: 'Ñuñoa',         region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4268, lng: -70.6048 },
+  { nombre: 'La Florida',    region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.5306, lng: -70.5598 },
+  { nombre: 'Maipú',         region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.5024, lng: -70.7507 },
+  { nombre: 'Puente Alto',   region: 'Región Metropolitana',         provincia: 'Cordillera',      lat: -33.6115, lng: -70.5722 },
+  { nombre: 'Vitacura',      region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.3880, lng: -70.6164 },
+  { nombre: 'Lo Barnechea',  region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.3661, lng: -70.5169 },
+  { nombre: 'San Miguel',    region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4780, lng: -70.6466 },
+  { nombre: 'Macul',         region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4897, lng: -70.5782 },
+  { nombre: 'La Reina',      region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4147, lng: -70.5479 },
+  { nombre: 'Peñalolén',     region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4566, lng: -70.5361 },
+  { nombre: 'Huechuraba',    region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.3764, lng: -70.6389 },
+  { nombre: 'Recoleta',      region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4076, lng: -70.6463 },
+  { nombre: 'Independencia', region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.3888, lng: -70.6739 },
+  { nombre: 'Conchalí',      region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.3981, lng: -70.6856 },
+  { nombre: 'Lo Prado',      region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4438, lng: -70.7243 },
+  { nombre: 'Cerro Navia',   region: 'Región Metropolitana',         provincia: 'Santiago',        lat: -33.4656, lng: -70.7355 },
+  { nombre: 'Valparaíso',    region: 'Región de Valparaíso',         provincia: 'Valparaíso',      lat: -33.0458, lng: -71.6130 },
+  { nombre: 'Viña del Mar',  region: 'Región de Valparaíso',         provincia: 'Valparaíso',      lat: -32.9814, lng: -71.5527 },
+  { nombre: 'Quilpué',       region: 'Región de Valparaíso',         provincia: 'Marga Marga',     lat: -32.9882, lng: -71.4475 },
+  { nombre: 'Villa Alemana', region: 'Región de Valparaíso',         provincia: 'Marga Marga',     lat: -32.7656, lng: -71.3380 },
+  { nombre: 'Concepción',    region: 'Región del Biobío',            provincia: 'Concepción',     lat: -36.8201, lng: -73.0447 },
+  { nombre: 'Talcahuano',    region: 'Región del Biobío',            provincia: 'Concepción',     lat: -36.7169, lng: -73.1062 },
+  { nombre: 'Chiguayante',   region: 'Región del Biobío',            provincia: 'Concepción',     lat: -36.6369, lng: -72.9930 },
+  { nombre: 'Temuco',        region: 'Región de La Araucanía',       provincia: 'Cautín',         lat: -38.7359, lng: -72.5904 },
+  { nombre: 'Antofagasta',   region: 'Región de Antofagasta',        provincia: 'Antofagasta',    lat: -23.6345, lng: -70.3997 },
+  { nombre: 'La Serena',     region: 'Región de Coquimbo',           provincia: 'Elqui',          lat: -29.9017, lng: -71.2515 },
+  { nombre: 'Coquimbo',      region: 'Región de Coquimbo',           provincia: 'Elqui',          lat: -29.9533, lng: -71.3433 },
+  { nombre: 'Rancagua',      region: 'Región del Libertador',        provincia: 'Cachapoal',      lat: -34.1701, lng: -70.7341 },
+  { nombre: 'Talca',         region: 'Región del Maule',             provincia: 'Talca',          lat: -35.4437, lng: -71.6677 },
+  { nombre: 'Chillán',       region: 'Región de Ñuble',              provincia: 'Diguillín',      lat: -36.6053, lng: -72.1032 },
+  { nombre: 'Puerto Montt',  region: 'Región de Los Lagos',          provincia: 'Llanquihue',     lat: -41.3144, lng: -72.4886 },
+  { nombre: 'Osorno',        region: 'Región de Los Lagos',          provincia: 'Osorno',         lat: -40.5748, lng: -72.5328 },
+]
+
+const PASSPORT_PREFIXES = [
+  'US', 'AR', 'PE', 'BO', 'VE', 'CO', 'EC', 'PY', 'UY', 'BR',
+  'MX', 'ES', 'IT', 'DE', 'FR', 'CN', 'HT', 'DO', 'CU', 'GT',
+]
+
+// ─── Nurse data ────────────────────────────────────────────────────────────────
 
 const nurseData = [
   { nombres: 'María José', apellidoPaterno: 'González', apellidoMaterno: 'Reyes', rut: '8.234.567-1', telefono: '+56912345001', correo: 'mjgonzalez@clinica.cl', activo: true },
@@ -57,42 +182,697 @@ const nurseData = [
   { nombres: 'Eva Soledad', apellidoPaterno: 'Donoso', apellidoMaterno: 'Arriagada', rut: '17.778.889-9', telefono: '+56912345050', correo: 'edonoso@clinica.cl', activo: true },
 ]
 
+// ─── Previsiones de salud ─────────────────────────────────────────────────────
+// Distribución aproximada de Chile: ~75% FONASA, ~20% Isapres, ~5% otros
+
+const previsionesData = [
+  // FONASA (pública) – 4 tramos
+  { nombre: 'FONASA Tramo A (Gratuito)' },
+  { nombre: 'FONASA Tramo B' },
+  { nombre: 'FONASA Tramo C' },
+  { nombre: 'FONASA Tramo D' },
+  // Isapres privadas vigentes
+  { nombre: 'Isapre Banmédica' },
+  { nombre: 'Isapre Cruz Blanca' },
+  { nombre: 'Isapre Consalud' },
+  { nombre: 'Isapre Colmena Golden Cross' },
+  { nombre: 'Isapre Vida Tres' },
+  { nombre: 'Isapre Nueva Masvida' },
+  { nombre: 'Isapre Esencial' },
+  // Sistemas especiales
+  { nombre: 'Dipreca (Fuerzas Armadas)' },
+  { nombre: 'Capredena (Carabineros de Chile)' },
+  // Sin previsión
+  { nombre: 'Particular / Sin previsión' },
+]
+
+// ─── Cadenas (redes de clínicas) ──────────────────────────────────────────────
+
+const cadenasData = [
+  { nombre: 'Clínicas Bupa Chile' },
+  { nombre: 'Red UC Christus' },
+  { nombre: 'Clínica Alemana' },
+  { nombre: 'Clínica Las Condes' },
+  { nombre: 'Clínica Indisa' },
+  { nombre: 'Clínica Bicentenario' },
+  { nombre: 'Megasalud' },
+  { nombre: 'Integramédica' },
+  { nombre: 'Hospital del Trabajador (ACHS)' },
+  { nombre: 'Red Salud UC San Carlos' },
+]
+
+// ─── Sucursales por cadena (índice 0-based en cadenasData) ───────────────────
+
+const sucursalesData = [
+  // Clínicas Bupa Chile (0)
+  { nombre: 'Clínica Santa María – Providencia', idxCadena: 0 },
+  { nombre: 'Clínica Dávila – Recoleta', idxCadena: 0 },
+  { nombre: 'Clínica Bupa Antofagasta', idxCadena: 0 },
+  { nombre: 'Clínica Bupa Viña del Mar', idxCadena: 0 },
+  { nombre: 'Clínica Bupa Concepción', idxCadena: 0 },
+
+  // Red UC Christus (1)
+  { nombre: 'Hospital Clínico UC – Macul', idxCadena: 1 },
+  { nombre: 'Clínica UC San Carlos de Apoquindo – Las Condes', idxCadena: 1 },
+  { nombre: 'Centro Médico UC Irarrázaval – Ñuñoa', idxCadena: 1 },
+  { nombre: 'Centro Médico UC San Joaquín', idxCadena: 1 },
+  { nombre: 'Centro Médico UC Kennedy – Vitacura', idxCadena: 1 },
+  { nombre: 'Centro Médico UC Marcoleta – Santiago Centro', idxCadena: 1 },
+
+  // Clínica Alemana (2)
+  { nombre: 'Clínica Alemana de Santiago – Vitacura', idxCadena: 2 },
+  { nombre: 'Clínica Alemana Temuco', idxCadena: 2 },
+  { nombre: 'Clínica Alemana Osorno', idxCadena: 2 },
+  { nombre: 'Centro Médico Alemana Valparaíso', idxCadena: 2 },
+
+  // Clínica Las Condes (3)
+  { nombre: 'Clínica Las Condes – Las Condes', idxCadena: 3 },
+  { nombre: 'CLC Centro Médico El Golf', idxCadena: 3 },
+  { nombre: 'CLC Centro Médico Apoquindo', idxCadena: 3 },
+  { nombre: 'CLC Centro Médico Escuela Militar', idxCadena: 3 },
+
+  // Clínica Indisa (4)
+  { nombre: 'Clínica Indisa – Providencia', idxCadena: 4 },
+  { nombre: 'Centro Médico Indisa Ñuñoa', idxCadena: 4 },
+  { nombre: 'Centro Médico Indisa Maipú', idxCadena: 4 },
+  { nombre: 'Centro Médico Indisa La Florida', idxCadena: 4 },
+
+  // Clínica Bicentenario (5)
+  { nombre: 'Clínica Bicentenario – Renca', idxCadena: 5 },
+  { nombre: 'Centro Médico Bicentenario Quilicura', idxCadena: 5 },
+  { nombre: 'Centro Médico Bicentenario Maipú', idxCadena: 5 },
+  { nombre: 'Centro Médico Bicentenario Pudahuel', idxCadena: 5 },
+
+  // Megasalud (6)
+  { nombre: 'Megasalud Centro – Santiago', idxCadena: 6 },
+  { nombre: 'Megasalud Providencia', idxCadena: 6 },
+  { nombre: 'Megasalud Las Condes', idxCadena: 6 },
+  { nombre: 'Megasalud Maipú', idxCadena: 6 },
+  { nombre: 'Megasalud La Florida', idxCadena: 6 },
+  { nombre: 'Megasalud Concepción', idxCadena: 6 },
+  { nombre: 'Megasalud Viña del Mar', idxCadena: 6 },
+  { nombre: 'Megasalud Antofagasta', idxCadena: 6 },
+
+  // Integramédica (7)
+  { nombre: 'Integramédica Alameda – Santiago Centro', idxCadena: 7 },
+  { nombre: 'Integramédica Providencia', idxCadena: 7 },
+  { nombre: 'Integramédica Las Condes', idxCadena: 7 },
+  { nombre: 'Integramédica Maipú', idxCadena: 7 },
+  { nombre: 'Integramédica La Florida', idxCadena: 7 },
+  { nombre: 'Integramédica Puente Alto', idxCadena: 7 },
+  { nombre: 'Integramédica Concepción', idxCadena: 7 },
+  { nombre: 'Integramédica Valparaíso', idxCadena: 7 },
+  { nombre: 'Integramédica Temuco', idxCadena: 7 },
+
+  // Hospital del Trabajador ACHS (8)
+  { nombre: 'Hospital del Trabajador Santiago – Providencia', idxCadena: 8 },
+  { nombre: 'Hospital del Trabajador Concepción', idxCadena: 8 },
+  { nombre: 'Hospital del Trabajador Antofagasta', idxCadena: 8 },
+
+  // Red Salud UC San Carlos (9)
+  { nombre: 'Clínica San Carlos de Apoquindo', idxCadena: 9 },
+  { nombre: 'Hospital Clínico UC Christus', idxCadena: 9 },
+  { nombre: 'Centro Médico San Joaquín', idxCadena: 9 },
+]
+
+// ─── Residencias adulto mayor ─────────────────────────────────────────────────
+
+const residenciasData = [
+  { nombre: 'Residencia El Bosque – Las Condes' },
+  { nombre: 'Hogar San José – Providencia' },
+  { nombre: 'Residencia Los Abuelos – Maipú' },
+  { nombre: 'Casas del Lago – Vitacura' },
+  { nombre: 'Residencia Santa Marta – La Reina' },
+  { nombre: 'Hogar Buen Pastor – Ñuñoa' },
+  { nombre: 'Residencia Jardín de los Años – La Florida' },
+  { nombre: 'Hogar Amor y Vida – Santiago Centro' },
+  { nombre: 'Residencia Los Almendros – Concepción' },
+  { nombre: 'Hogar San Francisco – Valparaíso' },
+  { nombre: 'Residencia El Mirador – Temuco' },
+  { nombre: 'Hogar Los Olivos – Viña del Mar' },
+]
+
+// ─── Procedimientos de enfermería (~100) ─────────────────────────────────────
+
+const procedimientosData = [
+  // Curaciones
+  { nombre: 'Curación simple', codigo: 'ENF-001' },
+  { nombre: 'Curación compleja', codigo: 'ENF-002' },
+  { nombre: 'Curación de úlcera por presión', codigo: 'ENF-003' },
+  { nombre: 'Curación de herida quirúrgica', codigo: 'ENF-004' },
+  { nombre: 'Curación de pie diabético', codigo: 'ENF-005' },
+  { nombre: 'Curación de quemadura', codigo: 'ENF-006' },
+  { nombre: 'Desbridamiento de herida', codigo: 'ENF-007' },
+  // Vendajes
+  { nombre: 'Vendaje simple', codigo: 'ENF-008' },
+  { nombre: 'Vendaje compresivo', codigo: 'ENF-009' },
+  { nombre: 'Vendaje elástico de extremidad inferior', codigo: 'ENF-010' },
+  { nombre: 'Inmovilización con vendaje enyesado', codigo: 'ENF-011' },
+  // Administración de medicamentos
+  { nombre: 'Inyectable intramuscular', codigo: 'ENF-012' },
+  { nombre: 'Inyectable subcutáneo', codigo: 'ENF-013' },
+  { nombre: 'Inyectable intradérmico', codigo: 'ENF-014' },
+  { nombre: 'Administración endovenosa en bolo', codigo: 'ENF-015' },
+  { nombre: 'Administración de medicamentos orales', codigo: 'ENF-016' },
+  { nombre: 'Administración de medicamentos sublinguales', codigo: 'ENF-017' },
+  { nombre: 'Administración de medicamentos por sonda', codigo: 'ENF-018' },
+  { nombre: 'Infusión endovenosa continua', codigo: 'ENF-019' },
+  { nombre: 'Preparación de medicamentos parenterales', codigo: 'ENF-020' },
+  // Catéteres y vías
+  { nombre: 'Instalación de vía venosa periférica', codigo: 'ENF-021' },
+  { nombre: 'Retiro de vía venosa periférica', codigo: 'ENF-022' },
+  { nombre: 'Instalación de catéter venoso central (CVC)', codigo: 'ENF-023' },
+  { nombre: 'Curación de catéter venoso central', codigo: 'ENF-024' },
+  { nombre: 'Instalación de catéter PICC', codigo: 'ENF-025' },
+  { nombre: 'Flush de catéter PICC', codigo: 'ENF-026' },
+  // Sondas y drenajes
+  { nombre: 'Instalación de sonda Foley', codigo: 'ENF-027' },
+  { nombre: 'Retiro de sonda Foley', codigo: 'ENF-028' },
+  { nombre: 'Cambio de sonda Foley', codigo: 'ENF-029' },
+  { nombre: 'Instalación de sonda nasogástrica', codigo: 'ENF-030' },
+  { nombre: 'Retiro de sonda nasogástrica', codigo: 'ENF-031' },
+  { nombre: 'Instalación de sonda de gastrostomía', codigo: 'ENF-032' },
+  { nombre: 'Irrigación vesical', codigo: 'ENF-033' },
+  { nombre: 'Lavado gástrico', codigo: 'ENF-034' },
+  // Ostomías
+  { nombre: 'Cambio de bolsa de colostomía', codigo: 'ENF-035' },
+  { nombre: 'Cambio de bolsa de ileostomía', codigo: 'ENF-036' },
+  { nombre: 'Curación de estoma', codigo: 'ENF-037' },
+  { nombre: 'Educación en manejo de ostomía', codigo: 'ENF-038' },
+  // Signos vitales y monitoreo
+  { nombre: 'Control de signos vitales', codigo: 'ENF-039' },
+  { nombre: 'Medición de presión arterial', codigo: 'ENF-040' },
+  { nombre: 'Toma de electrocardiograma (ECG)', codigo: 'ENF-041' },
+  { nombre: 'Oximetría de pulso', codigo: 'ENF-042' },
+  { nombre: 'Control de glicemia capilar', codigo: 'ENF-043' },
+  { nombre: 'Control de temperatura', codigo: 'ENF-044' },
+  { nombre: 'Balance hídrico', codigo: 'ENF-045' },
+  // Vía aérea y respiratorio
+  { nombre: 'Nebulización', codigo: 'ENF-046' },
+  { nombre: 'Oxigenoterapia con mascarilla', codigo: 'ENF-047' },
+  { nombre: 'Oxigenoterapia con cánula nasal', codigo: 'ENF-048' },
+  { nombre: 'Aspiración de secreciones orofaríngeas', codigo: 'ENF-049' },
+  { nombre: 'Aspiración de secreciones traqueales', codigo: 'ENF-050' },
+  { nombre: 'Cuidado de traqueostomía', codigo: 'ENF-051' },
+  { nombre: 'Cambio de cánula de traqueostomía', codigo: 'ENF-052' },
+  { nombre: 'Kinesioterapia respiratoria', codigo: 'ENF-053' },
+  // Higiene y confort
+  { nombre: 'Baño en cama', codigo: 'ENF-054' },
+  { nombre: 'Higiene oral', codigo: 'ENF-055' },
+  { nombre: 'Lavado de cabello en cama', codigo: 'ENF-056' },
+  { nombre: 'Cuidado de piel y masajes preventivos', codigo: 'ENF-057' },
+  { nombre: 'Cambio de posición y movilización', codigo: 'ENF-058' },
+  // Nutricional
+  { nombre: 'Alimentación enteral continua por SNG', codigo: 'ENF-059' },
+  { nombre: 'Alimentación enteral en bolo', codigo: 'ENF-060' },
+  { nombre: 'Preparación y administración de nutrición parenteral', codigo: 'ENF-061' },
+  // Rehabilitación
+  { nombre: 'Ejercicios de rango de movimiento pasivo', codigo: 'ENF-062' },
+  { nombre: 'Ejercicios de rango de movimiento activo asistido', codigo: 'ENF-063' },
+  { nombre: 'Apoyo en marcha y traslado', codigo: 'ENF-064' },
+  { nombre: 'Prevención de úlceras por presión', codigo: 'ENF-065' },
+  // Procedimientos especiales
+  { nombre: 'Toma de muestra para hemocultivo', codigo: 'ENF-066' },
+  { nombre: 'Punción venosa para exámenes de laboratorio', codigo: 'ENF-067' },
+  { nombre: 'Extracción de sutura o grapa', codigo: 'ENF-068' },
+  { nombre: 'Instalación y retiro de apósito oclusivo', codigo: 'ENF-069' },
+  { nombre: 'Lavado de oído', codigo: 'ENF-070' },
+  { nombre: 'Instilación de colirio', codigo: 'ENF-071' },
+  { nombre: 'Instilación de gotas óticas', codigo: 'ENF-072' },
+  { nombre: 'Aplicación de parche transdérmico', codigo: 'ENF-073' },
+  { nombre: 'Enema evacuante', codigo: 'ENF-074' },
+  { nombre: 'Extracción manual de fecaloma', codigo: 'ENF-075' },
+  { nombre: 'Aplicación de TENS (electroterapia)', codigo: 'ENF-076' },
+  { nombre: 'Crioterapia', codigo: 'ENF-077' },
+  { nombre: 'Termoterapia superficial', codigo: 'ENF-078' },
+  // Educación y seguimiento
+  { nombre: 'Educación al paciente sobre medicamentos', codigo: 'ENF-079' },
+  { nombre: 'Educación al cuidador principal', codigo: 'ENF-080' },
+  { nombre: 'Valoración de riesgo de caídas', codigo: 'ENF-081' },
+  { nombre: 'Valoración de riesgo de úlceras por presión (Braden)', codigo: 'ENF-082' },
+  { nombre: 'Valoración funcional del adulto mayor', codigo: 'ENF-083' },
+  { nombre: 'Valoración del dolor (escala EVA)', codigo: 'ENF-084' },
+  { nombre: 'Control y registro de diuresis', codigo: 'ENF-085' },
+  { nombre: 'Control y registro de deposiciones', codigo: 'ENF-086' },
+  // Procedimientos especializados
+  { nombre: 'Cuidados de herida por cirugía laparoscópica', codigo: 'ENF-087' },
+  { nombre: 'Instalación de sistema de vacío (VAC)', codigo: 'ENF-088' },
+  { nombre: 'Cambio de sistema de vacío (VAC)', codigo: 'ENF-089' },
+  { nombre: 'Fototerapia domiciliaria', codigo: 'ENF-090' },
+  { nombre: 'Aplicación de ozono tópico', codigo: 'ENF-091' },
+  { nombre: 'Inserción de catéter suprapúbico (curación)', codigo: 'ENF-092' },
+  { nombre: 'Control de sitio de fijador externo', codigo: 'ENF-093' },
+  { nombre: 'Instalación de bomba de insulina', codigo: 'ENF-094' },
+  { nombre: 'Educación en uso de bomba de insulina', codigo: 'ENF-095' },
+  { nombre: 'Cuidados paliativos domiciliarios', codigo: 'ENF-096' },
+  { nombre: 'Infusión de quimioterapia oral (supervisión)', codigo: 'ENF-097' },
+  { nombre: 'Control de sonda de gastrostomía percutánea', codigo: 'ENF-098' },
+  { nombre: 'Colocación de media de compresión', codigo: 'ENF-099' },
+  { nombre: 'Visita de evaluación inicial domiciliaria', codigo: 'ENF-100' },
+]
+
+// ─── Exámenes de laboratorio y diagnóstico (~100) ────────────────────────────
+
+const examenesData = [
+  // Hematología
+  { nombre: 'Hemograma completo', codigo: 'LAB-001' },
+  { nombre: 'VHS (velocidad de hemosedimentación)', codigo: 'LAB-002' },
+  { nombre: 'Recuento de reticulocitos', codigo: 'LAB-003' },
+  { nombre: 'Perfil de coagulación (TTPA, TP)', codigo: 'LAB-004' },
+  { nombre: 'INR', codigo: 'LAB-005' },
+  { nombre: 'Tiempo de protrombina (TP)', codigo: 'LAB-006' },
+  { nombre: 'Dímero D', codigo: 'LAB-007' },
+  { nombre: 'Fibrinógeno', codigo: 'LAB-008' },
+  { nombre: 'Recuento de plaquetas', codigo: 'LAB-009' },
+  { nombre: 'Frotis de sangre periférica', codigo: 'LAB-010' },
+  // Bioquímica básica
+  { nombre: 'Glicemia en ayunas', codigo: 'LAB-011' },
+  { nombre: 'Hemoglobina glicosilada (HbA1c)', codigo: 'LAB-012' },
+  { nombre: 'Curva de tolerancia a la glucosa', codigo: 'LAB-013' },
+  { nombre: 'Creatinina sérica', codigo: 'LAB-014' },
+  { nombre: 'Uremia (nitrógeno ureico – BUN)', codigo: 'LAB-015' },
+  { nombre: 'Ácido úrico', codigo: 'LAB-016' },
+  { nombre: 'Clearance de creatinina (orina 24 h)', codigo: 'LAB-017' },
+  { nombre: 'Cistatina C', codigo: 'LAB-018' },
+  { nombre: 'Proteínas totales', codigo: 'LAB-019' },
+  { nombre: 'Albúmina sérica', codigo: 'LAB-020' },
+  // Perfil lipídico
+  { nombre: 'Colesterol total', codigo: 'LAB-021' },
+  { nombre: 'Colesterol HDL', codigo: 'LAB-022' },
+  { nombre: 'Colesterol LDL (directo)', codigo: 'LAB-023' },
+  { nombre: 'Triglicéridos', codigo: 'LAB-024' },
+  { nombre: 'Perfil lipídico completo', codigo: 'LAB-025' },
+  // Perfil hepático
+  { nombre: 'GOT / AST', codigo: 'LAB-026' },
+  { nombre: 'GPT / ALT', codigo: 'LAB-027' },
+  { nombre: 'GGT', codigo: 'LAB-028' },
+  { nombre: 'Fosfatasa alcalina', codigo: 'LAB-029' },
+  { nombre: 'Bilirrubina total y fraccionada', codigo: 'LAB-030' },
+  { nombre: 'LDH (deshidrogenasa láctica)', codigo: 'LAB-031' },
+  // Electrolitos y minerales
+  { nombre: 'Sodio sérico', codigo: 'LAB-032' },
+  { nombre: 'Potasio sérico', codigo: 'LAB-033' },
+  { nombre: 'Cloro sérico', codigo: 'LAB-034' },
+  { nombre: 'Calcio sérico', codigo: 'LAB-035' },
+  { nombre: 'Fósforo sérico', codigo: 'LAB-036' },
+  { nombre: 'Magnesio sérico', codigo: 'LAB-037' },
+  { nombre: 'Hierro sérico', codigo: 'LAB-038' },
+  { nombre: 'Ferritina', codigo: 'LAB-039' },
+  { nombre: 'Transferrina', codigo: 'LAB-040' },
+  { nombre: 'TIBC (capacidad total de fijación de hierro)', codigo: 'LAB-041' },
+  // Vitaminas y hormonas
+  { nombre: 'Vitamina D (25-OH)', codigo: 'LAB-042' },
+  { nombre: 'Vitamina B12', codigo: 'LAB-043' },
+  { nombre: 'Ácido fólico', codigo: 'LAB-044' },
+  { nombre: 'TSH (hormona estimulante de tiroides)', codigo: 'LAB-045' },
+  { nombre: 'T3 libre', codigo: 'LAB-046' },
+  { nombre: 'T4 libre', codigo: 'LAB-047' },
+  { nombre: 'Anticuerpos anti-TPO', codigo: 'LAB-048' },
+  { nombre: 'Anticuerpos anti-tiroglobulina', codigo: 'LAB-049' },
+  // Marcadores inflamatorios e infecciosos
+  { nombre: 'PCR (proteína C reactiva)', codigo: 'LAB-050' },
+  { nombre: 'PCR ultrasensible', codigo: 'LAB-051' },
+  { nombre: 'Procalcitonina', codigo: 'LAB-052' },
+  { nombre: 'Interleuquina 6 (IL-6)', codigo: 'LAB-053' },
+  // Orina
+  { nombre: 'Orina completa (uroanálisis)', codigo: 'LAB-054' },
+  { nombre: 'Urocultivo con antibiograma', codigo: 'LAB-055' },
+  { nombre: 'Proteinuria en orina 24 h', codigo: 'LAB-056' },
+  { nombre: 'Microalbuminuria', codigo: 'LAB-057' },
+  { nombre: 'Creatinina en orina', codigo: 'LAB-058' },
+  { nombre: 'Sedimento urinario', codigo: 'LAB-059' },
+  // Microbiología
+  { nombre: 'Hemocultivo (par)', codigo: 'LAB-060' },
+  { nombre: 'Cultivo de secreción de herida', codigo: 'LAB-061' },
+  { nombre: 'Cultivo de catéter', codigo: 'LAB-062' },
+  { nombre: 'Coprocultivo', codigo: 'LAB-063' },
+  { nombre: 'Test para Helicobacter pylori (antígeno en deposiciones)', codigo: 'LAB-064' },
+  { nombre: 'Cultivo de secreción bronquial', codigo: 'LAB-065' },
+  { nombre: 'Panel respiratorio viral (PCR múltiple)', codigo: 'LAB-066' },
+  { nombre: 'Test COVID-19 (PCR)', codigo: 'LAB-067' },
+  { nombre: 'Test de influenza A/B (antígeno)', codigo: 'LAB-068' },
+  // Serología e inmunología
+  { nombre: 'VDRL / RPR (sífilis)', codigo: 'LAB-069' },
+  { nombre: 'VIH (Elisa 4.ª generación)', codigo: 'LAB-070' },
+  { nombre: 'Hepatitis B (HBsAg)', codigo: 'LAB-071' },
+  { nombre: 'Anti-HBs (anticuerpos hepatitis B)', codigo: 'LAB-072' },
+  { nombre: 'Anti-HCV (hepatitis C)', codigo: 'LAB-073' },
+  { nombre: 'IgE total', codigo: 'LAB-074' },
+  { nombre: 'ANA (anticuerpos antinucleares)', codigo: 'LAB-075' },
+  { nombre: 'Anti-DNA doble cadena', codigo: 'LAB-076' },
+  { nombre: 'Factor reumatoide', codigo: 'LAB-077' },
+  { nombre: 'Anti-CCP (artritis reumatoide)', codigo: 'LAB-078' },
+  // Marcadores tumorales
+  { nombre: 'PSA total (próstata)', codigo: 'LAB-079' },
+  { nombre: 'PSA libre', codigo: 'LAB-080' },
+  { nombre: 'CEA (antígeno carcinoembrionario)', codigo: 'LAB-081' },
+  { nombre: 'AFP (alfa-fetoproteína)', codigo: 'LAB-082' },
+  { nombre: 'CA 19-9', codigo: 'LAB-083' },
+  { nombre: 'CA 125', codigo: 'LAB-084' },
+  { nombre: 'CA 15-3', codigo: 'LAB-085' },
+  { nombre: 'Beta-HCG cuantitativa', codigo: 'LAB-086' },
+  // Cardíaco
+  { nombre: 'Troponina I ultrasensible', codigo: 'LAB-087' },
+  { nombre: 'BNP / NT-proBNP (insuficiencia cardíaca)', codigo: 'LAB-088' },
+  { nombre: 'CK total', codigo: 'LAB-089' },
+  { nombre: 'CK-MB', codigo: 'LAB-090' },
+  { nombre: 'Mioglobina', codigo: 'LAB-091' },
+  // Hormonas especiales
+  { nombre: 'Cortisol basal', codigo: 'LAB-092' },
+  { nombre: 'FSH', codigo: 'LAB-093' },
+  { nombre: 'LH', codigo: 'LAB-094' },
+  { nombre: 'Estradiol', codigo: 'LAB-095' },
+  { nombre: 'Testosterona total', codigo: 'LAB-096' },
+  { nombre: 'Prolactina', codigo: 'LAB-097' },
+  { nombre: 'IGF-1 (factor de crecimiento)', codigo: 'LAB-098' },
+  // Toma en domicilio
+  { nombre: 'Toma de muestra en domicilio (varios)', codigo: 'LAB-099' },
+  { nombre: 'Panel metabólico completo', codigo: 'LAB-100' },
+]
+
+// ─── Orígenes de contacto ─────────────────────────────────────────────────────
+
+const origenesContactoData = [
+  { nombre: 'Bionet' },
+  { nombre: 'Facebook' },
+  { nombre: 'Instagram' },
+  { nombre: 'Integramédica' },
+  { nombre: 'Militar' },
+  { nombre: 'Paciente antiguo' },
+  { nombre: 'Publicidad Aauto' },
+  { nombre: 'PUC' },
+  { nombre: 'RAM' },
+  { nombre: 'Recomendación de un amigo/familiar' },
+  { nombre: 'Sitio Web' },
+  { nombre: 'Tabancura' },
+  { nombre: 'U Andes' },
+]
+
+// ─── Patient generators ───────────────────────────────────────────────────────
+
+const TOTAL_PATIENTS = 1000
+const RUT_COUNT = 850  // rest get passport
+
+function normalize(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+function buildBirthDate(i: number): string {
+  const h = ((i + 1) * 2654435761) >>> 0
+  const pct = h % 100
+  let year: number
+  if (pct < 10) year = 1995 + (h % 29)   // jóvenes: 1995–2023
+  else if (pct < 30) year = 1964 + (h % 31)  // adultos: 1964–1994
+  else year = 1926 + (h % 38)              // adultos mayores: 1926–1963
+  const month = ((h >>> 4) % 12) + 1
+  const day = ((h >>> 8) % 28) + 1
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function buildAddress(i: number) {
+  const calle = pick(CALLES, i, 0)
+  const numero = String(100 + (((i + 1) * 37) % 9900))
+  const comuna = pick(COMUNAS, i, 4) as typeof COMUNAS[0]
+  // Add slight random variation to coordinates within the commune (±0.02 degrees ≈ ±2km)
+  const latVariation = (Math.random() - 0.5) * 0.04
+  const lngVariation = (Math.random() - 0.5) * 0.04
+  return {
+    direccion: `${calle} ${numero}, ${comuna.nombre}`,
+    direccionFormateada: `${calle} ${numero}, ${comuna.nombre}, ${comuna.region}`,
+    numero,
+    calle,
+    localidad: comuna.nombre,
+    areaAdministrativa1: comuna.region,
+    areaAdministrativa2: comuna.provincia,
+    areaAdministrativa3: comuna.nombre,
+    pais: 'Chile',
+    latitud: String((comuna.lat + latVariation).toFixed(8)),
+    longitud: String((comuna.lng + lngVariation).toFixed(8)),
+  }
+}
+
+function buildPatient(
+  i: number,
+  addressId: number,
+  previsionIds: number[],
+  residenciaIds: number[],
+) {
+  const isMale = i % 2 === 0
+  const nombre = isMale ? pick(NOMBRES_M, i, 0) : pick(NOMBRES_F, i, 0)
+  const apellidoPaterno = pick(APELLIDOS, i, 1)
+  const apellidoMaterno = pick(APELLIDOS, i, 2)
+
+  let identificador: string | null
+  let tipoIdentificador: string | null
+  if (i < RUT_COUNT) {
+    // Generate RUT without dots/hyphens (normalized format)
+    const rutNumber = 5_000_001 + i * 19
+    function calcRutDV(n: number): string {
+      let sum = 0, m = 2
+      while (n > 0) {
+        sum += (n % 10) * m
+        n = Math.floor(n / 10)
+        m = m === 7 ? 2 : m + 1
+      }
+      const r = 11 - (sum % 11)
+      if (r === 11) return '0'
+      if (r === 10) return 'K'
+      return String(r)
+    }
+    identificador = String(rutNumber) + calcRutDV(rutNumber)
+    tipoIdentificador = 'rut'
+  } else {
+    const prefix = pick(PASSPORT_PREFIXES, i, 5)
+    const digits = String(1000000 + (((i - RUT_COUNT) * 7919 + 54321) % 9000000)).slice(0, 7)
+    identificador = `${prefix}${digits}`.toUpperCase()
+    tipoIdentificador = 'pasaporte'
+  }
+
+  const hasEmail = i % 10 < 7
+  const correo = hasEmail
+    ? `${normalize(nombre).replace(/\s/g, '.')}.${normalize(apellidoPaterno)}${i}@mail.cl`
+    : null
+
+  const hasContact = i % 5 === 0
+  const contactoNombre = hasContact
+    ? `${pick(NOMBRES_F, i, 9)} ${pick(APELLIDOS, i, 10)}`
+    : null
+  const contactoTelefono = hasContact
+    ? `+569${String(90000000 + ((i * 13337) % 9999999)).slice(0, 8)}`
+    : null
+
+  // Previsión de salud: distribución realista (75% FONASA, 20% Isapre, 5% otros)
+  // previsionIds[0-3] = FONASA A/B/C/D, [4-10] = Isapres, [11-13] = otros
+  const h = ((i + 7) * 1234567) >>> 0
+  const pct = h % 100
+  let idCompaniaSeguro: number
+  if (pct < 20) {
+    idCompaniaSeguro = previsionIds[0]! // FONASA A
+  } else if (pct < 40) {
+    idCompaniaSeguro = previsionIds[1]! // FONASA B
+  } else if (pct < 55) {
+    idCompaniaSeguro = previsionIds[2]! // FONASA C
+  } else if (pct < 75) {
+    idCompaniaSeguro = previsionIds[3]! // FONASA D
+  } else if (pct < 82) {
+    idCompaniaSeguro = pick(previsionIds.slice(4, 11), i, 3)! // Isapre aleatoria
+  } else if (pct < 90) {
+    idCompaniaSeguro = pick(previsionIds.slice(4, 11), i, 7)! // Isapre aleatoria
+  } else if (pct < 93) {
+    idCompaniaSeguro = previsionIds[11]! // Dipreca
+  } else if (pct < 96) {
+    idCompaniaSeguro = previsionIds[12]! // Capredena
+  } else {
+    idCompaniaSeguro = previsionIds[13]! // Particular
+  }
+
+  // Residencia adulto mayor: ~10% de pacientes (mayoritariamente los mayores)
+  // Asignamos residencia a cada ~10mo paciente
+  const idResidenciaAdulto = (i % 10 === 3)
+    ? pick(residenciaIds, i, 2)
+    : null
+
+  return {
+    identificador,
+    tipoIdentificador,
+    nombres: nombre,
+    apellidoPaterno,
+    apellidoMaterno,
+    fechaNacimiento: buildBirthDate(i),
+    correo,
+    idDireccion: addressId,
+    idCompaniaSeguro,
+    idResidenciaAdulto,
+    contactoNombre,
+    contactoTelefono,
+  }
+}
+
+// ─── Seed ─────────────────────────────────────────────────────────────────────
+
 async function seed() {
   console.log('🌱 Seeding database...')
 
+  // Orden de borrado respetando FK
+  await db.delete(visitExams)
+  await db.delete(visitProcedures)
+  await db.delete(visits)
+  await db.delete(patientPhones)
+  await db.delete(patients)
+  await db.delete(addresses)
   await db.delete(nurses)
+  await db.delete(branches)
+  await db.delete(laboratories)
+  await db.delete(healthInsurances)
+  await db.delete(elderlyResidences)
+  await db.delete(procedures)
+  await db.delete(exams)
+  await db.delete(contactOrigins)
   await db.delete(users)
 
+  // Usuarios del sistema
   const adminHash = await bcrypt.hash('admin123', 10)
   const userHash = await bcrypt.hash('user123', 10)
-
   await db.insert(users).values([
-    {
-      nombre: 'Administrador',
-      correo: 'admin@homelab.cl',
-      contrasena: adminHash,
-      rol: 'admin',
-      activo: true,
-    },
-    {
-      nombre: 'Usuario Demo',
-      correo: 'usuario@homelab.cl',
-      contrasena: userHash,
-      rol: 'usuario',
-      activo: true,
-    },
+    { nombre: 'Administrador', correo: 'admin@homelab.cl', contrasena: adminHash, rol: 'admin', activo: true },
+    { nombre: 'Usuario Demo',  correo: 'usuario@homelab.cl', contrasena: userHash, rol: 'usuario', activo: true },
   ])
 
-  await db.insert(nurses).values(nurseData)
+  // Previsiones de salud
+  console.log(`   Insertando ${previsionesData.length} previsiones de salud...`)
+  const insertedPrevisiones = await db.insert(healthInsurances).values(previsionesData).returning({ id: healthInsurances.id })
+  const previsionIds = insertedPrevisiones.map(r => r.id)
+
+  // Residencias adulto mayor
+  console.log(`   Insertando ${residenciasData.length} residencias de adulto mayor...`)
+  const insertedResidencias = await db.insert(elderlyResidences).values(residenciasData).returning({ id: elderlyResidences.id })
+  const residenciaIds = insertedResidencias.map(r => r.id)
+
+  // Cadenas (laboratorios)
+  console.log(`   Insertando ${cadenasData.length} cadenas de clínicas...`)
+  const insertedCadenas = await db.insert(laboratories).values(cadenasData).returning({ id: laboratories.id })
+  const cadenaIds = insertedCadenas.map(r => r.id)
+
+  // Sucursales
+  const sucursalesRows = sucursalesData.map(s => ({
+    nombre: s.nombre,
+    idLaboratorio: cadenaIds[s.idxCadena]!,
+  }))
+  console.log(`   Insertando ${sucursalesRows.length} sucursales...`)
+  await db.insert(branches).values(sucursalesRows)
+
+  // Procedimientos
+  console.log(`   Insertando ${procedimientosData.length} procedimientos...`)
+  await db.insert(procedures).values(procedimientosData)
+
+  // Exámenes
+  console.log(`   Insertando ${examenesData.length} exámenes...`)
+  await db.insert(exams).values(examenesData)
+
+  // Orígenes de contacto
+  console.log(`   Insertando ${origenesContactoData.length} orígenes de contacto...`)
+  await db.insert(contactOrigins).values(origenesContactoData)
+
+  // Enfermeras
+  await db.insert(nurses).values(nurseData.map(n => ({ ...n, rut: n.rut?.replace(/[.\-]/g, '') ?? null })))
+
+  // Direcciones (una por paciente)
+  console.log(`   Insertando ${TOTAL_PATIENTS} direcciones...`)
+  const addressRows = Array.from({ length: TOTAL_PATIENTS }, (_, i) => buildAddress(i))
+  const insertedAddresses = await db.insert(addresses).values(addressRows).returning({ id: addresses.id })
+
+  // Pacientes
+  console.log(`   Insertando ${TOTAL_PATIENTS} pacientes...`)
+  const patientRows = insertedAddresses.map(({ id }, i) => buildPatient(i, id, previsionIds, residenciaIds))
+  const BATCH = 100
+  for (let offset = 0; offset < patientRows.length; offset += BATCH) {
+    await db.insert(patients).values(patientRows.slice(offset, offset + BATCH))
+  }
+
+  const rutCount = patientRows.filter(p => p.tipoIdentificador === 'rut').length
+  const passportCount = patientRows.filter(p => p.tipoIdentificador === 'pasaporte').length
+  const residenciaCount = patientRows.filter(p => p.idResidenciaAdulto !== null).length
+
+  // Distribución de previsiones
+  const prevDist: Record<number, number> = {}
+  patientRows.forEach(p => { prevDist[p.idCompaniaSeguro] = (prevDist[p.idCompaniaSeguro] ?? 0) + 1 })
+  const fonasaCount = (prevDist[previsionIds[0]!] ?? 0) + (prevDist[previsionIds[1]!] ?? 0) +
+                      (prevDist[previsionIds[2]!] ?? 0) + (prevDist[previsionIds[3]!] ?? 0)
+  const isapreCount = previsionIds.slice(4, 11).reduce((s, id) => s + (prevDist[id] ?? 0), 0)
+  const otrosCount  = TOTAL_PATIENTS - fonasaCount - isapreCount
+
+  // Visitas sin asignación de enfermeras (24-30 marzo 2026, 40 visitas/día)
+  const allPatients = await db.select({ id: patients.id }).from(patients)
+  const allBranches = await db.select({ id: branches.id }).from(branches)
+
+  if (allPatients.length > 0 && allBranches.length > 0) {
+    const visitRows: Array<{
+      fecha: string
+      hora: string
+      estado: string
+      costo: number
+      idPaciente: number
+      idEnfermera: null
+      idSucursal: number
+      numeroBoleta: string
+      tipoDocumento: string
+      origenContacto: string
+      informacionAdicional: string
+    }> = []
+    const startDate = new Date(2026, 2, 24) // Marzo 24, 2026
+    const endDate = new Date(2026, 2, 30)   // Marzo 30, 2026
+
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const fecha = d.toISOString().split('T')[0]!
+      for (let i = 0; i < 40; i++) {
+        const patientId = allPatients[i % allPatients.length]!.id
+        const branchId = allBranches[i % allBranches.length]!.id
+        const hour = Math.floor(Math.random() * 24).toString().padStart(2, '0')
+        const minute = Math.floor(Math.random() * 60).toString().padStart(2, '0')
+        const second = '00'
+        visitRows.push({
+          fecha,
+          hora: `${hour}:${minute}:${second}`,
+          estado: 'creada',
+          costo: Math.floor(Math.random() * 100000) + 20000,
+          idPaciente: patientId,
+          idEnfermera: null,
+          idSucursal: branchId,
+          numeroBoleta: '',
+          tipoDocumento: '',
+          origenContacto: 'Sistema',
+          informacionAdicional: '',
+        })
+      }
+    }
+
+    console.log(`   Insertando ${visitRows.length} visitas sin asignación de enfermeras...`)
+    const VISIT_BATCH = 100
+    for (let offset = 0; offset < visitRows.length; offset += VISIT_BATCH) {
+      await db.insert(visits).values(visitRows.slice(offset, offset + VISIT_BATCH))
+    }
+  }
+
+  const visitsCount = allPatients.length > 0 && allBranches.length > 0 ? 7 * 40 : 0
 
   console.log('✅ Seed completado:')
   console.log('   admin@homelab.cl   / admin123  (rol: admin)')
   console.log('   usuario@homelab.cl / user123   (rol: usuario)')
-  console.log(`   ${nurseData.length} enfermeras insertadas (${nurseData.filter(n => !n.activo).length} inactivas)`)
+  console.log(`   ${nurseData.length} enfermeras (${nurseData.filter(n => !n.activo).length} inactivas)`)
+  console.log(`   ${TOTAL_PATIENTS} pacientes → ${rutCount} con RUT · ${passportCount} con pasaporte`)
+  console.log(`   Previsión → FONASA: ${fonasaCount} · Isapre: ${isapreCount} · Otros: ${otrosCount}`)
+  console.log(`   ${residenciaCount} pacientes en residencia adulto mayor`)
+  console.log(`   ${visitsCount} visitas sin asignación de enfermeras (24-30 mar 2026, 40/día)`)
+  console.log(`   ${previsionesData.length} previsiones de salud`)
+  console.log(`   ${cadenasData.length} cadenas · ${sucursalesRows.length} sucursales`)
+  console.log(`   ${procedimientosData.length} procedimientos · ${examenesData.length} exámenes`)
+  console.log(`   ${residenciasData.length} residencias adulto mayor`)
+  console.log(`   ${origenesContactoData.length} orígenes de contacto`)
   process.exit(0)
 }
 
 seed().catch((err) => {
-  console.error('❌ Seed fallido:', err)
+  console.error('❌ Seed fallido:', err?.message ?? err)
+  if (err?.cause) console.error('   Causa:', err.cause)
   process.exit(1)
 })

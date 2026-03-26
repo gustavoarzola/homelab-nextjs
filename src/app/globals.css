@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "react-day-picker/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -57,6 +58,14 @@
   --chart-5: oklch(0.645 0.246 16.439);
 }
 
+.rdp-root {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--accent);
+  --rdp-range_start-color: var(--primary-foreground);
+  --rdp-range_end-color: var(--primary-foreground);
+  --rdp-today-color: var(--accent-foreground);
+}
+
 @layer base {
   * {
     border-color: var(--border);
@@ -67,3 +76,4 @@
     color: var(--foreground);
   }
 }
+

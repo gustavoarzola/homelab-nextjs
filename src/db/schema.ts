@@ -88,7 +88,8 @@ export const patients = pgTable(
   'pacientes',
   {
     id: serial('id').primaryKey(),
-    rut: varchar('rut', { length: 200 }).unique(),
+    identificador: varchar('identificador', { length: 200 }).unique(),
+    tipoIdentificador: varchar('tipo_identificador', { length: 20 }),
     nombres: varchar('nombres', { length: 200 }).notNull(),
     apellidoPaterno: varchar('apellido_paterno', { length: 200 }).default(''),
     apellidoMaterno: varchar('apellido_materno', { length: 200 }).default(''),
@@ -98,6 +99,9 @@ export const patients = pgTable(
     idDireccion: integer('id_direccion').notNull(),
     idCompaniaSeguro: integer('id_compania_seguro'),
     idResidenciaAdulto: integer('id_residencia_adulto'),
+    contactoNombre: varchar('contacto_nombre', { length: 100 }),
+    contactoTelefono: varchar('contacto_telefono', { length: 20 }),
+    contactoInfo: text('contacto_info'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -105,26 +109,6 @@ export const patients = pgTable(
     foreignKey({ columns: [table.idDireccion], foreignColumns: [addresses.id] })
       .onDelete('restrict'),
     index('pacientes_apellido_paterno_idx').on(table.apellidoPaterno),
-  ]
-)
-
-// ============================================================================
-// 5. Contacto - Contacto de emergencia del paciente (uno por paciente)
-// ============================================================================
-export const contacts = pgTable(
-  'contactos',
-  {
-    id: serial('id').primaryKey(),
-    nombre: varchar('nombre', { length: 50 }).notNull(),
-    telefono: varchar('telefono', { length: 20 }),
-    informacionAdicional: text('informacion_adicional'),
-    idPaciente: integer('id_paciente').notNull().unique(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => [
-    foreignKey({ columns: [table.idPaciente], foreignColumns: [patients.id] })
-      .onDelete('cascade'),
   ]
 )
 

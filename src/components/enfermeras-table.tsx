@@ -2,6 +2,7 @@
 
 import { DataTable, type ColumnDef, type FilterDef, type FormFieldDef, type Result, type SearchParams } from './data-table'
 import type { NurseRow } from '@/lib/actions/enfermeras'
+import { formatRut } from '@/lib/rut'
 
 type Props = {
   initialData: { rows: NurseRow[]; total: number }
@@ -31,7 +32,7 @@ const columns: ColumnDef<NurseRow>[] = [
     enableSorting: true,
     cell: ({ row }) => (
       <span style={{ color: row.original.rut ? 'inherit' : 'var(--muted-foreground)' }}>
-        {row.original.rut ?? '—'}
+        {row.original.rut ? formatRut(row.original.rut) : '—'}
       </span>
     ),
   },

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, afterAll } from 'vitest'
 import { db } from '@/db'
 import { laboratories, branches } from '@/db/schema'
@@ -7,9 +8,9 @@ import { P, fd } from './helpers'
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import {
-  createCadena,
-  updateCadena,
-  toggleCadena,
+  createLaboratorio,
+  updateLaboratorio,
+  toggleLaboratorio,
   createSucursal,
   updateSucursal,
   toggleSucursal,
@@ -24,8 +25,8 @@ async function seedLab(nombre: string) {
     .insert(laboratories)
     .values({ nombre: `${P}${nombre}` })
     .returning()
-  createdLabs.push(row.id)
-  return row
+  createdLabs.push(row!.id)
+  return row!
 }
 
 /** Insert a branch directly and track its id for cleanup */
@@ -34,8 +35,8 @@ async function seedBranch(nombre: string, idLaboratorio: number) {
     .insert(branches)
     .values({ nombre: `${P}${nombre}`, idLaboratorio })
     .returning()
-  createdBranches.push(row.id)
-  return row
+  createdBranches.push(row!.id)
+  return row!
 }
 
 afterAll(async () => {
@@ -49,12 +50,12 @@ afterAll(async () => {
   ])
 })
 
-// ─── createCadena ─────────────────────────────────────────────────────────────
+// ─── createLaboratorio ─────────────────────────────────────────────────────────────
 
-describe('createCadena', () => {
-  it('inserta una cadena y devuelve success', async () => {
+describe('createLaboratorio', () => {
+  it('inserta un laboratorio y devuelve success', async () => {
     const nombre = `${P}Laboratorio A`
-    const result = await createCadena(fd({ nombre }))
+    const result = await createLaboratorio(fd({ nombre }))
 
     expect(result.success).toBe(true)
 
@@ -65,25 +66,25 @@ describe('createCadena', () => {
   })
 
   it('rechaza nombre vacío', async () => {
-    const result = await createCadena(fd({ nombre: '' }))
+    const result = await createLaboratorio(fd({ nombre: '' }))
     expect(result.success).toBe(false)
     expect(result.error).toBeTruthy()
   })
 
   it('rechaza nombre solo con espacios', async () => {
-    const result = await createCadena(fd({ nombre: '   ' }))
+    const result = await createLaboratorio(fd({ nombre: '   ' }))
     expect(result.success).toBe(false)
   })
 })
 
-// ─── updateCadena ─────────────────────────────────────────────────────────────
+// ─── updateLaboratorio ─────────────────────────────────────────────────────────────
 
-describe('updateCadena', () => {
-  it('actualiza el nombre de una cadena existente', async () => {
+describe('updateLaboratorio', () => {
+  it('actualiza el nombre de un laboratorio existente', async () => {
     const lab = await seedLab('Para editar')
     const nuevoNombre = `${P}Nombre editado`
 
-    const result = await updateCadena(fd({ id: lab.id, nombre: nuevoNombre }))
+    const result = await updateLaboratorio(fd({ id: lab.id, nombre: nuevoNombre }))
 
     expect(result.success).toBe(true)
 
@@ -93,35 +94,35 @@ describe('updateCadena', () => {
 
   it('rechaza nombre vacío', async () => {
     const lab = await seedLab('Nombre vacío update')
-    const result = await updateCadena(fd({ id: lab.id, nombre: '' }))
+    const result = await updateLaboratorio(fd({ id: lab.id, nombre: '' }))
     expect(result.success).toBe(false)
   })
 
   it('rechaza id inválido', async () => {
-    const result = await updateCadena(fd({ id: 0, nombre: 'algo' }))
+    const result = await updateLaboratorio(fd({ id: 0, nombre: 'algo' }))
     expect(result.success).toBe(false)
   })
 })
 
-// ─── toggleCadena ─────────────────────────────────────────────────────────────
+// ─── toggleLaboratorio ─────────────────────────────────────────────────────────────
 
-describe('toggleCadena', () => {
-  it('desactiva una cadena activa', async () => {
+describe('toggleLaboratorio', () => {
+  it('desactiva un laboratorio activo', async () => {
     const lab = await seedLab('Toggle off')
     expect(lab.activo).toBe(true)
 
-    const result = await toggleCadena(lab.id, true)
+    const result = await toggleLaboratorio(lab.id, true)
     expect(result.success).toBe(true)
 
     const [updated] = await db.select().from(laboratories).where(eq(laboratories.id, lab.id))
     expect(updated.activo).toBe(false)
   })
 
-  it('activa una cadena inactiva', async () => {
+  it('activa un laboratorio inactivo', async () => {
     const lab = await seedLab('Toggle on')
     await db.update(laboratories).set({ activo: false }).where(eq(laboratories.id, lab.id))
 
-    const result = await toggleCadena(lab.id, false)
+    const result = await toggleLaboratorio(lab.id, false)
     expect(result.success).toBe(true)
 
     const [updated] = await db.select().from(laboratories).where(eq(laboratories.id, lab.id))
@@ -132,7 +133,7 @@ describe('toggleCadena', () => {
 // ─── createSucursal ───────────────────────────────────────────────────────────
 
 describe('createSucursal', () => {
-  it('inserta una sucursal asociada a una cadena', async () => {
+  it('inserta una sucursal asociada a un laboratorio', async () => {
     const lab = await seedLab('Para sucursal')
     const nombre = `${P}Sucursal Norte`
 
@@ -161,7 +162,7 @@ describe('createSucursal', () => {
 // ─── updateSucursal ───────────────────────────────────────────────────────────
 
 describe('updateSucursal', () => {
-  it('actualiza nombre y cadena de una sucursal', async () => {
+  it('actualiza nombre y laboratorio de una sucursal', async () => {
     const lab1 = await seedLab('Lab origen')
     const lab2 = await seedLab('Lab destino')
     const branch = await seedBranch('Sucursal antes', lab1.id)

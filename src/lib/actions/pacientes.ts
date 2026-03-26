@@ -1,0 +1,487 @@
+'use server'
+
+import { db } from '@/db'
+import {
+  patients,
+  addresses,
+  healthInsurances,
+  patientPhones,
+  visits,
+} from '@/db/schema'
+import { eq, count, and, or, ilike, asc, desc, inArray, not, SQL } from 'drizzle-orm'
+import { revalidatePath } from 'next/cache'
+import { validateRut, validatePasaporte } from '@/lib/rut'
+import type { SearchParams, Result } from '@/components/data-table'
+
+// ─── Row types ────────────────────────────────────────────────────────────────
+
+export type PacienteRow = {
+  id: number
+  nombres: string
+  apellidoPaterno: string | null
+  apellidoMaterno: string | null
+  identificador: string | null
+  tipoIdentificador: string | null
+  telefono: string | null
+  prevision: string | null
+  comuna: string | null
+}
+
+export type PacienteDetalle = {
+  id: number
+  identificador: string | null
+  tipoIdentificador: string | null
+  nombres: string
+  apellidoPaterno: string | null
+  apellidoMaterno: string | null
+  fechaNacimiento: string | null
+  correo: string | null
+  informacionAdicional: string | null
+  idCompaniaSeguro: number | null
+  idResidenciaAdulto: number | null
+  contactoNombre: string | null
+  contactoTelefono: string | null
+  contactoInfo: string | null
+  // address
+  direccion: string
+  direccionFormateada: string | null
+  numero: string | null
+  calle: string | null
+  localidad: string | null
+  areaAdministrativa1: string | null
+  areaAdministrativa2: string | null
+  areaAdministrativa3: string | null
+  pais: string | null
+  latitud: string | null
+  longitud: string | null
+  // phones
+  telefonos: { id: number; telefono: string; descripcion: string | null }[]
+}
+
+// ─── searchPacientes ──────────────────────────────────────────────────────────
+
+export async function searchPacientes(
+  params: SearchParams,
+): Promise<{ rows: PacienteRow[]; total: number }> {
+  const { filters, sort, page, pageSize } = params
+  const buscar = (filters.buscar as string | undefined)?.trim()
+  const idPrevision = (filters.idPrevision as string | undefined)?.trim()
+
+  const conditions: SQL[] = []
+  if (buscar) {
+    conditions.push(
+      or(
+        ilike(patients.nombres, `%${buscar}%`),
+        ilike(patients.apellidoPaterno, `%${buscar}%`),
+        ilike(patients.apellidoMaterno, `%${buscar}%`),
+        ilike(patients.identificador, `%${buscar}%`),
+      )!,
+    )
+  }
+  if (idPrevision) {
+    conditions.push(eq(patients.idCompaniaSeguro, Number(idPrevision)))
+  }
+
+  const where = conditions.length ? and(...conditions) : undefined
+
+  const [countRow] = await db
+    .select({ total: count() })
+    .from(patients)
+    .where(where)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sortCols: Record<string, any> = {
+    apellidoPaterno: patients.apellidoPaterno,
+    nombres: patients.nombres,
+    identificador: patients.identificador,
+  }
+  const sortCol = (sort?.key && sortCols[sort.key]) ?? patients.apellidoPaterno
+  const primaryOrder = sort?.dir === 'desc' ? desc(sortCol) : asc(sortCol)
+
+  const rawRows = await db
+    .select({
+      id: patients.id,
+      nombres: patients.nombres,
+      apellidoPaterno: patients.apellidoPaterno,
+      apellidoMaterno: patients.apellidoMaterno,
+      identificador: patients.identificador,
+      tipoIdentificador: patients.tipoIdentificador,
+      prevision: healthInsurances.nombre,
+      comuna: addresses.areaAdministrativa3,
+    })
+    .from(patients)
+    .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
+    .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
+    .where(where)
+    .orderBy(primaryOrder, asc(patients.apellidoPaterno), asc(patients.nombres))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  // Fetch first phone for each patient
+  const patientIds = rawRows.map((r) => r.id)
+  const phonesMap = new Map<number, string>()
+  if (patientIds.length > 0) {
+    const phoneRows = await db
+      .select({ idPaciente: patientPhones.idPaciente, telefono: patientPhones.telefono })
+      .from(patientPhones)
+      .where(inArray(patientPhones.idPaciente, patientIds))
+    phoneRows.forEach((p) => {
+      if (!phonesMap.has(p.idPaciente)) phonesMap.set(p.idPaciente, p.telefono)
+    })
+  }
+
+  const rows: PacienteRow[] = rawRows.map((r) => ({
+    ...r,
+    telefono: phonesMap.get(r.id) ?? null,
+  }))
+
+  return { rows, total: Number(countRow?.total ?? 0) }
+}
+
+// ─── getPaciente ──────────────────────────────────────────────────────────────
+
+export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
+  const [row] = await db
+    .select({
+      id: patients.id,
+      identificador: patients.identificador,
+      tipoIdentificador: patients.tipoIdentificador,
+      nombres: patients.nombres,
+      apellidoPaterno: patients.apellidoPaterno,
+      apellidoMaterno: patients.apellidoMaterno,
+      fechaNacimiento: patients.fechaNacimiento,
+      correo: patients.correo,
+      informacionAdicional: patients.informacionAdicional,
+      idCompaniaSeguro: patients.idCompaniaSeguro,
+      idResidenciaAdulto: patients.idResidenciaAdulto,
+      contactoNombre: patients.contactoNombre,
+      contactoTelefono: patients.contactoTelefono,
+      contactoInfo: patients.contactoInfo,
+      // address fields
+      direccion: addresses.direccion,
+      direccionFormateada: addresses.direccionFormateada,
+      numero: addresses.numero,
+      calle: addresses.calle,
+      localidad: addresses.localidad,
+      areaAdministrativa1: addresses.areaAdministrativa1,
+      areaAdministrativa2: addresses.areaAdministrativa2,
+      areaAdministrativa3: addresses.areaAdministrativa3,
+      pais: addresses.pais,
+      latitud: addresses.latitud,
+      longitud: addresses.longitud,
+    })
+    .from(patients)
+    .innerJoin(addresses, eq(patients.idDireccion, addresses.id))
+    .where(eq(patients.id, id))
+
+  if (!row) return null
+
+  const phoneRows = await db
+    .select({ id: patientPhones.id, telefono: patientPhones.telefono, descripcion: patientPhones.descripcion })
+    .from(patientPhones)
+    .where(eq(patientPhones.idPaciente, id))
+
+  return {
+    ...row,
+    direccionFormateada: row.direccionFormateada ?? null,
+    telefonos: phoneRows,
+  }
+}
+
+// ─── createPaciente ───────────────────────────────────────────────────────────
+
+export async function createPaciente(
+  formData: FormData,
+): Promise<{ success: true; id: number } | { success: false; error: string }> {
+  // Personal fields
+  const nombres = (formData.get('nombres') as string)?.trim()
+  const apellidoPaterno = (formData.get('apellidoPaterno') as string)?.trim()
+  const apellidoMaterno = (formData.get('apellidoMaterno') as string)?.trim() ?? ''
+  const tipoIdentificador = (formData.get('tipoIdentificador') as string)?.trim() || null
+  const rawIdentificador = (formData.get('identificador') as string)?.trim() || null
+  const fechaNacimiento = (formData.get('fechaNacimiento') as string)?.trim() || null
+  const correo = (formData.get('correo') as string)?.trim() || null
+  const informacionAdicional = (formData.get('informacionAdicional') as string)?.trim() || null
+  const idCompaniaSeguro = Number(formData.get('idCompaniaSeguro')) || null
+  const idResidenciaAdulto = Number(formData.get('idResidenciaAdulto')) || null
+
+  if (!nombres) return { success: false, error: 'Nombres son requeridos' }
+  if (!apellidoPaterno) return { success: false, error: 'Apellido paterno es requerido' }
+
+  let identificador: string | null = null
+  let tipoId: string | null = null
+  if (rawIdentificador && tipoIdentificador) {
+    if (tipoIdentificador === 'rut') {
+      const result = validateRut(rawIdentificador)
+      if (!result.valid) return { success: false, error: 'RUT inválido' }
+      identificador = result.normalized
+      tipoId = 'rut'
+    } else if (tipoIdentificador === 'pasaporte') {
+      const result = validatePasaporte(rawIdentificador)
+      if (!result.valid) return { success: false, error: 'Pasaporte inválido' }
+      identificador = result.normalized
+      tipoId = 'pasaporte'
+    } else {
+      return { success: false, error: 'Tipo de identificador no válido' }
+    }
+    // Validar identificador único
+    const existing = await db.select().from(patients).where(eq(patients.identificador, identificador))
+    if (existing.length > 0) return { success: false, error: 'Este identificador ya está registrado' }
+  }
+
+  // Address fields
+  const direccion = (formData.get('direccion') as string)?.trim()
+  if (!direccion) return { success: false, error: 'Dirección es requerida' }
+  const direccionFormateada = (formData.get('direccionFormateada') as string)?.trim() || ''
+  const numero = (formData.get('numero') as string)?.trim() || null
+  const calle = (formData.get('calle') as string)?.trim() || null
+  const localidad = (formData.get('localidad') as string)?.trim() || null
+  const areaAdministrativa1 = (formData.get('areaAdministrativa1') as string)?.trim() || null
+  const areaAdministrativa2 = (formData.get('areaAdministrativa2') as string)?.trim() || null
+  const areaAdministrativa3 = (formData.get('areaAdministrativa3') as string)?.trim() || null
+  const pais = (formData.get('pais') as string)?.trim() || null
+  const latitud = (formData.get('latitud') as string)?.trim() || null
+  const longitud = (formData.get('longitud') as string)?.trim() || null
+
+  // Contact fields
+  const contactoNombre = (formData.get('contactoNombre') as string)?.trim() || null
+  const contactoTelefono = (formData.get('contactoTelefono') as string)?.trim() || null
+  const contactoInfo = (formData.get('contactoInfo') as string)?.trim() || null
+
+  // Phones
+  const phones: { telefono: string; descripcion: string | null }[] = []
+  for (let i = 0; i < 20; i++) {
+    const tel = (formData.get(`phone_${i}`) as string)?.trim()
+    if (!tel) break
+    const desc = (formData.get(`phone_desc_${i}`) as string)?.trim() || null
+    phones.push({ telefono: tel, descripcion: desc })
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [addr] = await tx
+        .insert(addresses)
+        .values({
+          direccion,
+          direccionFormateada,
+          numero,
+          calle,
+          localidad,
+          areaAdministrativa1,
+          areaAdministrativa2,
+          areaAdministrativa3,
+          pais,
+          latitud: latitud ?? undefined,
+          longitud: longitud ?? undefined,
+        })
+        .returning({ id: addresses.id })
+
+      const idDireccion = addr!.id
+
+      const [patient] = await tx
+        .insert(patients)
+        .values({
+          identificador,
+          tipoIdentificador: tipoId,
+          nombres,
+          apellidoPaterno,
+          apellidoMaterno,
+          fechaNacimiento,
+          correo,
+          informacionAdicional,
+          idDireccion,
+          idCompaniaSeguro,
+          idResidenciaAdulto,
+          contactoNombre,
+          contactoTelefono,
+          contactoInfo,
+        })
+        .returning({ id: patients.id })
+
+      const idPaciente = patient!.id
+
+      if (phones.length > 0) {
+        await tx.insert(patientPhones).values(phones.map((p) => ({ ...p, idPaciente })))
+      }
+
+      return idPaciente
+    })
+
+    revalidatePath('/pacientes')
+    return { success: true, id: result }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.includes('identificador')) return { success: false, error: 'Este identificador ya está registrado' }
+    return { success: false, error: 'Error al crear el paciente' }
+  }
+}
+
+// ─── updatePaciente ───────────────────────────────────────────────────────────
+
+export async function updatePaciente(formData: FormData): Promise<Result> {
+  const id = Number(formData.get('id'))
+  if (!id) return { success: false, error: 'ID inválido' }
+
+  // Personal fields
+  const nombres = (formData.get('nombres') as string)?.trim()
+  const apellidoPaterno = (formData.get('apellidoPaterno') as string)?.trim()
+  const apellidoMaterno = (formData.get('apellidoMaterno') as string)?.trim() ?? ''
+  const tipoIdentificador = (formData.get('tipoIdentificador') as string)?.trim() || null
+  const rawIdentificador = (formData.get('identificador') as string)?.trim() || null
+  const fechaNacimiento = (formData.get('fechaNacimiento') as string)?.trim() || null
+  const correo = (formData.get('correo') as string)?.trim() || null
+  const informacionAdicional = (formData.get('informacionAdicional') as string)?.trim() || null
+  const idCompaniaSeguro = Number(formData.get('idCompaniaSeguro')) || null
+  const idResidenciaAdulto = Number(formData.get('idResidenciaAdulto')) || null
+
+  if (!nombres) return { success: false, error: 'Nombres son requeridos' }
+  if (!apellidoPaterno) return { success: false, error: 'Apellido paterno es requerido' }
+
+  let identificador: string | null = null
+  let tipoId: string | null = null
+  if (rawIdentificador && tipoIdentificador) {
+    if (tipoIdentificador === 'rut') {
+      const result = validateRut(rawIdentificador)
+      if (!result.valid) return { success: false, error: 'RUT inválido' }
+      identificador = result.normalized
+      tipoId = 'rut'
+    } else if (tipoIdentificador === 'pasaporte') {
+      const result = validatePasaporte(rawIdentificador)
+      if (!result.valid) return { success: false, error: 'Pasaporte inválido' }
+      identificador = result.normalized
+      tipoId = 'pasaporte'
+    } else {
+      return { success: false, error: 'Tipo de identificador no válido' }
+    }
+    // Validar identificador único (excluyendo el paciente actual)
+    const duplicated = await db
+      .select()
+      .from(patients)
+      .where(and(eq(patients.identificador, identificador), not(eq(patients.id, id))))
+    if (duplicated.length > 0) return { success: false, error: 'Este identificador ya está registrado' }
+  }
+
+  // Address fields
+  const direccion = (formData.get('direccion') as string)?.trim()
+  if (!direccion) return { success: false, error: 'Dirección es requerida' }
+  const direccionFormateada = (formData.get('direccionFormateada') as string)?.trim() || ''
+  const numero = (formData.get('numero') as string)?.trim() || null
+  const calle = (formData.get('calle') as string)?.trim() || null
+  const localidad = (formData.get('localidad') as string)?.trim() || null
+  const areaAdministrativa1 = (formData.get('areaAdministrativa1') as string)?.trim() || null
+  const areaAdministrativa2 = (formData.get('areaAdministrativa2') as string)?.trim() || null
+  const areaAdministrativa3 = (formData.get('areaAdministrativa3') as string)?.trim() || null
+  const pais = (formData.get('pais') as string)?.trim() || null
+  const latitud = (formData.get('latitud') as string)?.trim() || null
+  const longitud = (formData.get('longitud') as string)?.trim() || null
+
+  // Contact fields
+  const contactoNombre = (formData.get('contactoNombre') as string)?.trim() || null
+  const contactoTelefono = (formData.get('contactoTelefono') as string)?.trim() || null
+  const contactoInfo = (formData.get('contactoInfo') as string)?.trim() || null
+
+  // Phones
+  const phones: { telefono: string; descripcion: string | null }[] = []
+  for (let i = 0; i < 20; i++) {
+    const tel = (formData.get(`phone_${i}`) as string)?.trim()
+    if (!tel) break
+    const desc = (formData.get(`phone_desc_${i}`) as string)?.trim() || null
+    phones.push({ telefono: tel, descripcion: desc })
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      // Get patient to find idDireccion
+      const [existingPatient] = await tx
+        .select({ idDireccion: patients.idDireccion })
+        .from(patients)
+        .where(eq(patients.id, id))
+
+      if (!existingPatient) throw new Error('Paciente no encontrado')
+
+      await tx
+        .update(addresses)
+        .set({
+          direccion,
+          direccionFormateada,
+          numero,
+          calle,
+          localidad,
+          areaAdministrativa1,
+          areaAdministrativa2,
+          areaAdministrativa3,
+          pais,
+          latitud: latitud ?? undefined,
+          longitud: longitud ?? undefined,
+        })
+        .where(eq(addresses.id, existingPatient.idDireccion))
+
+      await tx
+        .update(patients)
+        .set({
+          identificador,
+          tipoIdentificador: tipoId,
+          nombres,
+          apellidoPaterno,
+          apellidoMaterno,
+          fechaNacimiento,
+          correo,
+          informacionAdicional,
+          idCompaniaSeguro,
+          idResidenciaAdulto,
+          contactoNombre,
+          contactoTelefono,
+          contactoInfo,
+          updatedAt: new Date(),
+        })
+        .where(eq(patients.id, id))
+
+      await tx.delete(patientPhones).where(eq(patientPhones.idPaciente, id))
+
+      if (phones.length > 0) {
+        await tx.insert(patientPhones).values(phones.map((p) => ({ ...p, idPaciente: id })))
+      }
+    })
+
+    revalidatePath('/pacientes')
+    return { success: true }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.includes('identificador')) return { success: false, error: 'Este identificador ya está registrado' }
+    return { success: false, error: 'Error al actualizar el paciente' }
+  }
+}
+
+// ─── deletePaciente ───────────────────────────────────────────────────────────
+
+export async function deletePaciente(id: number, userRole: string): Promise<Result> {
+  try {
+    const [countRow] = await db
+      .select({ total: count() })
+      .from(visits)
+      .where(eq(visits.idPaciente, id))
+    const total = Number(countRow?.total ?? 0)
+
+    if (total > 0 && userRole !== 'admin') {
+      return {
+        success: false,
+        error: `No se puede eliminar: tiene ${total} visita${total === 1 ? '' : 's'} registrada${total === 1 ? '' : 's'}`,
+      }
+    }
+
+    const [existingPatient] = await db
+      .select({ idDireccion: patients.idDireccion })
+      .from(patients)
+      .where(eq(patients.id, id))
+
+    if (!existingPatient) return { success: false, error: 'Paciente no encontrado' }
+
+    await db.delete(patients).where(eq(patients.id, id))
+    await db.delete(addresses).where(eq(addresses.id, existingPatient.idDireccion))
+
+    revalidatePath('/pacientes')
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Error al eliminar el paciente' }
+  }
+}
