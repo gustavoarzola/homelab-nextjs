@@ -4,40 +4,54 @@ import * as React from 'react'
 import { addDays, format, startOfDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
-import { DayPicker, type DateRange } from 'react-day-picker'
+import { DayPicker, getDefaultClassNames, type DateRange } from 'react-day-picker'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
+const defaultClassNames = getDefaultClassNames()
+
 const calendarStyles = {
-  root: 'p-3',
-  month: 'space-y-3',
-  month_caption: 'flex justify-center relative items-center',
-  caption_label: 'text-sm font-medium',
-  nav: 'flex items-center gap-1',
-  button_previous:
+  root: cn(defaultClassNames.root, 'bg-popover p-3'),
+  month: cn(defaultClassNames.month, 'space-y-3'),
+  month_caption: cn(defaultClassNames.month_caption, 'relative flex justify-center items-center'),
+  caption_label: cn(defaultClassNames.caption_label, 'text-sm font-medium'),
+  nav: cn(defaultClassNames.nav, 'flex items-center gap-1'),
+  button_previous: cn(
+    defaultClassNames.button_previous,
     'absolute left-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-  button_next:
+  ),
+  button_next: cn(
+    defaultClassNames.button_next,
     'absolute right-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-  month_grid: 'w-full border-collapse',
-  weekdays: 'flex',
-  weekday: 'w-9 text-[0.8rem] font-normal text-muted-foreground',
-  week: 'mt-2 flex w-full',
-  day: 'h-9 w-9 p-0 text-sm',
-  day_button:
+  ),
+  month_grid: cn(defaultClassNames.month_grid, 'w-full border-collapse'),
+  weekdays: cn(defaultClassNames.weekdays, 'flex'),
+  weekday: cn(defaultClassNames.weekday, 'w-9 text-[0.8rem] font-normal text-muted-foreground'),
+  week: cn(defaultClassNames.week, 'mt-2 flex w-full'),
+  day: cn(defaultClassNames.day, 'h-9 w-9 p-0 text-sm'),
+  day_button: cn(
+    defaultClassNames.day_button,
     'h-9 w-9 rounded-md p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground',
-  selected:
+  ),
+  selected: cn(
+    defaultClassNames.selected,
     'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground',
-  today: 'bg-accent text-accent-foreground',
-  outside: 'text-muted-foreground opacity-50',
-  disabled: 'text-muted-foreground opacity-50',
-  hidden: 'invisible',
-  range_start:
+  ),
+  today: cn(defaultClassNames.today, 'bg-accent text-accent-foreground'),
+  outside: cn(defaultClassNames.outside, 'text-muted-foreground opacity-50'),
+  disabled: cn(defaultClassNames.disabled, 'text-muted-foreground opacity-50'),
+  hidden: cn(defaultClassNames.hidden, 'invisible'),
+  range_start: cn(
+    defaultClassNames.range_start,
     'bg-primary text-primary-foreground rounded-l-md rounded-r-none hover:bg-primary hover:text-primary-foreground',
-  range_middle: 'bg-accent text-accent-foreground rounded-none',
-  range_end:
+  ),
+  range_middle: cn(defaultClassNames.range_middle, 'bg-accent text-accent-foreground rounded-none'),
+  range_end: cn(
+    defaultClassNames.range_end,
     'bg-primary text-primary-foreground rounded-r-md rounded-l-none hover:bg-primary hover:text-primary-foreground',
+  ),
 } as const
 
 const calendarComponents = {
@@ -101,7 +115,7 @@ export function DatePicker({
           {value ? format(value, 'PPP', { locale: es }) : placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="w-auto bg-popover p-0" align="start">
         <DayPicker
           mode="single"
           locale={es}
@@ -197,7 +211,7 @@ export function DateRangePicker({
           {label}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="w-auto bg-popover p-0" align="start">
         <div className="flex w-[520px] max-w-[90vw] overflow-hidden rounded-md bg-popover">
           <div className="w-44 border-r bg-muted/40 p-2">
             <div className="flex flex-col gap-1">
