@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 const defaultClassNames = getDefaultClassNames()
 
 const calendarStyles = {
-  root: cn(defaultClassNames.root, 'bg-popover p-3'),
+  root: cn(defaultClassNames.root, 'bg-background p-2.5 text-sm'),
   month: cn(defaultClassNames.month, 'space-y-3'),
   month_caption: cn(defaultClassNames.month_caption, 'relative flex justify-center items-center'),
   caption_label: cn(defaultClassNames.caption_label, 'text-sm font-medium'),
@@ -28,12 +28,12 @@ const calendarStyles = {
   ),
   month_grid: cn(defaultClassNames.month_grid, 'w-full border-collapse'),
   weekdays: cn(defaultClassNames.weekdays, 'flex'),
-  weekday: cn(defaultClassNames.weekday, 'w-9 text-[0.8rem] font-normal text-muted-foreground'),
+  weekday: cn(defaultClassNames.weekday, 'w-8 text-xs font-normal text-muted-foreground'),
   week: cn(defaultClassNames.week, 'mt-2 flex w-full'),
-  day: cn(defaultClassNames.day, 'h-9 w-9 p-0 text-sm'),
+  day: cn(defaultClassNames.day, 'h-8 w-8 p-0 text-sm'),
   day_button: cn(
     defaultClassNames.day_button,
-    'h-9 w-9 rounded-md p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground',
+    'h-8 w-8 rounded-md p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground',
   ),
   selected: cn(
     defaultClassNames.selected,
@@ -115,7 +115,10 @@ export function DatePicker({
           {value ? format(value, 'PPP', { locale: es }) : placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto bg-popover p-0" align="start">
+      <PopoverContent
+        className="z-[60] w-auto border-border bg-background p-0 shadow-xl opacity-100"
+        align="start"
+      >
         <DayPicker
           mode="single"
           locale={es}
@@ -211,15 +214,18 @@ export function DateRangePicker({
           {label}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto bg-popover p-0" align="start">
-        <div className="flex w-[520px] max-w-[90vw] overflow-hidden rounded-md bg-popover">
-          <div className="w-44 border-r bg-muted/40 p-2">
+      <PopoverContent
+        className="z-[60] w-auto border-border bg-background p-0 shadow-xl opacity-100"
+        align="start"
+      >
+        <div className="flex w-[460px] max-w-[90vw] overflow-hidden rounded-md bg-background">
+          <div className="w-40 border-r bg-muted/30 p-1.5">
             <div className="flex flex-col gap-1">
               {rangePresets.map((preset) => (
                 <Button
                   key={preset.label}
                   variant={selectedPreset === preset.label ? 'secondary' : 'ghost'}
-                  className="h-9 justify-start px-3"
+                  className="h-8 justify-start px-2.5 text-sm"
                   onClick={() => applyPreset(preset.days)}
                 >
                   {preset.label}
