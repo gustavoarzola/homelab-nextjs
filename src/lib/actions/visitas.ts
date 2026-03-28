@@ -5,10 +5,13 @@ import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, 
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
+import { requireSession } from '@/lib/auth-guard'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
 export async function getEnfermeras(): Promise<{ id: number; nombre: string }[]> {
+  await requireSession()
+
   const rows = await db
     .select({ id: nurses.id, nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno })
     .from(nurses)
@@ -60,6 +63,8 @@ export type VisitaRow = {
 export async function searchVisitas(
   params: SearchParams,
 ): Promise<{ rows: VisitaRow[]; total: number }> {
+  await requireSession()
+
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const estado = (filters.estado as string | undefined)?.trim()
@@ -146,6 +151,8 @@ export async function searchVisitas(
 // ─── getVisita ────────────────────────────────────────────────────────────────
 
 export async function getVisita(id: number): Promise<VisitaDetalle | null> {
+  await requireSession()
+
   const [visit] = await db.select().from(visits).where(eq(visits.id, id))
   if (!visit) return null
 
@@ -175,6 +182,8 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
 // ─── deleteVisita ─────────────────────────────────────────────────────────────
 
 export async function deleteVisita(id: number): Promise<Result> {
+  await requireSession()
+
   try {
     await db.delete(visits).where(eq(visits.id, id))
     revalidatePath('/visitas')
@@ -187,6 +196,8 @@ export async function deleteVisita(id: number): Promise<Result> {
 // ─── searchOrigenesContacto ───────────────────────────────────────────────────
 
 export async function searchOrigenesContacto(): Promise<{ id: number; nombre: string }[]> {
+  await requireSession()
+
   return db
     .select({ id: contactOrigins.id, nombre: contactOrigins.nombre })
     .from(contactOrigins)
@@ -199,6 +210,8 @@ export async function searchOrigenesContacto(): Promise<{ id: number; nombre: st
 export async function updateVisita(
   fd: FormData,
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
+  await requireSession()
+
   const id = Number(fd.get('id'))
   const fecha = (fd.get('fecha') as string)?.trim()
 
@@ -253,6 +266,8 @@ export async function updateVisita(
 export async function createVisita(
   fd: FormData,
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
+  await requireSession()
+
   const idPaciente = Number(fd.get('idPaciente'))
   const fecha = (fd.get('fecha') as string)?.trim()
 

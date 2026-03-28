@@ -5,6 +5,7 @@ import { procedures, exams, healthInsurances, elderlyResidences } from '@/db/sch
 import { eq, count, and, or, ilike, asc, desc, not, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/components/data-table'
+import { requireSession } from '@/lib/auth-guard'
 
 type Result = { success: boolean; error?: string }
 
@@ -18,6 +19,8 @@ export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
 // ─── Procedimientos ───────────────────────────────────────────────────────────
 
 export async function searchProcedimientos(params: SearchParams): Promise<{ rows: ProcedimientoRow[]; total: number }> {
+  await requireSession()
+
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
@@ -38,6 +41,8 @@ export async function searchProcedimientos(params: SearchParams): Promise<{ rows
 }
 
 export async function createProcedimiento(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
   if (!nombre || !codigo) return { success: false, error: 'Nombre y código son requeridos' }
@@ -53,6 +58,8 @@ export async function createProcedimiento(formData: FormData): Promise<Result> {
 }
 
 export async function updateProcedimiento(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const id = Number(formData.get('id'))
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
@@ -72,6 +79,8 @@ export async function updateProcedimiento(formData: FormData): Promise<Result> {
 }
 
 export async function toggleProcedimiento(id: number, activo: boolean): Promise<Result> {
+  await requireSession()
+
   try {
     await db.update(procedures).set({ activo: !activo }).where(eq(procedures.id, id))
     revalidatePath('/procedimientos')
@@ -84,6 +93,8 @@ export async function toggleProcedimiento(id: number, activo: boolean): Promise<
 // ─── Exámenes ─────────────────────────────────────────────────────────────────
 
 export async function searchExamenes(params: SearchParams): Promise<{ rows: ExamenRow[]; total: number }> {
+  await requireSession()
+
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
@@ -104,6 +115,8 @@ export async function searchExamenes(params: SearchParams): Promise<{ rows: Exam
 }
 
 export async function createExamen(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
   if (!nombre || !codigo) return { success: false, error: 'Nombre y código son requeridos' }
@@ -119,6 +132,8 @@ export async function createExamen(formData: FormData): Promise<Result> {
 }
 
 export async function updateExamen(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const id = Number(formData.get('id'))
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
@@ -138,6 +153,8 @@ export async function updateExamen(formData: FormData): Promise<Result> {
 }
 
 export async function toggleExamen(id: number, activo: boolean): Promise<Result> {
+  await requireSession()
+
   try {
     await db.update(exams).set({ activo: !activo }).where(eq(exams.id, id))
     revalidatePath('/examenes')
@@ -150,6 +167,8 @@ export async function toggleExamen(id: number, activo: boolean): Promise<Result>
 // ─── Previsiones de Salud ─────────────────────────────────────────────────────
 
 export async function searchPrevisiones(params: SearchParams): Promise<{ rows: PrevisionRow[]; total: number }> {
+  await requireSession()
+
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
@@ -167,6 +186,8 @@ export async function searchPrevisiones(params: SearchParams): Promise<{ rows: P
 }
 
 export async function createPrevision(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const nombre = (formData.get('nombre') as string)?.trim()
   if (!nombre) return { success: false, error: 'Nombre requerido' }
   try {
@@ -181,6 +202,8 @@ export async function createPrevision(formData: FormData): Promise<Result> {
 }
 
 export async function updatePrevision(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const id = Number(formData.get('id'))
   const nombre = (formData.get('nombre') as string)?.trim()
   if (!id || !nombre) return { success: false, error: 'Datos inválidos' }
@@ -199,6 +222,8 @@ export async function updatePrevision(formData: FormData): Promise<Result> {
 }
 
 export async function togglePrevision(id: number, activo: boolean): Promise<Result> {
+  await requireSession()
+
   try {
     await db.update(healthInsurances).set({ activo: !activo }).where(eq(healthInsurances.id, id))
     revalidatePath('/previsiones')
@@ -211,6 +236,8 @@ export async function togglePrevision(id: number, activo: boolean): Promise<Resu
 // ─── Residencias de Adulto Mayor ──────────────────────────────────────────────
 
 export async function searchResidencias(params: SearchParams): Promise<{ rows: ResidenciaRow[]; total: number }> {
+  await requireSession()
+
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
@@ -228,6 +255,8 @@ export async function searchResidencias(params: SearchParams): Promise<{ rows: R
 }
 
 export async function createResidencia(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const nombre = (formData.get('nombre') as string)?.trim()
   if (!nombre) return { success: false, error: 'Nombre requerido' }
   try {
@@ -242,6 +271,8 @@ export async function createResidencia(formData: FormData): Promise<Result> {
 }
 
 export async function updateResidencia(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const id = Number(formData.get('id'))
   const nombre = (formData.get('nombre') as string)?.trim()
   if (!id || !nombre) return { success: false, error: 'Datos inválidos' }
@@ -260,6 +291,8 @@ export async function updateResidencia(formData: FormData): Promise<Result> {
 }
 
 export async function toggleResidencia(id: number, activo: boolean): Promise<Result> {
+  await requireSession()
+
   try {
     await db.update(elderlyResidences).set({ activo: !activo }).where(eq(elderlyResidences.id, id))
     revalidatePath('/residencias')

@@ -8,6 +8,7 @@ import { Loader2, Plus, X, CheckCircle2 } from 'lucide-react'
 import { createPaciente, updatePaciente } from '@/lib/actions/pacientes'
 import type { PacienteDetalle } from '@/lib/actions/pacientes'
 import { formatRut, validatePasaporte } from '@/lib/rut'
+import { BirthDatePicker } from '@/components/birth-date-picker'
 import { SelectCombobox } from '@/components/select-combobox'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -234,6 +235,9 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
 
   const [residenciaSelected, setResidenciaSelected] = useState<number | null>(
     paciente?.idResidenciaAdulto ?? null,
+  )
+  const [fechaNacimiento, setFechaNacimiento] = useState<string | undefined>(
+    paciente?.fechaNacimiento ?? undefined,
   )
 
   const [phones, setPhones] = useState<{ telefono: string; descripcion: string }[]>(
@@ -483,13 +487,11 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
               <label className={labelClass} style={labelStyle}>
                 Fecha de nacimiento
               </label>
-              <input
+              <BirthDatePicker
                 name="fechaNacimiento"
-                type="date"
-                defaultValue={paciente?.fechaNacimiento ?? ''}
+                value={fechaNacimiento}
+                onChange={setFechaNacimiento}
                 disabled={isPending}
-                className={inputClass}
-                style={inputStyle}
               />
             </div>
 

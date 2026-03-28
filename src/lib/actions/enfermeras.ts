@@ -6,6 +6,7 @@ import { eq, count, and, or, ilike, asc, desc, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { validateRut } from '@/lib/rut'
 import type { SearchParams } from '@/components/data-table'
+import { requireSession } from '@/lib/auth-guard'
 
 export type NurseRow = {
   id: number
@@ -21,6 +22,8 @@ export type NurseRow = {
 export async function searchEnfermeras(
   params: SearchParams,
 ): Promise<{ rows: NurseRow[]; total: number }> {
+  await requireSession()
+
   const { filters, sort, page, pageSize } = params
   const nombre = (filters.nombre as string | undefined)?.trim()
   const mostrarInactivas = filters.mostrarInactivas as boolean | undefined
@@ -95,6 +98,8 @@ function parseFields(formData: FormData): { error: string } | {
 }
 
 export async function createEnfermera(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const fields = parseFields(formData)
   if ('error' in fields) return { success: false, error: fields.error }
 
@@ -108,6 +113,8 @@ export async function createEnfermera(formData: FormData): Promise<Result> {
 }
 
 export async function updateEnfermera(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const id = Number(formData.get('id'))
   if (!id) return { success: false, error: 'ID inválido' }
 
@@ -124,6 +131,8 @@ export async function updateEnfermera(formData: FormData): Promise<Result> {
 }
 
 export async function toggleEnfermera(id: number, activo: boolean): Promise<Result> {
+  await requireSession()
+
   try {
     await db.update(nurses).set({ activo: !activo }).where(eq(nurses.id, id))
     revalidatePath('/enfermeras')
@@ -134,6 +143,8 @@ export async function toggleEnfermera(id: number, activo: boolean): Promise<Resu
 }
 
 export async function deleteEnfermera(id: number): Promise<Result> {
+  await requireSession()
+
   try {
     const [countRow] = await db
       .select({ total: count() })

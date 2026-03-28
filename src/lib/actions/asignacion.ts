@@ -7,6 +7,7 @@ import {
 } from '@/db/schema'
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { requireSession } from '@/lib/auth-guard'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,8 @@ export type Result = { success: boolean; error?: string }
 // ─── getVisitasParaAsignacion ─────────────────────────────────────────────────
 
 export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsignacion[]> {
+  await requireSession()
+
   const rawVisitas = await db
     .select({
       id: visits.id,
@@ -95,6 +98,8 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
 // ─── getEnfermerasActivas ─────────────────────────────────────────────────────
 
 export async function getEnfermerasActivas(): Promise<{ id: number; nombre: string }[]> {
+  await requireSession()
+
   const rows = await db
     .select({ id: nurses.id, nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno })
     .from(nurses)
@@ -112,6 +117,8 @@ export async function getEnfermerasActivas(): Promise<{ id: number; nombre: stri
 export async function guardarAsignaciones(
   cambios: { idVisita: number; idEnfermera: number | null }[],
 ): Promise<Result> {
+  await requireSession()
+
   if (!cambios.length) return { success: true }
   try {
     await db.transaction(async (tx) => {

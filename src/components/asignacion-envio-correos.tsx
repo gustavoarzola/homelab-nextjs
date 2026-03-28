@@ -5,6 +5,7 @@ import { Mail, Loader2, AlertCircle, Calendar } from 'lucide-react'
 import { getVisitasAsignadasPorEnfermera, sendScheduledVisitsEmail, sendAllScheduledVisitsEmails } from '@/lib/actions/visitas-asignacion-email'
 import type { EnfermeraConVisitas } from '@/lib/actions/visitas-asignacion-email'
 import { formatDateLong } from '@/lib/format'
+import { FormDatePicker } from '@/components/form-date-picker'
 import { toast } from 'sonner'
 
 type Props = {
@@ -97,17 +98,14 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras }: Prop
             <label className="block text-sm font-medium mb-2" style={{ color: 'var(--foreground)' }}>
               Seleccione una fecha
             </label>
-            <input
-              type="date"
+            <FormDatePicker
+              mode="single"
               value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
+              onChange={(value) => setFecha(value ?? '')}
               disabled={loading}
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-              style={{
-                backgroundColor: 'var(--background)',
-                border: '1px solid var(--input)',
-                color: 'var(--foreground)',
-              }}
+              weekStartsOn={1}
+              placeholder="Seleccionar fecha"
+              className="w-full"
             />
           </div>
           <button

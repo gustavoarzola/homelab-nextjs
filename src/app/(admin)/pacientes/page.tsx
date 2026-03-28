@@ -1,10 +1,8 @@
-import { auth } from '@/auth'
 import { searchPacientes, deletePaciente } from '@/lib/actions/pacientes'
 import { searchPrevisiones } from '@/lib/actions/catalogos'
 import { PacientesTable } from '@/components/pacientes-table'
 
 export default async function PacientesPage() {
-  const session = await auth()
   const [initialData, { rows: previsiones }] = await Promise.all([
     searchPacientes({ filters: {}, sort: null, page: 1, pageSize: 10 }),
     searchPrevisiones({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
@@ -12,7 +10,7 @@ export default async function PacientesPage() {
 
   async function handleDelete(id: number) {
     'use server'
-    return deletePaciente(id, session?.user?.role ?? 'usuario')
+    return deletePaciente(id)
   }
 
   return (

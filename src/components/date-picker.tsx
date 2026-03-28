@@ -13,27 +13,34 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 const defaultClassNames = getDefaultClassNames()
 
 const calendarStyles = {
-  root: cn(defaultClassNames.root, 'bg-background p-2.5 text-sm'),
-  month: cn(defaultClassNames.month, 'space-y-3'),
-  month_caption: cn(defaultClassNames.month_caption, 'relative flex justify-center items-center'),
-  caption_label: cn(defaultClassNames.caption_label, 'text-sm font-medium'),
-  nav: cn(defaultClassNames.nav, 'flex items-center gap-1'),
+  root: cn(defaultClassNames.root, 'w-fit bg-background p-1.5 text-xs'),
+  months: cn(defaultClassNames.months, 'relative w-fit'),
+  month: cn(defaultClassNames.month, 'w-fit space-y-1.5 pt-6'),
+  month_caption: cn(
+    defaultClassNames.month_caption,
+    'flex h-6 items-center justify-center px-6 pointer-events-none',
+  ),
+  caption_label: cn(defaultClassNames.caption_label, 'text-xs font-medium'),
+  nav: cn(
+    defaultClassNames.nav,
+    'absolute inset-x-1 top-1 z-10 flex items-center justify-between',
+  ),
   button_previous: cn(
     defaultClassNames.button_previous,
-    'absolute left-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+    'pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground',
   ),
   button_next: cn(
     defaultClassNames.button_next,
-    'absolute right-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+    'pointer-events-auto inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground',
   ),
-  month_grid: cn(defaultClassNames.month_grid, 'w-full border-collapse'),
-  weekdays: cn(defaultClassNames.weekdays, 'flex'),
-  weekday: cn(defaultClassNames.weekday, 'w-8 text-xs font-normal text-muted-foreground'),
-  week: cn(defaultClassNames.week, 'mt-2 flex w-full'),
-  day: cn(defaultClassNames.day, 'h-8 w-8 p-0 text-sm'),
+  month_grid: cn(defaultClassNames.month_grid, 'w-fit border-collapse'),
+  weekdays: cn(defaultClassNames.weekdays),
+  weekday: cn(defaultClassNames.weekday, 'h-7 w-8 px-0 text-[11px] font-normal text-muted-foreground'),
+  week: cn(defaultClassNames.week),
+  day: cn(defaultClassNames.day, 'h-8 w-8 p-0 text-xs'),
   day_button: cn(
     defaultClassNames.day_button,
-    'h-8 w-8 rounded-md p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground',
+    'h-8 w-8 rounded-md p-0 text-xs font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground',
   ),
   selected: cn(
     defaultClassNames.selected,
@@ -218,14 +225,14 @@ export function DateRangePicker({
         className="z-[60] w-auto border-border bg-background p-0 shadow-xl opacity-100"
         align="start"
       >
-        <div className="flex w-[460px] max-w-[90vw] overflow-hidden rounded-md bg-background">
-          <div className="w-40 border-r bg-muted/30 p-1.5">
+        <div className="inline-flex max-w-[90vw] items-start overflow-hidden rounded-md bg-background">
+          <div className="w-28 border-r bg-muted/30 p-1">
             <div className="flex flex-col gap-1">
               {rangePresets.map((preset) => (
                 <Button
                   key={preset.label}
                   variant={selectedPreset === preset.label ? 'secondary' : 'ghost'}
-                  className="h-8 justify-start px-2.5 text-sm"
+                  className="h-6 justify-start px-1.5 text-[11px]"
                   onClick={() => applyPreset(preset.days)}
                 >
                   {preset.label}
@@ -235,6 +242,7 @@ export function DateRangePicker({
           </div>
           <DayPicker
             mode="range"
+            min={1}
             locale={es}
             showOutsideDays
             selected={value}
@@ -247,6 +255,7 @@ export function DateRangePicker({
             numberOfMonths={1}
             classNames={calendarStyles}
             components={calendarComponents}
+            className="shrink-0"
             autoFocus
           />
         </div>

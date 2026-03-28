@@ -7,6 +7,7 @@ import {
   procedures, exams,
   contactOrigins,
 } from './schema'
+import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 
 // ─── RUT helpers ──────────────────────────────────────────────────────────────
@@ -801,10 +802,91 @@ async function seed() {
   const isapreCount = previsionIds.slice(4, 11).reduce((s, id) => s + (prevDist[id] ?? 0), 0)
   const otrosCount  = TOTAL_PATIENTS - fonasaCount - isapreCount
 
-  // Visitas sin asignación de enfermeras (24-30 marzo 2026, 40 visitas/día)
+  // Visitas con historial (enero-early abril 2026)
   const allPatients = await db.select({ id: patients.id }).from(patients)
   const allBranches = await db.select({ id: branches.id }).from(branches)
+  const allNurses = await db.select({ id: nurses.id }).from(nurses).where(eq(nurses.activo, true))
 
+  let visitsCount = 0
+
+  if (allPatients.length > 0 && allBranches.length > 0) {
+    const visitRows: Array<{
+      fecha: string
+      hora: string
+      estado: string
+      costo: number
+      idPaciente: number
+      idEnfermera: number | null
+      idSucursal: number
+      numeroBoleta: string
+      tipoDocumento: string
+      origenContacto: string
+      informacionAdicional: string
+    }> = []
+
+    // Generate 12-22 visits per day (Mon-Sat) for Jan 1 2025 - Apr 15 2025
+    const visitDates: { date: Date; state: 'realizada' | 'creada'; assignNurse: boolean }[] = []
+
+    const cutoffDate = new Date(2026, 2, 27) // March 27, 2026
+    const startDate = new Date(2026, 0, 1)   // January 1, 2026
+    const endDate = new Date(2026, 3, 15)    // April 15, 2026
+
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dayOfWeek = d.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      // Skip Sunday (0)
+      if (dayOfWeek === 0) continue
+
+      const isRealizada = d < cutoffDate
+      const randomCount = Math.floor(Math.random() * 11) + 12 // 12-22 visits
+
+      for (let i = 0; i < randomCount; i++) {
+        const assignNurse = isRealizada ? true : Math.random() > 0.3 // 70% have nurse after Mar 27
+        visitDates.push({
+          date: new Date(d),
+          state: isRealizada ? 'realizada' : 'creada',
+          assignNurse,
+        })
+      }
+    }
+
+    // Sort by date and create visit rows
+    visitDates.sort((a, b) => a.date.getTime() - b.date.getTime())
+
+    for (let idx = 0; idx < visitDates.length; idx++) {
+      const { date, state, assignNurse } = visitDates[idx]!
+      const fecha = date.toISOString().split('T')[0]!
+      const patientId = allPatients[idx % allPatients.length]!.id
+      const branchId = allBranches[idx % allBranches.length]!.id
+      const nurseId = assignNurse && allNurses.length > 0 ? allNurses[idx % allNurses.length]!.id : null
+      const hour = Math.floor(Math.random() * 24).toString().padStart(2, '0')
+      const minute = Math.floor(Math.random() * 60).toString().padStart(2, '0')
+      const second = '00'
+
+      visitRows.push({
+        fecha,
+        hora: `${hour}:${minute}:${second}`,
+        estado: state,
+        costo: Math.floor(Math.random() * 100000) + 20000,
+        idPaciente: patientId,
+        idEnfermera: nurseId,
+        idSucursal: branchId,
+        numeroBoleta: '',
+        tipoDocumento: '',
+        origenContacto: 'Sistema',
+        informacionAdicional: '',
+      })
+    }
+
+    console.log(`   Insertando ${visitRows.length} visitas (enero-abril 2026)...`)
+    const VISIT_BATCH = 100
+    for (let offset = 0; offset < visitRows.length; offset += VISIT_BATCH) {
+      await db.insert(visits).values(visitRows.slice(offset, offset + VISIT_BATCH))
+    }
+    visitsCount = visitRows.length
+  }
+
+  // Visitas sin asignación de enfermeras (24-30 marzo 2026, 40 visitas/día - COMMENTED OUT)
+  /* Uncomment to add additional 280 visits for Mar 24-30
   if (allPatients.length > 0 && allBranches.length > 0) {
     const visitRows: Array<{
       fecha: string
@@ -852,8 +934,7 @@ async function seed() {
       await db.insert(visits).values(visitRows.slice(offset, offset + VISIT_BATCH))
     }
   }
-
-  const visitsCount = allPatients.length > 0 && allBranches.length > 0 ? 7 * 40 : 0
+  */
 
   console.log('✅ Seed completado:')
   console.log('   admin@homelab.cl   / admin123  (rol: admin)')
@@ -862,7 +943,7 @@ async function seed() {
   console.log(`   ${TOTAL_PATIENTS} pacientes → ${rutCount} con RUT · ${passportCount} con pasaporte`)
   console.log(`   Previsión → FONASA: ${fonasaCount} · Isapre: ${isapreCount} · Otros: ${otrosCount}`)
   console.log(`   ${residenciaCount} pacientes en residencia adulto mayor`)
-  console.log(`   ${visitsCount} visitas sin asignación de enfermeras (24-30 mar 2026, 40/día)`)
+  console.log(`   ${visitsCount} visitas (ene-abr 2025: 12-22/día lun-sábado, antes 27mar=realizada+enfermera, después=creada+70%enfermera)`)
   console.log(`   ${previsionesData.length} previsiones de salud`)
   console.log(`   ${cadenasData.length} cadenas · ${sucursalesRows.length} sucursales`)
   console.log(`   ${procedimientosData.length} procedimientos · ${examenesData.length} exámenes`)

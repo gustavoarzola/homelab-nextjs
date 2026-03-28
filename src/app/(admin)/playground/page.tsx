@@ -1,10 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { es } from 'date-fns/locale'
 import { type DateRange } from 'react-day-picker'
 import { SelectCombobox } from '@/components/select-combobox'
 import { TimePicker } from '@/components/time-picker'
-import { DatePicker, DateRangePicker } from '@/components/date-picker'
+import { SimpleCalendar } from '@/components/simple-calendar'
+import { SimpleDatePicker } from '@/components/simple-date-picker'
+import { BirthDatePicker } from '@/components/birth-date-picker'
+import { FormDatePicker } from '@/components/form-date-picker'
 
 const EXAMENES = [
   { id: 1,  label: 'Hemograma completo' },
@@ -42,17 +46,23 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export default function PlaygroundPage() {
+  const today = new Date()
   const [multiSelected, setMultiSelected] = useState<number[]>([1, 3])
   const [singleSelected, setSingleSelected] = useState<number | null>(2)
   const [time, setTime] = useState<string | null>('09:00')
   const [timeEmpty, setTimeEmpty] = useState<string | null>(null)
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [pickerDate, setPickerDate] = useState<Date | undefined>(new Date())
-  const [pickerRange, setPickerRange] = useState<DateRange | undefined>(undefined)
+  const [simpleSingleEmpty, setSimpleSingleEmpty] = useState<Date | undefined>(undefined)
+  const [simpleSingleSelected, setSimpleSingleSelected] = useState<Date | undefined>(
+    new Date(2026, 3, 8),
+  )
+  const [simpleRange, setSimpleRange] = useState<DateRange | undefined>(undefined)
+  const [formSingle, setFormSingle] = useState<string | undefined>(undefined)
+  const [formRange, setFormRange] = useState<{ from?: string; to?: string } | undefined>(undefined)
+  const [birthDate, setBirthDate] = useState<string | undefined>(undefined)
+  const [birthDatePreset, setBirthDatePreset] = useState<string | undefined>('1988-04-23')
 
   return (
-    <div className="mx-auto max-w-2xl px-8 py-10">
+    <div className="mx-auto max-w-2xl px-8 pt-10 pb-[410px]">
       <h1 className="mb-1 text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
         Playground
       </h1>
@@ -116,59 +126,117 @@ export default function PlaygroundPage() {
           </Row>
         </Section>
 
-        {/* DatePicker shadcn */}
-        <Section title="DatePicker (shadcn)">
-          <Row label="Fecha simple">
-            <DatePicker value={pickerDate} onChange={setPickerDate} className="w-full" />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              Valor: {pickerDate?.toLocaleDateString('es-CL') ?? '—'}
-            </p>
+        <Section title="SimpleCalendar">
+          <Row label="Single vacío">
+            <SimpleCalendar
+              animate
+              mode="single"
+              weekStartsOn={1}
+              locale={es}
+              today={today}
+              selected={simpleSingleEmpty}
+              onSelect={setSimpleSingleEmpty}
+            />
           </Row>
-          <Row label="Sin valor">
-            <DatePicker value={undefined} onChange={() => {}} className="w-full" />
+          <Row label="Single con fecha">
+            <SimpleCalendar
+              animate
+              mode="single"
+              weekStartsOn={1}
+              locale={es}
+              today={today}
+              selected={simpleSingleSelected}
+              onSelect={setSimpleSingleSelected}
+            />
           </Row>
-          <Row label="Rango (2 meses)">
-            <DateRangePicker value={pickerRange} onChange={setPickerRange} className="w-full" />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              Desde: {pickerRange?.from?.toLocaleDateString('es-CL') ?? '—'} · Hasta: {pickerRange?.to?.toLocaleDateString('es-CL') ?? '—'}
-            </p>
-          </Row>
-          <Row label="Deshabilitado">
-            <DatePicker value={new Date()} onChange={() => {}} disabled className="w-full" />
+          <Row label="Docs config">
+            <SimpleCalendar
+              animate
+              mode="range"
+              weekStartsOn={1}
+              locale={es}
+              today={today}
+              selected={simpleRange}
+              onSelect={setSimpleRange}
+            />
           </Row>
         </Section>
 
-        {/* Input date nativo */}
-        <Section title="Input date (nativo)">
-          <Row label="Fecha simple">
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-              style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+        <Section title="SimpleDatePicker">
+          <Row label="Single">
+            <SimpleDatePicker
+              animate
+              mode="single"
+              weekStartsOn={1}
+              locale={es}
+              today={today}
+              placeholder="Seleccionar fecha"
             />
           </Row>
-          <Row label="Rango">
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
-                style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-              />
-              <span className="text-xs shrink-0" style={{ color: 'var(--muted-foreground)' }}>→</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
-                style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-              />
-            </div>
+          <Row label="Range">
+            <SimpleDatePicker
+              animate
+              mode="range"
+              weekStartsOn={1}
+              locale={es}
+              today={today}
+              placeholder="Seleccionar rango"
+            />
+          </Row>
+        </Section>
+
+        <Section title="FormDatePicker">
+          <Row label="Single">
+            <FormDatePicker
+              mode="single"
+              value={formSingle}
+              onChange={setFormSingle}
+              weekStartsOn={1}
+              locale={es}
+              today={today}
+              name="fecha"
+              placeholder="Seleccionar fecha"
+            />
             <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              {dateFrom || '—'} → {dateTo || '—'}
+              Valor real: {formSingle ?? '—'}
+            </p>
+          </Row>
+          <Row label="Range">
+            <FormDatePicker
+              mode="range"
+              value={formRange}
+              onChange={setFormRange}
+              weekStartsOn={1}
+              locale={es}
+              today={today}
+              nameFrom="fechaInicio"
+              nameTo="fechaFin"
+              placeholder="Seleccionar rango"
+            />
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+              Desde: {formRange?.from ?? '—'} · Hasta: {formRange?.to ?? '—'}
+            </p>
+          </Row>
+        </Section>
+
+        <Section title="BirthDatePicker">
+          <Row label="Vacío">
+            <BirthDatePicker
+              value={birthDate}
+              onChange={setBirthDate}
+              name="fechaNacimiento"
+            />
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+              Valor real: {birthDate ?? '—'}
+            </p>
+          </Row>
+          <Row label="Con valor">
+            <BirthDatePicker
+              value={birthDatePreset}
+              onChange={setBirthDatePreset}
+            />
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+              Valor real: {birthDatePreset ?? '—'}
             </p>
           </Row>
         </Section>
