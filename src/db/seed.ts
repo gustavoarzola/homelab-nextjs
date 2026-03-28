@@ -741,17 +741,17 @@ async function seed() {
 
   // Previsiones de salud
   console.log(`   Insertando ${previsionesData.length} previsiones de salud...`)
-  const insertedPrevisiones = await db.insert(healthInsurances).values(previsionesData).returning({ id: healthInsurances.id })
+  const insertedPrevisiones = await db.insert(healthInsurances).values(previsionesData).returning()
   const previsionIds = insertedPrevisiones.map(r => r.id)
 
   // Residencias adulto mayor
   console.log(`   Insertando ${residenciasData.length} residencias de adulto mayor...`)
-  const insertedResidencias = await db.insert(elderlyResidences).values(residenciasData).returning({ id: elderlyResidences.id })
+  const insertedResidencias = await db.insert(elderlyResidences).values(residenciasData).returning()
   const residenciaIds = insertedResidencias.map(r => r.id)
 
   // Cadenas (laboratorios)
   console.log(`   Insertando ${cadenasData.length} cadenas de clínicas...`)
-  const insertedCadenas = await db.insert(laboratories).values(cadenasData).returning({ id: laboratories.id })
+  const insertedCadenas = await db.insert(laboratories).values(cadenasData).returning()
   const cadenaIds = insertedCadenas.map(r => r.id)
 
   // Sucursales
@@ -780,7 +780,7 @@ async function seed() {
   // Direcciones (una por paciente)
   console.log(`   Insertando ${TOTAL_PATIENTS} direcciones...`)
   const addressRows = Array.from({ length: TOTAL_PATIENTS }, (_, i) => buildAddress(i))
-  const insertedAddresses = await db.insert(addresses).values(addressRows).returning({ id: addresses.id })
+  const insertedAddresses = await db.insert(addresses).values(addressRows).returning()
 
   // Pacientes
   console.log(`   Insertando ${TOTAL_PATIENTS} pacientes...`)
