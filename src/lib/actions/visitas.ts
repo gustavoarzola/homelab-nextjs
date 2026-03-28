@@ -304,7 +304,7 @@ export async function createVisita(
           origenContacto,
           informacionAdicional,
         })
-        .returning({ id: visits.id })
+        .returning()
 
       const id = visit!.id
 
