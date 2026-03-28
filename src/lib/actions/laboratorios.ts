@@ -5,6 +5,7 @@ import { laboratories, branches } from '@/db/schema'
 import { eq, count, and, ilike, asc, desc, not, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/components/data-table'
+import { requireSession } from '@/lib/auth-guard'
 
 type Result = { success: boolean; error?: string }
 
@@ -16,6 +17,8 @@ export type SucursalRow = { id: number; nombre: string; idLaboratorio: number | 
 // ─── Laboratorios ──────────────────────────────────────────────────────────────
 
 export async function searchLaboratorios(params: SearchParams): Promise<{ rows: LaboratorioRow[]; total: number }> {
+  await requireSession()
+
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const mostrarInactivas = filters.mostrarInactivas as boolean | undefined
@@ -33,6 +36,8 @@ export async function searchLaboratorios(params: SearchParams): Promise<{ rows: 
 }
 
 export async function createLaboratorio(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const nombre = (formData.get('nombre') as string)?.trim()
   if (!nombre) return { success: false, error: 'Nombre requerido' }
   try {
@@ -47,6 +52,8 @@ export async function createLaboratorio(formData: FormData): Promise<Result> {
 }
 
 export async function updateLaboratorio(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const id = Number(formData.get('id'))
   const nombre = (formData.get('nombre') as string)?.trim()
   if (!id || !nombre) return { success: false, error: 'Datos inválidos' }
@@ -65,6 +72,8 @@ export async function updateLaboratorio(formData: FormData): Promise<Result> {
 }
 
 export async function toggleLaboratorio(id: number, activo: boolean): Promise<Result> {
+  await requireSession()
+
   try {
     await db.update(laboratories).set({ activo: !activo }).where(eq(laboratories.id, id))
     revalidatePath('/laboratorios')
@@ -77,6 +86,8 @@ export async function toggleLaboratorio(id: number, activo: boolean): Promise<Re
 // ─── Sucursales ───────────────────────────────────────────────────────────────
 
 export async function searchSucursales(params: SearchParams): Promise<{ rows: SucursalRow[]; total: number }> {
+  await requireSession()
+
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const idLaboratorio = (filters.idLaboratorio as string | undefined)
@@ -114,6 +125,8 @@ export async function searchSucursales(params: SearchParams): Promise<{ rows: Su
 }
 
 export async function createSucursal(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const nombre = (formData.get('nombre') as string)?.trim()
   const idLaboratorio = Number(formData.get('idLaboratorio'))
   if (!nombre || !idLaboratorio) return { success: false, error: 'Nombre y laboratorio son requeridos' }
@@ -132,6 +145,8 @@ export async function createSucursal(formData: FormData): Promise<Result> {
 }
 
 export async function updateSucursal(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const id = Number(formData.get('id'))
   const nombre = (formData.get('nombre') as string)?.trim()
   const idLaboratorio = Number(formData.get('idLaboratorio'))
@@ -151,6 +166,8 @@ export async function updateSucursal(formData: FormData): Promise<Result> {
 }
 
 export async function toggleSucursal(id: number, activo: boolean): Promise<Result> {
+  await requireSession()
+
   try {
     await db.update(branches).set({ activo: !activo }).where(eq(branches.id, id))
     revalidatePath('/sucursales')

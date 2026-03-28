@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { SelectCombobox } from './select-combobox'
+import { FormDatePicker } from './form-date-picker'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -325,34 +326,37 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
             })() : f.type === 'date-range' ? (
               <>
                 <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="date"
-                    value={(draft[f.keyFrom!] as string) ?? ''}
-                    onChange={(e) => setDraft((d) => ({ ...d, [f.keyFrom!]: e.target.value }))}
-                    className="rounded-lg px-3 py-2 text-sm outline-none w-36"
-                    style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                  />
-                  <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>→</span>
-                  <input
-                    type="date"
-                    value={(draft[f.keyTo!] as string) ?? ''}
-                    onChange={(e) => setDraft((d) => ({ ...d, [f.keyTo!]: e.target.value }))}
-                    className="rounded-lg px-3 py-2 text-sm outline-none w-36"
-                    style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                <div style={{ width: '292px' }}>
+                  <FormDatePicker
+                    mode="range"
+                    value={{
+                      from: ((draft[f.keyFrom!] as string) || undefined),
+                      to: ((draft[f.keyTo!] as string) || undefined),
+                    }}
+                    onChange={(value) =>
+                      setDraft((d) => ({
+                        ...d,
+                        [f.keyFrom!]: value?.from ?? '',
+                        [f.keyTo!]: value?.to ?? '',
+                      }))
+                    }
+                    weekStartsOn={1}
+                    placeholder={f.label}
                   />
                 </div>
               </>
             ) : f.type === 'date' ? (
               <>
                 <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
-                <input
-                  type="date"
-                  value={(draft[f.key] as string) ?? ''}
-                  onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                  className="rounded-lg px-3 py-2 text-sm outline-none w-52"
-                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                />
+                <div style={{ width: '208px' }}>
+                  <FormDatePicker
+                    mode="single"
+                    value={((draft[f.key] as string) || undefined)}
+                    onChange={(value) => setDraft((d) => ({ ...d, [f.key]: value ?? '' }))}
+                    weekStartsOn={1}
+                    placeholder={f.placeholder ?? f.label}
+                  />
+                </div>
               </>
             ) : (
               <>
@@ -565,7 +569,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
             <button
               onClick={() => handlePage(page - 1)}
               disabled={page <= 1 || isPending}
-              className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
+              className="cursor-pointer rounded p-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
               style={{ color: 'var(--muted-foreground)' }}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -579,7 +583,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                   key={p}
                   onClick={() => handlePage(p)}
                   disabled={isPending}
-                  className="h-8 w-8 rounded text-sm font-medium transition-colors hover:opacity-80 disabled:opacity-30"
+                  className="h-8 w-8 cursor-pointer rounded text-sm font-medium transition-colors hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
                   style={p === page
                     ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }
                     : { color: 'var(--foreground)' }
@@ -593,7 +597,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
             <button
               onClick={() => handlePage(page + 1)}
               disabled={page >= totalPages || isPending}
-              className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
+              className="cursor-pointer rounded p-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
               style={{ color: 'var(--muted-foreground)' }}
             >
               <ChevronRight className="h-4 w-4" />

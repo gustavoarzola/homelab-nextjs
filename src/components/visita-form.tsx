@@ -7,6 +7,7 @@ import { Loader2, Pencil } from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { SelectCombobox } from '@/components/select-combobox'
 import { TimePicker } from '@/components/time-picker'
+import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
 import { formatRut } from '@/lib/rut'
 import type { NurseRow } from '@/lib/actions/enfermeras'
@@ -328,14 +329,15 @@ export function VisitaForm({
                 <label className={labelClass} style={labelStyle}>
                   Fecha <span style={{ color: 'var(--destructive)' }}>*</span>
                 </label>
-                <input type="hidden" name="fecha" value={selectedFecha ?? ''} />
-                <input
-                  type="date"
-                  value={selectedFecha ?? ''}
-                  onChange={(e) => setSelectedFecha(e.target.value || null)}
+                <FormDatePicker
+                  mode="single"
+                  name="fecha"
+                  value={selectedFecha ?? undefined}
+                  onChange={(value) => setSelectedFecha(value ?? null)}
                   disabled={isPending}
-                  className="w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                  weekStartsOn={1}
+                  placeholder="Seleccionar fecha"
+                  className="w-full"
                 />
               </div>
 

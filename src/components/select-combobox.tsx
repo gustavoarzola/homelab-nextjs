@@ -9,6 +9,7 @@ type BaseProps = {
   options: Option[]
   placeholder?: string
   disabled?: boolean
+  clearable?: boolean
 }
 
 type MultiProps = BaseProps & {
@@ -91,10 +92,16 @@ export function SelectCombobox(props: Props) {
   }
 
   const isSingleMode = !isMulti(props)
+  const isClearable = props.clearable ?? true
   const displayValue = isSingleMode && !open ? selectedOptions[0]?.label : undefined
 
+  const openDropdown = () => {
+    if (props.disabled) return
+    setOpen(true)
+  }
+
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className={`relative w-full${open ? ' z-[120]' : ''}`}>
       {/* Pills (multi mode only) */}
       {isMulti(props) && selectedOptions.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -133,10 +140,11 @@ export function SelectCombobox(props: Props) {
           type="text"
           value={isSingleMode && !open ? '' : query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setOpen(true)}
+          onFocus={openDropdown}
+          onClick={openDropdown}
           placeholder={isSingleMode && selectedOptions.length > 0 ? '' : props.placeholder}
           disabled={props.disabled}
-          className="flex-1 bg-transparent outline-none"
+          className="flex-1 bg-transparent pr-6 outline-none"
         />
         {displayValue && (
           <span
@@ -150,16 +158,26 @@ export function SelectCombobox(props: Props) {
         <button
           type="button"
           onClick={(e) => {
-            if (isSingleMode) {
+            if (isSingleMode && isClearable) {
               e.stopPropagation()
               props.onChange(null)
+              return
+            }
+
+            e.stopPropagation()
+            const nextOpen = !open
+            setOpen(nextOpen)
+            if (nextOpen) {
+              requestAnimationFrame(() => {
+                inputRef.current?.focus()
+              })
             }
           }}
-          disabled={props.disabled || selectedOptions.length === 0}
-          className="h-4 w-4 shrink-0 flex items-center justify-center rounded hover:opacity-70 disabled:opacity-30 disabled:cursor-default"
+          disabled={props.disabled || (isSingleMode && isClearable && selectedOptions.length === 0)}
+          className="absolute right-3 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded hover:opacity-70 disabled:opacity-30 disabled:cursor-default"
           style={isSingleMode && selectedOptions.length > 0 ? { color: 'var(--muted-foreground)' } : { color: 'var(--muted-foreground)' }}
         >
-          {isSingleMode && selectedOptions.length > 0 ? (
+          {isSingleMode && isClearable && selectedOptions.length > 0 ? (
             <X className="h-4 w-4" />
           ) : (
             <ChevronDown
@@ -173,8 +191,12 @@ export function SelectCombobox(props: Props) {
       {/* Dropdown */}
       {open && (
         <div
-          className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border shadow-lg"
-          style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+          className="absolute z-[130] mt-1 w-full overflow-hidden rounded-lg border shadow-xl"
+          style={{
+            backgroundColor: 'oklch(1 0 0 / 1)',
+            borderColor: 'var(--border)',
+            color: 'var(--foreground)',
+          }}
         >
           {filtered.length === 0 ? (
             <div className="px-3 py-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>

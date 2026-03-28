@@ -21,6 +21,7 @@ import {
 } from '@/lib/actions/asignacion'
 import { AsignacionCard } from '@/components/asignacion-card'
 import { AsignacionMap } from '@/components/asignacion-map'
+import { FormDatePicker } from '@/components/form-date-picker'
 import { SelectCombobox } from '@/components/select-combobox'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -188,17 +189,14 @@ export function AsignacionBoard({ initialFecha, initialVisitas, enfermeras }: Pr
             <h1 className="text-lg font-semibold" style={{ color: 'var(--foreground)' }}>
               Asignación de visitas
             </h1>
-            <input
-              type="date"
+            <FormDatePicker
+              mode="single"
               value={fecha}
-              onChange={(e) => handleDateChange(e.target.value)}
+              onChange={(value) => value && handleDateChange(value)}
               disabled={isPending}
-              className="rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50"
-              style={{
-                backgroundColor: 'var(--background)',
-                border: '1px solid var(--input)',
-                color: 'var(--foreground)',
-              }}
+              weekStartsOn={1}
+              placeholder="Seleccionar fecha"
+              className="w-[170px]"
             />
             {isPending && <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--muted-foreground)' }} />}
           </div>

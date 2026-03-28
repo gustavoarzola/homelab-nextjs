@@ -12,6 +12,7 @@ import { eq, count, and, or, ilike, asc, desc, inArray, not, SQL } from 'drizzle
 import { revalidatePath } from 'next/cache'
 import { validateRut, validatePasaporte } from '@/lib/rut'
 import type { SearchParams, Result } from '@/components/data-table'
+import { requireSession } from '@/lib/auth-guard'
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,8 @@ export type PacienteDetalle = {
 export async function searchPacientes(
   params: SearchParams,
 ): Promise<{ rows: PacienteRow[]; total: number }> {
+  await requireSession()
+
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const idPrevision = (filters.idPrevision as string | undefined)?.trim()
@@ -141,6 +144,8 @@ export async function searchPacientes(
 // ─── getPaciente ──────────────────────────────────────────────────────────────
 
 export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
+  await requireSession()
+
   const [row] = await db
     .select({
       id: patients.id,
@@ -193,6 +198,8 @@ export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
 export async function createPaciente(
   formData: FormData,
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
+  await requireSession()
+
   // Personal fields
   const nombres = (formData.get('nombres') as string)?.trim()
   const apellidoPaterno = (formData.get('apellidoPaterno') as string)?.trim()
@@ -319,6 +326,8 @@ export async function createPaciente(
 // ─── updatePaciente ───────────────────────────────────────────────────────────
 
 export async function updatePaciente(formData: FormData): Promise<Result> {
+  await requireSession()
+
   const id = Number(formData.get('id'))
   if (!id) return { success: false, error: 'ID inválido' }
 
@@ -454,7 +463,10 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
 
 // ─── deletePaciente ───────────────────────────────────────────────────────────
 
-export async function deletePaciente(id: number, userRole: string): Promise<Result> {
+export async function deletePaciente(id: number): Promise<Result> {
+  const session = await requireSession()
+  const userRole = session.user.role ?? 'usuario'
+
   try {
     const [countRow] = await db
       .select({ total: count() })

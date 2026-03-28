@@ -9,6 +9,7 @@ import {
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { formatDateFull, formatDateLong, formatDate, parseDateLocal } from '@/lib/format'
+import { requireSession } from '@/lib/auth-guard'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,8 @@ export type Result = { success: boolean; error?: string }
 export async function getVisitasAsignadasPorEnfermera(
   fecha: string,
 ): Promise<EnfermeraConVisitas[]> {
+  await requireSession()
+
   // Obtener todas las enfermeras con visitas en esa fecha
   const nursesWithVisits = await db
     .selectDistinct({ id: nurses.id })
@@ -226,6 +229,8 @@ async function getVisitasConDetalles(
 export async function sendScheduledVisitsEmail(
   enfermera: EnfermeraConVisitas,
 ): Promise<Result> {
+  await requireSession()
+
   if (!enfermera.correo) {
     return { success: false, error: 'La enfermera no tiene correo registrado' }
   }
