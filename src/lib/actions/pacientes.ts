@@ -281,7 +281,7 @@ export async function createPaciente(
           latitud: latitud ?? undefined,
           longitud: longitud ?? undefined,
         })
-        .returning({ id: addresses.id })
+        .returning()
 
       const idDireccion = addr!.id
 
@@ -303,7 +303,7 @@ export async function createPaciente(
           contactoTelefono,
           contactoInfo,
         })
-        .returning({ id: patients.id })
+        .returning()
 
       const idPaciente = patient!.id
 
