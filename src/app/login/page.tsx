@@ -2,6 +2,8 @@ import { signIn } from '@/auth'
 import { AuthError } from 'next-auth'
 import { redirect } from 'next/navigation'
 
+import { SubmitButton } from './submit-button'
+
 async function login(formData: FormData) {
   'use server'
   try {
@@ -114,30 +116,8 @@ export default async function LoginPage({ searchParams }: Props) {
             />
           </div>
 
-          <button
-            type="submit"
-            className="mt-2 w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80"
-            style={{
-              backgroundColor: 'var(--primary)',
-              color: 'var(--primary-foreground)',
-            }}
-          >
-            Iniciar sesión
-          </button>
+          <SubmitButton />
         </form>
-
-        {/* Hint credenciales */}
-        <div
-          className="mt-6 rounded-lg p-3 text-xs space-y-1"
-          style={{
-            backgroundColor: 'var(--muted)',
-            color: 'var(--muted-foreground)',
-          }}
-        >
-          <p className="font-medium">Usuarios de prueba:</p>
-          <p>admin@homelab.cl · admin123</p>
-          <p>usuario@homelab.cl · user123</p>
-        </div>
       </div>
     </div>
   )
