@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 
-// Load .env.local so DATABASE_URL is available during tests
+// Load .env.local so HOMELAB_DATABASE_URL is available during tests
 const envPath = join(process.cwd(), '.env.local')
 if (existsSync(envPath)) {
   const lines = readFileSync(envPath, 'utf-8').split('\n')

@@ -33,17 +33,6 @@ CREATE TABLE "origenes_contacto" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "contactos" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"nombre" varchar(50) NOT NULL,
-	"telefono" varchar(20),
-	"informacion_adicional" text,
-	"id_paciente" integer NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "contactos_id_paciente_unique" UNIQUE("id_paciente")
-);
---> statement-breakpoint
 CREATE TABLE "residencias_adulto_mayor" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"nombre" varchar(200) NOT NULL,
@@ -85,6 +74,7 @@ CREATE TABLE "enfermeras" (
 	"rut" varchar(200),
 	"telefono" varchar(20),
 	"correo" varchar(100),
+	"activo" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -100,7 +90,8 @@ CREATE TABLE "telefonos_pacientes" (
 --> statement-breakpoint
 CREATE TABLE "pacientes" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"rut" varchar(200),
+	"identificador" varchar(200),
+	"tipo_identificador" varchar(20),
 	"nombres" varchar(200) NOT NULL,
 	"apellido_paterno" varchar(200) DEFAULT '',
 	"apellido_materno" varchar(200) DEFAULT '',
@@ -110,15 +101,18 @@ CREATE TABLE "pacientes" (
 	"id_direccion" integer NOT NULL,
 	"id_compania_seguro" integer,
 	"id_residencia_adulto" integer,
+	"contacto_nombre" varchar(100),
+	"contacto_telefono" varchar(20),
+	"contacto_info" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "pacientes_rut_unique" UNIQUE("rut")
+	CONSTRAINT "pacientes_identificador_unique" UNIQUE("identificador")
 );
 --> statement-breakpoint
 CREATE TABLE "procedimientos" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"nombre" varchar(200) NOT NULL,
-	"codigo" varchar(20) NOT NULL,
+	"codigo" varchar(50) NOT NULL,
 	"activo" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -169,7 +163,6 @@ CREATE TABLE "visitas" (
 );
 --> statement-breakpoint
 ALTER TABLE "sucursales" ADD CONSTRAINT "sucursales_id_laboratorio_laboratorios_id_fk" FOREIGN KEY ("id_laboratorio") REFERENCES "public"."laboratorios"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "contactos" ADD CONSTRAINT "contactos_id_paciente_pacientes_id_fk" FOREIGN KEY ("id_paciente") REFERENCES "public"."pacientes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "telefonos_pacientes" ADD CONSTRAINT "telefonos_pacientes_id_paciente_pacientes_id_fk" FOREIGN KEY ("id_paciente") REFERENCES "public"."pacientes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pacientes" ADD CONSTRAINT "pacientes_id_direccion_direcciones_id_fk" FOREIGN KEY ("id_direccion") REFERENCES "public"."direcciones"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "examenes_visitas" ADD CONSTRAINT "examenes_visitas_id_examen_examenes_id_fk" FOREIGN KEY ("id_examen") REFERENCES "public"."examenes"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint

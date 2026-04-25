@@ -121,14 +121,13 @@ export async function guardarAsignaciones(
 
   if (!cambios.length) return { success: true }
   try {
-    await db.transaction(async (tx) => {
-      for (const { idVisita, idEnfermera } of cambios) {
-        await tx.update(visits).set({ idEnfermera }).where(eq(visits.id, idVisita))
-      }
-    })
+    for (const { idVisita, idEnfermera } of cambios) {
+      await db.update(visits).set({ idEnfermera }).where(eq(visits.id, idVisita))
+    }
     revalidatePath('/asignacion')
     return { success: true }
-  } catch {
+  } catch (err) {
+    console.error('guardarAsignaciones failed', err)
     return { success: false, error: 'Error al guardar asignaciones' }
   }
 }

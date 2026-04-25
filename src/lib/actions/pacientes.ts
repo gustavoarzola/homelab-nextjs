@@ -488,8 +488,10 @@ export async function deletePaciente(id: number): Promise<Result> {
 
     if (!existingPatient) return { success: false, error: 'Paciente no encontrado' }
 
-    await db.delete(patients).where(eq(patients.id, id))
-    await db.delete(addresses).where(eq(addresses.id, existingPatient.idDireccion))
+    await db.transaction(async (tx) => {
+      await tx.delete(patients).where(eq(patients.id, id))
+      await tx.delete(addresses).where(eq(addresses.id, existingPatient.idDireccion))
+    })
 
     revalidatePath('/pacientes')
     return { success: true }

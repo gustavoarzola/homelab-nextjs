@@ -1,5 +1,5 @@
 {
-  "id": "a8e95746-2360-427d-a534-69c67ecc29a1",
+  "id": "7d66f6d3-7a54-401a-98ba-bd1725b756f5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -234,85 +234,6 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.contactos": {
-      "name": "contactos",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "nombre": {
-          "name": "nombre",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "telefono": {
-          "name": "telefono",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "informacion_adicional": {
-          "name": "informacion_adicional",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "id_paciente": {
-          "name": "id_paciente",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "contactos_id_paciente_pacientes_id_fk": {
-          "name": "contactos_id_paciente_pacientes_id_fk",
-          "tableFrom": "contactos",
-          "tableTo": "pacientes",
-          "columnsFrom": [
-            "id_paciente"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "contactos_id_paciente_unique": {
-          "name": "contactos_id_paciente_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "id_paciente"
-          ]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -570,6 +491,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -700,9 +628,15 @@
           "primaryKey": true,
           "notNull": true
         },
-        "rut": {
-          "name": "rut",
+        "identificador": {
+          "name": "identificador",
           "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tipo_identificador": {
+          "name": "tipo_identificador",
+          "type": "varchar(20)",
           "primaryKey": false,
           "notNull": false
         },
@@ -762,6 +696,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "contacto_nombre": {
+          "name": "contacto_nombre",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contacto_telefono": {
+          "name": "contacto_telefono",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contacto_info": {
+          "name": "contacto_info",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -811,11 +763,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "pacientes_rut_unique": {
-          "name": "pacientes_rut_unique",
+        "pacientes_identificador_unique": {
+          "name": "pacientes_identificador_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "rut"
+            "identificador"
           ]
         }
       },
@@ -841,7 +793,7 @@
         },
         "codigo": {
           "name": "codigo",
-          "type": "varchar(20)",
+          "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true
         },

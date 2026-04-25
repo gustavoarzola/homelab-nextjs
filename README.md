@@ -141,7 +141,7 @@ pnpm db:push
 
 Consultar `.env.example` para todas las variables requeridas:
 
-- **DATABASE_URL**: Conexión PostgreSQL
+- **HOMELAB_DATABASE_URL**: Conexión PostgreSQL
 - **AUTH_SECRET**: Secreto para Auth.js v5 (genera con `openssl rand -base64 33`)
 - **NEXT_PUBLIC_GOOGLE_MAPS_API_KEY**: API key de Google Maps
 - **RESEND_API_KEY**: API key de Resend (para emails)

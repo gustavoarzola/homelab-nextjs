@@ -571,8 +571,8 @@ const origenesContactoData = [
 
 // ─── Patient generators ───────────────────────────────────────────────────────
 
-const TOTAL_PATIENTS = 1000
-const RUT_COUNT = 850  // rest get passport
+const TOTAL_PATIENTS = 2000
+const RUT_COUNT = 1250  // rest get passport
 
 function normalize(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -827,9 +827,13 @@ async function seed() {
     // Generate 12-22 visits per day (Mon-Sat) for Jan 1 2025 - Apr 15 2025
     const visitDates: { date: Date; state: 'realizada' | 'creada'; assignNurse: boolean }[] = []
 
-    const cutoffDate = new Date(2026, 2, 27) // March 27, 2026
-    const startDate = new Date(2026, 0, 1)   // January 1, 2026
-    const endDate = new Date(2026, 3, 15)    // April 15, 2026
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const cutoffDate = new Date(today)
+    cutoffDate.setDate(cutoffDate.getDate() - 1) // Realizadas until yesterday
+    const startDate = new Date(2026, 0, 1) // January 1, 2026
+    const endDate = new Date(today)
+    endDate.setDate(endDate.getDate() + 15) // Today + 15 days
 
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dayOfWeek = d.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
