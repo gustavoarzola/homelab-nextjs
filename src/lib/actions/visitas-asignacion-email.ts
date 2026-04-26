@@ -10,6 +10,7 @@ import { eq, and, inArray, asc } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { formatDateFull, formatDateLong, formatDate, parseDateLocal } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
+import { formatPacienteNombre } from '@/lib/paciente'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -348,7 +349,8 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
     const fechaFormato = formatDate(visita.fecha)
 
     // Build 2-col rows for patient info
-    const nombreCell = `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Nombre</span><p style="${valueStyle}">${visita.paciente.apellidoPaterno}${visita.paciente.apellidoMaterno ? ` ${visita.paciente.apellidoMaterno}` : ''}, ${visita.paciente.nombres}</p></td>`
+    const nombrePaciente = formatPacienteNombre(visita.paciente)
+    const nombreCell = `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Nombre</span><p style="${valueStyle}">${nombrePaciente}</p></td>`
 
     const identificadorCell = visita.paciente.identificador
       ? `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">${visita.paciente.tipoIdentificador ? visita.paciente.tipoIdentificador.toUpperCase() : 'Identificador'}</span><p style="${valueStyle}">${visita.paciente.identificador}</p></td>`

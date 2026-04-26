@@ -9,6 +9,7 @@ import { SelectCombobox } from '@/components/select-combobox'
 import { TimePicker } from '@/components/time-picker'
 import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
+import { formatPacienteNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { SucursalRow } from '@/lib/actions/laboratorios'
@@ -104,9 +105,7 @@ function MapPreview({ lat, lng }: { lat: string; lng: string }) {
 // ─── PacienteCard ─────────────────────────────────────────────────────────────
 
 function PacienteCard({ paciente }: { paciente: PacienteData }) {
-  const nombreDisplay = paciente.apellidoPaterno
-    ? `${[paciente.apellidoPaterno, paciente.apellidoMaterno].filter(Boolean).join(' ')}, ${paciente.nombres}`
-    : paciente.nombres
+  const nombreDisplay = formatPacienteNombre(paciente)
 
   const fechaDisplay = paciente.fechaNacimiento ? formatDate(paciente.fechaNacimiento) : null
 

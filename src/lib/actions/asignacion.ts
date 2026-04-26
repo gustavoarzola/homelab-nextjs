@@ -8,6 +8,7 @@ import {
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { requireSession } from '@/lib/auth-guard'
+import { formatPacienteNombre } from '@/lib/paciente'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
       idEnfermera: visits.idEnfermera,
       pacienteNombres: patients.nombres,
       pacienteApellido: patients.apellidoPaterno,
+      pacienteApellidoMaterno: patients.apellidoMaterno,
       comuna: addresses.areaAdministrativa3,
       latitud: addresses.latitud,
       longitud: addresses.longitud,
@@ -83,9 +85,11 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
     id: v.id,
     hora: v.hora ?? null,
     idEnfermera: v.idEnfermera ?? null,
-    pacienteNombre: v.pacienteApellido
-      ? `${v.pacienteApellido}, ${v.pacienteNombres}`
-      : (v.pacienteNombres ?? ''),
+    pacienteNombre: formatPacienteNombre({
+      nombres: v.pacienteNombres,
+      apellidoPaterno: v.pacienteApellido,
+      apellidoMaterno: v.pacienteApellidoMaterno,
+    }),
     comuna: v.comuna ?? null,
     latitud: v.latitud ?? null,
     longitud: v.longitud ?? null,
@@ -121,9 +125,11 @@ export async function guardarAsignaciones(
 
   if (!cambios.length) return { success: true }
   try {
-    for (const { idVisita, idEnfermera } of cambios) {
-      await db.update(visits).set({ idEnfermera }).where(eq(visits.id, idVisita))
-    }
+    await db.transaction(async (tx) => {
+      for (const { idVisita, idEnfermera } of cambios) {
+        await tx.update(visits).set({ idEnfermera }).where(eq(visits.id, idVisita))
+      }
+    })
     revalidatePath('/asignacion')
     return { success: true }
   } catch (err) {

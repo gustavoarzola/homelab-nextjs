@@ -827,8 +827,16 @@ async function seed() {
     // Generate 12-22 visits per day (Mon-Sat) for Jan 1 2025 - Apr 15 2025
     const visitDates: { date: Date; state: 'realizada' | 'creada'; assignNurse: boolean }[] = []
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const chileDateParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Santiago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date())
+    const chileYear = Number(chileDateParts.find((part) => part.type === 'year')?.value)
+    const chileMonth = Number(chileDateParts.find((part) => part.type === 'month')?.value)
+    const chileDay = Number(chileDateParts.find((part) => part.type === 'day')?.value)
+    const today = new Date(chileYear, chileMonth - 1, chileDay)
     const cutoffDate = new Date(today)
     cutoffDate.setDate(cutoffDate.getDate() - 1) // Realizadas until yesterday
     const startDate = new Date(2026, 0, 1) // January 1, 2026

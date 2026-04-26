@@ -6,6 +6,7 @@ import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL } from 'drizzle-orm
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { formatPacienteNombre } from '@/lib/paciente'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
@@ -115,6 +116,7 @@ export async function searchVisitas(
       idPaciente: visits.idPaciente,
       pacienteNombres: patients.nombres,
       pacienteApellido: patients.apellidoPaterno,
+      pacienteApellidoMaterno: patients.apellidoMaterno,
       enfermeraNombres: nurses.nombres,
       enfermeraApellido: nurses.apellidoPaterno,
       sucursal: branches.nombre,
@@ -136,9 +138,11 @@ export async function searchVisitas(
     estado: r.estado,
     costo: r.costo,
     idPaciente: r.idPaciente,
-    paciente: r.pacienteApellido
-      ? `${r.pacienteApellido}, ${r.pacienteNombres}`
-      : (r.pacienteNombres ?? null),
+    paciente: formatPacienteNombre({
+      nombres: r.pacienteNombres,
+      apellidoPaterno: r.pacienteApellido,
+      apellidoMaterno: r.pacienteApellidoMaterno,
+    }) || null,
     enfermera: r.enfermeraApellido
       ? `${r.enfermeraApellido}, ${r.enfermeraNombres}`
       : (r.enfermeraNombres ?? null),

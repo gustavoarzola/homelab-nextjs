@@ -8,7 +8,7 @@ import {
   patientPhones,
   visits,
 } from '@/db/schema'
-import { eq, count, and, or, ilike, asc, desc, inArray, not, SQL } from 'drizzle-orm'
+import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { validateRut, validatePasaporte } from '@/lib/rut'
 import type { SearchParams, Result } from '@/components/data-table'
@@ -72,12 +72,12 @@ export async function searchPacientes(
 
   const conditions: SQL[] = []
   if (buscar) {
+    const normalized = buscar.replace(/[\.\-\s]/g, '').toUpperCase()
+    const fullName = sql`(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, ''))`
     conditions.push(
       or(
-        ilike(patients.nombres, `%${buscar}%`),
-        ilike(patients.apellidoPaterno, `%${buscar}%`),
-        ilike(patients.apellidoMaterno, `%${buscar}%`),
-        ilike(patients.identificador, `%${buscar}%`),
+        sql`unaccent(${fullName}) ILIKE unaccent(${'%' + buscar + '%'})`,
+        ilike(patients.identificador, `%${normalized}%`),
       )!,
     )
   }

@@ -5,6 +5,7 @@ import { Mail, Loader2, AlertCircle, Calendar } from 'lucide-react'
 import { getVisitasAsignadasPorEnfermera, sendScheduledVisitsEmail, sendAllScheduledVisitsEmails } from '@/lib/actions/visitas-asignacion-email'
 import type { EnfermeraConVisitas } from '@/lib/actions/visitas-asignacion-email'
 import { formatDateLong } from '@/lib/format'
+import { formatPacienteNombre } from '@/lib/paciente'
 import { FormDatePicker } from '@/components/form-date-picker'
 import { toast } from 'sonner'
 
@@ -224,7 +225,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras }: Prop
                       <div className="space-y-1">
                         {enfermera.visitas.map((v) => (
                           <div key={v.id}>
-                            {v.paciente.apellidoPaterno}, {v.paciente.nombres}
+                            {formatPacienteNombre(v.paciente)}
                           </div>
                         ))}
                       </div>

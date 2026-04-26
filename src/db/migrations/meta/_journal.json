@@ -8,6 +8,13 @@
       "when": 1777145614436,
       "tag": "0000_puzzling_senator_kelly",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1745539200000,
+      "tag": "0001_pacientes_trgm_indexes",
+      "breakpoints": true
     }
   ]
 }

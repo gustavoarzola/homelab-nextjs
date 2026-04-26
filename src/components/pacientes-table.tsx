@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Calendar } from 'lucide-react'
 import { DataTable, type ColumnDef, type SearchParams, type Result } from '@/components/data-table'
 import type { PacienteRow } from '@/lib/actions/pacientes'
+import { formatPacienteNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
 
 type Props = {
@@ -16,10 +17,7 @@ type Props = {
 const columns: ColumnDef<PacienteRow>[] = [
   {
     id: 'apellidoPaterno',
-    accessorFn: (row) => {
-      const apellidos = [row.apellidoPaterno, row.apellidoMaterno].filter(Boolean).join(' ')
-      return apellidos ? `${apellidos}, ${row.nombres}` : row.nombres
-    },
+    accessorFn: (row) => formatPacienteNombre(row),
     header: 'Nombre',
     enableSorting: true,
   },
@@ -29,12 +27,9 @@ const columns: ColumnDef<PacienteRow>[] = [
     header: 'Identificador',
     enableSorting: true,
     cell: ({ row }) => {
-      if (!row.original.identificador) return '—'
-      // Format as RUT if it matches the RUT pattern
-      if (/^\d{7,8}[0-9K]$/i.test(row.original.identificador)) {
-        return formatRut(row.original.identificador)
-      }
-      return row.original.identificador
+      const identificador = row.original.identificador
+      if (!identificador) return '—'
+      return formatRut(identificador)
     },
   },
   {
