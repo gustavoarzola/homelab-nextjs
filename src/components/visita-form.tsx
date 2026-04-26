@@ -9,7 +9,7 @@ import { SelectCombobox } from '@/components/select-combobox'
 import { TimePicker } from '@/components/time-picker'
 import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
-import { formatPacienteNombre } from '@/lib/paciente'
+import { formatEnfermeraNombre, formatPacienteNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { SucursalRow } from '@/lib/actions/laboratorios'
@@ -257,7 +257,7 @@ export function VisitaForm({
 
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: `${p.nombre} (${p.codigo})` }))
   const examenesOptions = examenes.map((e) => ({ id: e.id, label: `${e.nombre} (${e.codigo})` }))
-  const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: `${e.apellidoPaterno} ${e.nombres}` }))
+  const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatEnfermeraNombre(e) }))
   const sucursalesOptions = sucursales.map((s) => ({ id: s.id, label: `${s.nombre}${s.laboratorio ? ` (${s.laboratorio})` : ''}` }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
   const tipoDocumentoOptions = [

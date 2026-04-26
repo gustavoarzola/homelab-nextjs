@@ -3,8 +3,8 @@ CREATE EXTENSION IF NOT EXISTS unaccent;
 
 -- Wrapper inmutable requerido para usar unaccent() en índices de expresión
 CREATE OR REPLACE FUNCTION f_unaccent(text) RETURNS text AS $$
-  SELECT unaccent('unaccent', $1)
-$$ LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT;
+  SELECT unaccent($1)
+$$ LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT SET search_path = public;
 
 CREATE INDEX pacientes_nombre_trgm_idx ON pacientes
   USING gin (

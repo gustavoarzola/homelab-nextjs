@@ -10,7 +10,7 @@ import { eq, and, inArray, asc } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { formatDateFull, formatDateLong, formatDate, parseDateLocal } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
-import { formatPacienteNombre } from '@/lib/paciente'
+import { formatEnfermeraNombre, formatPacienteNombre } from '@/lib/paciente'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -245,7 +245,11 @@ export async function sendScheduledVisitsEmail(
 
     const htmlContent = generateScheduledVisitsHTML(enfermera.visitas)
     const firstFecha = enfermera.visitas[0]?.fecha ?? ''
-    const subject = `Programación del ${formatDate(firstFecha)} para ${enfermera.apellidoPaterno}, ${enfermera.nombre}`
+    const nombreEnfermera = formatEnfermeraNombre({
+      nombres: enfermera.nombre,
+      apellidoPaterno: enfermera.apellidoPaterno,
+    })
+    const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
 
     const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev',
@@ -276,20 +280,24 @@ export async function sendAllScheduledVisitsEmails(
   const errors: string[] = []
 
   for (const enfermera of enfermeras) {
+    const nombreEnfermera = formatEnfermeraNombre({
+      nombres: enfermera.nombre,
+      apellidoPaterno: enfermera.apellidoPaterno,
+    })
     if (!enfermera.correo) {
-      errors.push(`${enfermera.apellidoPaterno}, ${enfermera.nombre}: sin correo registrado`)
+      errors.push(`${nombreEnfermera}: sin correo registrado`)
       continue
     }
 
     if (!enfermera.visitas.length) {
-      errors.push(`${enfermera.apellidoPaterno}, ${enfermera.nombre}: sin visitas asignadas`)
+      errors.push(`${nombreEnfermera}: sin visitas asignadas`)
       continue
     }
 
     try {
       const htmlContent = generateScheduledVisitsHTML(enfermera.visitas)
       const firstFecha = enfermera.visitas[0]?.fecha ?? ''
-      const subject = `Programación del ${formatDate(firstFecha)} para ${enfermera.apellidoPaterno}, ${enfermera.nombre}`
+      const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
 
       const { error: sendError } = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev',
@@ -300,14 +308,14 @@ export async function sendAllScheduledVisitsEmails(
 
       if (sendError) {
         console.error(`Resend error for ${enfermera.correo}:`, sendError)
-        errors.push(`${enfermera.apellidoPaterno}, ${enfermera.nombre}: ${sendError.message}`)
+        errors.push(`${nombreEnfermera}: ${sendError.message}`)
         continue
       }
 
       successCount++
     } catch (error) {
       console.error(`Error sending email to ${enfermera.correo}:`, error)
-      errors.push(`${enfermera.apellidoPaterno}, ${enfermera.nombre}: error al enviar`)
+      errors.push(`${nombreEnfermera}: error al enviar`)
     }
   }
 

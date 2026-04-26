@@ -6,7 +6,7 @@ import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL } from 'drizzle-orm
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
-import { formatPacienteNombre } from '@/lib/paciente'
+import { formatEnfermeraNombre, formatPacienteNombre } from '@/lib/paciente'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ export async function getEnfermeras(): Promise<{ id: number; nombre: string }[]>
 
   return rows.map((r) => ({
     id: r.id,
-    nombre: r.apellidoPaterno ? `${r.apellidoPaterno}, ${r.nombres}` : r.nombres,
+    nombre: formatEnfermeraNombre(r),
   }))
 }
 
@@ -119,6 +119,7 @@ export async function searchVisitas(
       pacienteApellidoMaterno: patients.apellidoMaterno,
       enfermeraNombres: nurses.nombres,
       enfermeraApellido: nurses.apellidoPaterno,
+      enfermeraApellidoMaterno: nurses.apellidoMaterno,
       sucursal: branches.nombre,
     })
     .from(visits)
@@ -143,9 +144,11 @@ export async function searchVisitas(
       apellidoPaterno: r.pacienteApellido,
       apellidoMaterno: r.pacienteApellidoMaterno,
     }) || null,
-    enfermera: r.enfermeraApellido
-      ? `${r.enfermeraApellido}, ${r.enfermeraNombres}`
-      : (r.enfermeraNombres ?? null),
+    enfermera: formatEnfermeraNombre({
+      nombres: r.enfermeraNombres,
+      apellidoPaterno: r.enfermeraApellido,
+      apellidoMaterno: r.enfermeraApellidoMaterno,
+    }) || null,
     sucursal: r.sucursal ?? null,
   }))
 

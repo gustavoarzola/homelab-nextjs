@@ -8,7 +8,7 @@ import {
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { requireSession } from '@/lib/auth-guard'
-import { formatPacienteNombre } from '@/lib/paciente'
+import { formatEnfermeraNombre, formatPacienteNombre } from '@/lib/paciente'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,7 +112,7 @@ export async function getEnfermerasActivas(): Promise<{ id: number; nombre: stri
 
   return rows.map((r) => ({
     id: r.id,
-    nombre: r.apellidoPaterno ? `${r.apellidoPaterno}, ${r.nombres}` : r.nombres,
+    nombre: formatEnfermeraNombre(r),
   }))
 }
 

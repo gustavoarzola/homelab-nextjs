@@ -5,7 +5,7 @@ import { Mail, Loader2, AlertCircle, Calendar } from 'lucide-react'
 import { getVisitasAsignadasPorEnfermera, sendScheduledVisitsEmail, sendAllScheduledVisitsEmails } from '@/lib/actions/visitas-asignacion-email'
 import type { EnfermeraConVisitas } from '@/lib/actions/visitas-asignacion-email'
 import { formatDateLong } from '@/lib/format'
-import { formatPacienteNombre } from '@/lib/paciente'
+import { formatEnfermeraNombre, formatPacienteNombre } from '@/lib/paciente'
 import { FormDatePicker } from '@/components/form-date-picker'
 import { toast } from 'sonner'
 
@@ -20,6 +20,10 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras }: Prop
   const [enfermeras, setEnfermeras] = useState(initialEnfermeras)
   const [isPending, startTransition] = useTransition()
   const [loading, setLoading] = useState(false)
+  const getNombreEnfermera = (enfermera: EnfermeraConVisitas) => formatEnfermeraNombre({
+    nombres: enfermera.nombre,
+    apellidoPaterno: enfermera.apellidoPaterno,
+  })
 
   const handleBuscar = () => {
     setLoading(true)
@@ -44,7 +48,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras }: Prop
       try {
         const result = await sendScheduledVisitsEmail(enfermera)
         if (result.success) {
-          toast.success(`Correo enviado a ${enfermera.apellidoPaterno}, ${enfermera.nombre}`)
+          toast.success(`Correo enviado a ${getNombreEnfermera(enfermera)}`)
         } else {
           toast.error(result.error || 'Error al enviar correo')
         }
@@ -200,7 +204,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras }: Prop
                     }}
                   >
                     <td className="px-6 py-4 text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                      {enfermera.apellidoPaterno}, {enfermera.nombre}
+                      {getNombreEnfermera(enfermera)}
                     </td>
                     <td className="px-6 py-4 text-sm" style={{ color: 'var(--muted-foreground)' }}>
                       {enfermera.correo ? (

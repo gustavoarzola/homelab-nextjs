@@ -20,6 +20,11 @@ const columns: ColumnDef<PacienteRow>[] = [
     accessorFn: (row) => formatPacienteNombre(row),
     header: 'Nombre',
     enableSorting: true,
+    cell: ({ row }) => (
+      <span style={{ color: 'var(--foreground)' }}>
+        {formatPacienteNombre(row.original) || '—'}
+      </span>
+    ),
   },
   {
     id: 'identificador',

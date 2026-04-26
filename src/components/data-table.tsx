@@ -478,7 +478,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
             return (
               <div
                 key={row.id}
-                className={cn('grid items-center border-b px-4 py-3 last:border-0', !row.original.activo && 'opacity-50')}
+                className={cn('grid items-center border-b px-4 py-3 last:border-0', row.original.activo === false && 'opacity-50')}
                 style={{ borderColor: 'var(--border)', gridTemplateColumns: gridTemplate }}
               >
                 {dataCells.map((cell) => (
