@@ -141,6 +141,7 @@ export const procedures = pgTable(
     id: serial('id').primaryKey(),
     nombre: varchar('nombre', { length: 200 }).notNull(),
     codigo: varchar('codigo', { length: 50 }).notNull(),
+    categoria: varchar('categoria', { length: 50 }).notNull().default('otros'),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

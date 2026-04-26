@@ -15,6 +15,13 @@
       "when": 1745539200000,
       "tag": "0001_pacientes_trgm_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777224851601,
+      "tag": "0002_wonderful_dexter_bennett",
+      "breakpoints": true
     }
   ]
 }

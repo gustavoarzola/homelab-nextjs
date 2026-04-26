@@ -7,10 +7,17 @@ import {
   healthInsurances,
   patientPhones,
   visits,
+  visitProcedures,
+  visitExams,
+  procedures,
+  exams,
+  branches,
+  nurses,
 } from '@/db/schema'
 import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { validateRut, validatePasaporte } from '@/lib/rut'
+import { formatNombre } from '@/lib/paciente'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
 
@@ -459,6 +466,143 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
     if (msg.includes('identificador')) return { success: false, error: 'Este identificador ya está registrado' }
     return { success: false, error: 'Error al actualizar el paciente' }
   }
+}
+
+// ─── getHistorialPaciente ─────────────────────────────────────────────────────
+
+export type VisitaHistorialItem = {
+  id: number
+  fecha: string
+  hora: string | null
+  estado: string
+  costo: number
+  numeroBoleta: string
+  tipoDocumento: string
+  informacionAdicional: string
+  enfermera: string | null
+  procedimientos: { nombre: string; codigo: string; categoria: string }[]
+  examenes: { nombre: string; codigo: string; sucursal: string | null }[]
+}
+
+export type HistorialPaciente = {
+  paciente: {
+    id: number
+    nombres: string
+    apellidoPaterno: string | null
+    apellidoMaterno: string | null
+    identificador: string | null
+    tipoIdentificador: string | null
+    prevision: string | null
+    comuna: string | null
+  }
+  visitas: VisitaHistorialItem[]
+}
+
+export async function getHistorialPaciente(id: number): Promise<HistorialPaciente | null> {
+  await requireSession()
+
+  const [pacienteRow] = await db
+    .select({
+      id: patients.id,
+      nombres: patients.nombres,
+      apellidoPaterno: patients.apellidoPaterno,
+      apellidoMaterno: patients.apellidoMaterno,
+      identificador: patients.identificador,
+      tipoIdentificador: patients.tipoIdentificador,
+      prevision: healthInsurances.nombre,
+      comuna: addresses.areaAdministrativa3,
+    })
+    .from(patients)
+    .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
+    .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
+    .where(eq(patients.id, id))
+
+  if (!pacienteRow) return null
+
+  const visitRows = await db
+    .select({
+      id: visits.id,
+      fecha: visits.fecha,
+      hora: visits.hora,
+      estado: visits.estado,
+      costo: visits.costo,
+      numeroBoleta: visits.numeroBoleta,
+      tipoDocumento: visits.tipoDocumento,
+      informacionAdicional: visits.informacionAdicional,
+      enfermera_nombres: nurses.nombres,
+      enfermera_apellidoPaterno: nurses.apellidoPaterno,
+      enfermera_apellidoMaterno: nurses.apellidoMaterno,
+    })
+    .from(visits)
+    .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
+    .where(eq(visits.idPaciente, id))
+    .orderBy(desc(visits.fecha), desc(visits.hora))
+
+  if (visitRows.length === 0) {
+    return { paciente: pacienteRow, visitas: [] }
+  }
+
+  const visitIds = visitRows.map((v) => v.id)
+
+  const [procRows, examRows] = await Promise.all([
+    db
+      .select({
+        idVisita: visitProcedures.idVisita,
+        nombre: procedures.nombre,
+        codigo: procedures.codigo,
+        categoria: procedures.categoria,
+      })
+      .from(visitProcedures)
+      .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
+      .where(inArray(visitProcedures.idVisita, visitIds)),
+    db
+      .select({
+        idVisita: visitExams.idVisita,
+        nombre: exams.nombre,
+        codigo: exams.codigo,
+        sucursal: branches.nombre,
+      })
+      .from(visitExams)
+      .innerJoin(exams, eq(visitExams.idExamen, exams.id))
+      .leftJoin(branches, eq(visitExams.idSucursal, branches.id))
+      .where(inArray(visitExams.idVisita, visitIds)),
+  ])
+
+  const procMap = new Map<number, { nombre: string; codigo: string; categoria: string }[]>()
+  for (const p of procRows) {
+    const arr = procMap.get(p.idVisita) ?? []
+    arr.push({ nombre: p.nombre, codigo: p.codigo, categoria: p.categoria })
+    procMap.set(p.idVisita, arr)
+  }
+
+  const examMap = new Map<number, { nombre: string; codigo: string; sucursal: string | null }[]>()
+  for (const e of examRows) {
+    const arr = examMap.get(e.idVisita) ?? []
+    arr.push({ nombre: e.nombre, codigo: e.codigo, sucursal: e.sucursal ?? null })
+    examMap.set(e.idVisita, arr)
+  }
+
+  const visitas: VisitaHistorialItem[] = visitRows.map((v) => ({
+    id: v.id,
+    fecha: v.fecha,
+    hora: v.hora,
+    estado: v.estado,
+    costo: v.costo,
+    numeroBoleta: v.numeroBoleta ?? '',
+    tipoDocumento: v.tipoDocumento ?? '',
+    informacionAdicional: v.informacionAdicional ?? '',
+    enfermera: v.enfermera_nombres
+      ? formatNombre({
+          nombres: v.enfermera_nombres,
+          apellidoPaterno: v.enfermera_apellidoPaterno,
+          apellidoMaterno: v.enfermera_apellidoMaterno,
+        })
+      : null,
+    procedimientos: procMap.get(v.id) ?? [],
+    examenes: examMap.get(v.id) ?? [],
+  }))
+
+  return { paciente: pacienteRow, visitas }
 }
 
 // ─── deletePaciente ───────────────────────────────────────────────────────────

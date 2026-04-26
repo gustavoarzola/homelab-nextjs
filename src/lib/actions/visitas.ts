@@ -2,11 +2,11 @@
 
 import { db } from '@/db'
 import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, branches } from '@/db/schema'
-import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL } from 'drizzle-orm'
+import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
-import { formatEnfermeraNombre, formatPacienteNombre } from '@/lib/paciente'
+import { formatNombre } from '@/lib/paciente'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ export async function getEnfermeras(): Promise<{ id: number; nombre: string }[]>
 
   return rows.map((r) => ({
     id: r.id,
-    nombre: formatEnfermeraNombre(r),
+    nombre: formatNombre(r),
   }))
 }
 
@@ -75,11 +75,12 @@ export async function searchVisitas(
 
   const conditions: SQL[] = []
   if (buscar) {
+    const normalized = buscar.replace(/[\.\-\s]/g, '').toUpperCase()
+    const fullName = sql`(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, ''))`
     conditions.push(
       or(
-        ilike(patients.nombres, `%${buscar}%`),
-        ilike(patients.apellidoPaterno, `%${buscar}%`),
-        ilike(patients.apellidoMaterno, `%${buscar}%`),
+        sql`unaccent(${fullName}) ILIKE unaccent(${'%' + buscar + '%'})`,
+        ilike(patients.identificador, `%${normalized}%`),
       )!,
     )
   }
@@ -139,12 +140,12 @@ export async function searchVisitas(
     estado: r.estado,
     costo: r.costo,
     idPaciente: r.idPaciente,
-    paciente: formatPacienteNombre({
+    paciente: formatNombre({
       nombres: r.pacienteNombres,
       apellidoPaterno: r.pacienteApellido,
       apellidoMaterno: r.pacienteApellidoMaterno,
     }) || null,
-    enfermera: formatEnfermeraNombre({
+    enfermera: formatNombre({
       nombres: r.enfermeraNombres,
       apellidoPaterno: r.enfermeraApellido,
       apellidoMaterno: r.enfermeraApellidoMaterno,

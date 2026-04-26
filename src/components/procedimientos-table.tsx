@@ -11,6 +11,11 @@ type Props = {
   onToggle: (id: number, activo: boolean) => Promise<Result>
 }
 
+const CATEGORIAS: Record<string, string> = {
+  curaciones: 'Curaciones',
+  otros: 'Otros procedimientos',
+}
+
 const columns: ColumnDef<ProcedimientoRow>[] = [
   {
     id: 'nombre',
@@ -25,6 +30,15 @@ const columns: ColumnDef<ProcedimientoRow>[] = [
     cell: ({ row }) => (
       <span className="font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
         {row.original.codigo}
+      </span>
+    ),
+  },
+  {
+    id: 'categoria',
+    header: 'Categoría',
+    cell: ({ row }) => (
+      <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+        {CATEGORIAS[row.original.categoria] ?? row.original.categoria}
       </span>
     ),
   },
@@ -46,14 +60,27 @@ const columns: ColumnDef<ProcedimientoRow>[] = [
   },
 ]
 
+const CATEGORIA_FILTER_OPTIONS = [
+  { value: '', label: 'Todas las categorías' },
+  { value: 'curaciones', label: 'Curaciones' },
+  { value: 'otros', label: 'Otros procedimientos' },
+]
+
 const filters: FilterDef[] = [
   { key: 'buscar', label: 'Buscar', type: 'text', placeholder: 'Nombre o código…' },
+  { key: 'categoria', label: 'Categoría', type: 'select-single', options: CATEGORIA_FILTER_OPTIONS },
   { key: 'mostrarInactivos', label: 'Mostrar inactivos', type: 'checkbox' },
+]
+
+const CATEGORIA_OPTIONS = [
+  { value: 'curaciones', label: 'Curaciones' },
+  { value: 'otros', label: 'Otros procedimientos' },
 ]
 
 const formFields: FormFieldDef[] = [
   { name: 'nombre', label: 'Nombre', required: true },
   { name: 'codigo', label: 'Código', required: true, placeholder: 'ej: PROC-001' },
+  { name: 'categoria', label: 'Categoría', type: 'select-single', required: true, options: CATEGORIA_OPTIONS },
 ]
 
 export function ProcedimientosTable({ initialData, search, onCreate, onUpdate, onToggle }: Props) {

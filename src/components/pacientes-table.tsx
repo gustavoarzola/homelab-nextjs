@@ -1,10 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { Calendar } from 'lucide-react'
+import { Calendar, ClipboardList } from 'lucide-react'
 import { DataTable, type ColumnDef, type SearchParams, type Result } from '@/components/data-table'
 import type { PacienteRow } from '@/lib/actions/pacientes'
-import { formatPacienteNombre } from '@/lib/paciente'
+import { formatNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
 
 type Props = {
@@ -17,14 +17,10 @@ type Props = {
 const columns: ColumnDef<PacienteRow>[] = [
   {
     id: 'apellidoPaterno',
-    accessorFn: (row) => formatPacienteNombre(row),
+    accessorFn: (row) => formatNombre(row),
     header: 'Nombre',
     enableSorting: true,
-    cell: ({ row }) => (
-      <span style={{ color: 'var(--foreground)' }}>
-        {formatPacienteNombre(row.original) || '—'}
-      </span>
-    ),
+    cell: ({ row }) => formatNombre(row.original) || '—',
   },
   {
     id: 'identificador',
@@ -93,14 +89,24 @@ export function PacientesTable({ initialData, previsiones, search, onDelete }: P
       search={search}
       onDelete={onDelete}
       extraRowActions={(row) => (
-        <Link
-          href={`/visitas/nueva?pacienteId=${row.id}`}
-          title="Nueva visita"
-          className="rounded p-1.5 hover:opacity-80 transition-opacity"
-          style={{ color: 'var(--muted-foreground)' }}
-        >
-          <Calendar className="h-3.5 w-3.5" />
-        </Link>
+        <>
+          <Link
+            href={`/pacientes/${row.id}/historial`}
+            title="Historial de atenciones"
+            className="rounded p-1.5 hover:opacity-80 transition-opacity"
+            style={{ color: 'var(--muted-foreground)' }}
+          >
+            <ClipboardList className="h-3.5 w-3.5" />
+          </Link>
+          <Link
+            href={`/visitas/nueva?pacienteId=${row.id}`}
+            title="Nueva visita"
+            className="rounded p-1.5 hover:opacity-80 transition-opacity"
+            style={{ color: 'var(--muted-foreground)' }}
+          >
+            <Calendar className="h-3.5 w-3.5" />
+          </Link>
+        </>
       )}
       entityLabel="paciente"
       createLabel="Nuevo paciente"

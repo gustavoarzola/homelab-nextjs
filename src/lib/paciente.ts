@@ -4,47 +4,18 @@ type PersonaNombreInput = {
   apellidoMaterno?: string | null
 }
 
-type FormatNombreOptions = {
-  firstNameOnly?: boolean
-}
-
-function firstWord(value: string): string {
-  return value.trim().split(/\s+/)[0] ?? ''
-}
-
 /**
- * Formatea el nombre de paciente como:
- * "ApellidoPaterno ApellidoMaterno, PrimerNombre".
- * Si faltan apellidos o nombres, retorna la mejor combinación disponible.
+ * Formatea un nombre como "ApellidoPaterno [ApellidoMaterno], Nombres".
+ * Si faltan campos, retorna la mejor combinación disponible.
  */
-function formatNombrePersona(
-  persona: PersonaNombreInput,
-  options: FormatNombreOptions = {},
-): string {
-  const { firstNameOnly = true } = options
-  const nombresRaw = persona.nombres?.trim() ?? ''
-  const nombre = firstNameOnly ? firstWord(nombresRaw) : nombresRaw
+export function formatNombre(persona: PersonaNombreInput): string {
+  const nombres = persona.nombres?.trim() ?? ''
   const apellidos = [persona.apellidoPaterno, persona.apellidoMaterno]
-    .map((value) => value?.trim())
+    .map((v) => v?.trim())
     .filter(Boolean)
     .join(' ')
 
-  if (apellidos && nombre) return `${apellidos}, ${nombre}`
+  if (apellidos && nombres) return `${apellidos}, ${nombres}`
   if (apellidos) return apellidos
-  return nombre
-}
-
-export function formatPacienteNombre(
-  paciente: PersonaNombreInput,
-  options: FormatNombreOptions = {},
-): string {
-  return formatNombrePersona(paciente, { firstNameOnly: true, ...options })
-}
-
-/**
- * Formatea el nombre de enfermera como:
- * "ApellidoPaterno ApellidoMaterno, Nombres".
- */
-export function formatEnfermeraNombre(enfermera: PersonaNombreInput): string {
-  return formatNombrePersona(enfermera, { firstNameOnly: false })
+  return nombres
 }

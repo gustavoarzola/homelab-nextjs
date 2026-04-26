@@ -11,7 +11,7 @@ type Result = { success: boolean; error?: string }
 
 // ─── Shared row types ──────────────────────────────────────────────────────────
 
-export type ProcedimientoRow = { id: number; nombre: string; codigo: string; activo: boolean }
+export type ProcedimientoRow = { id: number; nombre: string; codigo: string; categoria: string; activo: boolean }
 export type ExamenRow       = { id: number; nombre: string; codigo: string; activo: boolean }
 export type PrevisionRow    = { id: number; nombre: string; activo: boolean }
 export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
@@ -23,10 +23,12 @@ export async function searchProcedimientos(params: SearchParams): Promise<{ rows
 
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
+  const categoria = (filters.categoria as string | undefined)?.trim()
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
 
   const conditions: SQL[] = []
   if (buscar) conditions.push(or(ilike(procedures.nombre, `%${buscar}%`), ilike(procedures.codigo, `%${buscar}%`))!)
+  if (categoria) conditions.push(eq(procedures.categoria, categoria))
   if (!mostrarInactivos) conditions.push(eq(procedures.activo, true))
   const where = conditions.length ? and(...conditions) : undefined
 
@@ -45,11 +47,12 @@ export async function createProcedimiento(formData: FormData): Promise<Result> {
 
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
+  const categoria = (formData.get('categoria') as string)?.trim() || 'otros'
   if (!nombre || !codigo) return { success: false, error: 'Nombre y código son requeridos' }
   try {
     const existing = await db.select().from(procedures).where(ilike(procedures.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.insert(procedures).values({ nombre, codigo })
+    await db.insert(procedures).values({ nombre, codigo, categoria })
     revalidatePath('/procedimientos')
     return { success: true }
   } catch {
@@ -63,6 +66,7 @@ export async function updateProcedimiento(formData: FormData): Promise<Result> {
   const id = Number(formData.get('id'))
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
+  const categoria = (formData.get('categoria') as string)?.trim() || 'otros'
   if (!id || !nombre || !codigo) return { success: false, error: 'Datos inválidos' }
   try {
     const duplicated = await db
@@ -70,7 +74,7 @@ export async function updateProcedimiento(formData: FormData): Promise<Result> {
       .from(procedures)
       .where(and(ilike(procedures.nombre, nombre), not(eq(procedures.id, id))))
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.update(procedures).set({ nombre, codigo }).where(eq(procedures.id, id))
+    await db.update(procedures).set({ nombre, codigo, categoria }).where(eq(procedures.id, id))
     revalidatePath('/procedimientos')
     return { success: true }
   } catch {

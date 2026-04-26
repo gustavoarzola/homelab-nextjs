@@ -8,7 +8,7 @@ import {
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { requireSession } from '@/lib/auth-guard'
-import { formatEnfermeraNombre, formatPacienteNombre } from '@/lib/paciente'
+import { formatNombre } from '@/lib/paciente'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,7 +85,7 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
     id: v.id,
     hora: v.hora ?? null,
     idEnfermera: v.idEnfermera ?? null,
-    pacienteNombre: formatPacienteNombre({
+    pacienteNombre: formatNombre({
       nombres: v.pacienteNombres,
       apellidoPaterno: v.pacienteApellido,
       apellidoMaterno: v.pacienteApellidoMaterno,
@@ -112,7 +112,7 @@ export async function getEnfermerasActivas(): Promise<{ id: number; nombre: stri
 
   return rows.map((r) => ({
     id: r.id,
-    nombre: formatEnfermeraNombre(r),
+    nombre: formatNombre(r),
   }))
 }
 

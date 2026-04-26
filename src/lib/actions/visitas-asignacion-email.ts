@@ -10,7 +10,7 @@ import { eq, and, inArray, asc } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { formatDateFull, formatDateLong, formatDate, parseDateLocal } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
-import { formatEnfermeraNombre, formatPacienteNombre } from '@/lib/paciente'
+import { formatNombre } from '@/lib/paciente'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ export type VisitaConDetalles = {
 
 export type EnfermeraConVisitas = {
   id: number
-  nombre: string
+  nombres: string
   apellidoPaterno: string
   correo: string | null
   visitas: VisitaConDetalles[]
@@ -97,7 +97,7 @@ export async function getVisitasAsignadasPorEnfermera(
 
   return nursesData.map((nurse) => ({
     id: nurse.id,
-    nombre: nurse.nombres,
+    nombres: nurse.nombres,
     apellidoPaterno: nurse.apellidoPaterno,
     correo: nurse.correo,
     visitas: visitasPorEnfermera.get(nurse.id) ?? [],
@@ -245,10 +245,7 @@ export async function sendScheduledVisitsEmail(
 
     const htmlContent = generateScheduledVisitsHTML(enfermera.visitas)
     const firstFecha = enfermera.visitas[0]?.fecha ?? ''
-    const nombreEnfermera = formatEnfermeraNombre({
-      nombres: enfermera.nombre,
-      apellidoPaterno: enfermera.apellidoPaterno,
-    })
+    const nombreEnfermera = formatNombre(enfermera)
     const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
 
     const { error } = await resend.emails.send({
@@ -280,10 +277,7 @@ export async function sendAllScheduledVisitsEmails(
   const errors: string[] = []
 
   for (const enfermera of enfermeras) {
-    const nombreEnfermera = formatEnfermeraNombre({
-      nombres: enfermera.nombre,
-      apellidoPaterno: enfermera.apellidoPaterno,
-    })
+    const nombreEnfermera = formatNombre(enfermera)
     if (!enfermera.correo) {
       errors.push(`${nombreEnfermera}: sin correo registrado`)
       continue
@@ -357,7 +351,7 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
     const fechaFormato = formatDate(visita.fecha)
 
     // Build 2-col rows for patient info
-    const nombrePaciente = formatPacienteNombre(visita.paciente)
+    const nombrePaciente = formatNombre(visita.paciente)
     const nombreCell = `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Nombre</span><p style="${valueStyle}">${nombrePaciente}</p></td>`
 
     const identificadorCell = visita.paciente.identificador

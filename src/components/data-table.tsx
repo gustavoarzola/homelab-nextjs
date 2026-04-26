@@ -10,7 +10,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import {
-  Plus, UserX, UserCheck, Trash2, Pencil,
+  Plus, PowerOff, Power, Trash2, Pencil,
   ChevronUp, ChevronDown, ChevronsUpDown,
   ChevronLeft, ChevronRight, X, Loader2,
 } from 'lucide-react'
@@ -61,6 +61,7 @@ type ModalState<T> =
   | { type: 'none' }
   | { type: 'create' }
   | { type: 'edit'; row: T }
+  | { type: 'confirmToggle'; id: number; activo: boolean }
   | { type: 'confirmDelete'; id: number }
 
 type Props<T extends { id: number; activo?: boolean }> = {
@@ -520,13 +521,13 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
 
                   {onToggle && row.original.activo !== undefined && (
                     <button
-                      onClick={() => handleToggle(row.original.id, row.original.activo!)}
+                      onClick={() => setModal({ type: 'confirmToggle', id: row.original.id, activo: row.original.activo! })}
                       disabled={isPending}
-                      title={row.original.activo ? 'Inactivar' : 'Activar'}
+                      title={row.original.activo ? 'Desactivar' : 'Activar'}
                       className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
                       style={{ color: 'var(--muted-foreground)' }}
                     >
-                      {row.original.activo ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
+                      {row.original.activo ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
                     </button>
                   )}
 
@@ -612,6 +613,43 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ backgroundColor: 'oklch(0 0 0 / 35%)', backdropFilter: 'blur(4px)' }}
         >
+          {modal.type === 'confirmToggle' && (
+            <div
+              className="w-full max-w-sm rounded-xl border p-6 shadow-xl"
+              style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+            >
+              <h2 className="mb-2 text-base font-semibold" style={{ color: 'var(--foreground)' }}>
+                {modal.activo ? `¿Desactivar ${entityLabel}?` : `¿Activar ${entityLabel}?`}
+              </h2>
+              <p className="mb-6 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                {modal.activo
+                  ? `El ${entityLabel} quedará inactivo y no aparecerá en los listados principales.`
+                  : `El ${entityLabel} volverá a estar disponible.`}
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setModal({ type: 'none' })}
+                  disabled={isPending}
+                  className="rounded-lg px-4 py-2 text-sm hover:opacity-80 transition-opacity disabled:opacity-50"
+                  style={{ color: 'var(--muted-foreground)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => { handleToggle(modal.id, modal.activo); setModal({ type: 'none' }) }}
+                  disabled={isPending}
+                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
+                  style={modal.activo
+                    ? { backgroundColor: 'var(--destructive)', color: 'white' }
+                    : { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+                >
+                  {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {modal.activo ? 'Desactivar' : 'Activar'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {modal.type === 'confirmDelete' && (
             <div
               className="w-full max-w-sm rounded-xl border p-6 shadow-xl"
