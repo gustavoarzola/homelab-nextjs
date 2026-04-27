@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState, useTransition, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, Pencil } from 'lucide-react'
+import { Loader2, Pencil, Calculator } from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { SelectCombobox } from '@/components/select-combobox'
 import { TimePicker } from '@/components/time-picker'
@@ -15,6 +15,8 @@ import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { SucursalRow } from '@/lib/actions/laboratorios'
 import type { ProcedimientoRow, ExamenRow } from '@/lib/actions/catalogos'
 import type { VisitaDetalle } from '@/lib/actions/visitas'
+import { calcularCostoVisita } from '@/lib/actions/precios'
+import type { CostoVisitaDetalle } from '@/lib/actions/precios'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -225,12 +227,46 @@ export function VisitaForm({
     visita?.tipoDocumento ? (visita.tipoDocumento === 'boleta' ? 0 : 1) : null
   )
   const [selectedEstadoId, setSelectedEstadoId] = useState<number | null>(
-    visita?.estado ? (visita.estado === 'creada' ? 0 : visita.estado === 'confirmada' ? 1 : visita.estado === 'realizada' ? 2 : 3) : null
+    visita?.estado
+      ? visita.estado === 'creada' ? 0
+      : visita.estado === 'confirmada' ? 1
+      : visita.estado === 'realizada' ? 2
+      : visita.estado === 'no_realizada' ? 4
+      : 3
+      : null
   )
   const [selectedFecha, setSelectedFecha] = useState<string | null>(visita?.fecha ?? null)
   const [selectedHora, setSelectedHora] = useState<string | null>(visita?.hora?.slice(0, 5) ?? null)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+
+  // Pago y resultados
+  const [pagado, setPagado] = useState(visita?.pagado ?? false)
+  const [metodoPago, setMetodoPago] = useState<number | null>(
+    visita?.metodoPago === 'transferencia' ? 0 : visita?.metodoPago === 'cheque' ? 1 : visita?.metodoPago === 'efectivo' ? 2 : null
+  )
+  const [fechaPago, setFechaPago] = useState<string | null>(visita?.fechaPago ?? null)
+  const [resultadosEnviados, setResultadosEnviados] = useState(visita?.resultadosEnviados ?? false)
+  const [fechaEnvioResultados, setFechaEnvioResultados] = useState<string | null>(visita?.fechaEnvioResultados ?? null)
+  const [costoRef, setCostoRef] = useState<number>(visita?.costo ?? 0)
+  const [cotizacion, setCotizacion] = useState<CostoVisitaDetalle | null>(null)
+  const [isCotizando, startCotizacion] = useTransition()
+
+  const handleCotizar = useCallback(() => {
+    if (!selectedExams.length) return
+    startCotizacion(async () => {
+      const result = await calcularCostoVisita(paciente.id, selectedExams)
+      setCotizacion(result)
+      setCostoRef(result.total)
+    })
+  }, [paciente.id, selectedExams, startCotizacion])
+
+  const estadoActual = selectedEstadoId === 0 ? 'creada'
+    : selectedEstadoId === 1 ? 'confirmada'
+    : selectedEstadoId === 2 ? 'realizada'
+    : selectedEstadoId === 4 ? 'no_realizada'
+    : selectedEstadoId === 3 ? 'cancelada'
+    : ''
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -244,6 +280,8 @@ export function VisitaForm({
     const fd = new FormData(e.currentTarget)
     selectedProcedures.forEach((id) => fd.append('procedure_ids', String(id)))
     selectedExams.forEach((id) => fd.append('exam_ids', String(id)))
+    fd.set('pagado', String(pagado))
+    fd.set('resultadosEnviados', String(resultadosEnviados))
 
     startTransition(async () => {
       const result = await onSubmit(fd)
@@ -269,6 +307,13 @@ export function VisitaForm({
     { id: 1, label: 'Confirmada' },
     { id: 2, label: 'Realizada' },
     { id: 3, label: 'Cancelada' },
+    { id: 4, label: 'No realizada' },
+  ]
+
+  const metodoPagoOptions = [
+    { id: 0, label: 'Transferencia' },
+    { id: 1, label: 'Cheque' },
+    { id: 2, label: 'Efectivo' },
   ]
 
   return (
@@ -348,13 +393,29 @@ export function VisitaForm({
 
               <div className="flex flex-col gap-1.5">
                 <label className={labelClass} style={labelStyle}>Costo</label>
-                <input name="costo" type="number" min="0" defaultValue={visita?.costo ?? 0} disabled={isPending} className={inputClass} style={inputStyle} />
+                <input
+                  name="costo"
+                  type="number"
+                  min="0"
+                  value={costoRef}
+                  onChange={(e) => setCostoRef(Number(e.target.value))}
+                  disabled={isPending}
+                  className={inputClass}
+                  style={inputStyle}
+                />
               </div>
+
+              {estadoActual === 'no_realizada' && (
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelClass} style={labelStyle}>Costo traslado</label>
+                  <input name="costoTraslado" type="number" min="0" defaultValue={visita?.costoTraslado ?? 7000} disabled={isPending} className={inputClass} style={inputStyle} />
+                </div>
+              )}
 
               {isEdit && (
                 <div className="flex flex-col gap-1.5">
                   <label className={labelClass} style={labelStyle}>Estado</label>
-                  <input type="hidden" name="estado" value={selectedEstadoId === 0 ? 'creada' : selectedEstadoId === 1 ? 'confirmada' : selectedEstadoId === 2 ? 'realizada' : selectedEstadoId === 3 ? 'cancelada' : ''} />
+                  <input type="hidden" name="estado" value={estadoActual} />
                   <SelectCombobox
                     mode="single"
                     options={estadoOptions}
@@ -448,7 +509,19 @@ export function VisitaForm({
         {/* ── Exámenes ── */}
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Exámenes</h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className={sectionTitleClass} style={{ ...sectionTitleStyle, marginBottom: 0 }}>Exámenes</h2>
+              <button
+                type="button"
+                onClick={handleCotizar}
+                disabled={isPending || isCotizando || selectedExams.length === 0}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
+                style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
+              >
+                {isCotizando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Calculator className="h-3 w-3" />}
+                Cotizar
+              </button>
+            </div>
             <SelectCombobox
               options={examenesOptions}
               selected={selectedExams}
@@ -456,8 +529,108 @@ export function VisitaForm({
               placeholder="Buscar examen..."
               disabled={isPending}
             />
+            {cotizacion && cotizacion.desglose.length > 0 && (
+              <div
+                className="mt-3 rounded-lg border p-3 text-sm"
+                style={{ backgroundColor: 'var(--muted)', borderColor: 'var(--border)' }}
+              >
+                <p className="mb-2 font-medium" style={{ color: 'var(--foreground)' }}>Desglose de cotización</p>
+                {cotizacion.desglose.map((d) => (
+                  <div key={d.descripcion} className="flex justify-between" style={{ color: 'var(--muted-foreground)' }}>
+                    <span>{d.descripcion}</span>
+                    <span className="font-mono">${d.monto.toLocaleString('es-CL')}</span>
+                  </div>
+                ))}
+                <div className="mt-2 flex justify-between border-t pt-2 font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                  <span>Total</span>
+                  <span className="font-mono">${cotizacion.total.toLocaleString('es-CL')}</span>
+                </div>
+              </div>
+            )}
           </div>
         </section>
+
+        {/* ── Pago y resultados ── */}
+        {isEdit && (
+          <section className={sectionClass} style={sectionStyle}>
+            <div className="p-6">
+              <h2 className={sectionTitleClass} style={sectionTitleStyle}>Pago y resultados</h2>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {/* Pago */}
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pagado}
+                      onChange={(e) => setPagado(e.target.checked)}
+                      disabled={isPending}
+                      className="h-4 w-4 rounded"
+                    />
+                    <span className={labelClass} style={labelStyle}>Pagado</span>
+                  </label>
+                  {pagado && (
+                    <div className="flex flex-col gap-3 pl-6">
+                      <div className="flex flex-col gap-1.5">
+                        <label className={labelClass} style={labelStyle}>Método de pago</label>
+                        <input type="hidden" name="metodoPago" value={metodoPago === 0 ? 'transferencia' : metodoPago === 1 ? 'cheque' : metodoPago === 2 ? 'efectivo' : ''} />
+                        <SelectCombobox
+                          mode="single"
+                          options={metodoPagoOptions}
+                          selected={metodoPago}
+                          onChange={setMetodoPago}
+                          placeholder="Seleccionar método…"
+                          disabled={isPending}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className={labelClass} style={labelStyle}>Fecha de pago</label>
+                        <FormDatePicker
+                          mode="single"
+                          name="fechaPago"
+                          value={fechaPago ?? undefined}
+                          onChange={(v) => setFechaPago(v ?? null)}
+                          disabled={isPending}
+                          weekStartsOn={1}
+                          placeholder="Seleccionar fecha"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Resultados */}
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={resultadosEnviados}
+                      onChange={(e) => setResultadosEnviados(e.target.checked)}
+                      disabled={isPending}
+                      className="h-4 w-4 rounded"
+                    />
+                    <span className={labelClass} style={labelStyle}>Resultados enviados</span>
+                  </label>
+                  {resultadosEnviados && (
+                    <div className="pl-6">
+                      <div className="flex flex-col gap-1.5">
+                        <label className={labelClass} style={labelStyle}>Fecha de envío</label>
+                        <FormDatePicker
+                          mode="single"
+                          name="fechaEnvioResultados"
+                          value={fechaEnvioResultados ?? undefined}
+                          onChange={(v) => setFechaEnvioResultados(v ?? null)}
+                          disabled={isPending}
+                          weekStartsOn={1}
+                          placeholder="Seleccionar fecha"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
       </form>
     </>
   )

@@ -1,10 +1,11 @@
 'use server'
 
-import { and, asc, count, desc, gte, lte, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, lte, sql, sum } from 'drizzle-orm'
 
 import { db } from '@/db'
-import { branches, laboratories, nurses, visits } from '@/db/schema'
+import { branches, laboratories, nurses, patients, visits } from '@/db/schema'
 import { requireSession } from '@/lib/auth-guard'
+import { formatNombre } from '@/lib/paciente'
 
 const MONTHS = [
   'enero',
@@ -115,5 +116,167 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
     visitsByNurse,
     year,
     month,
+  }
+}
+
+// ─── getDashboardFinanciero ───────────────────────────────────────────────────
+
+export type CobroPendienteRow = {
+  id: number
+  fecha: string
+  costo: number
+  paciente: string | null
+}
+
+export type ResultadoPendienteRow = {
+  id: number
+  fecha: string
+  paciente: string | null
+}
+
+export type PagoEnfermeraRow = {
+  label: string
+  visits: number
+  monto: number
+}
+
+export async function getDashboardFinanciero(month: number, year: number) {
+  await requireSession()
+
+  const { start, end } = getMonthRange(year, month)
+
+  const [
+    facturadoRow,
+    cobrosRaw,
+    trasladosRow,
+    cobrosPendientesRaw,
+    resultadosPendientesRaw,
+    pagosEnfermeraRaw,
+  ] = await Promise.all([
+    // Total facturado (visitas realizadas)
+    db
+      .select({ total: sum(visits.costo) })
+      .from(visits)
+      .where(and(gte(visits.fecha, start), lte(visits.fecha, end), eq(visits.estado, 'realizada'))),
+
+    // Cobros pendientes (realizadas + no pagadas)
+    db
+      .select({ total: sum(visits.costo) })
+      .from(visits)
+      .where(
+        and(
+          gte(visits.fecha, start),
+          lte(visits.fecha, end),
+          eq(visits.estado, 'realizada'),
+          eq(visits.pagado, false),
+        ),
+      ),
+
+    // Costo traslados (no_realizada)
+    db
+      .select({ total: sum(visits.costoTraslado) })
+      .from(visits)
+      .where(
+        and(gte(visits.fecha, start), lte(visits.fecha, end), eq(visits.estado, 'no_realizada')),
+      ),
+
+    // Lista cobros pendientes
+    db
+      .select({
+        id: visits.id,
+        fecha: visits.fecha,
+        costo: visits.costo,
+        pacienteNombres: patients.nombres,
+        pacienteApellido: patients.apellidoPaterno,
+        pacienteApellidoMaterno: patients.apellidoMaterno,
+      })
+      .from(visits)
+      .leftJoin(patients, eq(visits.idPaciente, patients.id))
+      .where(
+        and(
+          gte(visits.fecha, start),
+          lte(visits.fecha, end),
+          eq(visits.estado, 'realizada'),
+          eq(visits.pagado, false),
+        ),
+      )
+      .orderBy(desc(visits.fecha))
+      .limit(20),
+
+    // Lista resultados pendientes
+    db
+      .select({
+        id: visits.id,
+        fecha: visits.fecha,
+        pacienteNombres: patients.nombres,
+        pacienteApellido: patients.apellidoPaterno,
+        pacienteApellidoMaterno: patients.apellidoMaterno,
+      })
+      .from(visits)
+      .leftJoin(patients, eq(visits.idPaciente, patients.id))
+      .where(
+        and(
+          gte(visits.fecha, start),
+          lte(visits.fecha, end),
+          eq(visits.estado, 'realizada'),
+          eq(visits.resultadosEnviados, false),
+        ),
+      )
+      .orderBy(desc(visits.fecha))
+      .limit(20),
+
+    // Pagos estimados a enfermeras
+    db
+      .select({
+        label: sql<string>`trim(concat(${nurses.nombres}, ' ', ${nurses.apellidoPaterno}))`,
+        visits: count(),
+        totalCosto: sum(visits.costo),
+        porcentaje: nurses.porcentajePago,
+      })
+      .from(visits)
+      .innerJoin(nurses, eq(visits.idEnfermera, nurses.id))
+      .where(
+        and(gte(visits.fecha, start), lte(visits.fecha, end), eq(visits.estado, 'realizada')),
+      )
+      .groupBy(nurses.id, nurses.nombres, nurses.apellidoPaterno, nurses.porcentajePago)
+      .orderBy(desc(sum(visits.costo))),
+  ])
+
+  const cobrosPendientes: CobroPendienteRow[] = cobrosPendientesRaw.map((r) => ({
+    id: r.id,
+    fecha: r.fecha,
+    costo: r.costo,
+    paciente:
+      formatNombre({
+        nombres: r.pacienteNombres,
+        apellidoPaterno: r.pacienteApellido,
+        apellidoMaterno: r.pacienteApellidoMaterno,
+      }) || null,
+  }))
+
+  const resultadosPendientes: ResultadoPendienteRow[] = resultadosPendientesRaw.map((r) => ({
+    id: r.id,
+    fecha: r.fecha,
+    paciente:
+      formatNombre({
+        nombres: r.pacienteNombres,
+        apellidoPaterno: r.pacienteApellido,
+        apellidoMaterno: r.pacienteApellidoMaterno,
+      }) || null,
+  }))
+
+  const pagosEnfermeras: PagoEnfermeraRow[] = pagosEnfermeraRaw.map((r) => ({
+    label: r.label,
+    visits: Number(r.visits),
+    monto: Math.round((Number(r.totalCosto ?? 0) * Number(r.porcentaje ?? 67.5)) / 100),
+  }))
+
+  return {
+    totalFacturado: Number(facturadoRow[0]?.total ?? 0),
+    cobrosEnPendiente: Number(cobrosRaw[0]?.total ?? 0),
+    costoTraslados: Number(trasladosRow[0]?.total ?? 0),
+    cobrosPendientes,
+    resultadosPendientes,
+    pagosEnfermeras,
   }
 }
