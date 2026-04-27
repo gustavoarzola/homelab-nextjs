@@ -40,6 +40,12 @@ export type VisitaDetalle = {
   tipoDocumento: string
   origenContacto: string | null
   informacionAdicional: string
+  pagado: boolean
+  metodoPago: string | null
+  fechaPago: string | null
+  resultadosEnviados: boolean
+  fechaEnvioResultados: string | null
+  costoTraslado: number
   procedureIds: number[]
   examIds: number[]
 }
@@ -57,6 +63,8 @@ export type VisitaRow = {
   paciente: string | null
   enfermera: string | null
   sucursal: string | null
+  pagado: boolean
+  resultadosEnviados: boolean
 }
 
 // ─── searchVisitas ────────────────────────────────────────────────────────────
@@ -72,6 +80,8 @@ export async function searchVisitas(
   const enfermeraId = (filters.enfermera as string | undefined)?.trim()
   const fechaInicio = (filters.fechaInicio as string | undefined)?.trim()
   const fechaFin = (filters.fechaFin as string | undefined)?.trim()
+  const pendientePago = filters.pendientePago as boolean | undefined
+  const resultadosPendientes = filters.resultadosPendientes as boolean | undefined
 
   const conditions: SQL[] = []
   if (buscar) {
@@ -88,6 +98,8 @@ export async function searchVisitas(
   if (enfermeraId) conditions.push(eq(visits.idEnfermera, Number(enfermeraId)))
   if (fechaInicio) conditions.push(gte(visits.fecha, fechaInicio))
   if (fechaFin) conditions.push(lte(visits.fecha, fechaFin))
+  if (pendientePago) conditions.push(and(eq(visits.pagado, false), eq(visits.estado, 'realizada'))!)
+  if (resultadosPendientes) conditions.push(and(eq(visits.resultadosEnviados, false), eq(visits.estado, 'realizada'))!)
 
   const where = conditions.length ? and(...conditions) : undefined
 
@@ -115,6 +127,8 @@ export async function searchVisitas(
       estado: visits.estado,
       costo: visits.costo,
       idPaciente: visits.idPaciente,
+      pagado: visits.pagado,
+      resultadosEnviados: visits.resultadosEnviados,
       pacienteNombres: patients.nombres,
       pacienteApellido: patients.apellidoPaterno,
       pacienteApellidoMaterno: patients.apellidoMaterno,
@@ -151,6 +165,8 @@ export async function searchVisitas(
       apellidoMaterno: r.enfermeraApellidoMaterno,
     }) || null,
     sucursal: r.sucursal ?? null,
+    pagado: r.pagado,
+    resultadosEnviados: r.resultadosEnviados,
   }))
 
   return { rows, total: Number(countRow?.total ?? 0) }
@@ -182,6 +198,12 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     tipoDocumento: visit.tipoDocumento ?? '',
     origenContacto: visit.origenContacto ?? null,
     informacionAdicional: visit.informacionAdicional ?? '',
+    pagado: visit.pagado,
+    metodoPago: visit.metodoPago ?? null,
+    fechaPago: visit.fechaPago ?? null,
+    resultadosEnviados: visit.resultadosEnviados,
+    fechaEnvioResultados: visit.fechaEnvioResultados ?? null,
+    costoTraslado: visit.costoTraslado,
     procedureIds: procs.map((p) => p.id),
     examIds: exams_.map((e) => e.id),
   }
@@ -239,11 +261,18 @@ export async function updateVisita(
   const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
   const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
 
+  const pagado = fd.get('pagado') === 'true'
+  const metodoPago = (fd.get('metodoPago') as string)?.trim() || null
+  const fechaPago = (fd.get('fechaPago') as string)?.trim() || null
+  const resultadosEnviados = fd.get('resultadosEnviados') === 'true'
+  const fechaEnvioResultados = (fd.get('fechaEnvioResultados') as string)?.trim() || null
+  const costoTraslado = Number(fd.get('costoTraslado')) || 0
+
   try {
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, costo, idEnfermera, idSucursal, numeroBoleta, tipoDocumento, origenContacto, informacionAdicional })
+        .set({ fecha, hora, estado, costo, idEnfermera, idSucursal, numeroBoleta, tipoDocumento, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado })
         .where(eq(visits.id, id))
 
       await tx.delete(visitProcedures).where(eq(visitProcedures.idVisita, id))
@@ -311,6 +340,9 @@ export async function createVisita(
           tipoDocumento,
           origenContacto,
           informacionAdicional,
+          pagado: false,
+          resultadosEnviados: false,
+          costoTraslado: 0,
         })
         .returning()
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { DollarSign, Mail } from 'lucide-react'
 import { DataTable, type ColumnDef, type FilterDef, type SearchParams, type Result } from './data-table'
 import { formatDateTime } from '@/lib/format'
 import type { VisitaRow } from '@/lib/actions/visitas'
@@ -7,13 +8,14 @@ import type { VisitaRow } from '@/lib/actions/visitas'
 // ─── Estado badge ─────────────────────────────────────────────────────────────
 
 const ESTADO_STYLES: Record<string, React.CSSProperties> = {
-  creada:     { backgroundColor: 'oklch(0.7 0.1 250 / 15%)',         color: 'oklch(0.35 0.1 250)' },
-  confirmada: { backgroundColor: 'oklch(0.7 0.15 60 / 15%)',         color: 'oklch(0.40 0.15 60)' },
-  realizada:  { backgroundColor: 'oklch(0.6 0.118 184.704 / 12%)',   color: 'oklch(0.45 0.118 184.704)' },
-  cancelada:  { backgroundColor: 'var(--muted)',                     color: 'var(--muted-foreground)' },
+  creada:       { backgroundColor: 'oklch(0.7 0.1 250 / 15%)',         color: 'oklch(0.35 0.1 250)' },
+  confirmada:   { backgroundColor: 'oklch(0.7 0.15 60 / 15%)',         color: 'oklch(0.40 0.15 60)' },
+  realizada:    { backgroundColor: 'oklch(0.6 0.118 184.704 / 12%)',   color: 'oklch(0.45 0.118 184.704)' },
+  cancelada:    { backgroundColor: 'var(--muted)',                     color: 'var(--muted-foreground)' },
+  no_realizada: { backgroundColor: 'oklch(0.65 0.15 30 / 15%)',        color: 'oklch(0.45 0.15 30)' },
 }
 const ESTADO_LABELS: Record<string, string> = {
-  creada: 'Creada', confirmada: 'Confirmada', realizada: 'Realizada', cancelada: 'Cancelada',
+  creada: 'Creada', confirmada: 'Confirmada', realizada: 'Realizada', cancelada: 'Cancelada', no_realizada: 'No realizada',
 }
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
@@ -64,6 +66,32 @@ const columns: ColumnDef<VisitaRow>[] = [
     cell: ({ row }) => `$${row.original.costo.toLocaleString('es-CL')}`,
   },
   {
+    id: 'pagado',
+    header: '',
+    enableSorting: false,
+    cell: ({ row }) => row.original.estado === 'realizada' ? (
+      <span title={row.original.pagado ? 'Pagado' : 'Pago pendiente'}>
+        <DollarSign
+          className="h-4 w-4"
+          style={{ color: row.original.pagado ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.55 0.18 25)' }}
+        />
+      </span>
+    ) : null,
+  },
+  {
+    id: 'resultados',
+    header: '',
+    enableSorting: false,
+    cell: ({ row }) => row.original.estado === 'realizada' ? (
+      <span title={row.original.resultadosEnviados ? 'Resultados enviados' : 'Resultados pendientes'}>
+        <Mail
+          className="h-4 w-4"
+          style={{ color: row.original.resultadosEnviados ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.65 0.15 60)' }}
+        />
+      </span>
+    ) : null,
+  },
+  {
     id: 'actions',
     header: '',
     enableSorting: false,
@@ -86,10 +114,11 @@ function getFilters(enfermeras: { id: number; nombre: string }[]): FilterDef[] {
       type: 'select-single',
       options: [
         { value: '', label: '— Todos —' },
-        { value: 'creada',     label: 'Creada' },
-        { value: 'confirmada', label: 'Confirmada' },
-        { value: 'realizada',  label: 'Realizada' },
-        { value: 'cancelada',  label: 'Cancelada' },
+        { value: 'creada',       label: 'Creada' },
+        { value: 'confirmada',   label: 'Confirmada' },
+        { value: 'realizada',    label: 'Realizada' },
+        { value: 'cancelada',    label: 'Cancelada' },
+        { value: 'no_realizada', label: 'No realizada' },
       ],
     },
     {
@@ -107,6 +136,16 @@ function getFilters(enfermeras: { id: number; nombre: string }[]): FilterDef[] {
       type: 'date-range',
       keyFrom: 'fechaInicio',
       keyTo: 'fechaFin',
+    },
+    {
+      key: 'pendientePago',
+      label: 'Pago pendiente',
+      type: 'checkbox',
+    },
+    {
+      key: 'resultadosPendientes',
+      label: 'Resultados pendientes',
+      type: 'checkbox',
     },
   ]
 }

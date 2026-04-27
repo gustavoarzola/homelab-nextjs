@@ -48,6 +48,7 @@ export const nurses = pgTable(
     rut: varchar('rut', { length: 200 }),
     telefono: varchar('telefono', { length: 20 }),
     correo: varchar('correo', { length: 100 }),
+    porcentajePago: numeric('porcentaje_pago', { precision: 5, scale: 2 }).notNull().default('67.5'),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -263,6 +264,12 @@ export const visits = pgTable(
     tipoDocumento: varchar('tipo_documento', { length: 20 }).default(''),
     origenContacto: varchar('origen_contacto', { length: 100 }),
     informacionAdicional: text('informacion_adicional').default(''),
+    pagado: boolean('pagado').notNull().default(false),
+    metodoPago: varchar('metodo_pago', { length: 30 }),
+    fechaPago: date('fecha_pago'),
+    resultadosEnviados: boolean('resultados_enviados').notNull().default(false),
+    fechaEnvioResultados: date('fecha_envio_resultados'),
+    costoTraslado: integer('costo_traslado').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -318,5 +325,45 @@ export const visitExams = pgTable(
     foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
       .onDelete('cascade'),
     index('examenes_visitas_id_visita_idx').on(table.idVisita),
+  ]
+)
+
+// ============================================================================
+// 17. PreciosExamenes - Precios por examen, previsión y comuna
+// ============================================================================
+export const examPrices = pgTable(
+  'precios_examenes',
+  {
+    id: serial('id').primaryKey(),
+    idExamen: integer('id_examen').notNull(),
+    tipoPrevision: varchar('tipo_prevision', { length: 20 }).notNull(), // 'fonasa'|'isapre'|'particular'
+    comuna: varchar('comuna', { length: 200 }),                         // null = aplica a todas
+    precio: integer('precio').notNull(),
+    activo: boolean('activo').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idExamen], foreignColumns: [exams.id] })
+      .onDelete('cascade'),
+    index('precios_examenes_examen_prevision_idx').on(table.idExamen, table.tipoPrevision, table.comuna),
+  ]
+)
+
+// ============================================================================
+// 18. PreciosVisitaEnfermeria - Precio de visita de enfermería por comuna
+// ============================================================================
+export const nursingVisitPrices = pgTable(
+  'precios_visita_enfermeria',
+  {
+    id: serial('id').primaryKey(),
+    comuna: varchar('comuna', { length: 200 }).notNull(),
+    precio: integer('precio').notNull(),
+    activo: boolean('activo').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('precios_visita_enfermeria_comuna_idx').on(table.comuna),
   ]
 )

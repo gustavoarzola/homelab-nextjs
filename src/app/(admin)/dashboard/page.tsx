@@ -1,8 +1,11 @@
 import { auth } from '@/auth'
 import { DashboardFilters } from '@/components/dashboard-filters'
+import { DashboardFinanceCard } from '@/components/dashboard-finance-card'
+import { DashboardNursePayCard } from '@/components/dashboard-nurse-pay-card'
+import { DashboardCobrosTable, DashboardResultadosTable } from '@/components/dashboard-pending-table'
 import { DashboardRankingCard } from '@/components/dashboard-ranking-card'
 import { DashboardVisitsChart } from '@/components/dashboard-visits-chart'
-import { getDashboardVisitsByDay } from '@/lib/actions/dashboard'
+import { getDashboardVisitsByDay, getDashboardFinanciero } from '@/lib/actions/dashboard'
 
 type Props = {
   searchParams: Promise<{
@@ -21,7 +24,10 @@ export default async function DashboardPage({ searchParams }: Props) {
   const year = Number(params.year) >= 2000 && Number(params.year) <= 2100
     ? Number(params.year)
     : now.getFullYear()
-  const dashboard = await getDashboardVisitsByDay(month, year)
+  const [dashboard, financiero] = await Promise.all([
+    getDashboardVisitsByDay(month, year),
+    getDashboardFinanciero(month, year),
+  ])
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(44,95,158,0.08),transparent_28%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] p-6 xl:p-8">
@@ -66,6 +72,27 @@ export default async function DashboardPage({ searchParams }: Props) {
             items={dashboard.visitsByNurse}
             icon="nurse"
           />
+        </div>
+
+        {/* ── Resumen financiero ── */}
+        <div className="relative z-0">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'var(--muted-foreground)' }}>
+            Resumen financiero
+          </p>
+          <DashboardFinanceCard
+            totalFacturado={financiero.totalFacturado}
+            cobrosEnPendiente={financiero.cobrosEnPendiente}
+            costoTraslados={financiero.costoTraslados}
+          />
+        </div>
+
+        <div className="relative z-0 grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <DashboardCobrosTable items={financiero.cobrosPendientes} />
+          <DashboardResultadosTable items={financiero.resultadosPendientes} />
+        </div>
+
+        <div className="relative z-0">
+          <DashboardNursePayCard items={financiero.pagosEnfermeras} />
         </div>
       </div>
     </div>

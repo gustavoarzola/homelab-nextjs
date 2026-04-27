@@ -256,7 +256,11 @@ export function HistorialPaciente({ data }: Props) {
             <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted-foreground)' }}>
               {year}
             </h2>
+<<<<<<< HEAD
             {(groupedByYear[year] ?? []).map((visita) => {
+=======
+            {groupedByYear[year]?.map((visita) => {
+>>>>>>> 33aa8ea (funcionalidades financieras: cotización, pagos, resultados y dashboard)
               const style = getEstadoStyle(visita.estado)
               return (
                 <div
@@ -265,8 +269,8 @@ export function HistorialPaciente({ data }: Props) {
                   style={{
                     background: 'var(--card)',
                     border: '1px solid var(--border)',
-                    borderLeft: `4px solid ${style.border}`,
-                    opacity: style.opacity ?? '1',
+                    borderLeft: `4px solid ${style?.border ?? 'var(--border)'}`,
+                    opacity: style?.opacity ?? '1',
                   }}
                 >
                   {/* Card header */}
@@ -286,7 +290,7 @@ export function HistorialPaciente({ data }: Props) {
                     </div>
                     <span
                       className="rounded-full px-2.5 py-0.5 text-xs font-medium capitalize"
-                      style={{ background: style.badge, color: style.badgeText }}
+                      style={{ background: style?.badge, color: style?.badgeText }}
                     >
                       {visita.estado}
                     </span>
