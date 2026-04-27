@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect, useCallback } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, Pencil, Calculator } from 'lucide-react'
+import { Loader2, Pencil, FileText } from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { SelectCombobox } from '@/components/select-combobox'
 import { TimePicker } from '@/components/time-picker'
@@ -15,8 +15,6 @@ import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { SucursalRow } from '@/lib/actions/laboratorios'
 import type { ProcedimientoRow, ExamenRow } from '@/lib/actions/catalogos'
 import type { VisitaDetalle } from '@/lib/actions/visitas'
-import { calcularCostoVisita } from '@/lib/actions/precios'
-import type { CostoVisitaDetalle } from '@/lib/actions/precios'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -249,17 +247,6 @@ export function VisitaForm({
   const [resultadosEnviados, setResultadosEnviados] = useState(visita?.resultadosEnviados ?? false)
   const [fechaEnvioResultados, setFechaEnvioResultados] = useState<string | null>(visita?.fechaEnvioResultados ?? null)
   const [costoRef, setCostoRef] = useState<number>(visita?.costo ?? 0)
-  const [cotizacion, setCotizacion] = useState<CostoVisitaDetalle | null>(null)
-  const [isCotizando, startCotizacion] = useTransition()
-
-  const handleCotizar = useCallback(() => {
-    if (!selectedExams.length) return
-    startCotizacion(async () => {
-      const result = await calcularCostoVisita(paciente.id, selectedExams)
-      setCotizacion(result)
-      setCostoRef(result.total)
-    })
-  }, [paciente.id, selectedExams, startCotizacion])
 
   const estadoActual = selectedEstadoId === 0 ? 'creada'
     : selectedEstadoId === 1 ? 'confirmada'
@@ -334,6 +321,18 @@ export function VisitaForm({
           >
             Cancelar
           </Link>
+          {isEdit && (
+            <Link
+              href={`/cotizacion/${visita.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+              style={{ color: 'var(--foreground)', borderColor: 'var(--border)' }}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Cotización PDF
+            </Link>
+          )}
           <button
             type="submit"
             form="visita-form"
@@ -509,19 +508,7 @@ export function VisitaForm({
         {/* ── Exámenes ── */}
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className={sectionTitleClass} style={{ ...sectionTitleStyle, marginBottom: 0 }}>Exámenes</h2>
-              <button
-                type="button"
-                onClick={handleCotizar}
-                disabled={isPending || isCotizando || selectedExams.length === 0}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
-                style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
-              >
-                {isCotizando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Calculator className="h-3 w-3" />}
-                Cotizar
-              </button>
-            </div>
+            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Exámenes</h2>
             <SelectCombobox
               options={examenesOptions}
               selected={selectedExams}
@@ -529,24 +516,6 @@ export function VisitaForm({
               placeholder="Buscar examen..."
               disabled={isPending}
             />
-            {cotizacion && cotizacion.desglose.length > 0 && (
-              <div
-                className="mt-3 rounded-lg border p-3 text-sm"
-                style={{ backgroundColor: 'var(--muted)', borderColor: 'var(--border)' }}
-              >
-                <p className="mb-2 font-medium" style={{ color: 'var(--foreground)' }}>Desglose de cotización</p>
-                {cotizacion.desglose.map((d) => (
-                  <div key={d.descripcion} className="flex justify-between" style={{ color: 'var(--muted-foreground)' }}>
-                    <span>{d.descripcion}</span>
-                    <span className="font-mono">${d.monto.toLocaleString('es-CL')}</span>
-                  </div>
-                ))}
-                <div className="mt-2 flex justify-between border-t pt-2 font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
-                  <span>Total</span>
-                  <span className="font-mono">${cotizacion.total.toLocaleString('es-CL')}</span>
-                </div>
-              </div>
-            )}
           </div>
         </section>
 
