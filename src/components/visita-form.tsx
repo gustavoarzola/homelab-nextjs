@@ -323,7 +323,7 @@ export function VisitaForm({
           </Link>
           {isEdit && (
             <Link
-              href={`/cotizacion/${visita.id}`}
+              href={`/api/cotizacion/${visita.id}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
