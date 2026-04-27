@@ -8,10 +8,18 @@ import {
   patients,
   addresses,
   healthInsurances,
+  visits,
+  nurses,
+  branches,
+  laboratories,
+  visitProcedures,
+  visitExams,
+  procedures,
 } from '@/db/schema'
 import { eq, and, or, isNull, asc, desc, count, ilike, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { requireSession } from '@/lib/auth-guard'
+import { formatNombre } from '@/lib/paciente'
 import type { SearchParams, Result } from '@/components/data-table'
 
 // ─── Row types ────────────────────────────────────────────────────────────────
@@ -364,6 +372,219 @@ export async function togglePrecioVisita(id: number, activo: boolean): Promise<R
     return { success: true }
   } catch {
     return { success: false, error: 'Error al cambiar estado' }
+  }
+}
+
+// ─── getCotizacionVisita ──────────────────────────────────────────────────────
+
+export type ItemCotizacion = {
+  descripcion: string
+  codigo: string
+  tipo: 'examen' | 'procedimiento' | 'visita'
+  precio: number | null   // null = sin precio configurado
+}
+
+export type CotizacionVisita = {
+  id: number
+  fecha: string
+  hora: string | null
+  paciente: {
+    nombreCompleto: string
+    identificador: string | null
+    tipoIdentificador: string | null
+    fechaNacimiento: string | null
+    prevision: string | null
+    direccion: string | null
+    comuna: string | null
+  }
+  enfermera: string | null
+  sucursal: string | null
+  items: ItemCotizacion[]
+  subtotalExamenes: number
+  costoVisitaEnfermeria: number
+  total: number
+  tipoPrevision: 'fonasa' | 'isapre' | 'particular'
+}
+
+export async function getCotizacionVisita(idVisita: number): Promise<CotizacionVisita | null> {
+  await requireSession()
+
+  // Visita base
+  const [visitRow] = await db
+    .select({
+      id: visits.id,
+      fecha: visits.fecha,
+      hora: visits.hora,
+      idPaciente: visits.idPaciente,
+      idEnfermera: visits.idEnfermera,
+      idSucursal: visits.idSucursal,
+    })
+    .from(visits)
+    .where(eq(visits.id, idVisita))
+
+  if (!visitRow) return null
+
+  // Datos en paralelo
+  const [pacienteRow, enfermeraRow, sucursalRow, procRows, examRows] = await Promise.all([
+    visitRow.idPaciente
+      ? db
+          .select({
+            id: patients.id,
+            nombres: patients.nombres,
+            apellidoPaterno: patients.apellidoPaterno,
+            apellidoMaterno: patients.apellidoMaterno,
+            identificador: patients.identificador,
+            tipoIdentificador: patients.tipoIdentificador,
+            fechaNacimiento: patients.fechaNacimiento,
+            previsionNombre: healthInsurances.nombre,
+            direccionFormateada: addresses.direccionFormateada,
+            direccion: addresses.direccion,
+            comuna: addresses.areaAdministrativa3,
+          })
+          .from(patients)
+          .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
+          .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
+          .where(eq(patients.id, visitRow.idPaciente))
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
+
+    visitRow.idEnfermera
+      ? db
+          .select({ nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno, apellidoMaterno: nurses.apellidoMaterno })
+          .from(nurses)
+          .where(eq(nurses.id, visitRow.idEnfermera))
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
+
+    visitRow.idSucursal
+      ? db
+          .select({ nombre: branches.nombre, laboratorio: laboratories.nombre })
+          .from(branches)
+          .leftJoin(laboratories, eq(branches.idLaboratorio, laboratories.id))
+          .where(eq(branches.id, visitRow.idSucursal))
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
+
+    db
+      .select({ id: visitProcedures.idProcedimiento, nombre: procedures.nombre, codigo: procedures.codigo })
+      .from(visitProcedures)
+      .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
+      .where(eq(visitProcedures.idVisita, idVisita)),
+
+    db
+      .select({ id: visitExams.idExamen, nombre: exams.nombre, codigo: exams.codigo })
+      .from(visitExams)
+      .innerJoin(exams, eq(visitExams.idExamen, exams.id))
+      .where(eq(visitExams.idVisita, idVisita)),
+  ])
+
+  const tipoPrevision = detectarTipoPrevision(pacienteRow?.previsionNombre ?? null)
+  const comuna = pacienteRow?.comuna ?? null
+
+  // Precios de exámenes
+  const items: ItemCotizacion[] = []
+  let subtotalExamenes = 0
+
+  for (const exam of examRows) {
+    let precioExamen: number | null = null
+
+    if (comuna) {
+      const [row] = await db
+        .select({ precio: examPrices.precio })
+        .from(examPrices)
+        .where(
+          and(
+            eq(examPrices.idExamen, exam.id),
+            eq(examPrices.tipoPrevision, tipoPrevision),
+            eq(examPrices.comuna, comuna),
+            eq(examPrices.activo, true),
+          ),
+        )
+        .limit(1)
+      if (row) precioExamen = row.precio
+    }
+
+    if (precioExamen === null) {
+      const [row] = await db
+        .select({ precio: examPrices.precio })
+        .from(examPrices)
+        .where(
+          and(
+            eq(examPrices.idExamen, exam.id),
+            eq(examPrices.tipoPrevision, tipoPrevision),
+            isNull(examPrices.comuna),
+            eq(examPrices.activo, true),
+          ),
+        )
+        .limit(1)
+      if (row) precioExamen = row.precio
+    }
+
+    if (precioExamen !== null) subtotalExamenes += precioExamen
+    items.push({ descripcion: exam.nombre, codigo: exam.codigo, tipo: 'examen', precio: precioExamen })
+  }
+
+  for (const proc of procRows) {
+    items.push({ descripcion: proc.nombre, codigo: proc.codigo, tipo: 'procedimiento', precio: null })
+  }
+
+  // Precio de visita de enfermería
+  let costoVisitaEnfermeria = 0
+  if (comuna) {
+    const [row] = await db
+      .select({ precio: nursingVisitPrices.precio })
+      .from(nursingVisitPrices)
+      .where(and(eq(nursingVisitPrices.comuna, comuna), eq(nursingVisitPrices.activo, true)))
+      .limit(1)
+    if (row) costoVisitaEnfermeria = row.precio
+  }
+
+  // Agregar visita de enfermería como ítem
+  items.push({
+    descripcion: 'Visita de enfermería a domicilio',
+    codigo: 'VIS-ENF',
+    tipo: 'visita',
+    precio: costoVisitaEnfermeria || null,
+  })
+
+  const sucursalLabel = sucursalRow
+    ? sucursalRow.laboratorio
+      ? `${sucursalRow.nombre} (${sucursalRow.laboratorio})`
+      : sucursalRow.nombre
+    : null
+
+  return {
+    id: visitRow.id,
+    fecha: visitRow.fecha,
+    hora: visitRow.hora ?? null,
+    paciente: {
+      nombreCompleto: pacienteRow
+        ? formatNombre({
+            nombres: pacienteRow.nombres,
+            apellidoPaterno: pacienteRow.apellidoPaterno,
+            apellidoMaterno: pacienteRow.apellidoMaterno,
+          })
+        : '—',
+      identificador: pacienteRow?.identificador ?? null,
+      tipoIdentificador: pacienteRow?.tipoIdentificador ?? null,
+      fechaNacimiento: pacienteRow?.fechaNacimiento ?? null,
+      prevision: pacienteRow?.previsionNombre ?? null,
+      direccion: pacienteRow?.direccionFormateada ?? pacienteRow?.direccion ?? null,
+      comuna: pacienteRow?.comuna ?? null,
+    },
+    enfermera: enfermeraRow
+      ? formatNombre({
+          nombres: enfermeraRow.nombres,
+          apellidoPaterno: enfermeraRow.apellidoPaterno,
+          apellidoMaterno: enfermeraRow.apellidoMaterno,
+        })
+      : null,
+    sucursal: sucursalLabel,
+    items,
+    subtotalExamenes,
+    costoVisitaEnfermeria,
+    total: subtotalExamenes + costoVisitaEnfermeria,
+    tipoPrevision,
   }
 }
 
