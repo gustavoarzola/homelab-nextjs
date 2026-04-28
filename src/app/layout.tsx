@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { ThemeProvider } from 'next-themes'
+import NextTopLoader from 'nextjs-toploader'
 import { Toaster } from 'sonner'
 import './globals.css'
 
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <NextTopLoader color="#18181b" showSpinner={false} height={2} />
           {children}
           <Toaster richColors closeButton />
         </ThemeProvider>
