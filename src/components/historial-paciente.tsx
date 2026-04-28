@@ -44,7 +44,7 @@ const ESTADO_COLORS: Record<string, { border: string; badge: string; badgeText: 
 }
 
 function getEstadoStyle(estado: string) {
-  return ESTADO_COLORS[estado] ?? ESTADO_COLORS.creada
+  return (ESTADO_COLORS[estado] ?? ESTADO_COLORS.creada)!
 }
 
 function formatFecha(fecha: string): string {
