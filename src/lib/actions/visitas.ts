@@ -92,7 +92,7 @@ export async function searchVisitas(
     const fullName = sql`(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, ''))`
     conditions.push(
       or(
-        ilike(fullName, `%${buscar}%`),
+        sql`unaccent(${fullName}) ILIKE unaccent(${'%' + buscar + '%'})`,
         ilike(patients.identificador, `%${normalized}%`),
       )!,
     )

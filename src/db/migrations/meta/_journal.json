@@ -5,29 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1777145614436,
-      "tag": "0000_puzzling_senator_kelly",
+      "when": 1778001691890,
+      "tag": "0000_sloppy_blackheart",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1745539200000,
-      "tag": "0001_pacientes_trgm_indexes",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1777224851601,
-      "tag": "0002_wonderful_dexter_bennett",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1777315670365,
-      "tag": "0003_nice_blink",
+      "when": 1778001700000,
+      "tag": "0001_search_extensions",
       "breakpoints": true
     }
   ]
