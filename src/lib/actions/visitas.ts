@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, branches } from '@/db/schema'
-import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql } from 'drizzle-orm'
+import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, laboratories, procedures, exams, examPrices, healthInsurances, addresses } from '@/db/schema'
+import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
@@ -35,9 +35,10 @@ export type VisitaDetalle = {
   costo: number
   idPaciente: number | null
   idEnfermera: number | null
-  idSucursal: number | null
+  idLaboratorio: number | null
   numeroBoleta: string
   tipoDocumento: string
+  numeroAtencion: number
   origenContacto: string | null
   informacionAdicional: string
   pagado: boolean
@@ -47,7 +48,9 @@ export type VisitaDetalle = {
   fechaEnvioResultados: string | null
   costoTraslado: number
   procedureIds: number[]
+  procedurePrices: { idProcedimiento: number; precio: number }[]
   examIds: number[]
+  examPrices: { idExamen: number; precio: number }[]
 }
 
 // ─── Row type ─────────────────────────────────────────────────────────────────
@@ -62,7 +65,7 @@ export type VisitaRow = {
   idPaciente: number | null
   paciente: string | null
   enfermera: string | null
-  sucursal: string | null
+  laboratorio: string | null
   pagado: boolean
   resultadosEnviados: boolean
 }
@@ -89,7 +92,7 @@ export async function searchVisitas(
     const fullName = sql`(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, ''))`
     conditions.push(
       or(
-        sql`unaccent(${fullName}) ILIKE unaccent(${'%' + buscar + '%'})`,
+        ilike(fullName, `%${buscar}%`),
         ilike(patients.identificador, `%${normalized}%`),
       )!,
     )
@@ -135,12 +138,12 @@ export async function searchVisitas(
       enfermeraNombres: nurses.nombres,
       enfermeraApellido: nurses.apellidoPaterno,
       enfermeraApellidoMaterno: nurses.apellidoMaterno,
-      sucursal: branches.nombre,
+      laboratorio: laboratories.nombre,
     })
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
-    .leftJoin(branches, eq(visits.idSucursal, branches.id))
+    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
     .where(where)
     .orderBy(order)
     .limit(pageSize)
@@ -164,12 +167,43 @@ export async function searchVisitas(
       apellidoPaterno: r.enfermeraApellido,
       apellidoMaterno: r.enfermeraApellidoMaterno,
     }) || null,
-    sucursal: r.sucursal ?? null,
+    laboratorio: r.laboratorio ?? null,
     pagado: r.pagado,
     resultadosEnviados: r.resultadosEnviados,
   }))
 
   return { rows, total: Number(countRow?.total ?? 0) }
+}
+
+// ─── Helper: precio de examen para un paciente ───────────────────────────────
+
+async function fetchExamPriceForPatient(idPaciente: number, idExamen: number): Promise<number> {
+  const [paciente] = await db
+    .select({ categoriaSeguro: healthInsurances.categoria, comuna: addresses.areaAdministrativa3 })
+    .from(patients)
+    .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
+    .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
+    .where(eq(patients.id, idPaciente))
+
+  const cat = paciente?.categoriaSeguro
+  const tipoPrevision: string = cat === 'fonasa' || cat === 'isapre' ? cat : 'particular'
+  const comuna = paciente?.comuna ?? null
+
+  if (comuna) {
+    const [row] = await db
+      .select({ precio: examPrices.precio })
+      .from(examPrices)
+      .where(and(eq(examPrices.idExamen, idExamen), eq(examPrices.tipoPrevision, tipoPrevision), eq(examPrices.comuna, comuna), eq(examPrices.activo, true)))
+      .limit(1)
+    if (row) return row.precio
+  }
+
+  const [row] = await db
+    .select({ precio: examPrices.precio })
+    .from(examPrices)
+    .where(and(eq(examPrices.idExamen, idExamen), eq(examPrices.tipoPrevision, tipoPrevision), isNull(examPrices.comuna), eq(examPrices.activo, true)))
+    .limit(1)
+  return row?.precio ?? 0
 }
 
 // ─── getVisita ────────────────────────────────────────────────────────────────
@@ -181,8 +215,8 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
   if (!visit) return null
 
   const [procs, exams_] = await Promise.all([
-    db.select({ id: visitProcedures.idProcedimiento }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
-    db.select({ id: visitExams.idExamen }).from(visitExams).where(eq(visitExams.idVisita, id)),
+    db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
+    db.select({ idExamen: visitExams.idExamen, precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, id)),
   ])
 
   return {
@@ -193,9 +227,10 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     costo: visit.costo,
     idPaciente: visit.idPaciente ?? null,
     idEnfermera: visit.idEnfermera ?? null,
-    idSucursal: visit.idSucursal ?? null,
+    idLaboratorio: visit.idLaboratorio ?? null,
     numeroBoleta: visit.numeroBoleta ?? '',
     tipoDocumento: visit.tipoDocumento ?? '',
+    numeroAtencion: visit.numeroAtencion ?? 0,
     origenContacto: visit.origenContacto ?? null,
     informacionAdicional: visit.informacionAdicional ?? '',
     pagado: visit.pagado,
@@ -204,8 +239,10 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     resultadosEnviados: visit.resultadosEnviados,
     fechaEnvioResultados: visit.fechaEnvioResultados ?? null,
     costoTraslado: visit.costoTraslado,
-    procedureIds: procs.map((p) => p.id),
-    examIds: exams_.map((e) => e.id),
+    procedureIds: procs.map((p) => p.idProcedimiento),
+    procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
+    examIds: exams_.map((e) => e.idExamen),
+    examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
   }
 }
 
@@ -252,9 +289,10 @@ export async function updateVisita(
   const estado = (fd.get('estado') as string)?.trim() || 'creada'
   const costo = Number(fd.get('costo')) || 0
   const idEnfermera = Number(fd.get('idEnfermera')) || null
-  const idSucursal = Number(fd.get('idSucursal')) || null
+  const idLaboratorio = Number(fd.get('idLaboratorio')) || null
   const numeroBoleta = (fd.get('numeroBoleta') as string)?.trim() || ''
   const tipoDocumento = (fd.get('tipoDocumento') as string)?.trim() || ''
+  const numeroAtencion = Number(fd.get('numeroAtencion')) || 0
   const origenContacto = (fd.get('origenContacto') as string)?.trim() || null
   const informacionAdicional = (fd.get('informacionAdicional') as string)?.trim() || ''
 
@@ -272,21 +310,63 @@ export async function updateVisita(
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, costo, idEnfermera, idSucursal, numeroBoleta, tipoDocumento, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado })
+        .set({ fecha, hora, estado, costo, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado })
         .where(eq(visits.id, id))
+
+      // Preserve stored prices for existing procedures before deleting
+      const existingProcs = await tx
+        .select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio })
+        .from(visitProcedures)
+        .where(eq(visitProcedures.idVisita, id))
+      const storedPriceMap = new Map(existingProcs.map((p) => [p.idProcedimiento, p.precio]))
+
+      // Fetch catalog prices for newly added procedures
+      const newProcIds = procedureIds.filter((pid) => !storedPriceMap.has(pid))
+      let catalogPriceMap = new Map<number, number>()
+      if (newProcIds.length > 0) {
+        const catalogPrices = await tx
+          .select({ id: procedures.id, precio: procedures.precio })
+          .from(procedures)
+          .where(inArray(procedures.id, newProcIds))
+        catalogPriceMap = new Map(catalogPrices.map((p) => [p.id, p.precio]))
+      }
 
       await tx.delete(visitProcedures).where(eq(visitProcedures.idVisita, id))
       await tx.delete(visitExams).where(eq(visitExams.idVisita, id))
 
       if (procedureIds.length > 0) {
         await tx.insert(visitProcedures).values(
-          procedureIds.map((idProcedimiento) => ({ idProcedimiento, idVisita: id })),
+          procedureIds.map((idProcedimiento) => ({
+            idProcedimiento,
+            idVisita: id,
+            precio: storedPriceMap.get(idProcedimiento) ?? catalogPriceMap.get(idProcedimiento) ?? 0,
+          })),
         )
       }
       if (examIds.length > 0) {
-        await tx.insert(visitExams).values(
-          examIds.map((idExamen) => ({ idExamen, idSucursal: null, idVisita: id })),
+        // Preserve stored prices for existing exams; calculate for new ones
+        const existingExams = await tx
+          .select({ idExamen: visitExams.idExamen, precio: visitExams.precio })
+          .from(visitExams)
+          .where(eq(visitExams.idVisita, id))
+        const storedExamPriceMap = new Map(existingExams.map((e) => [e.idExamen, e.precio]))
+
+        const idPacienteActual = Number(fd.get('idPaciente')) || (
+          await tx.select({ idPaciente: visits.idPaciente }).from(visits).where(eq(visits.id, id)).then((r) => r[0]?.idPaciente)
         )
+
+        const examValues = await Promise.all(
+          examIds.map(async (idExamen) => {
+            const stored = storedExamPriceMap.get(idExamen)
+            const precio = stored !== undefined
+              ? stored
+              : idPacienteActual
+                ? await fetchExamPriceForPatient(idPacienteActual, idExamen)
+                : 0
+            return { idExamen, idVisita: id, precio }
+          })
+        )
+        await tx.insert(visitExams).values(examValues)
       }
     })
 
@@ -315,9 +395,10 @@ export async function createVisita(
   const estado = 'creada'
   const costo = Number(fd.get('costo')) || 0
   const idEnfermera = Number(fd.get('idEnfermera')) || null
-  const idSucursal = Number(fd.get('idSucursal')) || null
+  const idLaboratorio = Number(fd.get('idLaboratorio')) || null
   const numeroBoleta = (fd.get('numeroBoleta') as string)?.trim() || ''
   const tipoDocumento = (fd.get('tipoDocumento') as string)?.trim() || ''
+  const numeroAtencion = Number(fd.get('numeroAtencion')) || 0
   const origenContacto = (fd.get('origenContacto') as string)?.trim() || null
   const informacionAdicional = (fd.get('informacionAdicional') as string)?.trim() || ''
 
@@ -335,9 +416,10 @@ export async function createVisita(
           costo,
           idPaciente,
           idEnfermera,
-          idSucursal,
+          idLaboratorio,
           numeroBoleta,
           tipoDocumento,
+          numeroAtencion,
           origenContacto,
           informacionAdicional,
           pagado: false,
@@ -349,15 +431,29 @@ export async function createVisita(
       const id = visit!.id
 
       if (procedureIds.length > 0) {
+        const catalogPrices = await tx
+          .select({ id: procedures.id, precio: procedures.precio })
+          .from(procedures)
+          .where(inArray(procedures.id, procedureIds))
+        const priceMap = new Map(catalogPrices.map((p) => [p.id, p.precio]))
         await tx.insert(visitProcedures).values(
-          procedureIds.map((idProcedimiento) => ({ idProcedimiento, idVisita: id })),
+          procedureIds.map((idProcedimiento) => ({
+            idProcedimiento,
+            idVisita: id,
+            precio: priceMap.get(idProcedimiento) ?? 0,
+          })),
         )
       }
 
       if (examIds.length > 0) {
-        await tx.insert(visitExams).values(
-          examIds.map((idExamen) => ({ idExamen, idSucursal: null, idVisita: id })),
+        const examPriceValues = await Promise.all(
+          examIds.map(async (idExamen) => ({
+            idExamen,
+            idVisita: id,
+            precio: await fetchExamPriceForPatient(idPaciente, idExamen),
+          }))
         )
+        await tx.insert(visitExams).values(examPriceValues as { idExamen: number; idVisita: number; precio: number }[])
       }
 
       return id
@@ -367,5 +463,88 @@ export async function createVisita(
     return { success: true, id: visitId }
   } catch {
     return { success: false, error: 'Error al crear la visita' }
+  }
+}
+
+// ─── getExamCurrentPricesForVisita ────────────────────────────────────────────
+
+export async function getExamCurrentPricesForVisita(
+  idVisita: number,
+): Promise<{ idExamen: number; precioActual: number }[]> {
+  await requireSession()
+
+  const [visitRow] = await db.select({ idPaciente: visits.idPaciente }).from(visits).where(eq(visits.id, idVisita))
+  if (!visitRow?.idPaciente) return []
+
+  const examRows = await db
+    .select({ idExamen: visitExams.idExamen })
+    .from(visitExams)
+    .where(eq(visitExams.idVisita, idVisita))
+
+  return Promise.all(
+    examRows.map(async ({ idExamen }) => ({
+      idExamen,
+      precioActual: await fetchExamPriceForPatient(visitRow.idPaciente!, idExamen),
+    }))
+  )
+}
+
+// ─── actualizarPrecioExamenVisita ─────────────────────────────────────────────
+
+export async function actualizarPrecioExamenVisita(
+  idVisita: number,
+  idExamen: number,
+): Promise<Result> {
+  await requireSession()
+
+  try {
+    const [visitRow] = await db.select({ idPaciente: visits.idPaciente }).from(visits).where(eq(visits.id, idVisita))
+    if (!visitRow?.idPaciente) return { success: false, error: 'Visita sin paciente' }
+
+    const precio = await fetchExamPriceForPatient(visitRow.idPaciente, idExamen)
+
+    await db
+      .update(visitExams)
+      .set({ precio })
+      .where(and(eq(visitExams.idVisita, idVisita), eq(visitExams.idExamen, idExamen)))
+
+    revalidatePath(`/visitas/${idVisita}`)
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Error al actualizar precio' }
+  }
+}
+
+// ─── actualizarPrecioProcedimientoVisita ──────────────────────────────────────
+
+export async function actualizarPrecioProcedimientoVisita(
+  idVisita: number,
+  idProcedimiento: number,
+): Promise<Result> {
+  await requireSession()
+
+  try {
+    const [proc] = await db
+      .select({ precio: procedures.precio })
+      .from(procedures)
+      .where(eq(procedures.id, idProcedimiento))
+    if (!proc) return { success: false, error: 'Procedimiento no encontrado' }
+
+    await db
+      .update(visitProcedures)
+      .set({ precio: proc.precio })
+      .where(and(eq(visitProcedures.idVisita, idVisita), eq(visitProcedures.idProcedimiento, idProcedimiento)))
+
+    const [totRow] = await db
+      .select({ total: sql<number>`COALESCE(SUM(precio), 0)` })
+      .from(visitProcedures)
+      .where(eq(visitProcedures.idVisita, idVisita))
+
+    await db.update(visits).set({ costo: totRow?.total ?? 0 }).where(eq(visits.id, idVisita))
+
+    revalidatePath(`/visitas/${idVisita}`)
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Error al actualizar precio' }
   }
 }
