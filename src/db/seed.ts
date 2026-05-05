@@ -594,7 +594,7 @@ function buildExamPrices(examIds: number[]): Array<{
 // ─── Precios de visita de enfermería por comuna ────────────────────────────────
 
 function buildNursingVisitPrices(): Array<{
-  comuna: string
+  comuna: string | null
   precio: number
 }> {
   const comunasStgo = [
@@ -606,9 +606,9 @@ function buildNursingVisitPrices(): Array<{
   ]
 
   const preciosVisita: Array<{
-    comuna: string
+    comuna: string | null
     precio: number
-  }> = []
+  }> = [{ comuna: null, precio: 30000 }]
 
   // Definir precios base según zona
   // Zonas caras (centro/oriente): 40.000-55.000

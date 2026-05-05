@@ -112,7 +112,7 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
           ? `<span style="font-size:11px;color:#94a3b8;">incluido</span>`
           : item.precio !== null
             ? `<strong>${esc(pesos(item.precio))}</strong>`
-            : `<span style="font-size:11px;color:#94a3b8;">—</span>`
+            : `<span style="font-size:11px;color:#94a3b8;">Sin precio configurado</span>`
         return `
           <tr style="border-bottom:1px solid #f1f5f9;">
             <td style="padding:11px 14px;color:#94a3b8;font-size:12px;text-align:right;padding-right:16px;">${startIdx + i + 1}</td>

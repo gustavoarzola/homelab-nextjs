@@ -35,17 +35,18 @@ function PrecioVisitaForm({
   row?: PrecioVisitaRow
   onDone: (fd: FormData) => Promise<{ success: boolean; error?: string }>
 }) {
-  const comunaToIdx = (c: string | undefined) =>
+  const comunaToIdx = (c: string | null | undefined) =>
     c ? COMUNAS_OPTIONS.findIndex((o) => o.label === c) : null
 
   const [selectedComuna, setSelectedComuna] = useState<number | null>(comunaToIdx(row?.comuna))
+  const [isBasePrice, setIsBasePrice] = useState(row?.comuna === null)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    fd.set('comuna', selectedComuna !== null ? (COMUNAS_OPTIONS[selectedComuna]?.label ?? '') : '')
+    fd.set('comuna', !isBasePrice && selectedComuna !== null ? (COMUNAS_OPTIONS[selectedComuna]?.label ?? '') : '')
     if (row) fd.set('id', String(row.id))
     setError(null)
     startTransition(async () => {
@@ -74,9 +75,21 @@ function PrecioVisitaForm({
           selected={selectedComuna}
           onChange={setSelectedComuna}
           placeholder="Buscar comuna…"
-          disabled={isPending}
+          disabled={isPending || isBasePrice}
         />
       </div>
+      <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--foreground)' }}>
+        <input
+          type="checkbox"
+          checked={isBasePrice}
+          onChange={(e) => {
+            setIsBasePrice(e.target.checked)
+            if (e.target.checked) setSelectedComuna(null)
+          }}
+          disabled={isPending}
+        />
+        Precio base sin comuna
+      </label>
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Precio ($)</label>
         <input
@@ -224,7 +237,9 @@ export function PreciosVisitasTable({ initialRows, onCreate, onUpdate, onToggle,
             )}
             {rows.map((row) => (
               <tr key={row.id} style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--card)' }}>
-                <td className="px-4 py-3 font-medium" style={{ color: 'var(--foreground)' }}>{row.comuna}</td>
+                <td className="px-4 py-3 font-medium" style={{ color: 'var(--foreground)' }}>
+                  {row.comuna ?? 'Precio base'}
+                </td>
                 <td className="px-4 py-3 text-right font-mono" style={{ color: 'var(--foreground)' }}>
                   ${row.precio.toLocaleString('es-CL')}
                 </td>

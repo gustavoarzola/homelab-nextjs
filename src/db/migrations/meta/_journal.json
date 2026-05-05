@@ -15,6 +15,13 @@
       "when": 1778001700000,
       "tag": "0001_search_extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778001701000,
+      "tag": "0002_nullable_nursing_visit_base_price",
+      "breakpoints": true
     }
   ]
 }
