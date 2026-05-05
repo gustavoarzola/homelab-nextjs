@@ -43,6 +43,18 @@ const columns: ColumnDef<ProcedimientoRow>[] = [
     ),
   },
   {
+    id: 'precio',
+    header: 'Precio',
+    cell: ({ row }) => (
+      <span className="text-sm tabular-nums">
+        {row.original.precio > 0
+          ? `$${row.original.precio.toLocaleString('es-CL')}`
+          : <span style={{ color: 'var(--muted-foreground)' }}>—</span>
+        }
+      </span>
+    ),
+  },
+  {
     id: 'activo',
     header: 'Estado',
     cell: ({ row }) => (
@@ -81,6 +93,7 @@ const formFields: FormFieldDef[] = [
   { name: 'nombre', label: 'Nombre', required: true },
   { name: 'codigo', label: 'Código', required: true, placeholder: 'ej: PROC-001' },
   { name: 'categoria', label: 'Categoría', type: 'select-single', required: true, options: CATEGORIA_OPTIONS },
+  { name: 'precio', label: 'Precio', type: 'number', placeholder: '0' },
 ]
 
 export function ProcedimientosTable({ initialData, search, onCreate, onUpdate, onToggle }: Props) {

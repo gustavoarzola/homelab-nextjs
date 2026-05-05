@@ -1,8 +1,17 @@
 import { PrevisionesTable } from '@/components/previsiones-table'
-import { searchPrevisiones, createPrevision, updatePrevision, togglePrevision } from '@/lib/actions/catalogos'
+import {
+  searchPrevisiones,
+  createPrevision,
+  updatePrevision,
+  togglePrevision,
+  getPrevisionCategorias,
+} from '@/lib/actions/catalogos'
 
 export default async function PrevisionesPage() {
-  const initialData = await searchPrevisiones({ filters: {}, sort: null, page: 1, pageSize: 10 })
+  const [initialData, categorias] = await Promise.all([
+    searchPrevisiones({ filters: {}, sort: null, page: 1, pageSize: 10 }),
+    getPrevisionCategorias(),
+  ])
 
   return (
     <div className="p-8">
@@ -12,6 +21,7 @@ export default async function PrevisionesPage() {
       </div>
       <PrevisionesTable
         initialData={initialData}
+        categorias={categorias}
         search={searchPrevisiones}
         onCreate={createPrevision}
         onUpdate={updatePrevision}

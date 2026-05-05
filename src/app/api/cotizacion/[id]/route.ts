@@ -15,6 +15,7 @@ export async function GET(
   }
 
   const html = buildCotizacionHTML(data)
+
   return new Response(html, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   })
@@ -90,7 +91,7 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
     { label: 'Fecha', value: esc(formatDateLong(data.fecha)) },
     data.hora ? { label: 'Hora', value: esc(data.hora.slice(0, 5)) } : null,
     data.enfermera ? { label: 'Enfermera', value: esc(data.enfermera) } : null,
-    data.sucursal ? { label: 'Laboratorio / Sucursal', value: esc(data.sucursal), small: true } : null,
+    data.laboratorio ? { label: 'Laboratorio', value: esc(data.laboratorio), small: true } : null,
     { label: 'N° de referencia', value: `<span style="font-family:monospace;font-size:12px;">${esc(visitaRef)}</span>` },
   ]
     .filter(Boolean)
@@ -147,7 +148,7 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
 
   if (procedimientos.length > 0) {
     itemsHTML += groupHeader('Procedimientos de enfermería')
-    itemsHTML += itemRows(procedimientos, idx, true)
+    itemsHTML += itemRows(procedimientos, idx, false)
     idx += procedimientos.length
   }
 
@@ -158,6 +159,10 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
 
   if (examenes.length > 0 && data.subtotalExamenes > 0) {
     itemsHTML += subtotalRow('Subtotal exámenes', data.subtotalExamenes)
+  }
+  const subtotalProcedimientos = procedimientos.reduce((s, p) => s + (p.precio ?? 0), 0)
+  if (subtotalProcedimientos > 0) {
+    itemsHTML += subtotalRow('Subtotal procedimientos', subtotalProcedimientos)
   }
   if (data.costoVisitaEnfermeria > 0) {
     itemsHTML += subtotalRow('Visita de enfermería', data.costoVisitaEnfermeria)
@@ -233,10 +238,11 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
       line-height: 1.6;
     }
     @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { background: #ffffff; }
-      .page { margin: 0; box-shadow: none; max-width: none; }
+      .page { margin: 0; padding: 1.5cm 2cm; box-shadow: none; max-width: none; }
       .print-bar { display: none; }
-      @page { margin: 1.5cm 2cm; }
+      @page { margin: 0; }
     }
     @media (max-width: 640px) {
       .info-grid { grid-template-columns: 1fr; }
@@ -305,7 +311,7 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
 
       <!-- Notes -->
       <div class="notes" style="margin-top:32px;">
-        <strong>Nota:</strong> Esta cotización es referencial y tiene una validez de 30 días desde su emisión. Los precios pueden variar según disponibilidad. Para confirmar su visita, contáctenos al número indicado. Los procedimientos de enfermería están incluidos en el servicio de visita domiciliaria.
+        <strong>Nota:</strong> Esta cotización es referencial y tiene una validez de 30 días desde su emisión. Los precios pueden variar según disponibilidad. Para confirmar su visita, contáctenos al número indicado.
       </div>
 
       <!-- Footer -->

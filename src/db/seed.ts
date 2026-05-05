@@ -3,9 +3,10 @@ import {
   users, nurses, patients, addresses, patientPhones,
   visits, visitExams, visitProcedures,
   healthInsurances, elderlyResidences,
-  laboratories, branches,
+  laboratories,
   procedures, exams,
   contactOrigins,
+  examPrices, nursingVisitPrices,
 } from './schema'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
@@ -34,6 +35,22 @@ function formatRut(n: number): string {
 function pick<T>(arr: T[], i: number, salt = 0): T {
   const idx = ((i * 31 + salt * 997) % arr.length + arr.length) % arr.length
   return arr[idx]!
+}
+
+const COMUNAS_RM = [
+  'Providencia', 'Las Condes', 'Ñuñoa', 'Santiago', 'La Florida', 'Maipú',
+  'Vitacura', 'Lo Barnechea', 'La Reina', 'Peñalolén', 'Macul', 'San Miguel',
+  'Independencia', 'Recoleta', 'La Cisterna', 'La Granja', 'Pudahuel',
+  'Quilicura', 'Huechuraba', 'Conchalí', 'Cerrillos', 'Estación Central',
+  'Puente Alto', 'San Bernardo', 'Colina', 'Lampa',
+]
+
+// Precio sesgado hacia valores bajos (10.000–50.000, en centenas)
+// Usa raw^2 para concentrar la distribución cerca de 10.000
+function seedProcedimientoPrice(i: number): number {
+  const raw = ((i * 31 + 137) % 100) / 100   // uniforme [0, 1)
+  const skewed = raw * raw                     // cuadrado → sesgo hacia 0
+  return Math.round((10000 + skewed * 40000) / 100) * 100
 }
 
 // ─── Name & address pools ─────────────────────────────────────────────────────
@@ -188,23 +205,23 @@ const nurseData = [
 
 const previsionesData = [
   // FONASA (pública) – 4 tramos
-  { nombre: 'FONASA Tramo A (Gratuito)' },
-  { nombre: 'FONASA Tramo B' },
-  { nombre: 'FONASA Tramo C' },
-  { nombre: 'FONASA Tramo D' },
+  { nombre: 'FONASA Tramo A (Gratuito)', categoria: 'fonasa' },
+  { nombre: 'FONASA Tramo B', categoria: 'fonasa' },
+  { nombre: 'FONASA Tramo C', categoria: 'fonasa' },
+  { nombre: 'FONASA Tramo D', categoria: 'fonasa' },
   // Isapres privadas vigentes
-  { nombre: 'Isapre Banmédica' },
-  { nombre: 'Isapre Cruz Blanca' },
-  { nombre: 'Isapre Consalud' },
-  { nombre: 'Isapre Colmena Golden Cross' },
-  { nombre: 'Isapre Vida Tres' },
-  { nombre: 'Isapre Nueva Masvida' },
-  { nombre: 'Isapre Esencial' },
+  { nombre: 'Isapre Banmédica', categoria: 'isapre' },
+  { nombre: 'Isapre Cruz Blanca', categoria: 'isapre' },
+  { nombre: 'Isapre Consalud', categoria: 'isapre' },
+  { nombre: 'Isapre Colmena Golden Cross', categoria: 'isapre' },
+  { nombre: 'Isapre Vida Tres', categoria: 'isapre' },
+  { nombre: 'Isapre Nueva Masvida', categoria: 'isapre' },
+  { nombre: 'Isapre Esencial', categoria: 'isapre' },
   // Sistemas especiales
-  { nombre: 'Dipreca (Fuerzas Armadas)' },
-  { nombre: 'Capredena (Carabineros de Chile)' },
+  { nombre: 'Dipreca (Fuerzas Armadas)', categoria: 'particular' },
+  { nombre: 'Capredena (Carabineros de Chile)', categoria: 'particular' },
   // Sin previsión
-  { nombre: 'Particular / Sin previsión' },
+  { nombre: 'Particular / Sin previsión', categoria: 'particular' },
 ]
 
 // ─── Cadenas (redes de clínicas) ──────────────────────────────────────────────
@@ -222,79 +239,6 @@ const cadenasData = [
   { nombre: 'Red Salud UC San Carlos' },
 ]
 
-// ─── Sucursales por cadena (índice 0-based en cadenasData) ───────────────────
-
-const sucursalesData = [
-  // Clínicas Bupa Chile (0)
-  { nombre: 'Clínica Santa María – Providencia', idxCadena: 0 },
-  { nombre: 'Clínica Dávila – Recoleta', idxCadena: 0 },
-  { nombre: 'Clínica Bupa Antofagasta', idxCadena: 0 },
-  { nombre: 'Clínica Bupa Viña del Mar', idxCadena: 0 },
-  { nombre: 'Clínica Bupa Concepción', idxCadena: 0 },
-
-  // Red UC Christus (1)
-  { nombre: 'Hospital Clínico UC – Macul', idxCadena: 1 },
-  { nombre: 'Clínica UC San Carlos de Apoquindo – Las Condes', idxCadena: 1 },
-  { nombre: 'Centro Médico UC Irarrázaval – Ñuñoa', idxCadena: 1 },
-  { nombre: 'Centro Médico UC San Joaquín', idxCadena: 1 },
-  { nombre: 'Centro Médico UC Kennedy – Vitacura', idxCadena: 1 },
-  { nombre: 'Centro Médico UC Marcoleta – Santiago Centro', idxCadena: 1 },
-
-  // Clínica Alemana (2)
-  { nombre: 'Clínica Alemana de Santiago – Vitacura', idxCadena: 2 },
-  { nombre: 'Clínica Alemana Temuco', idxCadena: 2 },
-  { nombre: 'Clínica Alemana Osorno', idxCadena: 2 },
-  { nombre: 'Centro Médico Alemana Valparaíso', idxCadena: 2 },
-
-  // Clínica Las Condes (3)
-  { nombre: 'Clínica Las Condes – Las Condes', idxCadena: 3 },
-  { nombre: 'CLC Centro Médico El Golf', idxCadena: 3 },
-  { nombre: 'CLC Centro Médico Apoquindo', idxCadena: 3 },
-  { nombre: 'CLC Centro Médico Escuela Militar', idxCadena: 3 },
-
-  // Clínica Indisa (4)
-  { nombre: 'Clínica Indisa – Providencia', idxCadena: 4 },
-  { nombre: 'Centro Médico Indisa Ñuñoa', idxCadena: 4 },
-  { nombre: 'Centro Médico Indisa Maipú', idxCadena: 4 },
-  { nombre: 'Centro Médico Indisa La Florida', idxCadena: 4 },
-
-  // Clínica Bicentenario (5)
-  { nombre: 'Clínica Bicentenario – Renca', idxCadena: 5 },
-  { nombre: 'Centro Médico Bicentenario Quilicura', idxCadena: 5 },
-  { nombre: 'Centro Médico Bicentenario Maipú', idxCadena: 5 },
-  { nombre: 'Centro Médico Bicentenario Pudahuel', idxCadena: 5 },
-
-  // Megasalud (6)
-  { nombre: 'Megasalud Centro – Santiago', idxCadena: 6 },
-  { nombre: 'Megasalud Providencia', idxCadena: 6 },
-  { nombre: 'Megasalud Las Condes', idxCadena: 6 },
-  { nombre: 'Megasalud Maipú', idxCadena: 6 },
-  { nombre: 'Megasalud La Florida', idxCadena: 6 },
-  { nombre: 'Megasalud Concepción', idxCadena: 6 },
-  { nombre: 'Megasalud Viña del Mar', idxCadena: 6 },
-  { nombre: 'Megasalud Antofagasta', idxCadena: 6 },
-
-  // Integramédica (7)
-  { nombre: 'Integramédica Alameda – Santiago Centro', idxCadena: 7 },
-  { nombre: 'Integramédica Providencia', idxCadena: 7 },
-  { nombre: 'Integramédica Las Condes', idxCadena: 7 },
-  { nombre: 'Integramédica Maipú', idxCadena: 7 },
-  { nombre: 'Integramédica La Florida', idxCadena: 7 },
-  { nombre: 'Integramédica Puente Alto', idxCadena: 7 },
-  { nombre: 'Integramédica Concepción', idxCadena: 7 },
-  { nombre: 'Integramédica Valparaíso', idxCadena: 7 },
-  { nombre: 'Integramédica Temuco', idxCadena: 7 },
-
-  // Hospital del Trabajador ACHS (8)
-  { nombre: 'Hospital del Trabajador Santiago – Providencia', idxCadena: 8 },
-  { nombre: 'Hospital del Trabajador Concepción', idxCadena: 8 },
-  { nombre: 'Hospital del Trabajador Antofagasta', idxCadena: 8 },
-
-  // Red Salud UC San Carlos (9)
-  { nombre: 'Clínica San Carlos de Apoquindo', idxCadena: 9 },
-  { nombre: 'Hospital Clínico UC Christus', idxCadena: 9 },
-  { nombre: 'Centro Médico San Joaquín', idxCadena: 9 },
-]
 
 // ─── Residencias adulto mayor ─────────────────────────────────────────────────
 
@@ -557,6 +501,151 @@ const origenesContactoData = [
   { nombre: 'U Andes' },
 ]
 
+// ─── Precios de exámenes por previsión y comuna ────────────────────────────────
+
+function buildExamPrices(examIds: number[]): Array<{
+  idExamen: number
+  tipoPrevision: string
+  comuna: string | null
+  precio: number
+}> {
+  const precios: Array<{
+    idExamen: number
+    tipoPrevision: string
+    comuna: string | null
+    precio: number
+  }> = []
+
+  // Comunas de Santiago
+  const comunasStgo = [
+    'Providencia', 'Las Condes', 'Ñuñoa', 'Santiago', 'La Florida', 'Maipú',
+    'Vitacura', 'Lo Barnechea', 'La Reina', 'Peñalolén', 'Macul', 'San Miguel',
+    'Independencia', 'Recoleta', 'La Cisterna', 'La Granja', 'Pudahuel',
+    'Quilicura', 'Huechuraba', 'Conchalí', 'Cerrillos', 'Estación Central',
+    'Puente Alto', 'San Bernardo', 'Colina', 'Lampa',
+  ]
+
+  // Función para calcular precio según índice y previsión
+  const getPriceByExam = (index: number, prevision: string): number => {
+    // Categorizar basado en el índice del examen
+    let basePrice = 0
+    const normalizedIndex = index % 100
+
+    if (normalizedIndex < 35) {
+      // Exámenes básicos: hemograma, glucosa, etc.
+      basePrice = prevision === 'fonasa' ? 5000 : prevision === 'isapre' ? 8000 : 10000
+    } else if (normalizedIndex < 70) {
+      // Exámenes medianos: bioquímica, perfil lipídico, etc.
+      basePrice = prevision === 'fonasa' ? 15000 : prevision === 'isapre' ? 22000 : 28000
+    } else {
+      // Exámenes caros: serología, marcadores tumorales, etc.
+      basePrice = prevision === 'fonasa' ? 40000 : prevision === 'isapre' ? 55000 : 70000
+    }
+    return basePrice
+  }
+
+  // Para cada examen, crear precios para cada previsión
+  for (let i = 0; i < examIds.length; i++) {
+    const examId = examIds[i]!
+
+    // Precios nacionales (sin comuna específica)
+    for (const prevision of ['fonasa', 'isapre', 'particular']) {
+      const basePrice = getPriceByExam(i, prevision)
+      // Agregar variación de ±10%
+      const variation = Math.floor(basePrice * 0.1 * ((i + (prevision.charCodeAt(0) || 0)) % 20 / 10 - 1))
+      precios.push({
+        idExamen: examId,
+        tipoPrevision: prevision,
+        comuna: null,
+        precio: basePrice + variation,
+      })
+    }
+
+    // Precios específicos por comuna (solo para 30% de los exámenes)
+    if (i % 3 === 0) {
+      const startIdx = (i * 3) % comunasStgo.length
+      const comunasParaExamen = [
+        comunasStgo[startIdx]!,
+        comunasStgo[(startIdx + 1) % comunasStgo.length]!,
+        comunasStgo[(startIdx + 2) % comunasStgo.length]!,
+      ]
+
+      for (const comuna of comunasParaExamen) {
+        for (const prevision of ['fonasa', 'isapre', 'particular']) {
+          const basePrice = getPriceByExam(i, prevision)
+          // Communes más caras: Providencia, Las Condes, Vitacura, Lo Barnechea (surcharge 15%)
+          const isCommuneExpensive = ['Providencia', 'Las Condes', 'Vitacura', 'Lo Barnechea'].includes(comuna)
+          const surcharge = isCommuneExpensive ? Math.floor(basePrice * 0.15) : 0
+          const variation = Math.floor(basePrice * 0.08 * ((i + (comuna.charCodeAt(0) || 0)) % 16 / 8 - 1))
+          precios.push({
+            idExamen: examId,
+            tipoPrevision: prevision,
+            comuna,
+            precio: basePrice + variation + surcharge,
+          })
+        }
+      }
+    }
+  }
+
+  return precios
+}
+
+// ─── Precios de visita de enfermería por comuna ────────────────────────────────
+
+function buildNursingVisitPrices(): Array<{
+  comuna: string
+  precio: number
+}> {
+  const comunasStgo = [
+    'Providencia', 'Las Condes', 'Ñuñoa', 'Santiago', 'La Florida', 'Maipú',
+    'Vitacura', 'Lo Barnechea', 'La Reina', 'Peñalolén', 'Macul', 'San Miguel',
+    'Independencia', 'Recoleta', 'La Cisterna', 'La Granja', 'Pudahuel',
+    'Quilicura', 'Huechuraba', 'Conchalí', 'Cerrillos', 'Estación Central',
+    'Puente Alto', 'San Bernardo', 'Colina', 'Lampa',
+  ]
+
+  const preciosVisita: Array<{
+    comuna: string
+    precio: number
+  }> = []
+
+  // Definir precios base según zona
+  // Zonas caras (centro/oriente): 40.000-55.000
+  // Zonas medias (periférico cercano): 30.000-40.000
+  // Zonas lejanas (periférico lejano): 25.000-35.000
+
+  const zonasCaras = ['Providencia', 'Las Condes', 'Vitacura', 'Lo Barnechea', 'La Reina', 'Ñuñoa']
+  const zonasMedias = ['Santiago', 'Peñalolén', 'Macul', 'San Miguel', 'Huechuraba', 'Recoleta', 'Independencia']
+  const zonasLejanas = [
+    'La Florida', 'Maipú', 'La Cisterna', 'La Granja', 'Pudahuel', 'Quilicura',
+    'Conchalí', 'Cerrillos', 'Estación Central', 'Puente Alto', 'San Bernardo', 'Colina', 'Lampa'
+  ]
+
+  for (let i = 0; i < comunasStgo.length; i++) {
+    const comuna = comunasStgo[i]!
+    let basePrice = 0
+
+    if (zonasCaras.includes(comuna)) {
+      basePrice = 45000 + (i % 5) * 2000 // 45.000 - 53.000
+    } else if (zonasMedias.includes(comuna)) {
+      basePrice = 32000 + (i % 4) * 1500 // 32.000 - 36.500
+    } else {
+      basePrice = 28000 + (i % 4) * 1200 // 28.000 - 32.600
+    }
+
+    // Redondear a múltiplo de 500
+    const precioRedondeado = Math.round(basePrice / 500) * 500
+
+    preciosVisita.push({
+      comuna,
+      precio: precioRedondeado,
+    })
+  }
+
+  return preciosVisita
+}
+
 // ─── Patient generators ───────────────────────────────────────────────────────
 
 const TOTAL_PATIENTS = 2000
@@ -642,14 +731,6 @@ function buildPatient(
     ? `${normalize(nombre).replace(/\s/g, '.')}.${normalize(apellidoPaterno)}${i}@mail.cl`
     : null
 
-  const hasContact = i % 5 === 0
-  const contactoNombre = hasContact
-    ? `${pick(NOMBRES_F, i, 9)} ${pick(APELLIDOS, i, 10)}`
-    : null
-  const contactoTelefono = hasContact
-    ? `+569${String(90000000 + ((i * 13337) % 9999999)).slice(0, 8)}`
-    : null
-
   // Previsión de salud: distribución realista (75% FONASA, 20% Isapre, 5% otros)
   // previsionIds[0-3] = FONASA A/B/C/D, [4-10] = Isapres, [11-13] = otros
   const h = ((i + 7) * 1234567) >>> 0
@@ -692,8 +773,6 @@ function buildPatient(
     idDireccion: addressId,
     idCompaniaSeguro,
     idResidenciaAdulto,
-    contactoNombre,
-    contactoTelefono,
   }
 }
 
@@ -706,11 +785,12 @@ async function seed() {
   await db.delete(visitExams)
   await db.delete(visitProcedures)
   await db.delete(visits)
+  await db.delete(examPrices)
+  await db.delete(nursingVisitPrices)
   await db.delete(patientPhones)
   await db.delete(patients)
   await db.delete(addresses)
   await db.delete(nurses)
-  await db.delete(branches)
   await db.delete(laboratories)
   await db.delete(healthInsurances)
   await db.delete(elderlyResidences)
@@ -742,28 +822,23 @@ async function seed() {
   const insertedCadenas = await db.insert(laboratories).values(cadenasData).returning()
   const cadenaIds = insertedCadenas.map(r => r.id)
 
-  // Sucursales
-  const sucursalesRows = sucursalesData.map(s => ({
-    nombre: s.nombre,
-    idLaboratorio: cadenaIds[s.idxCadena]!,
-  }))
-  console.log(`   Insertando ${sucursalesRows.length} sucursales...`)
-  await db.insert(branches).values(sucursalesRows)
-
   // Procedimientos
   console.log(`   Insertando ${procedimientosData.length} procedimientos...`)
-  await db.insert(procedures).values(procedimientosData)
+  await db.insert(procedures).values(
+    procedimientosData.map((p, i) => ({ ...p, precio: seedProcedimientoPrice(i) }))
+  )
 
   // Exámenes
   console.log(`   Insertando ${examenesData.length} exámenes...`)
-  await db.insert(exams).values(examenesData)
+  const insertedExams = await db.insert(exams).values(examenesData).returning()
+  const examIds = insertedExams.map(e => e.id)
 
   // Orígenes de contacto
   console.log(`   Insertando ${origenesContactoData.length} orígenes de contacto...`)
   await db.insert(contactOrigins).values(origenesContactoData)
 
   // Enfermeras
-  await db.insert(nurses).values(nurseData.map(n => ({ ...n, rut: n.rut?.replace(/[.\-]/g, '') ?? null })))
+  await db.insert(nurses).values(nurseData.map((n, i) => ({ ...n, rut: n.rut?.replace(/[.\-]/g, '') ?? null, comunaResidencia: pick(COMUNAS_RM, i) })))
 
   // Direcciones (una por paciente)
   console.log(`   Insertando ${TOTAL_PATIENTS} direcciones...`)
@@ -792,12 +867,12 @@ async function seed() {
 
   // Visitas con historial (enero-early abril 2026)
   const allPatients = await db.select({ id: patients.id }).from(patients)
-  const allBranches = await db.select({ id: branches.id }).from(branches)
+  const allLaboratories = await db.select({ id: laboratories.id }).from(laboratories)
   const allNurses = await db.select({ id: nurses.id }).from(nurses).where(eq(nurses.activo, true))
 
   let visitsCount = 0
 
-  if (allPatients.length > 0 && allBranches.length > 0) {
+  if (allPatients.length > 0 && allLaboratories.length > 0) {
     const visitRows: Array<{
       fecha: string
       hora: string
@@ -805,7 +880,7 @@ async function seed() {
       costo: number
       idPaciente: number
       idEnfermera: number | null
-      idSucursal: number
+      idLaboratorio: number
       numeroBoleta: string
       tipoDocumento: string
       origenContacto: string
@@ -856,7 +931,7 @@ async function seed() {
       const { date, state, assignNurse } = visitDates[idx]!
       const fecha = date.toISOString().split('T')[0]!
       const patientId = allPatients[idx % allPatients.length]!.id
-      const branchId = allBranches[idx % allBranches.length]!.id
+      const labId = allLaboratories[idx % allLaboratories.length]!.id
       const nurseId = assignNurse && allNurses.length > 0 ? allNurses[idx % allNurses.length]!.id : null
       const hour = Math.floor(Math.random() * 24).toString().padStart(2, '0')
       const minute = Math.floor(Math.random() * 60).toString().padStart(2, '0')
@@ -869,7 +944,7 @@ async function seed() {
         costo: Math.floor(Math.random() * 100000) + 20000,
         idPaciente: patientId,
         idEnfermera: nurseId,
-        idSucursal: branchId,
+        idLaboratorio: labId,
         numeroBoleta: '',
         tipoDocumento: '',
         origenContacto: 'Sistema',
@@ -887,7 +962,7 @@ async function seed() {
 
   // Visitas sin asignación de enfermeras (24-30 marzo 2026, 40 visitas/día - COMMENTED OUT)
   /* Uncomment to add additional 280 visits for Mar 24-30
-  if (allPatients.length > 0 && allBranches.length > 0) {
+  if (allPatients.length > 0 && allLaboratories.length > 0) {
     const visitRows: Array<{
       fecha: string
       hora: string
@@ -895,7 +970,7 @@ async function seed() {
       costo: number
       idPaciente: number
       idEnfermera: null
-      idSucursal: number
+      idLaboratorio: number
       numeroBoleta: string
       tipoDocumento: string
       origenContacto: string
@@ -908,7 +983,7 @@ async function seed() {
       const fecha = d.toISOString().split('T')[0]!
       for (let i = 0; i < 40; i++) {
         const patientId = allPatients[i % allPatients.length]!.id
-        const branchId = allBranches[i % allBranches.length]!.id
+        const labId = allLaboratories[i % allLaboratories.length]!.id
         const hour = Math.floor(Math.random() * 24).toString().padStart(2, '0')
         const minute = Math.floor(Math.random() * 60).toString().padStart(2, '0')
         const second = '00'
@@ -919,7 +994,7 @@ async function seed() {
           costo: Math.floor(Math.random() * 100000) + 20000,
           idPaciente: patientId,
           idEnfermera: null,
-          idSucursal: branchId,
+          idLaboratorio: labId,
           numeroBoleta: '',
           tipoDocumento: '',
           origenContacto: 'Sistema',
@@ -936,6 +1011,19 @@ async function seed() {
   }
   */
 
+  // Precios de exámenes por previsión y comuna
+  console.log(`   Generando precios de exámenes...`)
+  const examPricesData = buildExamPrices(examIds)
+  const EXAM_PRICES_BATCH = 100
+  for (let offset = 0; offset < examPricesData.length; offset += EXAM_PRICES_BATCH) {
+    await db.insert(examPrices).values(examPricesData.slice(offset, offset + EXAM_PRICES_BATCH))
+  }
+
+  // Precios de visita de enfermería por comuna
+  console.log(`   Generando precios de visitas de enfermería...`)
+  const visitPricesData = buildNursingVisitPrices()
+  await db.insert(nursingVisitPrices).values(visitPricesData)
+
   console.log('✅ Seed completado:')
   console.log('   admin@homelab.cl   / admin123  (rol: admin)')
   console.log('   usuario@homelab.cl / user123   (rol: usuario)')
@@ -945,8 +1033,10 @@ async function seed() {
   console.log(`   ${residenciaCount} pacientes en residencia adulto mayor`)
   console.log(`   ${visitsCount} visitas (ene-abr 2025: 12-22/día lun-sábado, antes 27mar=realizada+enfermera, después=creada+70%enfermera)`)
   console.log(`   ${previsionesData.length} previsiones de salud`)
-  console.log(`   ${cadenasData.length} cadenas · ${sucursalesRows.length} sucursales`)
+  console.log(`   ${cadenasData.length} laboratorios`)
   console.log(`   ${procedimientosData.length} procedimientos · ${examenesData.length} exámenes`)
+  console.log(`   ${examPricesData.length} precios de exámenes (por previsión y comuna)`)
+  console.log(`   ${visitPricesData.length} precios de visitas de enfermería (por comuna)`)
   console.log(`   ${residenciasData.length} residencias adulto mayor`)
   console.log(`   ${origenesContactoData.length} orígenes de contacto`)
   process.exit(0)

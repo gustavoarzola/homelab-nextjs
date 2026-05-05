@@ -17,6 +17,8 @@ export type NurseRow = {
   telefono: string | null
   correo: string | null
   activo: boolean
+  porcentajePago: string
+  comunaResidencia: string | null
 }
 
 export async function searchEnfermeras(
@@ -76,6 +78,8 @@ function parseFields(formData: FormData): { error: string } | {
   rut: string | null
   telefono: string | null
   correo: string | null
+  porcentajePago: string
+  comunaResidencia: string | null
 } {
   const nombres = (formData.get('nombres') as string)?.trim()
   const apellidoPaterno = (formData.get('apellidoPaterno') as string)?.trim()
@@ -83,9 +87,15 @@ function parseFields(formData: FormData): { error: string } | {
   const rawRut = (formData.get('rut') as string)?.trim() || null
   const telefono = (formData.get('telefono') as string)?.trim() || null
   const correo = (formData.get('correo') as string)?.trim() || null
+  const rawPorcentaje = (formData.get('porcentajePago') as string)?.trim()
+  const porcentajePago = rawPorcentaje || '67.5'
+  const comunaResidencia = (formData.get('comunaResidencia') as string)?.trim() || null
 
   if (!nombres) return { error: 'Nombres requeridos' }
   if (!apellidoPaterno) return { error: 'Apellido paterno requerido' }
+
+  const pct = parseFloat(porcentajePago)
+  if (isNaN(pct) || pct < 0 || pct > 100) return { error: 'Porcentaje de pago inválido (0–100)' }
 
   let rut: string | null = null
   if (rawRut) {
@@ -94,7 +104,7 @@ function parseFields(formData: FormData): { error: string } | {
     rut = result.normalized
   }
 
-  return { nombres, apellidoPaterno, apellidoMaterno, rut, telefono, correo }
+  return { nombres, apellidoPaterno, apellidoMaterno, rut, telefono, correo, porcentajePago, comunaResidencia }
 }
 
 export async function createEnfermera(formData: FormData): Promise<Result> {

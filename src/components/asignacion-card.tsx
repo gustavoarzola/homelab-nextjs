@@ -46,10 +46,10 @@ export function AsignacionCard({ visita, overlay = false }: Props) {
             {visita.comuna}
           </span>
         )}
-        {visita.sucursal && (
+        {visita.laboratorio && (
           <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
             <Building2 className="h-3 w-3" />
-            {visita.sucursal}
+            {visita.laboratorio}
           </span>
         )}
       </div>

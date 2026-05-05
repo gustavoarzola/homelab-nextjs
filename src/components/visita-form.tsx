@@ -3,18 +3,20 @@
 import { useState, useTransition, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, Pencil, FileText } from 'lucide-react'
+import { Loader2, Pencil, FileText, AlertTriangle } from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { SelectCombobox } from '@/components/select-combobox'
+import { Checkbox } from '@/components/ui/checkbox'
 import { TimePicker } from '@/components/time-picker'
 import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
 import type { NurseRow } from '@/lib/actions/enfermeras'
-import type { SucursalRow } from '@/lib/actions/laboratorios'
+import type { LaboratorioRow } from '@/lib/actions/laboratorios'
 import type { ProcedimientoRow, ExamenRow } from '@/lib/actions/catalogos'
 import type { VisitaDetalle } from '@/lib/actions/visitas'
+import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,19 +35,81 @@ export type PacienteData = {
   direccion: string
   latitud: string | null
   longitud: string | null
-  contactoNombre: string | null
-  contactoTelefono: string | null
 }
 
 type Props = {
   paciente: PacienteData
   visita?: VisitaDetalle
   enfermeras: NurseRow[]
-  sucursales: SucursalRow[]
+  laboratorios: LaboratorioRow[]
   procedimientos: ProcedimientoRow[]
   examenes: ExamenRow[]
   origenesContacto: { id: number; nombre: string }[]
+  examCurrentPrices?: { idExamen: number; precioActual: number }[]
   onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
+}
+
+// ─── ProcedimientoPriceWarning ────────────────────────────────────────────────
+
+function ProcedimientoPriceWarning({
+  procedimiento,
+  savedPrice,
+  idVisita,
+  onDismiss,
+}: {
+  procedimiento: ProcedimientoRow
+  savedPrice: number
+  idVisita: number
+  onDismiss: () => void
+}) {
+  const [isPending, startTransition] = useTransition()
+
+  const handleActualizar = () => {
+    startTransition(async () => {
+      await actualizarPrecioProcedimientoVisita(idVisita, procedimiento.id)
+      onDismiss()
+    })
+  }
+
+  return (
+    <div
+      className="mt-2 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 text-sm"
+      style={{ backgroundColor: 'oklch(0.8 0.12 80 / 15%)', border: '1px solid oklch(0.7 0.12 80 / 40%)' }}
+    >
+      <div className="flex items-center gap-2.5">
+        <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />
+        <span style={{ color: 'var(--foreground)' }}>
+          <span className="font-medium">{procedimiento.nombre}</span>
+          <span style={{ color: 'var(--muted-foreground)' }}>
+            {' '}— Precio cambió:{' '}
+            <span className="line-through">${savedPrice.toLocaleString('es-CL')}</span>
+            {' → '}
+            <span className="font-medium">${procedimiento.precio.toLocaleString('es-CL')}</span>
+          </span>
+        </span>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          onClick={handleActualizar}
+          disabled={isPending}
+          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+        >
+          {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+          Actualizar
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+          style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
+        >
+          Mantener
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
@@ -127,10 +191,6 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
       label: 'Dirección',
       value: paciente.direccionFormateada || paciente.direccion,
     },
-    paciente.contactoNombre && {
-      label: 'Contacto',
-      value: [paciente.contactoNombre, paciente.contactoTelefono].filter(Boolean).join(' · '),
-    },
   ].filter(Boolean) as { label: string; value: string }[]
 
   const hasMap = !!(paciente.latitud && paciente.longitud)
@@ -200,24 +260,92 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
   )
 }
 
+// ─── ExamenPriceWarning ───────────────────────────────────────────────────────
+
+function ExamenPriceWarning({
+  examen,
+  savedPrice,
+  currentPrice,
+  idVisita,
+  onDismiss,
+}: {
+  examen: ExamenRow
+  savedPrice: number
+  currentPrice: number
+  idVisita: number
+  onDismiss: () => void
+}) {
+  const [isPending, startTransition] = useTransition()
+
+  const handleActualizar = () => {
+    startTransition(async () => {
+      await actualizarPrecioExamenVisita(idVisita, examen.id)
+      onDismiss()
+    })
+  }
+
+  return (
+    <div
+      className="mt-2 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 text-sm"
+      style={{ backgroundColor: 'oklch(0.8 0.12 80 / 15%)', border: '1px solid oklch(0.7 0.12 80 / 40%)' }}
+    >
+      <div className="flex items-center gap-2.5">
+        <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />
+        <span style={{ color: 'var(--foreground)' }}>
+          <span className="font-medium">{examen.nombre}</span>
+          <span style={{ color: 'var(--muted-foreground)' }}>
+            {' '}— Precio cambió:{' '}
+            <span className="line-through">${savedPrice.toLocaleString('es-CL')}</span>
+            {' → '}
+            <span className="font-medium">${currentPrice.toLocaleString('es-CL')}</span>
+          </span>
+        </span>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          onClick={handleActualizar}
+          disabled={isPending}
+          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+        >
+          {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+          Actualizar
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+          style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
+        >
+          Mantener
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── VisitaForm ────────────────────────────────────────────────────────────────
 
 export function VisitaForm({
   paciente,
   visita,
   enfermeras,
-  sucursales,
+  laboratorios,
   procedimientos,
   examenes,
   origenesContacto,
+  examCurrentPrices,
   onSubmit,
 }: Props) {
   const router = useRouter()
   const isEdit = !!visita
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(visita?.procedureIds ?? [])
   const [selectedExams, setSelectedExams] = useState<number[]>(visita?.examIds ?? [])
+  const [dismissedPriceWarnings, setDismissedPriceWarnings] = useState<Set<number>>(new Set())
+  const [dismissedExamWarnings, setDismissedExamWarnings] = useState<Set<number>>(new Set())
   const [selectedEnfermeraId, setSelectedEnfermeraId] = useState<number | null>(visita?.idEnfermera ?? null)
-  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(visita?.idSucursal ?? null)
+  const [selectedLaboratorioId, setSelectedLaboratorioId] = useState<number | null>(visita?.idLaboratorio ?? null)
   const [selectedOrigenContactoId, setSelectedOrigenContactoId] = useState<number | null>(
     visita?.origenContacto ? origenesContacto.find((o) => o.nombre === visita.origenContacto)?.id ?? null : null
   )
@@ -283,7 +411,7 @@ export function VisitaForm({
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: `${p.nombre} (${p.codigo})` }))
   const examenesOptions = examenes.map((e) => ({ id: e.id, label: `${e.nombre} (${e.codigo})` }))
   const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatNombre(e) }))
-  const sucursalesOptions = sucursales.map((s) => ({ id: s.id, label: `${s.nombre}${s.laboratorio ? ` (${s.laboratorio})` : ''}` }))
+  const laboratoriosOptions = laboratorios.map((l) => ({ id: l.id, label: l.nombre }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
   const tipoDocumentoOptions = [
     { id: 0, label: 'Boleta' },
@@ -440,14 +568,14 @@ export function VisitaForm({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Sucursal</label>
-                <input type="hidden" name="idSucursal" value={selectedSucursalId ?? ''} />
+                <label className={labelClass} style={labelStyle}>Laboratorio</label>
+                <input type="hidden" name="idLaboratorio" value={selectedLaboratorioId ?? ''} />
                 <SelectCombobox
                   mode="single"
-                  options={sucursalesOptions}
-                  selected={selectedSucursalId}
-                  onChange={setSelectedSucursalId}
-                  placeholder="Buscar sucursal…"
+                  options={laboratoriosOptions}
+                  selected={selectedLaboratorioId}
+                  onChange={setSelectedLaboratorioId}
+                  placeholder="Buscar laboratorio…"
                   disabled={isPending}
                 />
               </div>
@@ -483,6 +611,11 @@ export function VisitaForm({
                 <input name="numeroBoleta" type="text" defaultValue={visita?.numeroBoleta ?? ''} disabled={isPending} className={inputClass} style={inputStyle} />
               </div>
 
+              <div className="flex flex-col gap-1.5">
+                <label className={labelClass} style={labelStyle}>N° atención</label>
+                <input name="numeroAtencion" type="number" defaultValue={visita?.numeroAtencion ?? ''} disabled={isPending} className={inputClass} style={inputStyle} />
+              </div>
+
               <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-4">
                 <label className={labelClass} style={labelStyle}>Información adicional</label>
                 <textarea name="informacionAdicional" rows={2} defaultValue={visita?.informacionAdicional ?? ''} disabled={isPending} className={inputClass} style={inputStyle} />
@@ -498,10 +631,37 @@ export function VisitaForm({
             <SelectCombobox
               options={procedimientosOptions}
               selected={selectedProcedures}
-              onChange={setSelectedProcedures}
+              onChange={(ids) => {
+                setSelectedProcedures(ids)
+                // Clear dismissed warnings for removed procedures
+                setDismissedPriceWarnings((prev) => {
+                  const next = new Set(prev)
+                  for (const id of prev) {
+                    if (!ids.includes(id)) next.delete(id)
+                  }
+                  return next
+                })
+              }}
               placeholder="Buscar procedimiento..."
               disabled={isPending}
             />
+            {/* Price change warnings (edit mode only, non-realizada) */}
+            {isEdit && visita.estado !== 'realizada' && selectedProcedures.map((procId) => {
+              if (dismissedPriceWarnings.has(procId)) return null
+              const savedEntry = visita.procedurePrices.find((p) => p.idProcedimiento === procId)
+              if (!savedEntry) return null
+              const proc = procedimientos.find((p) => p.id === procId)
+              if (!proc || proc.precio === savedEntry.precio) return null
+              return (
+                <ProcedimientoPriceWarning
+                  key={procId}
+                  procedimiento={proc}
+                  savedPrice={savedEntry.precio}
+                  idVisita={visita.id}
+                  onDismiss={() => setDismissedPriceWarnings((prev) => new Set([...prev, procId]))}
+                />
+              )
+            })}
           </div>
         </section>
 
@@ -512,10 +672,39 @@ export function VisitaForm({
             <SelectCombobox
               options={examenesOptions}
               selected={selectedExams}
-              onChange={setSelectedExams}
+              onChange={(ids) => {
+                setSelectedExams(ids)
+                setDismissedExamWarnings((prev) => {
+                  const next = new Set(prev)
+                  for (const id of prev) {
+                    if (!ids.includes(id)) next.delete(id)
+                  }
+                  return next
+                })
+              }}
               placeholder="Buscar examen..."
               disabled={isPending}
             />
+            {/* Price change warnings (edit mode only, non-realizada) */}
+            {isEdit && visita.estado !== 'realizada' && examCurrentPrices && selectedExams.map((examId) => {
+              if (dismissedExamWarnings.has(examId)) return null
+              const savedEntry = visita.examPrices.find((e) => e.idExamen === examId)
+              if (!savedEntry || savedEntry.precio === 0) return null
+              const current = examCurrentPrices.find((e) => e.idExamen === examId)
+              if (!current || current.precioActual === savedEntry.precio) return null
+              const examen = examenes.find((e) => e.id === examId)
+              if (!examen) return null
+              return (
+                <ExamenPriceWarning
+                  key={examId}
+                  examen={examen}
+                  savedPrice={savedEntry.precio}
+                  currentPrice={current.precioActual}
+                  idVisita={visita.id}
+                  onDismiss={() => setDismissedExamWarnings((prev) => new Set([...prev, examId]))}
+                />
+              )
+            })}
           </div>
         </section>
 
@@ -527,16 +716,15 @@ export function VisitaForm({
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 {/* Pago */}
                 <div className="flex flex-col gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="pagado"
                       checked={pagado}
-                      onChange={(e) => setPagado(e.target.checked)}
+                      onCheckedChange={(checked) => setPagado(checked === true)}
                       disabled={isPending}
-                      className="h-4 w-4 rounded"
                     />
-                    <span className={labelClass} style={labelStyle}>Pagado</span>
-                  </label>
+                    <label htmlFor="pagado" className={`${labelClass} cursor-pointer`} style={labelStyle}>Pagado</label>
+                  </div>
                   {pagado && (
                     <div className="flex flex-col gap-3 pl-6">
                       <div className="flex flex-col gap-1.5">
@@ -569,16 +757,15 @@ export function VisitaForm({
 
                 {/* Resultados */}
                 <div className="flex flex-col gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="resultadosEnviados"
                       checked={resultadosEnviados}
-                      onChange={(e) => setResultadosEnviados(e.target.checked)}
+                      onCheckedChange={(checked) => setResultadosEnviados(checked === true)}
                       disabled={isPending}
-                      className="h-4 w-4 rounded"
                     />
-                    <span className={labelClass} style={labelStyle}>Resultados enviados</span>
-                  </label>
+                    <label htmlFor="resultadosEnviados" className={`${labelClass} cursor-pointer`} style={labelStyle}>Resultados enviados</label>
+                  </div>
                   {resultadosEnviados && (
                     <div className="pl-6">
                       <div className="flex flex-col gap-1.5">

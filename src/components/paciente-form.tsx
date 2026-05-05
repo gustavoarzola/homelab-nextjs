@@ -649,55 +649,6 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
           </div>
         </section>
 
-        {/* ── Contacto de emergencia ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <h2 className={sectionTitleClass} style={sectionTitleStyle}>
-            Contacto de emergencia
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Nombre
-              </label>
-              <input
-                name="contactoNombre"
-                type="text"
-                defaultValue={paciente?.contactoNombre ?? ''}
-                disabled={isPending}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Teléfono
-              </label>
-              <input
-                name="contactoTelefono"
-                type="tel"
-                defaultValue={paciente?.contactoTelefono ?? ''}
-                disabled={isPending}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <label className={labelClass} style={labelStyle}>
-                Información adicional
-              </label>
-              <textarea
-                name="contactoInfo"
-                rows={2}
-                defaultValue={paciente?.contactoInfo ?? ''}
-                disabled={isPending}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-        </section>
       </form>
     </>
   )

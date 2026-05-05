@@ -16,15 +16,6 @@ CREATE TABLE "direcciones" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "sucursales" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"nombre" varchar(100) NOT NULL,
-	"id_laboratorio" integer,
-	"activo" boolean DEFAULT true NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "origenes_contacto" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"nombre" varchar(100) NOT NULL,
@@ -36,6 +27,17 @@ CREATE TABLE "origenes_contacto" (
 CREATE TABLE "residencias_adulto_mayor" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"nombre" varchar(200) NOT NULL,
+	"activo" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "precios_examenes" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"id_examen" integer NOT NULL,
+	"tipo_prevision" varchar(20) NOT NULL,
+	"comuna" varchar(200),
+	"precio" integer NOT NULL,
 	"activo" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -53,6 +55,7 @@ CREATE TABLE "examenes" (
 CREATE TABLE "companias_seguros" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"nombre" varchar(200) NOT NULL,
+	"categoria" varchar(20),
 	"activo" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -74,6 +77,17 @@ CREATE TABLE "enfermeras" (
 	"rut" varchar(200),
 	"telefono" varchar(20),
 	"correo" varchar(100),
+	"porcentaje_pago" numeric(5, 2) DEFAULT '67.5' NOT NULL,
+	"comuna_residencia" varchar(100),
+	"activo" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "precios_visita_enfermeria" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"comuna" varchar(200) NOT NULL,
+	"precio" integer NOT NULL,
 	"activo" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -101,9 +115,6 @@ CREATE TABLE "pacientes" (
 	"id_direccion" integer NOT NULL,
 	"id_compania_seguro" integer,
 	"id_residencia_adulto" integer,
-	"contacto_nombre" varchar(100),
-	"contacto_telefono" varchar(20),
-	"contacto_info" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "pacientes_identificador_unique" UNIQUE("identificador")
@@ -113,6 +124,8 @@ CREATE TABLE "procedimientos" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"nombre" varchar(200) NOT NULL,
 	"codigo" varchar(50) NOT NULL,
+	"categoria" varchar(50) DEFAULT 'otros' NOT NULL,
+	"precio" integer DEFAULT 0 NOT NULL,
 	"activo" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -133,8 +146,8 @@ CREATE TABLE "usuarios" (
 CREATE TABLE "examenes_visitas" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"id_examen" integer NOT NULL,
-	"id_sucursal" integer,
 	"id_visita" integer NOT NULL,
+	"precio" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -142,6 +155,7 @@ CREATE TABLE "procedimientos_visitas" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"id_procedimiento" integer NOT NULL,
 	"id_visita" integer NOT NULL,
+	"precio" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -153,29 +167,36 @@ CREATE TABLE "visitas" (
 	"costo" integer DEFAULT 0 NOT NULL,
 	"id_paciente" integer,
 	"id_enfermera" integer,
-	"id_sucursal" integer,
+	"id_laboratorio" integer,
 	"numero_boleta" varchar(20) DEFAULT '',
 	"tipo_documento" varchar(20) DEFAULT '',
+	"numero_atencion" integer DEFAULT 0 NOT NULL,
 	"origen_contacto" varchar(100),
 	"informacion_adicional" text DEFAULT '',
+	"pagado" boolean DEFAULT false NOT NULL,
+	"metodo_pago" varchar(30),
+	"fecha_pago" date,
+	"resultados_enviados" boolean DEFAULT false NOT NULL,
+	"fecha_envio_resultados" date,
+	"costo_traslado" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "sucursales" ADD CONSTRAINT "sucursales_id_laboratorio_laboratorios_id_fk" FOREIGN KEY ("id_laboratorio") REFERENCES "public"."laboratorios"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "precios_examenes" ADD CONSTRAINT "precios_examenes_id_examen_examenes_id_fk" FOREIGN KEY ("id_examen") REFERENCES "public"."examenes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "telefonos_pacientes" ADD CONSTRAINT "telefonos_pacientes_id_paciente_pacientes_id_fk" FOREIGN KEY ("id_paciente") REFERENCES "public"."pacientes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pacientes" ADD CONSTRAINT "pacientes_id_direccion_direcciones_id_fk" FOREIGN KEY ("id_direccion") REFERENCES "public"."direcciones"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "examenes_visitas" ADD CONSTRAINT "examenes_visitas_id_examen_examenes_id_fk" FOREIGN KEY ("id_examen") REFERENCES "public"."examenes"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "examenes_visitas" ADD CONSTRAINT "examenes_visitas_id_sucursal_sucursales_id_fk" FOREIGN KEY ("id_sucursal") REFERENCES "public"."sucursales"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "examenes_visitas" ADD CONSTRAINT "examenes_visitas_id_visita_visitas_id_fk" FOREIGN KEY ("id_visita") REFERENCES "public"."visitas"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "procedimientos_visitas" ADD CONSTRAINT "procedimientos_visitas_id_procedimiento_procedimientos_id_fk" FOREIGN KEY ("id_procedimiento") REFERENCES "public"."procedimientos"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "procedimientos_visitas" ADD CONSTRAINT "procedimientos_visitas_id_visita_visitas_id_fk" FOREIGN KEY ("id_visita") REFERENCES "public"."visitas"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "visitas" ADD CONSTRAINT "visitas_id_paciente_pacientes_id_fk" FOREIGN KEY ("id_paciente") REFERENCES "public"."pacientes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "visitas" ADD CONSTRAINT "visitas_id_enfermera_enfermeras_id_fk" FOREIGN KEY ("id_enfermera") REFERENCES "public"."enfermeras"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "visitas" ADD CONSTRAINT "visitas_id_sucursal_sucursales_id_fk" FOREIGN KEY ("id_sucursal") REFERENCES "public"."sucursales"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "sucursales_id_laboratorio_idx" ON "sucursales" USING btree ("id_laboratorio");--> statement-breakpoint
+ALTER TABLE "visitas" ADD CONSTRAINT "visitas_id_laboratorio_laboratorios_id_fk" FOREIGN KEY ("id_laboratorio") REFERENCES "public"."laboratorios"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "precios_examenes_examen_prevision_idx" ON "precios_examenes" USING btree ("id_examen","tipo_prevision","comuna");--> statement-breakpoint
 CREATE INDEX "examenes_codigo_idx" ON "examenes" USING btree ("codigo");--> statement-breakpoint
 CREATE INDEX "enfermeras_apellido_paterno_idx" ON "enfermeras" USING btree ("apellido_paterno");--> statement-breakpoint
+CREATE INDEX "precios_visita_enfermeria_comuna_idx" ON "precios_visita_enfermeria" USING btree ("comuna");--> statement-breakpoint
 CREATE INDEX "telefonos_pacientes_id_paciente_idx" ON "telefonos_pacientes" USING btree ("id_paciente");--> statement-breakpoint
 CREATE INDEX "pacientes_apellido_paterno_idx" ON "pacientes" USING btree ("apellido_paterno");--> statement-breakpoint
 CREATE INDEX "procedimientos_codigo_idx" ON "procedimientos" USING btree ("codigo");--> statement-breakpoint

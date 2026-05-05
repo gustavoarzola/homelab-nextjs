@@ -11,10 +11,24 @@ type Result = { success: boolean; error?: string }
 
 // ─── Shared row types ──────────────────────────────────────────────────────────
 
-export type ProcedimientoRow = { id: number; nombre: string; codigo: string; categoria: string; activo: boolean }
+export type ProcedimientoRow = { id: number; nombre: string; codigo: string; categoria: string; precio: number; activo: boolean }
 export type ExamenRow       = { id: number; nombre: string; codigo: string; activo: boolean }
-export type PrevisionRow    = { id: number; nombre: string; activo: boolean }
+export type PrevisionRow    = { id: number; nombre: string; categoria: string | null; activo: boolean }
 export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
+
+export async function getPrevisionCategorias(): Promise<string[]> {
+  await requireSession()
+
+  const rows = await db
+    .selectDistinct({ categoria: healthInsurances.categoria })
+    .from(healthInsurances)
+    .where(and(eq(healthInsurances.activo, true), not(eq(healthInsurances.categoria, ''))))
+    .orderBy(asc(healthInsurances.categoria))
+
+  return rows
+    .map((row) => row.categoria?.trim())
+    .filter((categoria): categoria is string => Boolean(categoria))
+}
 
 // ─── Procedimientos ───────────────────────────────────────────────────────────
 
@@ -48,11 +62,12 @@ export async function createProcedimiento(formData: FormData): Promise<Result> {
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
   const categoria = (formData.get('categoria') as string)?.trim() || 'otros'
+  const precio = Number(formData.get('precio')) || 0
   if (!nombre || !codigo) return { success: false, error: 'Nombre y código son requeridos' }
   try {
     const existing = await db.select().from(procedures).where(ilike(procedures.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.insert(procedures).values({ nombre, codigo, categoria })
+    await db.insert(procedures).values({ nombre, codigo, categoria, precio })
     revalidatePath('/procedimientos')
     return { success: true }
   } catch {
@@ -67,6 +82,7 @@ export async function updateProcedimiento(formData: FormData): Promise<Result> {
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
   const categoria = (formData.get('categoria') as string)?.trim() || 'otros'
+  const precio = Number(formData.get('precio')) || 0
   if (!id || !nombre || !codigo) return { success: false, error: 'Datos inválidos' }
   try {
     const duplicated = await db
@@ -74,7 +90,7 @@ export async function updateProcedimiento(formData: FormData): Promise<Result> {
       .from(procedures)
       .where(and(ilike(procedures.nombre, nombre), not(eq(procedures.id, id))))
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.update(procedures).set({ nombre, codigo, categoria }).where(eq(procedures.id, id))
+    await db.update(procedures).set({ nombre, codigo, categoria, precio }).where(eq(procedures.id, id))
     revalidatePath('/procedimientos')
     return { success: true }
   } catch {
@@ -175,10 +191,12 @@ export async function searchPrevisiones(params: SearchParams): Promise<{ rows: P
 
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
+  const categoria = (filters.categoria as string | undefined)?.trim()
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
 
   const conditions: SQL[] = []
   if (buscar) conditions.push(ilike(healthInsurances.nombre, `%${buscar}%`))
+  if (categoria) conditions.push(eq(healthInsurances.categoria, categoria))
   if (!mostrarInactivos) conditions.push(eq(healthInsurances.activo, true))
   const where = conditions.length ? and(...conditions) : undefined
 
@@ -193,11 +211,12 @@ export async function createPrevision(formData: FormData): Promise<Result> {
   await requireSession()
 
   const nombre = (formData.get('nombre') as string)?.trim()
+  const categoria = (formData.get('categoria') as string)?.trim() || null
   if (!nombre) return { success: false, error: 'Nombre requerido' }
   try {
     const existing = await db.select().from(healthInsurances).where(ilike(healthInsurances.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.insert(healthInsurances).values({ nombre })
+    await db.insert(healthInsurances).values({ nombre, categoria })
     revalidatePath('/previsiones')
     return { success: true }
   } catch {
@@ -210,6 +229,7 @@ export async function updatePrevision(formData: FormData): Promise<Result> {
 
   const id = Number(formData.get('id'))
   const nombre = (formData.get('nombre') as string)?.trim()
+  const categoria = (formData.get('categoria') as string)?.trim() || null
   if (!id || !nombre) return { success: false, error: 'Datos inválidos' }
   try {
     const duplicated = await db
@@ -217,7 +237,7 @@ export async function updatePrevision(formData: FormData): Promise<Result> {
       .from(healthInsurances)
       .where(and(ilike(healthInsurances.nombre, nombre), not(eq(healthInsurances.id, id))))
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.update(healthInsurances).set({ nombre }).where(eq(healthInsurances.id, id))
+    await db.update(healthInsurances).set({ nombre, categoria }).where(eq(healthInsurances.id, id))
     revalidatePath('/previsiones')
     return { success: true }
   } catch {

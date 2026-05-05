@@ -11,7 +11,6 @@ import {
   visitExams,
   procedures,
   exams,
-  branches,
   nurses,
 } from '@/db/schema'
 import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'drizzle-orm'
@@ -47,9 +46,6 @@ export type PacienteDetalle = {
   informacionAdicional: string | null
   idCompaniaSeguro: number | null
   idResidenciaAdulto: number | null
-  contactoNombre: string | null
-  contactoTelefono: string | null
-  contactoInfo: string | null
   // address
   direccion: string
   direccionFormateada: string | null
@@ -166,9 +162,6 @@ export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
       informacionAdicional: patients.informacionAdicional,
       idCompaniaSeguro: patients.idCompaniaSeguro,
       idResidenciaAdulto: patients.idResidenciaAdulto,
-      contactoNombre: patients.contactoNombre,
-      contactoTelefono: patients.contactoTelefono,
-      contactoInfo: patients.contactoInfo,
       // address fields
       direccion: addresses.direccion,
       direccionFormateada: addresses.direccionFormateada,
@@ -257,11 +250,6 @@ export async function createPaciente(
   const latitud = (formData.get('latitud') as string)?.trim() || null
   const longitud = (formData.get('longitud') as string)?.trim() || null
 
-  // Contact fields
-  const contactoNombre = (formData.get('contactoNombre') as string)?.trim() || null
-  const contactoTelefono = (formData.get('contactoTelefono') as string)?.trim() || null
-  const contactoInfo = (formData.get('contactoInfo') as string)?.trim() || null
-
   // Phones
   const phones: { telefono: string; descripcion: string | null }[] = []
   for (let i = 0; i < 20; i++) {
@@ -306,9 +294,6 @@ export async function createPaciente(
           idDireccion,
           idCompaniaSeguro,
           idResidenciaAdulto,
-          contactoNombre,
-          contactoTelefono,
-          contactoInfo,
         })
         .returning()
 
@@ -391,11 +376,6 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
   const latitud = (formData.get('latitud') as string)?.trim() || null
   const longitud = (formData.get('longitud') as string)?.trim() || null
 
-  // Contact fields
-  const contactoNombre = (formData.get('contactoNombre') as string)?.trim() || null
-  const contactoTelefono = (formData.get('contactoTelefono') as string)?.trim() || null
-  const contactoInfo = (formData.get('contactoInfo') as string)?.trim() || null
-
   // Phones
   const phones: { telefono: string; descripcion: string | null }[] = []
   for (let i = 0; i < 20; i++) {
@@ -445,9 +425,6 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
           informacionAdicional,
           idCompaniaSeguro,
           idResidenciaAdulto,
-          contactoNombre,
-          contactoTelefono,
-          contactoInfo,
           updatedAt: new Date(),
         })
         .where(eq(patients.id, id))
@@ -481,7 +458,7 @@ export type VisitaHistorialItem = {
   informacionAdicional: string
   enfermera: string | null
   procedimientos: { nombre: string; codigo: string; categoria: string }[]
-  examenes: { nombre: string; codigo: string; sucursal: string | null }[]
+  examenes: { nombre: string; codigo: string }[]
 }
 
 export type HistorialPaciente = {
@@ -560,11 +537,9 @@ export async function getHistorialPaciente(id: number): Promise<HistorialPacient
         idVisita: visitExams.idVisita,
         nombre: exams.nombre,
         codigo: exams.codigo,
-        sucursal: branches.nombre,
       })
       .from(visitExams)
       .innerJoin(exams, eq(visitExams.idExamen, exams.id))
-      .leftJoin(branches, eq(visitExams.idSucursal, branches.id))
       .where(inArray(visitExams.idVisita, visitIds)),
   ])
 
@@ -575,10 +550,10 @@ export async function getHistorialPaciente(id: number): Promise<HistorialPacient
     procMap.set(p.idVisita, arr)
   }
 
-  const examMap = new Map<number, { nombre: string; codigo: string; sucursal: string | null }[]>()
+  const examMap = new Map<number, { nombre: string; codigo: string }[]>()
   for (const e of examRows) {
     const arr = examMap.get(e.idVisita) ?? []
-    arr.push({ nombre: e.nombre, codigo: e.codigo, sucursal: e.sucursal ?? null })
+    arr.push({ nombre: e.nombre, codigo: e.codigo })
     examMap.set(e.idVisita, arr)
   }
 

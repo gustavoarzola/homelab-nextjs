@@ -378,6 +378,16 @@ export async function createPrecioVisita(fd: FormData): Promise<Result> {
 
   if (!comuna || !precio) return { success: false, error: 'Comuna y precio son requeridos' }
 
+  const [existing] = await db
+    .select({ id: nursingVisitPrices.id })
+    .from(nursingVisitPrices)
+    .where(eq(nursingVisitPrices.comuna, comuna))
+    .limit(1)
+
+  if (existing) {
+    return { success: false, error: `Ya existe un precio para la comuna "${comuna}"` }
+  }
+
   try {
     await db.insert(nursingVisitPrices).values({ comuna, precio })
     revalidatePath('/precios/visitas')
@@ -395,6 +405,16 @@ export async function updatePrecioVisita(fd: FormData): Promise<Result> {
   const precio = Number(fd.get('precio'))
 
   if (!id || !comuna || !precio) return { success: false, error: 'Datos inválidos' }
+
+  const [duplicate] = await db
+    .select({ id: nursingVisitPrices.id })
+    .from(nursingVisitPrices)
+    .where(and(eq(nursingVisitPrices.comuna, comuna), ne(nursingVisitPrices.id, id)))
+    .limit(1)
+
+  if (duplicate) {
+    return { success: false, error: `Ya existe otro precio para la comuna "${comuna}"` }
+  }
 
   try {
     await db

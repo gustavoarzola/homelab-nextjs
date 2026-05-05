@@ -47,7 +47,7 @@ export type FilterDef = {
 export type FormFieldDef = {
   name: string
   label: string
-  type?: 'text' | 'email' | 'tel' | 'select' | 'select-single'
+  type?: 'text' | 'email' | 'tel' | 'number' | 'select' | 'select-single'
   required?: boolean
   placeholder?: string
   options?: SelectOption[]   // for type='select' or 'select-single'
