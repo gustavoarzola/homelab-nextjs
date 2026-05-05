@@ -10,13 +10,12 @@ import {
   healthInsurances,
   visits,
   nurses,
-  branches,
   laboratories,
   visitProcedures,
   visitExams,
   procedures,
 } from '@/db/schema'
-import { eq, and, or, isNull, asc, desc, count, ilike, SQL } from 'drizzle-orm'
+import { eq, and, or, isNull, ne, asc, desc, count, ilike, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
@@ -49,23 +48,10 @@ export type CostoVisitaDetalle = {
   desglose: { descripcion: string; monto: number }[]
 }
 
-// ─── Helper: determinar tipo_prevision desde nombre compañía ──────────────────
+// ─── Helper: normalizar categoria ─────────────────────────────────────────────
 
-function detectarTipoPrevision(nombre: string | null): 'fonasa' | 'isapre' | 'particular' {
-  if (!nombre) return 'particular'
-  const n = nombre.toLowerCase()
-  if (n.includes('fonasa')) return 'fonasa'
-  if (
-    n.includes('isapre') ||
-    n.includes('banmédica') ||
-    n.includes('banmedica') ||
-    n.includes('colmena') ||
-    n.includes('consalud') ||
-    n.includes('cruz blanca') ||
-    n.includes('nueva masvida') ||
-    n.includes('vida tres')
-  )
-    return 'isapre'
+function normalizarCategoria(categoria: string | null): 'fonasa' | 'isapre' | 'particular' {
+  if (categoria === 'fonasa' || categoria === 'isapre') return categoria
   return 'particular'
 }
 
@@ -80,7 +66,7 @@ export async function calcularCostoVisita(
   // Obtener datos del paciente (previsión + comuna)
   const [paciente] = await db
     .select({
-      previsionNombre: healthInsurances.nombre,
+      categoriaSeguro: healthInsurances.categoria,
       comuna: addresses.areaAdministrativa3,
     })
     .from(patients)
@@ -88,7 +74,7 @@ export async function calcularCostoVisita(
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
     .where(eq(patients.id, idPaciente))
 
-  const tipoPrevision = detectarTipoPrevision(paciente?.previsionNombre ?? null)
+  const tipoPrevision = normalizarCategoria(paciente?.categoriaSeguro ?? null)
   const comuna = paciente?.comuna ?? null
 
   const desglose: { descripcion: string; monto: number }[] = []
@@ -243,6 +229,32 @@ export async function createPrecioExamen(fd: FormData): Promise<Result> {
   if (!idExamen || !tipoPrevision || !precio)
     return { success: false, error: 'Examen, previsión y precio son requeridos' }
 
+  // Validar que no exista combinación duplicada
+  const existingConditions = [
+    eq(examPrices.idExamen, idExamen),
+    eq(examPrices.tipoPrevision, tipoPrevision),
+  ]
+
+  if (comuna) {
+    existingConditions.push(eq(examPrices.comuna, comuna))
+  } else {
+    existingConditions.push(isNull(examPrices.comuna))
+  }
+
+  const [existing] = await db
+    .select({ id: examPrices.id })
+    .from(examPrices)
+    .where(and(...existingConditions))
+    .limit(1)
+
+  if (existing) {
+    const comunaLabel = comuna ? `comuna "${comuna}"` : 'precio base (sin comuna)'
+    return {
+      success: false,
+      error: `Ya existe un precio para este examen, previsión y ${comunaLabel}`,
+    }
+  }
+
   try {
     await db.insert(examPrices).values({ idExamen, tipoPrevision, comuna, precio })
     revalidatePath('/precios/examenes')
@@ -261,6 +273,42 @@ export async function updatePrecioExamen(fd: FormData): Promise<Result> {
   const precio = Number(fd.get('precio'))
 
   if (!id || !tipoPrevision || !precio) return { success: false, error: 'Datos inválidos' }
+
+  // Obtener el registro actual para conocer idExamen
+  const [currentRecord] = await db
+    .select({ idExamen: examPrices.idExamen })
+    .from(examPrices)
+    .where(eq(examPrices.id, id))
+    .limit(1)
+
+  if (!currentRecord) return { success: false, error: 'Precio no encontrado' }
+
+  // Validar que no exista otra combinación duplicada (diferente al registro actual)
+  const duplicateConditions = [
+    eq(examPrices.idExamen, currentRecord.idExamen),
+    eq(examPrices.tipoPrevision, tipoPrevision),
+    ne(examPrices.id, id), // Excluir el registro actual
+  ]
+
+  if (comuna) {
+    duplicateConditions.push(eq(examPrices.comuna, comuna))
+  } else {
+    duplicateConditions.push(isNull(examPrices.comuna))
+  }
+
+  const [duplicate] = await db
+    .select({ id: examPrices.id })
+    .from(examPrices)
+    .where(and(...duplicateConditions))
+    .limit(1)
+
+  if (duplicate) {
+    const comunaLabel = comuna ? `comuna "${comuna}"` : 'precio base (sin comuna)'
+    return {
+      success: false,
+      error: `Ya existe otro precio para este examen, previsión y ${comunaLabel}`,
+    }
+  }
 
   try {
     await db
@@ -398,7 +446,7 @@ export type CotizacionVisita = {
     comuna: string | null
   }
   enfermera: string | null
-  sucursal: string | null
+  laboratorio: string | null
   items: ItemCotizacion[]
   subtotalExamenes: number
   costoVisitaEnfermeria: number
@@ -417,7 +465,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       hora: visits.hora,
       idPaciente: visits.idPaciente,
       idEnfermera: visits.idEnfermera,
-      idSucursal: visits.idSucursal,
+      idLaboratorio: visits.idLaboratorio,
     })
     .from(visits)
     .where(eq(visits.id, idVisita))
@@ -425,7 +473,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
   if (!visitRow) return null
 
   // Datos en paralelo
-  const [pacienteRow, enfermeraRow, sucursalRow, procRows, examRows] = await Promise.all([
+  const [pacienteRow, enfermeraRow, laboratorioRow, procRows, examRows] = await Promise.all([
     visitRow.idPaciente
       ? db
           .select({
@@ -437,6 +485,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
             tipoIdentificador: patients.tipoIdentificador,
             fechaNacimiento: patients.fechaNacimiento,
             previsionNombre: healthInsurances.nombre,
+            categoriaSeguro: healthInsurances.categoria,
             direccionFormateada: addresses.direccionFormateada,
             direccion: addresses.direccion,
             comuna: addresses.areaAdministrativa3,
@@ -456,76 +505,45 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
           .then((r) => r[0] ?? null)
       : Promise.resolve(null),
 
-    visitRow.idSucursal
+    visitRow.idLaboratorio
       ? db
-          .select({ nombre: branches.nombre, laboratorio: laboratories.nombre })
-          .from(branches)
-          .leftJoin(laboratories, eq(branches.idLaboratorio, laboratories.id))
-          .where(eq(branches.id, visitRow.idSucursal))
+          .select({ nombre: laboratories.nombre })
+          .from(laboratories)
+          .where(eq(laboratories.id, visitRow.idLaboratorio))
           .then((r) => r[0] ?? null)
       : Promise.resolve(null),
 
     db
-      .select({ id: visitProcedures.idProcedimiento, nombre: procedures.nombre, codigo: procedures.codigo })
+      .select({ id: visitProcedures.idProcedimiento, nombre: procedures.nombre, codigo: procedures.codigo, precio: visitProcedures.precio })
       .from(visitProcedures)
       .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
       .where(eq(visitProcedures.idVisita, idVisita)),
 
     db
-      .select({ id: visitExams.idExamen, nombre: exams.nombre, codigo: exams.codigo })
+      .select({ id: visitExams.idExamen, nombre: exams.nombre, codigo: exams.codigo, precio: visitExams.precio })
       .from(visitExams)
       .innerJoin(exams, eq(visitExams.idExamen, exams.id))
       .where(eq(visitExams.idVisita, idVisita)),
   ])
 
-  const tipoPrevision = detectarTipoPrevision(pacienteRow?.previsionNombre ?? null)
+  const tipoPrevision = normalizarCategoria(pacienteRow?.categoriaSeguro ?? null)
   const comuna = pacienteRow?.comuna ?? null
 
-  // Precios de exámenes
+  // Precios de exámenes (desde snapshot guardado en visitExams.precio)
   const items: ItemCotizacion[] = []
   let subtotalExamenes = 0
 
   for (const exam of examRows) {
-    let precioExamen: number | null = null
-
-    if (comuna) {
-      const [row] = await db
-        .select({ precio: examPrices.precio })
-        .from(examPrices)
-        .where(
-          and(
-            eq(examPrices.idExamen, exam.id),
-            eq(examPrices.tipoPrevision, tipoPrevision),
-            eq(examPrices.comuna, comuna),
-            eq(examPrices.activo, true),
-          ),
-        )
-        .limit(1)
-      if (row) precioExamen = row.precio
-    }
-
-    if (precioExamen === null) {
-      const [row] = await db
-        .select({ precio: examPrices.precio })
-        .from(examPrices)
-        .where(
-          and(
-            eq(examPrices.idExamen, exam.id),
-            eq(examPrices.tipoPrevision, tipoPrevision),
-            isNull(examPrices.comuna),
-            eq(examPrices.activo, true),
-          ),
-        )
-        .limit(1)
-      if (row) precioExamen = row.precio
-    }
-
+    const precioExamen = exam.precio || null
     if (precioExamen !== null) subtotalExamenes += precioExamen
     items.push({ descripcion: exam.nombre, codigo: exam.codigo, tipo: 'examen', precio: precioExamen })
   }
 
+  let subtotalProcedimientos = 0
   for (const proc of procRows) {
-    items.push({ descripcion: proc.nombre, codigo: proc.codigo, tipo: 'procedimiento', precio: null })
+    const precio = proc.precio || null
+    if (precio) subtotalProcedimientos += precio
+    items.push({ descripcion: proc.nombre, codigo: proc.codigo, tipo: 'procedimiento', precio })
   }
 
   // Precio de visita de enfermería
@@ -547,11 +565,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     precio: costoVisitaEnfermeria || null,
   })
 
-  const sucursalLabel = sucursalRow
-    ? sucursalRow.laboratorio
-      ? `${sucursalRow.nombre} (${sucursalRow.laboratorio})`
-      : sucursalRow.nombre
-    : null
+  const laboratorioLabel = laboratorioRow?.nombre ?? null
 
   return {
     id: visitRow.id,
@@ -579,11 +593,11 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
           apellidoMaterno: enfermeraRow.apellidoMaterno,
         })
       : null,
-    sucursal: sucursalLabel,
+    laboratorio: laboratorioLabel,
     items,
     subtotalExamenes,
     costoVisitaEnfermeria,
-    total: subtotalExamenes + costoVisitaEnfermeria,
+    total: subtotalExamenes + subtotalProcedimientos + costoVisitaEnfermeria,
     tipoPrevision,
   }
 }
