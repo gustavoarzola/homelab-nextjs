@@ -374,7 +374,6 @@ export function VisitaForm({
   const [fechaPago, setFechaPago] = useState<string | null>(visita?.fechaPago ?? null)
   const [resultadosEnviados, setResultadosEnviados] = useState(visita?.resultadosEnviados ?? false)
   const [fechaEnvioResultados, setFechaEnvioResultados] = useState<string | null>(visita?.fechaEnvioResultados ?? null)
-  const [costoRef, setCostoRef] = useState<number>(visita?.costo ?? 0)
 
   const estadoActual = selectedEstadoId === 0 ? 'creada'
     : selectedEstadoId === 1 ? 'confirmada'
@@ -520,16 +519,14 @@ export function VisitaForm({
 
               <div className="flex flex-col gap-1.5">
                 <label className={labelClass} style={labelStyle}>Costo</label>
-                <input
-                  name="costo"
-                  type="number"
-                  min="0"
-                  value={costoRef}
-                  onChange={(e) => setCostoRef(Number(e.target.value))}
-                  disabled={isPending}
-                  className={inputClass}
+                <div
+                  className="w-full rounded-lg px-3 py-2 text-sm"
                   style={inputStyle}
-                />
+                >
+                  {isEdit
+                    ? `$${visita.costo.toLocaleString('es-CL')}`
+                    : 'Se calcula al guardar'}
+                </div>
               </div>
 
               {estadoActual === 'no_realizada' && (

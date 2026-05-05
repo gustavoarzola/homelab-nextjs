@@ -20,6 +20,7 @@ import { revalidatePath } from 'next/cache'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 import type { SearchParams, Result } from '@/components/data-table'
+import { calcularCostoVisitaPersistida } from '@/lib/pricing/visitas'
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
@@ -36,16 +37,9 @@ export type PrecioExamenRow = {
 
 export type PrecioVisitaRow = {
   id: number
-  comuna: string
+  comuna: string | null
   precio: number
   activo: boolean
-}
-
-export type CostoVisitaDetalle = {
-  costoExamenes: number
-  costoVisitaEnfermeria: number
-  total: number
-  desglose: { descripcion: string; monto: number }[]
 }
 
 // ─── Helper: normalizar categoria ─────────────────────────────────────────────
@@ -53,106 +47,6 @@ export type CostoVisitaDetalle = {
 function normalizarCategoria(categoria: string | null): 'fonasa' | 'isapre' | 'particular' {
   if (categoria === 'fonasa' || categoria === 'isapre') return categoria
   return 'particular'
-}
-
-// ─── calcularCostoVisita ──────────────────────────────────────────────────────
-
-export async function calcularCostoVisita(
-  idPaciente: number,
-  examIds: number[],
-): Promise<CostoVisitaDetalle> {
-  await requireSession()
-
-  // Obtener datos del paciente (previsión + comuna)
-  const [paciente] = await db
-    .select({
-      categoriaSeguro: healthInsurances.categoria,
-      comuna: addresses.areaAdministrativa3,
-    })
-    .from(patients)
-    .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
-    .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .where(eq(patients.id, idPaciente))
-
-  const tipoPrevision = normalizarCategoria(paciente?.categoriaSeguro ?? null)
-  const comuna = paciente?.comuna ?? null
-
-  const desglose: { descripcion: string; monto: number }[] = []
-  let costoExamenes = 0
-
-  // Calcular costo por cada examen
-  if (examIds.length > 0) {
-    for (const idExamen of examIds) {
-      // Buscar precio: primero por comuna específica, luego sin comuna
-      let precioRow: { precio: number } | undefined
-
-      if (comuna) {
-        const [row] = await db
-          .select({ precio: examPrices.precio })
-          .from(examPrices)
-          .where(
-            and(
-              eq(examPrices.idExamen, idExamen),
-              eq(examPrices.tipoPrevision, tipoPrevision),
-              eq(examPrices.comuna, comuna),
-              eq(examPrices.activo, true),
-            ),
-          )
-          .limit(1)
-        precioRow = row
-      }
-
-      if (!precioRow) {
-        const [row] = await db
-          .select({ precio: examPrices.precio })
-          .from(examPrices)
-          .where(
-            and(
-              eq(examPrices.idExamen, idExamen),
-              eq(examPrices.tipoPrevision, tipoPrevision),
-              isNull(examPrices.comuna),
-              eq(examPrices.activo, true),
-            ),
-          )
-          .limit(1)
-        precioRow = row
-      }
-
-      if (precioRow) {
-        const [examen] = await db
-          .select({ nombre: exams.nombre })
-          .from(exams)
-          .where(eq(exams.id, idExamen))
-        costoExamenes += precioRow.precio
-        desglose.push({
-          descripcion: examen?.nombre ?? `Examen #${idExamen}`,
-          monto: precioRow.precio,
-        })
-      }
-    }
-  }
-
-  // Buscar precio de visita de enfermería por comuna
-  let costoVisitaEnfermeria = 0
-  if (comuna) {
-    const [visRow] = await db
-      .select({ precio: nursingVisitPrices.precio })
-      .from(nursingVisitPrices)
-      .where(and(eq(nursingVisitPrices.comuna, comuna), eq(nursingVisitPrices.activo, true)))
-      .limit(1)
-
-    if (visRow) {
-      costoVisitaEnfermeria = visRow.precio
-      desglose.push({ descripcion: 'Visita de enfermería', monto: visRow.precio })
-    }
-  }
-
-  return {
-    costoExamenes,
-    costoVisitaEnfermeria,
-    total: costoExamenes + costoVisitaEnfermeria,
-    desglose,
-  }
 }
 
 // ─── searchPreciosExamenes ────────────────────────────────────────────────────
@@ -373,19 +267,24 @@ export async function searchPreciosVisita(
 export async function createPrecioVisita(fd: FormData): Promise<Result> {
   await requireSession()
 
-  const comuna = (fd.get('comuna') as string)?.trim()
+  const comuna = (fd.get('comuna') as string)?.trim() || null
   const precio = Number(fd.get('precio'))
 
-  if (!comuna || !precio) return { success: false, error: 'Comuna y precio son requeridos' }
+  if (!precio) return { success: false, error: 'Precio es requerido' }
+
+  const duplicateCondition = comuna
+    ? eq(nursingVisitPrices.comuna, comuna)
+    : isNull(nursingVisitPrices.comuna)
 
   const [existing] = await db
     .select({ id: nursingVisitPrices.id })
     .from(nursingVisitPrices)
-    .where(eq(nursingVisitPrices.comuna, comuna))
+    .where(duplicateCondition)
     .limit(1)
 
   if (existing) {
-    return { success: false, error: `Ya existe un precio para la comuna "${comuna}"` }
+    const label = comuna ? `la comuna "${comuna}"` : 'el precio base'
+    return { success: false, error: `Ya existe un precio para ${label}` }
   }
 
   try {
@@ -401,19 +300,24 @@ export async function updatePrecioVisita(fd: FormData): Promise<Result> {
   await requireSession()
 
   const id = Number(fd.get('id'))
-  const comuna = (fd.get('comuna') as string)?.trim()
+  const comuna = (fd.get('comuna') as string)?.trim() || null
   const precio = Number(fd.get('precio'))
 
-  if (!id || !comuna || !precio) return { success: false, error: 'Datos inválidos' }
+  if (!id || !precio) return { success: false, error: 'Datos inválidos' }
+
+  const duplicateCondition = comuna
+    ? and(eq(nursingVisitPrices.comuna, comuna), ne(nursingVisitPrices.id, id))
+    : and(isNull(nursingVisitPrices.comuna), ne(nursingVisitPrices.id, id))
 
   const [duplicate] = await db
     .select({ id: nursingVisitPrices.id })
     .from(nursingVisitPrices)
-    .where(and(eq(nursingVisitPrices.comuna, comuna), ne(nursingVisitPrices.id, id)))
+    .where(duplicateCondition)
     .limit(1)
 
   if (duplicate) {
-    return { success: false, error: `Ya existe otro precio para la comuna "${comuna}"` }
+    const label = comuna ? `la comuna "${comuna}"` : 'el precio base'
+    return { success: false, error: `Ya existe otro precio para ${label}` }
   }
 
   try {
@@ -547,43 +451,28 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
   ])
 
   const tipoPrevision = normalizarCategoria(pacienteRow?.categoriaSeguro ?? null)
-  const comuna = pacienteRow?.comuna ?? null
+  const costoCalculado = await calcularCostoVisitaPersistida(idVisita)
 
   // Precios de exámenes (desde snapshot guardado en visitExams.precio)
   const items: ItemCotizacion[] = []
-  let subtotalExamenes = 0
-
   for (const exam of examRows) {
     const precioExamen = exam.precio || null
-    if (precioExamen !== null) subtotalExamenes += precioExamen
     items.push({ descripcion: exam.nombre, codigo: exam.codigo, tipo: 'examen', precio: precioExamen })
   }
 
-  let subtotalProcedimientos = 0
   for (const proc of procRows) {
     const precio = proc.precio || null
-    if (precio) subtotalProcedimientos += precio
     items.push({ descripcion: proc.nombre, codigo: proc.codigo, tipo: 'procedimiento', precio })
   }
 
-  // Precio de visita de enfermería
-  let costoVisitaEnfermeria = 0
-  if (comuna) {
-    const [row] = await db
-      .select({ precio: nursingVisitPrices.precio })
-      .from(nursingVisitPrices)
-      .where(and(eq(nursingVisitPrices.comuna, comuna), eq(nursingVisitPrices.activo, true)))
-      .limit(1)
-    if (row) costoVisitaEnfermeria = row.precio
+  if (costoCalculado.aplicaVisitaEnfermeria) {
+    items.push({
+      descripcion: 'Visita de enfermería a domicilio',
+      codigo: 'VIS-ENF',
+      tipo: 'visita',
+      precio: costoCalculado.precioVisitaConfigurado ? costoCalculado.costoVisitaEnfermeria : null,
+    })
   }
-
-  // Agregar visita de enfermería como ítem
-  items.push({
-    descripcion: 'Visita de enfermería a domicilio',
-    codigo: 'VIS-ENF',
-    tipo: 'visita',
-    precio: costoVisitaEnfermeria || null,
-  })
 
   const laboratorioLabel = laboratorioRow?.nombre ?? null
 
@@ -615,9 +504,9 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       : null,
     laboratorio: laboratorioLabel,
     items,
-    subtotalExamenes,
-    costoVisitaEnfermeria,
-    total: subtotalExamenes + subtotalProcedimientos + costoVisitaEnfermeria,
+    subtotalExamenes: costoCalculado.subtotalExamenes,
+    costoVisitaEnfermeria: costoCalculado.costoVisitaEnfermeria,
+    total: costoCalculado.total,
     tipoPrevision,
   }
 }

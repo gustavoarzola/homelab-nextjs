@@ -337,7 +337,7 @@ export const nursingVisitPrices = pgTable(
   'precios_visita_enfermeria',
   {
     id: serial('id').primaryKey(),
-    comuna: varchar('comuna', { length: 200 }).notNull(),
+    comuna: varchar('comuna', { length: 200 }), // null = precio base
     precio: integer('precio').notNull(),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),

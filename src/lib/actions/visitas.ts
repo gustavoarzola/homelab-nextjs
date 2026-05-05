@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
+import { actualizarCostoVisitaPersistida } from '@/lib/pricing/visitas'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
@@ -287,7 +288,6 @@ export async function updateVisita(
 
   const hora = (fd.get('hora') as string)?.trim() || null
   const estado = (fd.get('estado') as string)?.trim() || 'creada'
-  const costo = Number(fd.get('costo')) || 0
   const idEnfermera = Number(fd.get('idEnfermera')) || null
   const idLaboratorio = Number(fd.get('idLaboratorio')) || null
   const numeroBoleta = (fd.get('numeroBoleta') as string)?.trim() || ''
@@ -310,15 +310,20 @@ export async function updateVisita(
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, costo, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado })
+        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, updatedAt: new Date() })
         .where(eq(visits.id, id))
 
-      // Preserve stored prices for existing procedures before deleting
+      // Preserve stored prices for existing items before deleting.
       const existingProcs = await tx
         .select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio })
         .from(visitProcedures)
         .where(eq(visitProcedures.idVisita, id))
+      const existingExams = await tx
+        .select({ idExamen: visitExams.idExamen, precio: visitExams.precio })
+        .from(visitExams)
+        .where(eq(visitExams.idVisita, id))
       const storedPriceMap = new Map(existingProcs.map((p) => [p.idProcedimiento, p.precio]))
+      const storedExamPriceMap = new Map(existingExams.map((e) => [e.idExamen, e.precio]))
 
       // Fetch catalog prices for newly added procedures
       const newProcIds = procedureIds.filter((pid) => !storedPriceMap.has(pid))
@@ -344,13 +349,6 @@ export async function updateVisita(
         )
       }
       if (examIds.length > 0) {
-        // Preserve stored prices for existing exams; calculate for new ones
-        const existingExams = await tx
-          .select({ idExamen: visitExams.idExamen, precio: visitExams.precio })
-          .from(visitExams)
-          .where(eq(visitExams.idVisita, id))
-        const storedExamPriceMap = new Map(existingExams.map((e) => [e.idExamen, e.precio]))
-
         const idPacienteActual = Number(fd.get('idPaciente')) || (
           await tx.select({ idPaciente: visits.idPaciente }).from(visits).where(eq(visits.id, id)).then((r) => r[0]?.idPaciente)
         )
@@ -368,6 +366,8 @@ export async function updateVisita(
         )
         await tx.insert(visitExams).values(examValues)
       }
+
+      await actualizarCostoVisitaPersistida(id, tx)
     })
 
     revalidatePath('/visitas')
@@ -393,7 +393,6 @@ export async function createVisita(
 
   const hora = (fd.get('hora') as string)?.trim() || null
   const estado = 'creada'
-  const costo = Number(fd.get('costo')) || 0
   const idEnfermera = Number(fd.get('idEnfermera')) || null
   const idLaboratorio = Number(fd.get('idLaboratorio')) || null
   const numeroBoleta = (fd.get('numeroBoleta') as string)?.trim() || ''
@@ -413,7 +412,7 @@ export async function createVisita(
           fecha,
           hora,
           estado,
-          costo,
+          costo: 0,
           idPaciente,
           idEnfermera,
           idLaboratorio,
@@ -455,6 +454,8 @@ export async function createVisita(
         )
         await tx.insert(visitExams).values(examPriceValues as { idExamen: number; idVisita: number; precio: number }[])
       }
+
+      await actualizarCostoVisitaPersistida(id, tx)
 
       return id
     })
@@ -503,10 +504,13 @@ export async function actualizarPrecioExamenVisita(
 
     const precio = await fetchExamPriceForPatient(visitRow.idPaciente, idExamen)
 
-    await db
-      .update(visitExams)
-      .set({ precio })
-      .where(and(eq(visitExams.idVisita, idVisita), eq(visitExams.idExamen, idExamen)))
+    await db.transaction(async (tx) => {
+      await tx
+        .update(visitExams)
+        .set({ precio })
+        .where(and(eq(visitExams.idVisita, idVisita), eq(visitExams.idExamen, idExamen)))
+      await actualizarCostoVisitaPersistida(idVisita, tx)
+    })
 
     revalidatePath(`/visitas/${idVisita}`)
     return { success: true }
@@ -530,17 +534,13 @@ export async function actualizarPrecioProcedimientoVisita(
       .where(eq(procedures.id, idProcedimiento))
     if (!proc) return { success: false, error: 'Procedimiento no encontrado' }
 
-    await db
-      .update(visitProcedures)
-      .set({ precio: proc.precio })
-      .where(and(eq(visitProcedures.idVisita, idVisita), eq(visitProcedures.idProcedimiento, idProcedimiento)))
-
-    const [totRow] = await db
-      .select({ total: sql<number>`COALESCE(SUM(precio), 0)` })
-      .from(visitProcedures)
-      .where(eq(visitProcedures.idVisita, idVisita))
-
-    await db.update(visits).set({ costo: totRow?.total ?? 0 }).where(eq(visits.id, idVisita))
+    await db.transaction(async (tx) => {
+      await tx
+        .update(visitProcedures)
+        .set({ precio: proc.precio })
+        .where(and(eq(visitProcedures.idVisita, idVisita), eq(visitProcedures.idProcedimiento, idProcedimiento)))
+      await actualizarCostoVisitaPersistida(idVisita, tx)
+    })
 
     revalidatePath(`/visitas/${idVisita}`)
     return { success: true }
