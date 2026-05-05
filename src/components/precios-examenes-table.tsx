@@ -61,7 +61,7 @@ function PrecioExamenForm({
 }: {
   examenes: { id: number; label: string }[]
   row?: PrecioExamenRow
-  onDone: (fd: FormData) => Promise<void>
+  onDone: (fd: FormData) => Promise<{ success: boolean; error?: string }>
   isModal?: boolean
 }) {
   const [selectedExamen, setSelectedExamen] = useState<number | null>(row?.idExamen ?? null)
@@ -79,14 +79,24 @@ function PrecioExamenForm({
     if (row) fd.set('id', String(row.id))
     setError(null)
     startTransition(async () => {
-      await onDone(fd)
+      const result = await onDone(fd)
+      if (!result.success && result.error) {
+        setError(result.error)
+      }
     })
   }
 
   if (isModal) {
     return (
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {error && <p className="text-xs" style={{ color: 'var(--destructive)' }}>{error}</p>}
+        {error && (
+          <div
+            className="rounded-lg p-3 text-sm"
+            style={{ backgroundColor: 'var(--destructive) / 10%', color: 'var(--destructive)', border: '1px solid var(--destructive)' }}
+          >
+            {error}
+          </div>
+        )}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Examen</label>
           <SelectCombobox
@@ -206,6 +216,7 @@ export function PreciosExamenesTable({ initialRows, examenes, onCreate, onUpdate
       setModal({ type: 'none' })
       applyFilters()
     }
+    return res
   }
 
   const handleUpdate = async (fd: FormData) => {
@@ -214,6 +225,7 @@ export function PreciosExamenesTable({ initialRows, examenes, onCreate, onUpdate
       setModal({ type: 'none' })
       applyFilters()
     }
+    return res
   }
 
   const handleToggle = (id: number, activo: boolean) => {
