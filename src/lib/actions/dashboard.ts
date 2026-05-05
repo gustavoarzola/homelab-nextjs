@@ -3,7 +3,7 @@
 import { and, asc, count, desc, eq, gte, lte, sql, sum } from 'drizzle-orm'
 
 import { db } from '@/db'
-import { branches, laboratories, nurses, patients, visits } from '@/db/schema'
+import { laboratories, nurses, patients, visits } from '@/db/schema'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 
@@ -77,8 +77,7 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
         total: count(),
       })
       .from(visits)
-      .leftJoin(branches, sql`${visits.idSucursal} = ${branches.id}`)
-      .leftJoin(laboratories, sql`${branches.idLaboratorio} = ${laboratories.id}`)
+      .leftJoin(laboratories, sql`${visits.idLaboratorio} = ${laboratories.id}`)
       .where(and(gte(visits.fecha, start), lte(visits.fecha, end)))
       .groupBy(sql`coalesce(${laboratories.nombre}, 'None')`)
       .orderBy(desc(count()), asc(sql`coalesce(${laboratories.nombre}, 'None')`)),

@@ -29,7 +29,7 @@ import { SelectCombobox } from '@/components/select-combobox'
 type Props = {
   initialFecha: string
   initialVisitas: VisitaAsignacion[]
-  enfermeras: { id: number; nombre: string }[]
+  enfermeras: { id: number; nombre: string; comunaResidencia: string | null }[]
 }
 
 // ─── Drop zone ────────────────────────────────────────────────────────────────
@@ -234,9 +234,25 @@ export function AsignacionBoard({ initialFecha, initialVisitas, enfermeras }: Pr
               />
             </div>
           </div>
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-            Mapa ({nurseVisitas.filter((v) => v.latitud && v.longitud).length} ubicaciones)
-          </p>
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+              Mapa ({nurseVisitas.filter((v) => v.latitud && v.longitud).length} ubicaciones)
+            </p>
+            {selectedNurseId !== null && (() => {
+              const comuna = enfermeras.find((e) => e.id === selectedNurseId)?.comunaResidencia
+              return comuna ? (
+                <p className="flex items-center gap-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                  Comuna de residencia enfermera
+                  <span
+                    className="rounded-md px-2.5 py-0.5 text-sm font-medium"
+                    style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
+                  >
+                    {comuna}
+                  </span>
+                </p>
+              ) : null
+            })()}
+          </div>
 
           {/* Content row */}
           <DropZone

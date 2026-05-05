@@ -1,5 +1,5 @@
 {
-  "id": "7d66f6d3-7a54-401a-98ba-bd1725b756f5",
+  "id": "3ef8b35d-8042-48d0-bb34-3e98a074c989",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -110,88 +110,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.sucursales": {
-      "name": "sucursales",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "nombre": {
-          "name": "nombre",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id_laboratorio": {
-          "name": "id_laboratorio",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "activo": {
-          "name": "activo",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "sucursales_id_laboratorio_idx": {
-          "name": "sucursales_id_laboratorio_idx",
-          "columns": [
-            {
-              "expression": "id_laboratorio",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "sucursales_id_laboratorio_laboratorios_id_fk": {
-          "name": "sucursales_id_laboratorio_laboratorios_id_fk",
-          "tableFrom": "sucursales",
-          "tableTo": "laboratorios",
-          "columnsFrom": [
-            "id_laboratorio"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.origenes_contacto": {
       "name": "origenes_contacto",
       "schema": "",
@@ -284,6 +202,112 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.precios_examenes": {
+      "name": "precios_examenes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_examen": {
+          "name": "id_examen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo_prevision": {
+          "name": "tipo_prevision",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "comuna": {
+          "name": "comuna",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "precio": {
+          "name": "precio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "precios_examenes_examen_prevision_idx": {
+          "name": "precios_examenes_examen_prevision_idx",
+          "columns": [
+            {
+              "expression": "id_examen",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tipo_prevision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "comuna",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "precios_examenes_id_examen_examenes_id_fk": {
+          "name": "precios_examenes_id_examen_examenes_id_fk",
+          "tableFrom": "precios_examenes",
+          "tableTo": "examenes",
+          "columnsFrom": [
+            "id_examen"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.examenes": {
       "name": "examenes",
       "schema": "",
@@ -367,6 +391,12 @@
           "type": "varchar(200)",
           "primaryKey": false,
           "notNull": true
+        },
+        "categoria": {
+          "name": "categoria",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
         },
         "activo": {
           "name": "activo",
@@ -491,6 +521,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "porcentaje_pago": {
+          "name": "porcentaje_pago",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'67.5'"
+        },
+        "comuna_residencia": {
+          "name": "comuna_residencia",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "activo": {
           "name": "activo",
           "type": "boolean",
@@ -519,6 +562,74 @@
           "columns": [
             {
               "expression": "apellido_paterno",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.precios_visita_enfermeria": {
+      "name": "precios_visita_enfermeria",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "comuna": {
+          "name": "comuna",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precio": {
+          "name": "precio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "precios_visita_enfermeria_comuna_idx": {
+          "name": "precios_visita_enfermeria_comuna_idx",
+          "columns": [
+            {
+              "expression": "comuna",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -696,24 +807,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "contacto_nombre": {
-          "name": "contacto_nombre",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contacto_telefono": {
-          "name": "contacto_telefono",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contacto_info": {
-          "name": "contacto_info",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -796,6 +889,20 @@
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true
+        },
+        "categoria": {
+          "name": "categoria",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'otros'"
+        },
+        "precio": {
+          "name": "precio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "activo": {
           "name": "activo",
@@ -948,17 +1055,18 @@
           "primaryKey": false,
           "notNull": true
         },
-        "id_sucursal": {
-          "name": "id_sucursal",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "id_visita": {
           "name": "id_visita",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "precio": {
+          "name": "precio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -997,19 +1105,6 @@
             "id"
           ],
           "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "examenes_visitas_id_sucursal_sucursales_id_fk": {
-          "name": "examenes_visitas_id_sucursal_sucursales_id_fk",
-          "tableFrom": "examenes_visitas",
-          "tableTo": "sucursales",
-          "columnsFrom": [
-            "id_sucursal"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "examenes_visitas_id_visita_visitas_id_fk": {
@@ -1053,6 +1148,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "precio": {
+          "name": "precio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -1161,8 +1263,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "id_sucursal": {
-          "name": "id_sucursal",
+        "id_laboratorio": {
+          "name": "id_laboratorio",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1181,6 +1283,13 @@
           "notNull": false,
           "default": "''"
         },
+        "numero_atencion": {
+          "name": "numero_atencion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "origen_contacto": {
           "name": "origen_contacto",
           "type": "varchar(100)",
@@ -1193,6 +1302,45 @@
           "primaryKey": false,
           "notNull": false,
           "default": "''"
+        },
+        "pagado": {
+          "name": "pagado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "metodo_pago": {
+          "name": "metodo_pago",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fecha_pago": {
+          "name": "fecha_pago",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resultados_enviados": {
+          "name": "resultados_enviados",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "fecha_envio_resultados": {
+          "name": "fecha_envio_resultados",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "costo_traslado": {
+          "name": "costo_traslado",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -1268,12 +1416,12 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "visitas_id_sucursal_sucursales_id_fk": {
-          "name": "visitas_id_sucursal_sucursales_id_fk",
+        "visitas_id_laboratorio_laboratorios_id_fk": {
+          "name": "visitas_id_laboratorio_laboratorios_id_fk",
           "tableFrom": "visitas",
-          "tableTo": "sucursales",
+          "tableTo": "laboratorios",
           "columnsFrom": [
-            "id_sucursal"
+            "id_laboratorio"
           ],
           "columnsTo": [
             "id"

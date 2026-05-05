@@ -2,7 +2,7 @@
 
 import { db } from '@/db'
 import {
-  visits, patients, addresses, branches, nurses,
+  visits, patients, addresses, laboratories, nurses,
   visitProcedures, visitExams, procedures, exams,
   healthInsurances, patientPhones,
 } from '@/db/schema'
@@ -37,7 +37,7 @@ export type VisitaConDetalles = {
     areaAdministrativa1: string | null
     areaAdministrativa2: string | null
   }
-  sucursal: string | null
+  laboratorio: string | null
   procedimientos: string[]
   exámenes: string[]
   informacionAdicional: string | null
@@ -130,14 +130,14 @@ async function getVisitasConDetalles(
       comuna: addresses.areaAdministrativa3,
       areaAdministrativa1: addresses.areaAdministrativa1,
       areaAdministrativa2: addresses.areaAdministrativa2,
-      sucursal: branches.nombre,
+      laboratorio: laboratories.nombre,
       previsión: healthInsurances.nombre,
       idPaciente: patients.id,
     })
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .leftJoin(branches, eq(visits.idSucursal, branches.id))
+    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
     .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
     .where(and(eq(visits.fecha, fecha), inArray(visits.idEnfermera, nurseIds)))
 
@@ -217,7 +217,7 @@ async function getVisitasConDetalles(
       areaAdministrativa1: v.areaAdministrativa1 || null,
       areaAdministrativa2: v.areaAdministrativa2 || null,
     },
-    sucursal: v.sucursal || null,
+    laboratorio: v.laboratorio || null,
     procedimientos: procsByVisita.get(v.visitaId) ?? [],
     exámenes: examsByVisita.get(v.visitaId) ?? [],
     informacionAdicional: v.informacionAdicional || null,
@@ -398,8 +398,8 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
       .map((line) => `<p style="${valueStyle};margin-bottom:2px;">${line}</p>`)
       .join('')
 
-    const sucursalRow = visita.sucursal
-      ? `<tr><td colspan="2" style="${cellStyle}"><span style="${labelStyle}">Laboratorio / Sucursal</span><p style="${valueStyle}">${visita.sucursal}</p></td></tr>`
+    const laboratorioRow = visita.laboratorio
+      ? `<tr><td colspan="2" style="${cellStyle}"><span style="${labelStyle}">Laboratorio</span><p style="${valueStyle}">${visita.laboratorio}</p></td></tr>`
       : ''
 
     // Procedimientos y Exámenes
@@ -436,7 +436,7 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
         ${contactoSection}
         <tr><td colspan="2" style="${sectionLabelStyle}">Direccion</td></tr>
         <tr><td colspan="2" style="${cellStyle}">${direccionLines}</td></tr>
-        ${sucursalRow}
+        ${laboratorioRow}
         ${procsExamsSection}
         ${infoAdicionalSection}
         <tr style="background-color:#f8fafc;border-top:1px solid #e8ecf0;">

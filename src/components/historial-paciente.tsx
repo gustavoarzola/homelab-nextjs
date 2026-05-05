@@ -352,9 +352,6 @@ export function HistorialPaciente({ data }: Props) {
                             }}
                           >
                             {e.nombre}
-                            {e.sucursal && (
-                              <span className="opacity-70"> · {e.sucursal}</span>
-                            )}
                           </span>
                         ))}
                       </div>

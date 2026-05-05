@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
-import { searchSucursales } from '@/lib/actions/laboratorios'
+import { searchLaboratorios } from '@/lib/actions/laboratorios'
 import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias } from '@/lib/actions/catalogos'
 import { searchOrigenesContacto, createVisita } from '@/lib/actions/visitas'
 import { VisitaForm } from '@/components/visita-form'
@@ -20,7 +20,7 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
   const [
     detalle,
     { rows: enfermeras },
-    { rows: sucursales },
+    { rows: laboratorios },
     { rows: procedimientos },
     { rows: examenes },
     origenesContacto,
@@ -29,7 +29,7 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
   ] = await Promise.all([
     getPaciente(id),
     searchEnfermeras({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
-    searchSucursales({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
+    searchLaboratorios({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
     searchProcedimientos({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
     searchExamenes({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
     searchOrigenesContacto(),
@@ -54,15 +54,13 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
     direccion: detalle.direccion,
     latitud: detalle.latitud,
     longitud: detalle.longitud,
-    contactoNombre: detalle.contactoNombre,
-    contactoTelefono: detalle.contactoTelefono,
   }
 
   return (
     <VisitaForm
       paciente={paciente}
       enfermeras={enfermeras}
-      sucursales={sucursales}
+      laboratorios={laboratorios}
       procedimientos={procedimientos}
       examenes={examenes}
       origenesContacto={origenesContacto}

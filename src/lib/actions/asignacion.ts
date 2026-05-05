@@ -2,7 +2,7 @@
 
 import { db } from '@/db'
 import {
-  visits, patients, addresses, branches,
+  visits, patients, addresses, laboratories,
   visitProcedures, visitExams, procedures, exams, nurses,
 } from '@/db/schema'
 import { eq, and, inArray, asc } from 'drizzle-orm'
@@ -20,7 +20,7 @@ export type VisitaAsignacion = {
   comuna: string | null
   latitud: string | null
   longitud: string | null
-  sucursal: string | null
+  laboratorio: string | null
   procedimientos: string[]
   examenes: string[]
 }
@@ -43,12 +43,12 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
       comuna: addresses.areaAdministrativa3,
       latitud: addresses.latitud,
       longitud: addresses.longitud,
-      sucursal: branches.nombre,
+      laboratorio: laboratories.nombre,
     })
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .leftJoin(branches, eq(visits.idSucursal, branches.id))
+    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
     .where(and(eq(visits.fecha, fecha), eq(visits.estado, 'creada')))
 
   if (!rawVisitas.length) return []
@@ -93,7 +93,7 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
     comuna: v.comuna ?? null,
     latitud: v.latitud ?? null,
     longitud: v.longitud ?? null,
-    sucursal: v.sucursal ?? null,
+    laboratorio: v.laboratorio ?? null,
     procedimientos: procsByVisita.get(v.id) ?? [],
     examenes: examsByVisita.get(v.id) ?? [],
   }))
@@ -101,11 +101,11 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
 
 // ─── getEnfermerasActivas ─────────────────────────────────────────────────────
 
-export async function getEnfermerasActivas(): Promise<{ id: number; nombre: string }[]> {
+export async function getEnfermerasActivas(): Promise<{ id: number; nombre: string; comunaResidencia: string | null }[]> {
   await requireSession()
 
   const rows = await db
-    .select({ id: nurses.id, nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno })
+    .select({ id: nurses.id, nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno, comunaResidencia: nurses.comunaResidencia })
     .from(nurses)
     .where(eq(nurses.activo, true))
     .orderBy(asc(nurses.apellidoPaterno))
@@ -113,6 +113,7 @@ export async function getEnfermerasActivas(): Promise<{ id: number; nombre: stri
   return rows.map((r) => ({
     id: r.id,
     nombre: formatNombre(r),
+    comunaResidencia: r.comunaResidencia,
   }))
 }
 

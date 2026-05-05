@@ -1,1 +1,0 @@
-ALTER TABLE "procedimientos" ADD COLUMN "categoria" varchar(50) DEFAULT 'otros' NOT NULL;

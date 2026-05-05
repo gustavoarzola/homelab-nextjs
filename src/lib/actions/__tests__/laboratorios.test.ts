@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { describe, it, expect, vi, afterAll } from 'vitest'
 import { db } from '@/db'
-import { laboratories, branches } from '@/db/schema'
-import { eq, inArray } from 'drizzle-orm'
+import { laboratories } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 import { P, fd } from './helpers'
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -11,13 +11,9 @@ import {
   createLaboratorio,
   updateLaboratorio,
   toggleLaboratorio,
-  createSucursal,
-  updateSucursal,
-  toggleSucursal,
 } from '../laboratorios'
 
 const createdLabs: number[] = []
-const createdBranches: number[] = []
 
 /** Insert a lab directly and track its id for cleanup */
 async function seedLab(nombre: string) {
@@ -29,25 +25,11 @@ async function seedLab(nombre: string) {
   return row!
 }
 
-/** Insert a branch directly and track its id for cleanup */
-async function seedBranch(nombre: string, idLaboratorio: number) {
-  const [row] = await db
-    .insert(branches)
-    .values({ nombre: `${P}${nombre}`, idLaboratorio })
-    .returning()
-  createdBranches.push(row!.id)
-  return row!
-}
-
 afterAll(async () => {
-  await Promise.all([
-    createdBranches.length
-      ? db.delete(branches).where(inArray(branches.id, createdBranches))
-      : null,
-    createdLabs.length
-      ? db.delete(laboratories).where(inArray(laboratories.id, createdLabs))
-      : null,
-  ])
+  if (createdLabs.length) {
+    const { inArray } = await import('drizzle-orm')
+    await db.delete(laboratories).where(inArray(laboratories.id, createdLabs))
+  }
 })
 
 // ─── createLaboratorio ─────────────────────────────────────────────────────────────
@@ -126,89 +108,6 @@ describe('toggleLaboratorio', () => {
     expect(result.success).toBe(true)
 
     const [updated] = await db.select().from(laboratories).where(eq(laboratories.id, lab.id))
-    expect(updated.activo).toBe(true)
-  })
-})
-
-// ─── createSucursal ───────────────────────────────────────────────────────────
-
-describe('createSucursal', () => {
-  it('inserta una sucursal asociada a un laboratorio', async () => {
-    const lab = await seedLab('Para sucursal')
-    const nombre = `${P}Sucursal Norte`
-
-    const result = await createSucursal(fd({ nombre, idLaboratorio: lab.id }))
-    expect(result.success).toBe(true)
-
-    const [row] = await db.select().from(branches).where(eq(branches.nombre, nombre))
-    expect(row).toBeDefined()
-    expect(row.idLaboratorio).toBe(lab.id)
-    expect(row.activo).toBe(true)
-    createdBranches.push(row.id)
-  })
-
-  it('rechaza nombre vacío', async () => {
-    const lab = await seedLab('Lab nombre vacío')
-    const result = await createSucursal(fd({ nombre: '', idLaboratorio: lab.id }))
-    expect(result.success).toBe(false)
-  })
-
-  it('rechaza sin idLaboratorio', async () => {
-    const result = await createSucursal(fd({ nombre: `${P}Sin lab`, idLaboratorio: 0 }))
-    expect(result.success).toBe(false)
-  })
-})
-
-// ─── updateSucursal ───────────────────────────────────────────────────────────
-
-describe('updateSucursal', () => {
-  it('actualiza nombre y laboratorio de una sucursal', async () => {
-    const lab1 = await seedLab('Lab origen')
-    const lab2 = await seedLab('Lab destino')
-    const branch = await seedBranch('Sucursal antes', lab1.id)
-    const nuevoNombre = `${P}Sucursal después`
-
-    const result = await updateSucursal(
-      fd({ id: branch.id, nombre: nuevoNombre, idLaboratorio: lab2.id })
-    )
-    expect(result.success).toBe(true)
-
-    const [updated] = await db.select().from(branches).where(eq(branches.id, branch.id))
-    expect(updated.nombre).toBe(nuevoNombre)
-    expect(updated.idLaboratorio).toBe(lab2.id)
-  })
-
-  it('rechaza nombre vacío', async () => {
-    const lab = await seedLab('Lab update vacio')
-    const branch = await seedBranch('Sucursal update vacío', lab.id)
-    const result = await updateSucursal(fd({ id: branch.id, nombre: '', idLaboratorio: lab.id }))
-    expect(result.success).toBe(false)
-  })
-})
-
-// ─── toggleSucursal ───────────────────────────────────────────────────────────
-
-describe('toggleSucursal', () => {
-  it('desactiva una sucursal activa', async () => {
-    const lab = await seedLab('Lab toggle suc')
-    const branch = await seedBranch('Sucursal toggle off', lab.id)
-
-    const result = await toggleSucursal(branch.id, true)
-    expect(result.success).toBe(true)
-
-    const [updated] = await db.select().from(branches).where(eq(branches.id, branch.id))
-    expect(updated.activo).toBe(false)
-  })
-
-  it('activa una sucursal inactiva', async () => {
-    const lab = await seedLab('Lab toggle suc on')
-    const branch = await seedBranch('Sucursal toggle on', lab.id)
-    await db.update(branches).set({ activo: false }).where(eq(branches.id, branch.id))
-
-    const result = await toggleSucursal(branch.id, false)
-    expect(result.success).toBe(true)
-
-    const [updated] = await db.select().from(branches).where(eq(branches.id, branch.id))
     expect(updated.activo).toBe(true)
   })
 })

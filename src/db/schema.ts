@@ -49,6 +49,7 @@ export const nurses = pgTable(
     telefono: varchar('telefono', { length: 20 }),
     correo: varchar('correo', { length: 100 }),
     porcentajePago: numeric('porcentaje_pago', { precision: 5, scale: 2 }).notNull().default('67.5'),
+    comunaResidencia: varchar('comuna_residencia', { length: 100 }),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -100,9 +101,6 @@ export const patients = pgTable(
     idDireccion: integer('id_direccion').notNull(),
     idCompaniaSeguro: integer('id_compania_seguro'),
     idResidenciaAdulto: integer('id_residencia_adulto'),
-    contactoNombre: varchar('contacto_nombre', { length: 100 }),
-    contactoTelefono: varchar('contacto_telefono', { length: 20 }),
-    contactoInfo: text('contacto_info'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -143,6 +141,7 @@ export const procedures = pgTable(
     nombre: varchar('nombre', { length: 200 }).notNull(),
     codigo: varchar('codigo', { length: 50 }).notNull(),
     categoria: varchar('categoria', { length: 50 }).notNull().default('otros'),
+    precio: integer('precio').notNull().default(0),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -185,26 +184,6 @@ export const laboratories = pgTable(
 )
 
 // ============================================================================
-// 10. Sucursal - Sucursales de laboratorios
-// ============================================================================
-export const branches = pgTable(
-  'sucursales',
-  {
-    id: serial('id').primaryKey(),
-    nombre: varchar('nombre', { length: 100 }).notNull(),
-    idLaboratorio: integer('id_laboratorio'),
-    activo: boolean('activo').notNull().default(true),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => [
-    foreignKey({ columns: [table.idLaboratorio], foreignColumns: [laboratories.id] })
-      .onDelete('cascade'),
-    index('sucursales_id_laboratorio_idx').on(table.idLaboratorio),
-  ]
-)
-
-// ============================================================================
 // 11. CompaniaSeguro - Compañías de seguros (prev. de salud)
 // ============================================================================
 export const healthInsurances = pgTable(
@@ -212,6 +191,7 @@ export const healthInsurances = pgTable(
   {
     id: serial('id').primaryKey(),
     nombre: varchar('nombre', { length: 200 }).notNull(),
+    categoria: varchar('categoria', { length: 20 }), // 'fonasa' | 'isapre' | 'particular'
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -259,9 +239,10 @@ export const visits = pgTable(
     costo: integer('costo').notNull().default(0),
     idPaciente: integer('id_paciente'),
     idEnfermera: integer('id_enfermera'),
-    idSucursal: integer('id_sucursal'),
+    idLaboratorio: integer('id_laboratorio'),
     numeroBoleta: varchar('numero_boleta', { length: 20 }).default(''),
     tipoDocumento: varchar('tipo_documento', { length: 20 }).default(''),
+    numeroAtencion: integer('numero_atencion').notNull().default(0),
     origenContacto: varchar('origen_contacto', { length: 100 }),
     informacionAdicional: text('informacion_adicional').default(''),
     pagado: boolean('pagado').notNull().default(false),
@@ -278,7 +259,7 @@ export const visits = pgTable(
       .onDelete('cascade'),
     foreignKey({ columns: [table.idEnfermera], foreignColumns: [nurses.id] })
       .onDelete('restrict'),
-    foreignKey({ columns: [table.idSucursal], foreignColumns: [branches.id] })
+    foreignKey({ columns: [table.idLaboratorio], foreignColumns: [laboratories.id] })
       .onDelete('restrict'),
     index('visitas_fecha_idx').on(table.fecha),
     index('visitas_estado_idx').on(table.estado),
@@ -294,6 +275,7 @@ export const visitProcedures = pgTable(
     id: serial('id').primaryKey(),
     idProcedimiento: integer('id_procedimiento').notNull(),
     idVisita: integer('id_visita').notNull(),
+    precio: integer('precio').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => [
@@ -313,15 +295,13 @@ export const visitExams = pgTable(
   {
     id: serial('id').primaryKey(),
     idExamen: integer('id_examen').notNull(),
-    idSucursal: integer('id_sucursal'),
     idVisita: integer('id_visita').notNull(),
+    precio: integer('precio').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => [
     foreignKey({ columns: [table.idExamen], foreignColumns: [exams.id] })
       .onDelete('restrict'),
-    foreignKey({ columns: [table.idSucursal], foreignColumns: [branches.id] })
-      .onDelete('set null'),
     foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
       .onDelete('cascade'),
     index('examenes_visitas_id_visita_idx').on(table.idVisita),
