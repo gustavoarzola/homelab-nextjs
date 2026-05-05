@@ -3,6 +3,7 @@
 import { DataTable, type ColumnDef, type FilterDef, type FormFieldDef, type Result, type SearchParams } from './data-table'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import { formatRut } from '@/lib/rut'
+import { COMUNAS_SELECT_OPTIONS } from '@/lib/comunas'
 
 type Props = {
   initialData: { rows: NurseRow[]; total: number }
@@ -56,6 +57,20 @@ const columns: ColumnDef<NurseRow>[] = [
     ),
   },
   {
+    id: 'porcentajePago',
+    header: '% Pago',
+    cell: ({ row }) => <span>{row.original.porcentajePago}%</span>,
+  },
+  {
+    id: 'comunaResidencia',
+    header: 'Comuna',
+    cell: ({ row }) => (
+      <span style={{ color: row.original.comunaResidencia ? 'inherit' : 'var(--muted-foreground)' }}>
+        {row.original.comunaResidencia ?? '—'}
+      </span>
+    ),
+  },
+  {
     id: 'activo',
     header: 'Estado',
     cell: ({ row }) => (
@@ -85,6 +100,14 @@ const formFields: FormFieldDef[] = [
   { name: 'rut', label: 'RUT', placeholder: '12.345.678-9' },
   { name: 'telefono', label: 'Teléfono', type: 'tel' },
   { name: 'correo', label: 'Correo electrónico', type: 'email' },
+  { name: 'porcentajePago', label: '% Pago', type: 'number', placeholder: '67.5' },
+  {
+    name: 'comunaResidencia',
+    label: 'Comuna de residencia',
+    type: 'select-single',
+    placeholder: 'Buscar comuna…',
+    options: COMUNAS_SELECT_OPTIONS,
+  },
 ]
 
 export function EnfermerasTable({ initialData, search, onCreate, onUpdate, onToggle, onDelete }: Props) {

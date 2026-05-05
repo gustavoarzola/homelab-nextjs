@@ -5,6 +5,7 @@ import { Loader2, Plus, Pencil, ToggleLeft, ToggleRight, X } from 'lucide-react'
 import type { PrecioExamenRow } from '@/lib/actions/precios'
 import type { SearchParams } from '@/components/data-table'
 import { SelectCombobox } from '@/components/select-combobox'
+import { COMUNAS_OPTIONS } from '@/lib/comunas'
 
 type Props = {
   initialRows: PrecioExamenRow[]
@@ -64,10 +65,14 @@ function PrecioExamenForm({
   onDone: (fd: FormData) => Promise<{ success: boolean; error?: string }>
   isModal?: boolean
 }) {
+  const comunaToIdx = (c: string | null) =>
+    c ? COMUNAS_OPTIONS.findIndex((o) => o.label === c) : null
+
   const [selectedExamen, setSelectedExamen] = useState<number | null>(row?.idExamen ?? null)
   const [selectedTipo, setSelectedTipo] = useState<number | null>(
     row ? tipoPrevisionToId(row.tipoPrevision) : null,
   )
+  const [selectedComuna, setSelectedComuna] = useState<number | null>(comunaToIdx(row?.comuna ?? null))
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -76,6 +81,7 @@ function PrecioExamenForm({
     const fd = new FormData(e.currentTarget)
     fd.set('idExamen', String(selectedExamen ?? ''))
     fd.set('tipoPrevision', tipoPrevisionFromId(selectedTipo))
+    fd.set('comuna', selectedComuna !== null ? (COMUNAS_OPTIONS[selectedComuna]?.label ?? '') : '')
     if (row) fd.set('id', String(row.id))
     setError(null)
     startTransition(async () => {
@@ -120,8 +126,17 @@ function PrecioExamenForm({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Comuna (opcional)</label>
-          <input name="comuna" type="text" defaultValue={row?.comuna ?? ''} disabled={isPending} className={inputClass} style={inputStyle} placeholder="ej: Providencia" />
+          <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+            Comuna <span className="text-xs font-normal" style={{ color: 'var(--muted-foreground)' }}>(opcional — precio base si no se selecciona)</span>
+          </label>
+          <SelectCombobox
+            mode="single"
+            options={COMUNAS_OPTIONS}
+            selected={selectedComuna}
+            onChange={setSelectedComuna}
+            placeholder="Todas las comunas…"
+            disabled={isPending}
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Precio ($)</label>
@@ -167,9 +182,16 @@ function PrecioExamenForm({
           disabled={isPending}
         />
       </div>
-      <div className="w-44">
+      <div className="w-52">
         <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground)' }}>Comuna (opcional)</label>
-        <input name="comuna" type="text" defaultValue={row?.comuna ?? ''} disabled={isPending} className={inputClass} style={inputStyle} placeholder="ej: Providencia" />
+        <SelectCombobox
+          mode="single"
+          options={COMUNAS_OPTIONS}
+          selected={selectedComuna}
+          onChange={setSelectedComuna}
+          placeholder="Todas las comunas…"
+          disabled={isPending}
+        />
       </div>
       <div className="w-32">
         <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--foreground)' }}>Precio ($)</label>
