@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState, useTransition, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Loader2, Pencil, FileText, AlertTriangle } from 'lucide-react'
@@ -17,6 +17,7 @@ import type { LaboratorioRow } from '@/lib/actions/laboratorios'
 import type { ProcedimientoRow, ExamenRow } from '@/lib/actions/catalogos'
 import type { VisitaDetalle } from '@/lib/actions/visitas'
 import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
+import { calcularCostoVisitaPreview, type VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ type Props = {
   procedimientos: ProcedimientoRow[]
   examenes: ExamenRow[]
   origenesContacto: { id: number; nombre: string }[]
-  examCurrentPrices?: { idExamen: number; precioActual: number }[]
+  pricingContext: VisitaFormPricingContext
   onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
 }
 
@@ -335,7 +336,7 @@ export function VisitaForm({
   procedimientos,
   examenes,
   origenesContacto,
-  examCurrentPrices,
+  pricingContext,
   onSubmit,
 }: Props) {
   const router = useRouter()
@@ -430,6 +431,19 @@ export function VisitaForm({
     { id: 2, label: 'Efectivo' },
   ]
 
+  const costoPreview = useMemo(
+    () =>
+      calcularCostoVisitaPreview({
+        selectedProcedureIds: selectedProcedures,
+        selectedExamIds: selectedExams,
+        catalogProcedurePrices: procedimientos.map((p) => ({ id: p.id, precio: p.precio })),
+        savedProcedurePrices: visita?.procedurePrices,
+        savedExamPrices: visita?.examPrices,
+        pricingContext,
+      }),
+    [selectedProcedures, selectedExams, procedimientos, visita, pricingContext],
+  )
+
   return (
     <>
       {/* Sticky header */}
@@ -523,10 +537,15 @@ export function VisitaForm({
                   className="w-full rounded-lg px-3 py-2 text-sm"
                   style={inputStyle}
                 >
-                  {isEdit
-                    ? `$${visita.costo.toLocaleString('es-CL')}`
-                    : 'Se calcula al guardar'}
+                  <span className="font-medium">
+                    ${costoPreview.total.toLocaleString('es-CL')}
+                  </span>
                 </div>
+                {costoPreview.aplicaVisitaEnfermeria && !costoPreview.precioVisitaConfigurado && (
+                  <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                    Sin precio de visita configurado.
+                  </p>
+                )}
               </div>
 
               {estadoActual === 'no_realizada' && (
@@ -625,24 +644,73 @@ export function VisitaForm({
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
             <h2 className={sectionTitleClass} style={sectionTitleStyle}>Procedimientos</h2>
-            <SelectCombobox
-              options={procedimientosOptions}
-              selected={selectedProcedures}
-              onChange={(ids) => {
-                setSelectedProcedures(ids)
-                // Clear dismissed warnings for removed procedures
-                setDismissedPriceWarnings((prev) => {
-                  const next = new Set(prev)
-                  for (const id of prev) {
-                    if (!ids.includes(id)) next.delete(id)
-                  }
-                  return next
-                })
-              }}
-              placeholder="Buscar procedimiento..."
-              disabled={isPending}
-            />
-            {/* Price change warnings (edit mode only, non-realizada) */}
+            <div className="grid grid-cols-2 gap-8">
+              {/* Columna izquierda: selector */}
+              <SelectCombobox
+                options={procedimientosOptions}
+                selected={selectedProcedures}
+                onChange={(ids) => {
+                  setSelectedProcedures(ids)
+                  setDismissedPriceWarnings((prev) => {
+                    const next = new Set(prev)
+                    for (const id of prev) {
+                      if (!ids.includes(id)) next.delete(id)
+                    }
+                    return next
+                  })
+                }}
+                placeholder="Buscar procedimiento..."
+                disabled={isPending}
+              />
+
+              {/* Columna derecha: lista de seleccionados con precio */}
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                  Seleccionados
+                </p>
+                {selectedProcedures.length === 0 ? (
+                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                    Sin procedimientos seleccionados.
+                  </p>
+                ) : (
+                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {selectedProcedures.map((id) => {
+                      const proc = procedimientos.find((p) => p.id === id)
+                      if (!proc) return null
+                      const savedEntry = visita?.procedurePrices.find((p) => p.idProcedimiento === id)
+                      const precio = savedEntry?.precio ?? proc.precio
+                      return (
+                        <li
+                          key={id}
+                          className="flex items-center justify-between gap-2 py-1.5 text-sm"
+                        >
+                          <span style={{ color: 'var(--foreground)' }}>{proc.nombre}</span>
+                          <span
+                            className="shrink-0 font-medium tabular-nums"
+                            style={{ color: 'var(--foreground)' }}
+                          >
+                            ${precio.toLocaleString('es-CL')}
+                          </span>
+                        </li>
+                      )
+                    })}
+                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
+                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
+                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
+                        ${selectedProcedures.reduce((sum, id) => {
+                          const proc = procedimientos.find((p) => p.id === id)
+                          if (!proc) return sum
+                          const savedEntry = visita?.procedurePrices.find((p) => p.idProcedimiento === id)
+                          return sum + (savedEntry?.precio ?? proc.precio)
+                        }, 0).toLocaleString('es-CL')}
+                      </span>
+                    </li>
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {/* Price change warnings — debajo del grid */}
             {isEdit && visita.estado !== 'realizada' && selectedProcedures.map((procId) => {
               if (dismissedPriceWarnings.has(procId)) return null
               const savedEntry = visita.procedurePrices.find((p) => p.idProcedimiento === procId)
@@ -666,28 +734,65 @@ export function VisitaForm({
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
             <h2 className={sectionTitleClass} style={sectionTitleStyle}>Exámenes</h2>
-            <SelectCombobox
-              options={examenesOptions}
-              selected={selectedExams}
-              onChange={(ids) => {
-                setSelectedExams(ids)
-                setDismissedExamWarnings((prev) => {
-                  const next = new Set(prev)
-                  for (const id of prev) {
-                    if (!ids.includes(id)) next.delete(id)
-                  }
-                  return next
-                })
-              }}
-              placeholder="Buscar examen..."
-              disabled={isPending}
-            />
-            {/* Price change warnings (edit mode only, non-realizada) */}
-            {isEdit && visita.estado !== 'realizada' && examCurrentPrices && selectedExams.map((examId) => {
+            <div className="grid grid-cols-2 gap-4">
+              {/* Columna izquierda: selector */}
+              <SelectCombobox
+                options={examenesOptions}
+                selected={selectedExams}
+                onChange={(ids) => {
+                  setSelectedExams(ids)
+                  setDismissedExamWarnings((prev) => {
+                    const next = new Set(prev)
+                    for (const id of prev) {
+                      if (!ids.includes(id)) next.delete(id)
+                    }
+                    return next
+                  })
+                }}
+                placeholder="Buscar examen..."
+                disabled={isPending}
+              />
+
+              {/* Columna derecha: lista de seleccionados con precio */}
+              <div>
+                {selectedExams.length === 0 ? (
+                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                    Sin exámenes seleccionados.
+                  </p>
+                ) : (
+                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {selectedExams.map((id) => {
+                      const examen = examenes.find((e) => e.id === id)
+                      if (!examen) return null
+                      const savedEntry = visita?.examPrices.find((e) => e.idExamen === id)
+                      const currentEntry = pricingContext.examPrices.find((e) => e.idExamen === id)
+                      const precio = savedEntry?.precio ?? currentEntry?.precioActual ?? 0
+                      return (
+                        <li
+                          key={id}
+                          className="flex items-center justify-between gap-2 py-1.5 text-sm"
+                        >
+                          <span style={{ color: 'var(--foreground)' }}>{examen.nombre}</span>
+                          <span
+                            className="shrink-0 font-medium tabular-nums"
+                            style={{ color: 'var(--foreground)' }}
+                          >
+                            ${precio.toLocaleString('es-CL')}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {/* Price change warnings — debajo del grid */}
+            {isEdit && visita.estado !== 'realizada' && selectedExams.map((examId) => {
               if (dismissedExamWarnings.has(examId)) return null
               const savedEntry = visita.examPrices.find((e) => e.idExamen === examId)
               if (!savedEntry || savedEntry.precio === 0) return null
-              const current = examCurrentPrices.find((e) => e.idExamen === examId)
+              const current = pricingContext.examPrices.find((e) => e.idExamen === examId)
               if (!current || current.precioActual === savedEntry.precio) return null
               const examen = examenes.find((e) => e.id === examId)
               if (!examen) return null
