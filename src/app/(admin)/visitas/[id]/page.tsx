@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getVisita, updateVisita, searchOrigenesContacto, getExamCurrentPricesForVisita } from '@/lib/actions/visitas'
+import { getVisita, updateVisita, searchOrigenesContacto, getVisitaFormPricingContext } from '@/lib/actions/visitas'
 import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
 import { searchLaboratorios } from '@/lib/actions/laboratorios'
@@ -24,7 +24,6 @@ export default async function EditarVisitaPage({
     origenesContacto,
     { rows: previsiones },
     { rows: residencias },
-    examCurrentPrices,
   ] = await Promise.all([
     getPaciente(visita.idPaciente),
     searchEnfermeras({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
@@ -34,10 +33,11 @@ export default async function EditarVisitaPage({
     searchOrigenesContacto(),
     searchPrevisiones({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
     searchResidencias({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
-    getExamCurrentPricesForVisita(visita.id),
   ])
 
   if (!detalle) notFound()
+
+  const pricingContext = await getVisitaFormPricingContext(visita.idPaciente, examenes.map((e) => e.id))
 
   const paciente = {
     id: detalle.id,
@@ -65,7 +65,7 @@ export default async function EditarVisitaPage({
       procedimientos={procedimientos}
       examenes={examenes}
       origenesContacto={origenesContacto}
-      examCurrentPrices={examCurrentPrices}
+      pricingContext={pricingContext}
       onSubmit={updateVisita}
     />
   )

@@ -1,13 +1,14 @@
 'use server'
 
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, laboratories, procedures, exams, examPrices, healthInsurances, addresses } from '@/db/schema'
+import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, laboratories, procedures, exams, examPrices, healthInsurances, addresses, nursingVisitPrices } from '@/db/schema'
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 import { actualizarCostoVisitaPersistida } from '@/lib/pricing/visitas'
+import type { VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
@@ -178,6 +179,11 @@ export async function searchVisitas(
 
 // ─── Helper: precio de examen para un paciente ───────────────────────────────
 
+function normalizarTipoPrevision(categoria: string | null | undefined): 'fonasa' | 'isapre' | 'particular' {
+  if (categoria === 'fonasa' || categoria === 'isapre') return categoria
+  return 'particular'
+}
+
 async function fetchExamPriceForPatient(idPaciente: number, idExamen: number): Promise<number> {
   const [paciente] = await db
     .select({ categoriaSeguro: healthInsurances.categoria, comuna: addresses.areaAdministrativa3 })
@@ -186,8 +192,7 @@ async function fetchExamPriceForPatient(idPaciente: number, idExamen: number): P
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
     .where(eq(patients.id, idPaciente))
 
-  const cat = paciente?.categoriaSeguro
-  const tipoPrevision: string = cat === 'fonasa' || cat === 'isapre' ? cat : 'particular'
+  const tipoPrevision = normalizarTipoPrevision(paciente?.categoriaSeguro)
   const comuna = paciente?.comuna ?? null
 
   if (comuna) {
@@ -205,6 +210,76 @@ async function fetchExamPriceForPatient(idPaciente: number, idExamen: number): P
     .where(and(eq(examPrices.idExamen, idExamen), eq(examPrices.tipoPrevision, tipoPrevision), isNull(examPrices.comuna), eq(examPrices.activo, true)))
     .limit(1)
   return row?.precio ?? 0
+}
+
+// ─── getVisitaFormPricingContext ─────────────────────────────────────────────
+
+export async function getVisitaFormPricingContext(
+  idPaciente: number,
+  examIds: number[],
+): Promise<VisitaFormPricingContext> {
+  await requireSession()
+
+  const uniqueExamIds = [...new Set(examIds.filter(Boolean))]
+
+  const [paciente] = await db
+    .select({ categoriaSeguro: healthInsurances.categoria, comuna: addresses.areaAdministrativa3 })
+    .from(patients)
+    .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
+    .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
+    .where(eq(patients.id, idPaciente))
+
+  const tipoPrevision = normalizarTipoPrevision(paciente?.categoriaSeguro)
+  const comuna = paciente?.comuna ?? null
+
+  let examPriceRows: { idExamen: number; comuna: string | null; precio: number }[] = []
+  if (uniqueExamIds.length > 0) {
+    examPriceRows = await db
+      .select({ idExamen: examPrices.idExamen, comuna: examPrices.comuna, precio: examPrices.precio })
+      .from(examPrices)
+      .where(
+        and(
+          inArray(examPrices.idExamen, uniqueExamIds),
+          eq(examPrices.tipoPrevision, tipoPrevision),
+          comuna ? or(eq(examPrices.comuna, comuna), isNull(examPrices.comuna)) : isNull(examPrices.comuna),
+          eq(examPrices.activo, true),
+        ),
+      )
+  }
+
+  const examPriceMap = new Map<number, number>()
+  for (const row of examPriceRows) {
+    const current = examPriceMap.get(row.idExamen)
+    if (current === undefined || (comuna && row.comuna === comuna)) {
+      examPriceMap.set(row.idExamen, row.precio)
+    }
+  }
+
+  let nursingVisitPrice: number | null = null
+  if (comuna) {
+    const [row] = await db
+      .select({ precio: nursingVisitPrices.precio })
+      .from(nursingVisitPrices)
+      .where(and(eq(nursingVisitPrices.comuna, comuna), eq(nursingVisitPrices.activo, true)))
+      .limit(1)
+    nursingVisitPrice = row?.precio ?? null
+  }
+  if (nursingVisitPrice === null) {
+    const [row] = await db
+      .select({ precio: nursingVisitPrices.precio })
+      .from(nursingVisitPrices)
+      .where(and(isNull(nursingVisitPrices.comuna), eq(nursingVisitPrices.activo, true)))
+      .limit(1)
+    nursingVisitPrice = row?.precio ?? null
+  }
+
+  return {
+    examPrices: uniqueExamIds.map((idExamen) => ({
+      idExamen,
+      precioActual: examPriceMap.get(idExamen) ?? 0,
+    })),
+    nursingVisitPrice,
+  }
 }
 
 // ─── getVisita ────────────────────────────────────────────────────────────────
@@ -465,29 +540,6 @@ export async function createVisita(
   } catch {
     return { success: false, error: 'Error al crear la visita' }
   }
-}
-
-// ─── getExamCurrentPricesForVisita ────────────────────────────────────────────
-
-export async function getExamCurrentPricesForVisita(
-  idVisita: number,
-): Promise<{ idExamen: number; precioActual: number }[]> {
-  await requireSession()
-
-  const [visitRow] = await db.select({ idPaciente: visits.idPaciente }).from(visits).where(eq(visits.id, idVisita))
-  if (!visitRow?.idPaciente) return []
-
-  const examRows = await db
-    .select({ idExamen: visitExams.idExamen })
-    .from(visitExams)
-    .where(eq(visitExams.idVisita, idVisita))
-
-  return Promise.all(
-    examRows.map(async ({ idExamen }) => ({
-      idExamen,
-      precioActual: await fetchExamPriceForPatient(visitRow.idPaciente!, idExamen),
-    }))
-  )
 }
 
 // ─── actualizarPrecioExamenVisita ─────────────────────────────────────────────

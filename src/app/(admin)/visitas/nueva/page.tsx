@@ -3,7 +3,7 @@ import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
 import { searchLaboratorios } from '@/lib/actions/laboratorios'
 import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias } from '@/lib/actions/catalogos'
-import { searchOrigenesContacto, createVisita } from '@/lib/actions/visitas'
+import { searchOrigenesContacto, createVisita, getVisitaFormPricingContext } from '@/lib/actions/visitas'
 import { VisitaForm } from '@/components/visita-form'
 
 type Props = {
@@ -39,6 +39,8 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
 
   if (!detalle) notFound()
 
+  const pricingContext = await getVisitaFormPricingContext(id, examenes.map((e) => e.id))
+
   const paciente = {
     id: detalle.id,
     nombres: detalle.nombres,
@@ -64,6 +66,7 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
       procedimientos={procedimientos}
       examenes={examenes}
       origenesContacto={origenesContacto}
+      pricingContext={pricingContext}
       onSubmit={createVisita}
     />
   )

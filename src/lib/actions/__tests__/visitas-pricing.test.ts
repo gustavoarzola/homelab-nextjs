@@ -22,7 +22,7 @@ vi.mock('@/auth', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { calcularCostoVisitaPersistida } from '@/lib/pricing/visitas'
-import { createVisita, updateVisita } from '../visitas'
+import { createVisita, getVisitaFormPricingContext, updateVisita } from '../visitas'
 
 const created = {
   addresses: [] as number[],
@@ -265,5 +265,51 @@ describe('createVisita/updateVisita costo calculado', () => {
 
     const [updated] = await db.select({ costo: visits.costo }).from(visits).where(eq(visits.id, visit.id))
     expect(updated!.costo).toBe(11000 + precioBase.precio)
+  })
+})
+
+describe('getVisitaFormPricingContext', () => {
+  it('usa precio de examen por comuna sobre precio base', async () => {
+    const comuna = unique('ComunaCtxExam')
+    const patient = await seedPaciente(comuna)
+    const exam = await seedExamen(5000)
+    const [specific] = await db
+      .insert(examPrices)
+      .values({ idExamen: exam.id, tipoPrevision: 'fonasa', comuna, precio: 9000 })
+      .returning()
+    created.examPrices.push(specific!.id)
+
+    const context = await getVisitaFormPricingContext(patient.id, [exam.id])
+
+    expect(context.examPrices).toEqual([{ idExamen: exam.id, precioActual: 9000 }])
+  })
+
+  it('usa precio base de examen si no hay precio por comuna', async () => {
+    const patient = await seedPaciente(unique('ComunaCtxExamBase'))
+    const exam = await seedExamen(6500)
+
+    const context = await getVisitaFormPricingContext(patient.id, [exam.id])
+
+    expect(context.examPrices).toEqual([{ idExamen: exam.id, precioActual: 6500 }])
+  })
+
+  it('usa precio de visita de enfermería por comuna sobre precio base', async () => {
+    const comuna = unique('ComunaCtxVisita')
+    const patient = await seedPaciente(comuna)
+    await seedOrUsePrecioBase(25000)
+    await seedPrecioVisita(comuna, 42000)
+
+    const context = await getVisitaFormPricingContext(patient.id, [])
+
+    expect(context.nursingVisitPrice).toBe(42000)
+  })
+
+  it('usa precio base de visita de enfermería si no hay precio por comuna', async () => {
+    const patient = await seedPaciente(unique('ComunaCtxVisitaBase'))
+    const precioBase = await seedOrUsePrecioBase(26000)
+
+    const context = await getVisitaFormPricingContext(patient.id, [])
+
+    expect(context.nursingVisitPrice).toBe(precioBase.precio)
   })
 })
