@@ -255,6 +255,8 @@ export const visits = pgTable(
     fechaEnvioResultados: date('fecha_envio_resultados'),
     costoTraslado: integer('costo_traslado').notNull().default(0),
     cobraVisita: boolean('cobra_visita').notNull().default(false),
+    montoRecargo: integer('monto_recargo').default(0),
+    razonRecargo: text('razon_recargo'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
