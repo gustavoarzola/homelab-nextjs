@@ -1,6 +1,6 @@
 {
-  "id": "2ac36a6b-b516-4e74-96cd-15e6c05799e2",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "4e5c9bb0-3d19-4991-878a-978d3d35122e",
+  "prevId": "2ac36a6b-b516-4e74-96cd-15e6c05799e2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -272,9 +272,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "examenes_nombre_codigo_grupo_idx": {
           "name": "examenes_nombre_codigo_grupo_idx",
@@ -299,9 +299,9 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -503,9 +503,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -571,9 +571,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -638,24 +638,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "telefonos_pacientes_id_paciente_pacientes_id_fk": {
           "name": "telefonos_pacientes_id_paciente_pacientes_id_fk",
           "tableFrom": "telefonos_pacientes",
-          "tableTo": "pacientes",
           "columnsFrom": [
             "id_paciente"
           ],
+          "tableTo": "pacientes",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -769,34 +769,34 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "pacientes_id_direccion_direcciones_id_fk": {
           "name": "pacientes_id_direccion_direcciones_id_fk",
           "tableFrom": "pacientes",
-          "tableTo": "direcciones",
           "columnsFrom": [
             "id_direccion"
           ],
+          "tableTo": "direcciones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "pacientes_identificador_unique": {
           "name": "pacientes_identificador_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "identificador"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -873,9 +873,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -954,9 +954,9 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -964,10 +964,10 @@
       "uniqueConstraints": {
         "usuarios_correo_unique": {
           "name": "usuarios_correo_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "correo"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1023,37 +1023,37 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "examenes_visitas_id_examen_examenes_id_fk": {
           "name": "examenes_visitas_id_examen_examenes_id_fk",
           "tableFrom": "examenes_visitas",
-          "tableTo": "examenes",
           "columnsFrom": [
             "id_examen"
           ],
+          "tableTo": "examenes",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         },
         "examenes_visitas_id_visita_visitas_id_fk": {
           "name": "examenes_visitas_id_visita_visitas_id_fk",
           "tableFrom": "examenes_visitas",
-          "tableTo": "visitas",
           "columnsFrom": [
             "id_visita"
           ],
+          "tableTo": "visitas",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1111,37 +1111,37 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "procedimientos_visitas_id_procedimiento_procedimientos_id_fk": {
           "name": "procedimientos_visitas_id_procedimiento_procedimientos_id_fk",
           "tableFrom": "procedimientos_visitas",
-          "tableTo": "procedimientos",
           "columnsFrom": [
             "id_procedimiento"
           ],
+          "tableTo": "procedimientos",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         },
         "procedimientos_visitas_id_visita_visitas_id_fk": {
           "name": "procedimientos_visitas_id_visita_visitas_id_fk",
           "tableFrom": "procedimientos_visitas",
-          "tableTo": "visitas",
           "columnsFrom": [
             "id_visita"
           ],
+          "tableTo": "visitas",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1310,9 +1310,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "visitas_estado_idx": {
           "name": "visitas_estado_idx",
@@ -1325,9 +1325,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "visitas_numero_atencion_idx": {
           "name": "visitas_numero_atencion_idx",
@@ -1340,10 +1340,10 @@
             }
           ],
           "isUnique": true,
-          "where": "\"visitas\".\"numero_atencion\" IS NOT NULL",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"visitas\".\"numero_atencion\" IS NOT NULL",
+          "concurrently": false
         },
         "visitas_numero_boleta_tipo_doc_idx": {
           "name": "visitas_numero_boleta_tipo_doc_idx",
@@ -1362,51 +1362,51 @@
             }
           ],
           "isUnique": true,
-          "where": "\"visitas\".\"numero_boleta\" IS NOT NULL AND \"visitas\".\"numero_boleta\" != ''",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"visitas\".\"numero_boleta\" IS NOT NULL AND \"visitas\".\"numero_boleta\" != ''",
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "visitas_id_paciente_pacientes_id_fk": {
           "name": "visitas_id_paciente_pacientes_id_fk",
           "tableFrom": "visitas",
-          "tableTo": "pacientes",
           "columnsFrom": [
             "id_paciente"
           ],
+          "tableTo": "pacientes",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "visitas_id_enfermera_enfermeras_id_fk": {
           "name": "visitas_id_enfermera_enfermeras_id_fk",
           "tableFrom": "visitas",
-          "tableTo": "enfermeras",
           "columnsFrom": [
             "id_enfermera"
           ],
+          "tableTo": "enfermeras",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         },
         "visitas_id_laboratorio_laboratorios_id_fk": {
           "name": "visitas_id_laboratorio_laboratorios_id_fk",
           "tableFrom": "visitas",
-          "tableTo": "laboratorios",
           "columnsFrom": [
             "id_laboratorio"
           ],
+          "tableTo": "laboratorios",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         }
       },
       "compositePrimaryKeys": {},
@@ -1418,10 +1418,10 @@
   },
   "enums": {},
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

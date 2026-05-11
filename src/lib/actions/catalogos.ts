@@ -12,7 +12,7 @@ type Result = { success: boolean; error?: string }
 // ─── Shared row types ──────────────────────────────────────────────────────────
 
 export type ProcedimientoRow = { id: number; nombre: string; codigo: string; categoria: string; precio: number; activo: boolean }
-export type ExamenRow       = { id: number; nombre: string; codigo: string; activo: boolean }
+export type ExamenRow       = { id: number; nombre: string; codigo: string; grupoExamen: string; precio: number; activo: boolean }
 export type PrevisionRow    = { id: number; nombre: string; categoria: string | null; activo: boolean }
 export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
 
@@ -139,11 +139,13 @@ export async function createExamen(formData: FormData): Promise<Result> {
 
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
-  if (!nombre || !codigo) return { success: false, error: 'Nombre y código son requeridos' }
+  const grupoExamen = (formData.get('grupoExamen') as string)?.trim()
+  const precio = Number(formData.get('precio') ?? 0)
+  if (!nombre || !codigo || !grupoExamen) return { success: false, error: 'Nombre, código y grupo son requeridos' }
   try {
     const existing = await db.select().from(exams).where(ilike(exams.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.insert(exams).values({ nombre, codigo })
+    await db.insert(exams).values({ nombre, codigo, grupoExamen, precio })
     revalidatePath('/examenes')
     return { success: true }
   } catch {
@@ -157,14 +159,16 @@ export async function updateExamen(formData: FormData): Promise<Result> {
   const id = Number(formData.get('id'))
   const nombre = (formData.get('nombre') as string)?.trim()
   const codigo = (formData.get('codigo') as string)?.trim()
-  if (!id || !nombre || !codigo) return { success: false, error: 'Datos inválidos' }
+  const grupoExamen = (formData.get('grupoExamen') as string)?.trim()
+  const precio = Number(formData.get('precio') ?? 0)
+  if (!id || !nombre || !codigo || !grupoExamen) return { success: false, error: 'Nombre, código y grupo son requeridos' }
   try {
     const duplicated = await db
       .select()
       .from(exams)
       .where(and(ilike(exams.nombre, nombre), not(eq(exams.id, id))))
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.update(exams).set({ nombre, codigo }).where(eq(exams.id, id))
+    await db.update(exams).set({ nombre, codigo, grupoExamen, precio, updatedAt: new Date() }).where(eq(exams.id, id))
     revalidatePath('/examenes')
     return { success: true }
   } catch {

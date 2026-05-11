@@ -19,7 +19,6 @@ import {
   ChevronRight,
   Mail,
   Tag,
-  FlaskConical,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -36,7 +35,6 @@ const navItems = [
   { href: '/examenes', label: 'Exámenes', icon: Microscope },
   { href: '/previsiones', label: 'Previsiones', icon: Shield },
   { href: '/residencias', label: 'Residencias', icon: Building2 },
-  { href: '/precios/examenes', label: 'Precios exámenes', icon: FlaskConical },
   { href: '/precios/visitas', label: 'Precios visitas', icon: Tag },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]

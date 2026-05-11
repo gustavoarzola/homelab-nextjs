@@ -160,12 +160,15 @@ export const exams = pgTable(
     id: serial('id').primaryKey(),
     nombre: varchar('nombre', { length: 200 }).notNull(),
     codigo: varchar('codigo', { length: 40 }).notNull(),
+    grupoExamen: varchar('grupo_examen', { length: 50 }).notNull().default('imalab'),
+    precio: integer('precio').notNull().default(0),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
     index('examenes_codigo_idx').on(table.codigo),
+    uniqueIndex('examenes_nombre_codigo_grupo_idx').on(table.nombre, table.codigo, table.grupoExamen),
   ]
 )
 
@@ -242,7 +245,7 @@ export const visits = pgTable(
     idLaboratorio: integer('id_laboratorio'),
     numeroBoleta: varchar('numero_boleta', { length: 20 }).default(''),
     tipoDocumento: varchar('tipo_documento', { length: 20 }).default(''),
-    numeroAtencion: integer('numero_atencion').notNull().default(0),
+    numeroAtencion: integer('numero_atencion'),
     origenContacto: varchar('origen_contacto', { length: 100 }),
     informacionAdicional: text('informacion_adicional').default(''),
     pagado: boolean('pagado').notNull().default(false),
@@ -251,6 +254,7 @@ export const visits = pgTable(
     resultadosEnviados: boolean('resultados_enviados').notNull().default(false),
     fechaEnvioResultados: date('fecha_envio_resultados'),
     costoTraslado: integer('costo_traslado').notNull().default(0),
+    cobraVisita: boolean('cobra_visita').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -263,6 +267,8 @@ export const visits = pgTable(
       .onDelete('restrict'),
     index('visitas_fecha_idx').on(table.fecha),
     index('visitas_estado_idx').on(table.estado),
+    uniqueIndex('visitas_numero_atencion_idx').on(table.numeroAtencion).where(sql`${table.numeroAtencion} IS NOT NULL`),
+    uniqueIndex('visitas_numero_boleta_tipo_doc_idx').on(table.numeroBoleta, table.tipoDocumento).where(sql`${table.numeroBoleta} IS NOT NULL AND ${table.numeroBoleta} != ''`),
   ]
 )
 
@@ -308,27 +314,6 @@ export const visitExams = pgTable(
   ]
 )
 
-// ============================================================================
-// 17. PreciosExamenes - Precios por examen, previsión y comuna
-// ============================================================================
-export const examPrices = pgTable(
-  'precios_examenes',
-  {
-    id: serial('id').primaryKey(),
-    idExamen: integer('id_examen').notNull(),
-    tipoPrevision: varchar('tipo_prevision', { length: 20 }).notNull(), // 'fonasa'|'isapre'|'particular'
-    comuna: varchar('comuna', { length: 200 }),                         // null = aplica a todas
-    precio: integer('precio').notNull(),
-    activo: boolean('activo').notNull().default(true),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => [
-    foreignKey({ columns: [table.idExamen], foreignColumns: [exams.id] })
-      .onDelete('cascade'),
-    index('precios_examenes_examen_prevision_idx').on(table.idExamen, table.tipoPrevision, table.comuna),
-  ]
-)
 
 // ============================================================================
 // 18. PreciosVisitaEnfermeria - Precio de visita de enfermería por comuna
