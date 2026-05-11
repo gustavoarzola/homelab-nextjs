@@ -256,11 +256,7 @@ export function HistorialPaciente({ data }: Props) {
             <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted-foreground)' }}>
               {year}
             </h2>
-<<<<<<< HEAD
             {(groupedByYear[year] ?? []).map((visita) => {
-=======
-            {groupedByYear[year]?.map((visita) => {
->>>>>>> 33aa8ea (funcionalidades financieras: cotización, pagos, resultados y dashboard)
               const style = getEstadoStyle(visita.estado)
               return (
                 <div
