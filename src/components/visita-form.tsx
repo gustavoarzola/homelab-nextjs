@@ -377,6 +377,10 @@ export function VisitaForm({
   const [resultadosEnviados, setResultadosEnviados] = useState(visita?.resultadosEnviados ?? false)
   const [fechaEnvioResultados, setFechaEnvioResultados] = useState<string | null>(visita?.fechaEnvioResultados ?? null)
 
+  // Recargos
+  const [montoRecargo, setMontoRecargo] = useState<string>(visita?.montoRecargo ? String(visita.montoRecargo) : '0')
+  const [razonRecargo, setRazonRecargo] = useState<string>(visita?.razonRecargo ?? '')
+
   const estadoActual = selectedEstadoId === 0 ? 'creada'
     : selectedEstadoId === 1 ? 'confirmada'
     : selectedEstadoId === 2 ? 'realizada'
@@ -399,6 +403,8 @@ export function VisitaForm({
     fd.set('cobraVisita', String(cobraVisita))
     fd.set('pagado', String(pagado))
     fd.set('resultadosEnviados', String(resultadosEnviados))
+    fd.set('montoRecargo', montoRecargo)
+    fd.set('razonRecargo', razonRecargo)
 
     startTransition(async () => {
       const result = await onSubmit(fd)
@@ -446,8 +452,9 @@ export function VisitaForm({
         savedExamPrices: visita?.examPrices,
         pricingContext,
         cobraVisita,
+        montoRecargo: parseInt(montoRecargo) || 0,
       }),
-    [selectedProcedures, selectedExams, procedimientos, visita, pricingContext, cobraVisita],
+    [selectedProcedures, selectedExams, procedimientos, visita, pricingContext, cobraVisita, montoRecargo],
   )
 
   return (
@@ -537,15 +544,39 @@ export function VisitaForm({
                 <TimePicker value={selectedHora} onChange={setSelectedHora} disabled={isPending} className="w-full" />
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Costo</label>
+              <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-2">
+                <label className={labelClass} style={labelStyle}>Costo total</label>
                 <div
-                  className="w-full rounded-lg px-3 py-2 text-sm"
-                  style={inputStyle}
+                  className="w-full rounded-lg px-4 py-3 text-sm space-y-1.5"
+                  style={{ backgroundColor: 'var(--muted)', borderColor: 'var(--border)' }}
                 >
-                  <span className="font-medium">
-                    ${costoPreview.total.toLocaleString('es-CL')}
-                  </span>
+                  <div className="flex justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                    <span>Procedimientos:</span>
+                    <span>${costoPreview.subtotalProcedimientos.toLocaleString('es-CL')}</span>
+                  </div>
+                  <div className="flex justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                    <span>Exámenes:</span>
+                    <span>${costoPreview.subtotalExamenes.toLocaleString('es-CL')}</span>
+                  </div>
+                  {costoPreview.costoVisitaEnfermeria > 0 && (
+                    <div className="flex justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                      <span>Visita enfermería:</span>
+                      <span>${costoPreview.costoVisitaEnfermeria.toLocaleString('es-CL')}</span>
+                    </div>
+                  )}
+                  {costoPreview.montoRecargo > 0 && (
+                    <div className="flex justify-between text-xs" style={{ color: 'var(--destructive)' }}>
+                      <span>Recargo:</span>
+                      <span>${costoPreview.montoRecargo.toLocaleString('es-CL')}</span>
+                    </div>
+                  )}
+                  <div
+                    className="flex justify-between pt-1.5 font-semibold border-t"
+                    style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                  >
+                    <span>Total:</span>
+                    <span>${costoPreview.total.toLocaleString('es-CL')}</span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -569,6 +600,35 @@ export function VisitaForm({
                 <div className="flex flex-col gap-1.5">
                   <label className={labelClass} style={labelStyle}>Costo traslado</label>
                   <input name="costoTraslado" type="number" min="0" defaultValue={visita?.costoTraslado ?? 7000} disabled={isPending} className={inputClass} style={inputStyle} />
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <label className={labelClass} style={labelStyle}>Monto recargo (excepcional)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={montoRecargo}
+                  onChange={(e) => setMontoRecargo(e.target.value)}
+                  disabled={isPending}
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="0"
+                />
+              </div>
+
+              {parseInt(montoRecargo) > 0 && (
+                <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
+                  <label className={labelClass} style={labelStyle}>Razón del recargo</label>
+                  <textarea
+                    value={razonRecargo}
+                    onChange={(e) => setRazonRecargo(e.target.value)}
+                    disabled={isPending}
+                    className={inputClass}
+                    style={inputStyle}
+                    rows={2}
+                    placeholder="Explicar razón del recargo excepcional..."
+                  />
                 </div>
               )}
 

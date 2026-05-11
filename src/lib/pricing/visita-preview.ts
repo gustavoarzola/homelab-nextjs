@@ -11,12 +11,14 @@ export type VisitaPreviewInput = {
   savedExamPrices?: { idExamen: number; precio: number }[]
   pricingContext: VisitaFormPricingContext
   cobraVisita: boolean
+  montoRecargo?: number
 }
 
 export type VisitaPreviewCosto = {
   subtotalProcedimientos: number
   subtotalExamenes: number
   costoVisitaEnfermeria: number
+  montoRecargo: number
   total: number
   aplicaVisitaEnfermeria: boolean
   precioVisitaConfigurado: boolean
@@ -51,12 +53,14 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
     aplicaVisitaEnfermeria && precioVisitaConfigurado
       ? input.pricingContext.nursingVisitPrice!
       : 0
+  const montoRecargo = input.montoRecargo ?? 0
 
   return {
     subtotalProcedimientos,
     subtotalExamenes,
     costoVisitaEnfermeria,
-    total: subtotalProcedimientos + subtotalExamenes + costoVisitaEnfermeria,
+    montoRecargo,
+    total: subtotalProcedimientos + subtotalExamenes + costoVisitaEnfermeria + montoRecargo,
     aplicaVisitaEnfermeria,
     precioVisitaConfigurado,
   }

@@ -15,6 +15,13 @@
       "when": 1778359678899,
       "tag": "0001_search-extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778371400000,
+      "tag": "0002_add_recargo_fields",
+      "breakpoints": true
     }
   ]
 }

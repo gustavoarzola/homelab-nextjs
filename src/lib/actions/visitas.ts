@@ -50,6 +50,8 @@ export type VisitaDetalle = {
   fechaEnvioResultados: string | null
   costoTraslado: number
   cobraVisita: boolean
+  montoRecargo: number | null
+  razonRecargo: string | null
   procedureIds: number[]
   procedurePrices: { idProcedimiento: number; precio: number }[]
   examIds: number[]
@@ -266,6 +268,8 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     fechaEnvioResultados: visit.fechaEnvioResultados ?? null,
     costoTraslado: visit.costoTraslado,
     cobraVisita: visit.cobraVisita,
+    montoRecargo: visit.montoRecargo ?? null,
+    razonRecargo: visit.razonRecargo ?? null,
     procedureIds: procs.map((p) => p.idProcedimiento),
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
     examIds: exams_.map((e) => e.idExamen),
@@ -339,12 +343,14 @@ export async function updateVisita(
   const fechaEnvioResultados = (fd.get('fechaEnvioResultados') as string)?.trim() || null
   const costoTraslado = Number(fd.get('costoTraslado')) || 0
   const cobraVisita = fd.get('cobraVisita') === 'true'
+  const montoRecargo = Number(fd.get('montoRecargo')) || 0
+  const razonRecargo = (fd.get('razonRecargo') as string)?.trim() || null
 
   try {
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, updatedAt: new Date() })
+        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, montoRecargo, razonRecargo, updatedAt: new Date() })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.
@@ -456,6 +462,8 @@ export async function createVisita(
   const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
   const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
   const cobraVisita = fd.get('cobraVisita') === 'true'
+  const montoRecargo = Number(fd.get('montoRecargo')) || 0
+  const razonRecargo = (fd.get('razonRecargo') as string)?.trim() || null
 
   try {
     const visitId = await db.transaction(async (tx) => {
@@ -478,6 +486,8 @@ export async function createVisita(
           resultadosEnviados: false,
           costoTraslado: 0,
           cobraVisita,
+          montoRecargo,
+          razonRecargo,
         })
         .returning()
 
