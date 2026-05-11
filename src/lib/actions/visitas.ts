@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, laboratories, procedures, exams, examPrices, healthInsurances, addresses, nursingVisitPrices } from '@/db/schema'
+import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices } from '@/db/schema'
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
@@ -40,7 +40,7 @@ export type VisitaDetalle = {
   idLaboratorio: number | null
   numeroBoleta: string
   tipoDocumento: string
-  numeroAtencion: number
+  numeroAtencion: number | null
   origenContacto: string | null
   informacionAdicional: string
   pagado: boolean
@@ -49,6 +49,7 @@ export type VisitaDetalle = {
   resultadosEnviados: boolean
   fechaEnvioResultados: string | null
   costoTraslado: number
+  cobraVisita: boolean
   procedureIds: number[]
   procedurePrices: { idProcedimiento: number; precio: number }[]
   examIds: number[]
@@ -177,40 +178,6 @@ export async function searchVisitas(
   return { rows, total: Number(countRow?.total ?? 0) }
 }
 
-// ─── Helper: precio de examen para un paciente ───────────────────────────────
-
-function normalizarTipoPrevision(categoria: string | null | undefined): 'fonasa' | 'isapre' | 'particular' {
-  if (categoria === 'fonasa' || categoria === 'isapre') return categoria
-  return 'particular'
-}
-
-async function fetchExamPriceForPatient(idPaciente: number, idExamen: number): Promise<number> {
-  const [paciente] = await db
-    .select({ categoriaSeguro: healthInsurances.categoria, comuna: addresses.areaAdministrativa3 })
-    .from(patients)
-    .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
-    .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .where(eq(patients.id, idPaciente))
-
-  const tipoPrevision = normalizarTipoPrevision(paciente?.categoriaSeguro)
-  const comuna = paciente?.comuna ?? null
-
-  if (comuna) {
-    const [row] = await db
-      .select({ precio: examPrices.precio })
-      .from(examPrices)
-      .where(and(eq(examPrices.idExamen, idExamen), eq(examPrices.tipoPrevision, tipoPrevision), eq(examPrices.comuna, comuna), eq(examPrices.activo, true)))
-      .limit(1)
-    if (row) return row.precio
-  }
-
-  const [row] = await db
-    .select({ precio: examPrices.precio })
-    .from(examPrices)
-    .where(and(eq(examPrices.idExamen, idExamen), eq(examPrices.tipoPrevision, tipoPrevision), isNull(examPrices.comuna), eq(examPrices.activo, true)))
-    .limit(1)
-  return row?.precio ?? 0
-}
 
 // ─── getVisitaFormPricingContext ─────────────────────────────────────────────
 
@@ -222,61 +189,44 @@ export async function getVisitaFormPricingContext(
 
   const uniqueExamIds = [...new Set(examIds.filter(Boolean))]
 
-  const [paciente] = await db
-    .select({ categoriaSeguro: healthInsurances.categoria, comuna: addresses.areaAdministrativa3 })
-    .from(patients)
-    .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
-    .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .where(eq(patients.id, idPaciente))
+  // Fetch exam prices and patient's commune in parallel
+  const [examPriceRows, pacienteRow] = await Promise.all([
+    uniqueExamIds.length > 0
+      ? db.select({ id: exams.id, precio: exams.precio }).from(exams).where(inArray(exams.id, uniqueExamIds))
+      : Promise.resolve([] as { id: number; precio: number }[]),
+    db
+      .select({ comuna: addresses.areaAdministrativa3 })
+      .from(patients)
+      .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
+      .where(eq(patients.id, idPaciente))
+      .then((r) => r[0] ?? null),
+  ])
 
-  const tipoPrevision = normalizarTipoPrevision(paciente?.categoriaSeguro)
-  const comuna = paciente?.comuna ?? null
+  const comuna = pacienteRow?.comuna ?? null
 
-  let examPriceRows: { idExamen: number; comuna: string | null; precio: number }[] = []
-  if (uniqueExamIds.length > 0) {
-    examPriceRows = await db
-      .select({ idExamen: examPrices.idExamen, comuna: examPrices.comuna, precio: examPrices.precio })
-      .from(examPrices)
-      .where(
-        and(
-          inArray(examPrices.idExamen, uniqueExamIds),
-          eq(examPrices.tipoPrevision, tipoPrevision),
-          comuna ? or(eq(examPrices.comuna, comuna), isNull(examPrices.comuna)) : isNull(examPrices.comuna),
-          eq(examPrices.activo, true),
-        ),
-      )
-  }
-
-  const examPriceMap = new Map<number, number>()
-  for (const row of examPriceRows) {
-    const current = examPriceMap.get(row.idExamen)
-    if (current === undefined || (comuna && row.comuna === comuna)) {
-      examPriceMap.set(row.idExamen, row.precio)
-    }
-  }
-
+  // Look up commune-specific price, fall back to base price
   let nursingVisitPrice: number | null = null
   if (comuna) {
-    const [row] = await db
+    const [comunaRow] = await db
       .select({ precio: nursingVisitPrices.precio })
       .from(nursingVisitPrices)
       .where(and(eq(nursingVisitPrices.comuna, comuna), eq(nursingVisitPrices.activo, true)))
       .limit(1)
-    nursingVisitPrice = row?.precio ?? null
+    if (comunaRow) nursingVisitPrice = comunaRow.precio
   }
   if (nursingVisitPrice === null) {
-    const [row] = await db
+    const [baseRow] = await db
       .select({ precio: nursingVisitPrices.precio })
       .from(nursingVisitPrices)
       .where(and(isNull(nursingVisitPrices.comuna), eq(nursingVisitPrices.activo, true)))
       .limit(1)
-    nursingVisitPrice = row?.precio ?? null
+    nursingVisitPrice = baseRow?.precio ?? null
   }
 
   return {
     examPrices: uniqueExamIds.map((idExamen) => ({
       idExamen,
-      precioActual: examPriceMap.get(idExamen) ?? 0,
+      precioActual: examPriceRows.find((r) => r.id === idExamen)?.precio ?? 0,
     })),
     nursingVisitPrice,
   }
@@ -306,7 +256,7 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     idLaboratorio: visit.idLaboratorio ?? null,
     numeroBoleta: visit.numeroBoleta ?? '',
     tipoDocumento: visit.tipoDocumento ?? '',
-    numeroAtencion: visit.numeroAtencion ?? 0,
+    numeroAtencion: visit.numeroAtencion ?? null,
     origenContacto: visit.origenContacto ?? null,
     informacionAdicional: visit.informacionAdicional ?? '',
     pagado: visit.pagado,
@@ -315,6 +265,7 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     resultadosEnviados: visit.resultadosEnviados,
     fechaEnvioResultados: visit.fechaEnvioResultados ?? null,
     costoTraslado: visit.costoTraslado,
+    cobraVisita: visit.cobraVisita,
     procedureIds: procs.map((p) => p.idProcedimiento),
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
     examIds: exams_.map((e) => e.idExamen),
@@ -367,9 +318,16 @@ export async function updateVisita(
   const idLaboratorio = Number(fd.get('idLaboratorio')) || null
   const numeroBoleta = (fd.get('numeroBoleta') as string)?.trim() || ''
   const tipoDocumento = (fd.get('tipoDocumento') as string)?.trim() || ''
-  const numeroAtencion = Number(fd.get('numeroAtencion')) || 0
+  const rawNumeroAtencion = (fd.get('numeroAtencion') as string)?.trim()
+  const numeroAtencion = rawNumeroAtencion ? (Number(rawNumeroAtencion) || null) : null
   const origenContacto = (fd.get('origenContacto') as string)?.trim() || null
   const informacionAdicional = (fd.get('informacionAdicional') as string)?.trim() || ''
+
+  if (estado === 'realizada') {
+    if (!numeroBoleta) return { success: false, error: 'N° boleta/factura requerido para marcar como realizada' }
+    if (!tipoDocumento) return { success: false, error: 'Tipo de documento requerido para marcar como realizada' }
+    if (!numeroAtencion) return { success: false, error: 'N° atención requerido para marcar como realizada' }
+  }
 
   const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
   const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
@@ -380,12 +338,13 @@ export async function updateVisita(
   const resultadosEnviados = fd.get('resultadosEnviados') === 'true'
   const fechaEnvioResultados = (fd.get('fechaEnvioResultados') as string)?.trim() || null
   const costoTraslado = Number(fd.get('costoTraslado')) || 0
+  const cobraVisita = fd.get('cobraVisita') === 'true'
 
   try {
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, updatedAt: new Date() })
+        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, updatedAt: new Date() })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.
@@ -424,21 +383,21 @@ export async function updateVisita(
         )
       }
       if (examIds.length > 0) {
-        const idPacienteActual = Number(fd.get('idPaciente')) || (
-          await tx.select({ idPaciente: visits.idPaciente }).from(visits).where(eq(visits.id, id)).then((r) => r[0]?.idPaciente)
-        )
+        const newExamIds = examIds.filter((id) => !storedExamPriceMap.has(id))
+        let catalogExamPriceMap = new Map<number, number>()
+        if (newExamIds.length > 0) {
+          const catalogExamPrices = await tx
+            .select({ id: exams.id, precio: exams.precio })
+            .from(exams)
+            .where(inArray(exams.id, newExamIds))
+          catalogExamPriceMap = new Map(catalogExamPrices.map((r) => [r.id, r.precio]))
+        }
 
-        const examValues = await Promise.all(
-          examIds.map(async (idExamen) => {
-            const stored = storedExamPriceMap.get(idExamen)
-            const precio = stored !== undefined
-              ? stored
-              : idPacienteActual
-                ? await fetchExamPriceForPatient(idPacienteActual, idExamen)
-                : 0
-            return { idExamen, idVisita: id, precio }
-          })
-        )
+        const examValues = examIds.map((idExamen) => ({
+          idExamen,
+          idVisita: id,
+          precio: storedExamPriceMap.get(idExamen) ?? catalogExamPriceMap.get(idExamen) ?? 0,
+        }))
         await tx.insert(visitExams).values(examValues)
       }
 
@@ -448,7 +407,24 @@ export async function updateVisita(
     revalidatePath('/visitas')
     revalidatePath(`/visitas/${id}`)
     return { success: true, id }
-  } catch {
+  } catch (err) {
+    console.error('[updateVisita] error:', err)
+    // Drizzle wraps the PG error in err.cause
+    const pgErr = ((err as { cause?: unknown })?.cause ?? err) as { code?: string; constraint_name?: string }
+    const code = pgErr?.code
+    const constraint = pgErr?.constraint_name ?? ''
+    if (code === '23505') {
+      if (constraint.includes('numero_atencion')) {
+        return { success: false, error: 'El N° de atención ya está registrado en otra visita' }
+      }
+      if (constraint.includes('numero_boleta')) {
+        return { success: false, error: 'El N° de boleta/factura ya está registrado en otra visita con el mismo tipo de documento' }
+      }
+      return { success: false, error: 'Ya existe un registro con los mismos datos únicos' }
+    }
+    if (code === '22001') {
+      return { success: false, error: 'El N° de boleta/factura es demasiado largo (máximo 20 caracteres)' }
+    }
     return { success: false, error: 'Error al actualizar la visita' }
   }
 }
@@ -472,12 +448,14 @@ export async function createVisita(
   const idLaboratorio = Number(fd.get('idLaboratorio')) || null
   const numeroBoleta = (fd.get('numeroBoleta') as string)?.trim() || ''
   const tipoDocumento = (fd.get('tipoDocumento') as string)?.trim() || ''
-  const numeroAtencion = Number(fd.get('numeroAtencion')) || 0
+  const rawNumeroAtencion = (fd.get('numeroAtencion') as string)?.trim()
+  const numeroAtencion = rawNumeroAtencion ? (Number(rawNumeroAtencion) || null) : null
   const origenContacto = (fd.get('origenContacto') as string)?.trim() || null
   const informacionAdicional = (fd.get('informacionAdicional') as string)?.trim() || ''
 
   const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
   const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
+  const cobraVisita = fd.get('cobraVisita') === 'true'
 
   try {
     const visitId = await db.transaction(async (tx) => {
@@ -499,6 +477,7 @@ export async function createVisita(
           pagado: false,
           resultadosEnviados: false,
           costoTraslado: 0,
+          cobraVisita,
         })
         .returning()
 
@@ -520,14 +499,17 @@ export async function createVisita(
       }
 
       if (examIds.length > 0) {
-        const examPriceValues = await Promise.all(
-          examIds.map(async (idExamen) => ({
-            idExamen,
-            idVisita: id,
-            precio: await fetchExamPriceForPatient(idPaciente, idExamen),
-          }))
-        )
-        await tx.insert(visitExams).values(examPriceValues as { idExamen: number; idVisita: number; precio: number }[])
+        const examCatalogPrices = await tx
+          .select({ id: exams.id, precio: exams.precio })
+          .from(exams)
+          .where(inArray(exams.id, examIds))
+        const examPriceMap = new Map(examCatalogPrices.map((r) => [r.id, r.precio]))
+        const examPriceValues = examIds.map((idExamen) => ({
+          idExamen,
+          idVisita: id,
+          precio: examPriceMap.get(idExamen) ?? 0,
+        }))
+        await tx.insert(visitExams).values(examPriceValues)
       }
 
       await actualizarCostoVisitaPersistida(id, tx)
@@ -551,15 +533,13 @@ export async function actualizarPrecioExamenVisita(
   await requireSession()
 
   try {
-    const [visitRow] = await db.select({ idPaciente: visits.idPaciente }).from(visits).where(eq(visits.id, idVisita))
-    if (!visitRow?.idPaciente) return { success: false, error: 'Visita sin paciente' }
-
-    const precio = await fetchExamPriceForPatient(visitRow.idPaciente, idExamen)
+    const [exam] = await db.select({ precio: exams.precio }).from(exams).where(eq(exams.id, idExamen))
+    if (!exam) return { success: false, error: 'Examen no encontrado' }
 
     await db.transaction(async (tx) => {
       await tx
         .update(visitExams)
-        .set({ precio })
+        .set({ precio: exam.precio })
         .where(and(eq(visitExams.idVisita, idVisita), eq(visitExams.idExamen, idExamen)))
       await actualizarCostoVisitaPersistida(idVisita, tx)
     })

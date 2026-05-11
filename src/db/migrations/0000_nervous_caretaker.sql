@@ -32,21 +32,12 @@ CREATE TABLE "residencias_adulto_mayor" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "precios_examenes" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"id_examen" integer NOT NULL,
-	"tipo_prevision" varchar(20) NOT NULL,
-	"comuna" varchar(200),
-	"precio" integer NOT NULL,
-	"activo" boolean DEFAULT true NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "examenes" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"nombre" varchar(200) NOT NULL,
 	"codigo" varchar(40) NOT NULL,
+	"grupo_examen" varchar(50) DEFAULT 'imalab' NOT NULL,
+	"precio" integer DEFAULT 0 NOT NULL,
 	"activo" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -86,7 +77,7 @@ CREATE TABLE "enfermeras" (
 --> statement-breakpoint
 CREATE TABLE "precios_visita_enfermeria" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"comuna" varchar(200) NOT NULL,
+	"comuna" varchar(200),
 	"precio" integer NOT NULL,
 	"activo" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -170,7 +161,7 @@ CREATE TABLE "visitas" (
 	"id_laboratorio" integer,
 	"numero_boleta" varchar(20) DEFAULT '',
 	"tipo_documento" varchar(20) DEFAULT '',
-	"numero_atencion" integer DEFAULT 0 NOT NULL,
+	"numero_atencion" integer,
 	"origen_contacto" varchar(100),
 	"informacion_adicional" text DEFAULT '',
 	"pagado" boolean DEFAULT false NOT NULL,
@@ -179,11 +170,11 @@ CREATE TABLE "visitas" (
 	"resultados_enviados" boolean DEFAULT false NOT NULL,
 	"fecha_envio_resultados" date,
 	"costo_traslado" integer DEFAULT 0 NOT NULL,
+	"cobra_visita" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "precios_examenes" ADD CONSTRAINT "precios_examenes_id_examen_examenes_id_fk" FOREIGN KEY ("id_examen") REFERENCES "public"."examenes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "telefonos_pacientes" ADD CONSTRAINT "telefonos_pacientes_id_paciente_pacientes_id_fk" FOREIGN KEY ("id_paciente") REFERENCES "public"."pacientes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pacientes" ADD CONSTRAINT "pacientes_id_direccion_direcciones_id_fk" FOREIGN KEY ("id_direccion") REFERENCES "public"."direcciones"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "examenes_visitas" ADD CONSTRAINT "examenes_visitas_id_examen_examenes_id_fk" FOREIGN KEY ("id_examen") REFERENCES "public"."examenes"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -193,8 +184,8 @@ ALTER TABLE "procedimientos_visitas" ADD CONSTRAINT "procedimientos_visitas_id_v
 ALTER TABLE "visitas" ADD CONSTRAINT "visitas_id_paciente_pacientes_id_fk" FOREIGN KEY ("id_paciente") REFERENCES "public"."pacientes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "visitas" ADD CONSTRAINT "visitas_id_enfermera_enfermeras_id_fk" FOREIGN KEY ("id_enfermera") REFERENCES "public"."enfermeras"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "visitas" ADD CONSTRAINT "visitas_id_laboratorio_laboratorios_id_fk" FOREIGN KEY ("id_laboratorio") REFERENCES "public"."laboratorios"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "precios_examenes_examen_prevision_idx" ON "precios_examenes" USING btree ("id_examen","tipo_prevision","comuna");--> statement-breakpoint
 CREATE INDEX "examenes_codigo_idx" ON "examenes" USING btree ("codigo");--> statement-breakpoint
+CREATE UNIQUE INDEX "examenes_nombre_codigo_grupo_idx" ON "examenes" USING btree ("nombre","codigo","grupo_examen");--> statement-breakpoint
 CREATE INDEX "enfermeras_apellido_paterno_idx" ON "enfermeras" USING btree ("apellido_paterno");--> statement-breakpoint
 CREATE INDEX "precios_visita_enfermeria_comuna_idx" ON "precios_visita_enfermeria" USING btree ("comuna");--> statement-breakpoint
 CREATE INDEX "telefonos_pacientes_id_paciente_idx" ON "telefonos_pacientes" USING btree ("id_paciente");--> statement-breakpoint
@@ -204,4 +195,6 @@ CREATE UNIQUE INDEX "usuarios_correo_idx" ON "usuarios" USING btree ("correo");-
 CREATE INDEX "examenes_visitas_id_visita_idx" ON "examenes_visitas" USING btree ("id_visita");--> statement-breakpoint
 CREATE INDEX "procedimientos_visitas_id_visita_idx" ON "procedimientos_visitas" USING btree ("id_visita");--> statement-breakpoint
 CREATE INDEX "visitas_fecha_idx" ON "visitas" USING btree ("fecha");--> statement-breakpoint
-CREATE INDEX "visitas_estado_idx" ON "visitas" USING btree ("estado");
+CREATE INDEX "visitas_estado_idx" ON "visitas" USING btree ("estado");--> statement-breakpoint
+CREATE UNIQUE INDEX "visitas_numero_atencion_idx" ON "visitas" USING btree ("numero_atencion") WHERE "visitas"."numero_atencion" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "visitas_numero_boleta_tipo_doc_idx" ON "visitas" USING btree ("numero_boleta","tipo_documento") WHERE "visitas"."numero_boleta" IS NOT NULL AND "visitas"."numero_boleta" != '';

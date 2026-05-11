@@ -12,6 +12,7 @@ import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
+import { EXAM_GRUPO_LABELS, type ExamGrupo } from '@/lib/exam-grupos'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { LaboratorioRow } from '@/lib/actions/laboratorios'
 import type { ProcedimientoRow, ExamenRow } from '@/lib/actions/catalogos'
@@ -266,13 +267,11 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
 function ExamenPriceWarning({
   examen,
   savedPrice,
-  currentPrice,
   idVisita,
   onDismiss,
 }: {
   examen: ExamenRow
   savedPrice: number
-  currentPrice: number
   idVisita: number
   onDismiss: () => void
 }) {
@@ -298,7 +297,7 @@ function ExamenPriceWarning({
             {' '}— Precio cambió:{' '}
             <span className="line-through">${savedPrice.toLocaleString('es-CL')}</span>
             {' → '}
-            <span className="font-medium">${currentPrice.toLocaleString('es-CL')}</span>
+            <span className="font-medium">${examen.precio.toLocaleString('es-CL')}</span>
           </span>
         </span>
       </div>
@@ -367,6 +366,8 @@ export function VisitaForm({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
+  const [cobraVisita, setCobraVisita] = useState(visita?.cobraVisita ?? false)
+
   // Pago y resultados
   const [pagado, setPagado] = useState(visita?.pagado ?? false)
   const [metodoPago, setMetodoPago] = useState<number | null>(
@@ -395,6 +396,7 @@ export function VisitaForm({
     const fd = new FormData(e.currentTarget)
     selectedProcedures.forEach((id) => fd.append('procedure_ids', String(id)))
     selectedExams.forEach((id) => fd.append('exam_ids', String(id)))
+    fd.set('cobraVisita', String(cobraVisita))
     fd.set('pagado', String(pagado))
     fd.set('resultadosEnviados', String(resultadosEnviados))
 
@@ -409,7 +411,10 @@ export function VisitaForm({
   }
 
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: `${p.nombre} (${p.codigo})` }))
-  const examenesOptions = examenes.map((e) => ({ id: e.id, label: `${e.nombre} (${e.codigo})` }))
+  const examenesOptions = examenes.map((e) => ({
+    id: e.id,
+    label: `${e.nombre} (${EXAM_GRUPO_LABELS[e.grupoExamen as ExamGrupo] ?? e.grupoExamen})`,
+  }))
   const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatNombre(e) }))
   const laboratoriosOptions = laboratorios.map((l) => ({ id: l.id, label: l.nombre }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
@@ -440,8 +445,9 @@ export function VisitaForm({
         savedProcedurePrices: visita?.procedurePrices,
         savedExamPrices: visita?.examPrices,
         pricingContext,
+        cobraVisita,
       }),
-    [selectedProcedures, selectedExams, procedimientos, visita, pricingContext],
+    [selectedProcedures, selectedExams, procedimientos, visita, pricingContext, cobraVisita],
   )
 
   return (
@@ -541,9 +547,20 @@ export function VisitaForm({
                     ${costoPreview.total.toLocaleString('es-CL')}
                   </span>
                 </div>
-                {costoPreview.aplicaVisitaEnfermeria && !costoPreview.precioVisitaConfigurado && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="cobraVisita"
+                    checked={cobraVisita}
+                    onCheckedChange={(checked) => setCobraVisita(checked === true)}
+                    disabled={isPending}
+                  />
+                  <label htmlFor="cobraVisita" className="cursor-pointer text-sm" style={labelStyle}>
+                    Cobrar visita
+                  </label>
+                </div>
+                {cobraVisita && !costoPreview.precioVisitaConfigurado && (
                   <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                    Sin precio de visita configurado.
+                    Sin precio de visita configurado para esta comuna.
                   </p>
                 )}
               </div>
@@ -664,7 +681,7 @@ export function VisitaForm({
               />
 
               {/* Columna derecha: lista de seleccionados con precio */}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
                 <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
                   Seleccionados
                 </p>
@@ -734,7 +751,7 @@ export function VisitaForm({
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
             <h2 className={sectionTitleClass} style={sectionTitleStyle}>Exámenes</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-8">
               {/* Columna izquierda: selector */}
               <SelectCombobox
                 options={examenesOptions}
@@ -754,7 +771,10 @@ export function VisitaForm({
               />
 
               {/* Columna derecha: lista de seleccionados con precio */}
-              <div>
+              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
+                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                  Seleccionados
+                </p>
                 {selectedExams.length === 0 ? (
                   <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
                     Sin exámenes seleccionados.
@@ -765,8 +785,7 @@ export function VisitaForm({
                       const examen = examenes.find((e) => e.id === id)
                       if (!examen) return null
                       const savedEntry = visita?.examPrices.find((e) => e.idExamen === id)
-                      const currentEntry = pricingContext.examPrices.find((e) => e.idExamen === id)
-                      const precio = savedEntry?.precio ?? currentEntry?.precioActual ?? 0
+                      const precio = savedEntry?.precio ?? examen.precio
                       return (
                         <li
                           key={id}
@@ -782,6 +801,17 @@ export function VisitaForm({
                         </li>
                       )
                     })}
+                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
+                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
+                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
+                        ${selectedExams.reduce((sum, id) => {
+                          const examen = examenes.find((e) => e.id === id)
+                          if (!examen) return sum
+                          const savedEntry = visita?.examPrices.find((e) => e.idExamen === id)
+                          return sum + (savedEntry?.precio ?? examen.precio)
+                        }, 0).toLocaleString('es-CL')}
+                      </span>
+                    </li>
                   </ul>
                 )}
               </div>
@@ -792,16 +822,13 @@ export function VisitaForm({
               if (dismissedExamWarnings.has(examId)) return null
               const savedEntry = visita.examPrices.find((e) => e.idExamen === examId)
               if (!savedEntry || savedEntry.precio === 0) return null
-              const current = pricingContext.examPrices.find((e) => e.idExamen === examId)
-              if (!current || current.precioActual === savedEntry.precio) return null
               const examen = examenes.find((e) => e.id === examId)
-              if (!examen) return null
+              if (!examen || examen.precio === savedEntry.precio) return null
               return (
                 <ExamenPriceWarning
                   key={examId}
                   examen={examen}
                   savedPrice={savedEntry.precio}
-                  currentPrice={current.precioActual}
                   idVisita={visita.id}
                   onDismiss={() => setDismissedExamWarnings((prev) => new Set([...prev, examId]))}
                 />

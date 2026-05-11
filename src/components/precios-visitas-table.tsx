@@ -122,12 +122,15 @@ export function PreciosVisitasTable({ initialRows, onCreate, onUpdate, onToggle,
   const [rows, setRows] = useState(initialRows)
   const [modal, setModal] = useState<ModalState>({ type: 'none' })
   const [filterBuscar, setFilterBuscar] = useState('')
+  const [filterMostrarInactivos, setFilterMostrarInactivos] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  const applyFilters = () => {
+  const applyFilters = (opts?: { buscar?: string; mostrarInactivos?: boolean }) => {
+    const buscar = opts?.buscar ?? filterBuscar
+    const mostrarInactivos = opts?.mostrarInactivos ?? filterMostrarInactivos
     startTransition(async () => {
       const data = await search({
-        filters: { buscar: filterBuscar },
+        filters: { buscar, mostrarInactivos },
         sort: null,
         page: 1,
         pageSize: 100,
@@ -181,8 +184,21 @@ export function PreciosVisitasTable({ initialRows, onCreate, onUpdate, onToggle,
           />
         </div>
 
+        <label className="flex items-center gap-2 text-sm self-end pb-2" style={{ color: 'var(--foreground)' }}>
+          <input
+            type="checkbox"
+            checked={filterMostrarInactivos}
+            onChange={(e) => {
+              setFilterMostrarInactivos(e.target.checked)
+              applyFilters({ mostrarInactivos: e.target.checked })
+            }}
+            disabled={isPending}
+          />
+          Mostrar inactivos
+        </label>
+
         <button
-          onClick={applyFilters}
+          onClick={() => applyFilters()}
           disabled={isPending}
           className="rounded-lg px-4 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
           style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
@@ -193,8 +209,9 @@ export function PreciosVisitasTable({ initialRows, onCreate, onUpdate, onToggle,
         <button
           onClick={() => {
             setFilterBuscar('')
+            setFilterMostrarInactivos(false)
             startTransition(async () => {
-              const data = await search({ filters: {}, sort: null, page: 1, pageSize: 100 } as SearchParams)
+              const data = await search({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 100 } as SearchParams)
               setRows(data.rows)
             })
           }}

@@ -2,7 +2,6 @@
 
 import { db } from '@/db'
 import {
-  examPrices,
   nursingVisitPrices,
   exams,
   patients,
@@ -29,8 +28,7 @@ export type PrecioExamenRow = {
   idExamen: number
   examenNombre: string
   examenCodigo: string
-  tipoPrevision: string
-  comuna: string | null
+  grupoExamen: string
   precio: number
   activo: boolean
 }
@@ -58,7 +56,6 @@ export async function searchPreciosExamenes(
 
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
-  const tipoPrevision = (filters.tipoPrevision as string | undefined)?.trim()
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
 
   const conditions: SQL[] = []
@@ -66,32 +63,28 @@ export async function searchPreciosExamenes(
     conditions.push(
       or(ilike(exams.nombre, `%${buscar}%`), ilike(exams.codigo, `%${buscar}%`))!,
     )
-  if (tipoPrevision) conditions.push(eq(examPrices.tipoPrevision, tipoPrevision))
-  if (!mostrarInactivos) conditions.push(eq(examPrices.activo, true))
+  if (!mostrarInactivos) conditions.push(eq(exams.activo, true))
   const where = conditions.length ? and(...conditions) : undefined
 
   const [countRow] = await db
     .select({ total: count() })
-    .from(examPrices)
-    .leftJoin(exams, eq(examPrices.idExamen, exams.id))
+    .from(exams)
     .where(where)
 
-  const sortCol = sort?.key === 'examenNombre' ? exams.nombre : examPrices.precio
+  const sortCol = sort?.key === 'examenNombre' ? exams.nombre : exams.precio
   const order = sort?.dir === 'asc' ? asc(sortCol) : desc(sortCol)
 
   const rows = await db
     .select({
-      id: examPrices.id,
-      idExamen: examPrices.idExamen,
-      examenNombre: exams.nombre,
-      examenCodigo: exams.codigo,
-      tipoPrevision: examPrices.tipoPrevision,
-      comuna: examPrices.comuna,
-      precio: examPrices.precio,
-      activo: examPrices.activo,
+      id: exams.id,
+      idExamen: exams.id,
+      nombre: exams.nombre,
+      codigo: exams.codigo,
+      grupoExamen: exams.grupoExamen,
+      precio: exams.precio,
+      activo: exams.activo,
     })
-    .from(examPrices)
-    .leftJoin(exams, eq(examPrices.idExamen, exams.id))
+    .from(exams)
     .where(where)
     .orderBy(order)
     .limit(pageSize)
@@ -101,10 +94,9 @@ export async function searchPreciosExamenes(
     rows: rows.map((r) => ({
       id: r.id,
       idExamen: r.idExamen,
-      examenNombre: r.examenNombre ?? '',
-      examenCodigo: r.examenCodigo ?? '',
-      tipoPrevision: r.tipoPrevision,
-      comuna: r.comuna,
+      examenNombre: r.nombre,
+      examenCodigo: r.codigo,
+      grupoExamen: r.grupoExamen,
       precio: r.precio,
       activo: r.activo,
     })),
@@ -116,45 +108,17 @@ export async function createPrecioExamen(fd: FormData): Promise<Result> {
   await requireSession()
 
   const idExamen = Number(fd.get('idExamen'))
-  const tipoPrevision = (fd.get('tipoPrevision') as string)?.trim()
-  const comuna = (fd.get('comuna') as string)?.trim() || null
   const precio = Number(fd.get('precio'))
 
-  if (!idExamen || !tipoPrevision || !precio)
-    return { success: false, error: 'Examen, previsión y precio son requeridos' }
-
-  // Validar que no exista combinación duplicada
-  const existingConditions = [
-    eq(examPrices.idExamen, idExamen),
-    eq(examPrices.tipoPrevision, tipoPrevision),
-  ]
-
-  if (comuna) {
-    existingConditions.push(eq(examPrices.comuna, comuna))
-  } else {
-    existingConditions.push(isNull(examPrices.comuna))
-  }
-
-  const [existing] = await db
-    .select({ id: examPrices.id })
-    .from(examPrices)
-    .where(and(...existingConditions))
-    .limit(1)
-
-  if (existing) {
-    const comunaLabel = comuna ? `comuna "${comuna}"` : 'precio base (sin comuna)'
-    return {
-      success: false,
-      error: `Ya existe un precio para este examen, previsión y ${comunaLabel}`,
-    }
-  }
+  if (!idExamen || !precio)
+    return { success: false, error: 'Examen y precio son requeridos' }
 
   try {
-    await db.insert(examPrices).values({ idExamen, tipoPrevision, comuna, precio })
-    revalidatePath('/precios/examenes')
+    await db.update(exams).set({ precio }).where(eq(exams.id, idExamen))
+    revalidatePath('/examenes')
     return { success: true }
   } catch {
-    return { success: false, error: 'Error al crear precio' }
+    return { success: false, error: 'Error al actualizar precio' }
   }
 }
 
@@ -162,54 +126,16 @@ export async function updatePrecioExamen(fd: FormData): Promise<Result> {
   await requireSession()
 
   const id = Number(fd.get('id'))
-  const tipoPrevision = (fd.get('tipoPrevision') as string)?.trim()
-  const comuna = (fd.get('comuna') as string)?.trim() || null
   const precio = Number(fd.get('precio'))
 
-  if (!id || !tipoPrevision || !precio) return { success: false, error: 'Datos inválidos' }
-
-  // Obtener el registro actual para conocer idExamen
-  const [currentRecord] = await db
-    .select({ idExamen: examPrices.idExamen })
-    .from(examPrices)
-    .where(eq(examPrices.id, id))
-    .limit(1)
-
-  if (!currentRecord) return { success: false, error: 'Precio no encontrado' }
-
-  // Validar que no exista otra combinación duplicada (diferente al registro actual)
-  const duplicateConditions = [
-    eq(examPrices.idExamen, currentRecord.idExamen),
-    eq(examPrices.tipoPrevision, tipoPrevision),
-    ne(examPrices.id, id), // Excluir el registro actual
-  ]
-
-  if (comuna) {
-    duplicateConditions.push(eq(examPrices.comuna, comuna))
-  } else {
-    duplicateConditions.push(isNull(examPrices.comuna))
-  }
-
-  const [duplicate] = await db
-    .select({ id: examPrices.id })
-    .from(examPrices)
-    .where(and(...duplicateConditions))
-    .limit(1)
-
-  if (duplicate) {
-    const comunaLabel = comuna ? `comuna "${comuna}"` : 'precio base (sin comuna)'
-    return {
-      success: false,
-      error: `Ya existe otro precio para este examen, previsión y ${comunaLabel}`,
-    }
-  }
+  if (!id || !precio) return { success: false, error: 'Datos inválidos' }
 
   try {
     await db
-      .update(examPrices)
-      .set({ tipoPrevision, comuna, precio, updatedAt: new Date() })
-      .where(eq(examPrices.id, id))
-    revalidatePath('/precios/examenes')
+      .update(exams)
+      .set({ precio, updatedAt: new Date() })
+      .where(eq(exams.id, id))
+    revalidatePath('/examenes')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al actualizar precio' }
@@ -220,8 +146,8 @@ export async function togglePrecioExamen(id: number, activo: boolean): Promise<R
   await requireSession()
 
   try {
-    await db.update(examPrices).set({ activo: !activo }).where(eq(examPrices.id, id))
-    revalidatePath('/precios/examenes')
+    await db.update(exams).set({ activo: !activo }).where(eq(exams.id, id))
+    revalidatePath('/examenes')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al cambiar estado' }

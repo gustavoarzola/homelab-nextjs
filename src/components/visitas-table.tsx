@@ -1,6 +1,5 @@
 'use client'
 
-import { DollarSign, Mail } from 'lucide-react'
 import { DataTable, type ColumnDef, type FilterDef, type SearchParams, type Result } from './data-table'
 import { formatDateTime } from '@/lib/format'
 import type { VisitaRow } from '@/lib/actions/visitas'
@@ -67,27 +66,33 @@ const columns: ColumnDef<VisitaRow>[] = [
   },
   {
     id: 'pagado',
-    header: '',
+    header: 'Pago',
     enableSorting: false,
     cell: ({ row }) => row.original.estado === 'realizada' ? (
-      <span title={row.original.pagado ? 'Pagado' : 'Pago pendiente'}>
-        <DollarSign
-          className="h-4 w-4"
-          style={{ color: row.original.pagado ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.55 0.18 25)' }}
-        />
+      <span
+        className="rounded-full px-2 py-0.5 text-xs font-medium"
+        style={{
+          backgroundColor: row.original.pagado ? 'oklch(0.6 0.118 184.704 / 12%)' : 'oklch(0.65 0.15 30 / 15%)',
+          color: row.original.pagado ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.45 0.15 30)',
+        }}
+      >
+        {row.original.pagado ? 'Pagado' : 'Pendiente'}
       </span>
     ) : null,
   },
   {
     id: 'resultados',
-    header: '',
+    header: 'Resultados',
     enableSorting: false,
     cell: ({ row }) => row.original.estado === 'realizada' ? (
-      <span title={row.original.resultadosEnviados ? 'Resultados enviados' : 'Resultados pendientes'}>
-        <Mail
-          className="h-4 w-4"
-          style={{ color: row.original.resultadosEnviados ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.65 0.15 60)' }}
-        />
+      <span
+        className="rounded-full px-2 py-0.5 text-xs font-medium"
+        style={{
+          backgroundColor: row.original.resultadosEnviados ? 'oklch(0.6 0.118 184.704 / 12%)' : 'oklch(0.7 0.15 60 / 15%)',
+          color: row.original.resultadosEnviados ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.40 0.15 60)',
+        }}
+      >
+        {row.original.resultadosEnviados ? 'Enviados' : 'Pendientes'}
       </span>
     ) : null,
   },

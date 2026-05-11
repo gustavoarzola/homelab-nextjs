@@ -57,7 +57,7 @@ export async function calcularCostoVisitaPersistida(
     .from(visitExams)
     .where(eq(visitExams.idVisita, idVisita))
   const [visitaPaciente] = await conn
-    .select({ comuna: addresses.areaAdministrativa3 })
+    .select({ comuna: addresses.areaAdministrativa3, cobraVisita: visits.cobraVisita })
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
@@ -72,7 +72,7 @@ export async function calcularCostoVisitaPersistida(
     (sum: number, row: { precio: number }) => sum + row.precio,
     0,
   )
-  const aplicaVisitaEnfermeria = procedimientos.length === 0 && examenes.length > 0
+  const aplicaVisitaEnfermeria = visitaPaciente?.cobraVisita ?? false
   const precioVisita = aplicaVisitaEnfermeria
     ? await getPrecioVisitaEnfermeria(conn, visitaPaciente?.comuna ?? null)
     : null

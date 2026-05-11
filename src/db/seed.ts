@@ -6,7 +6,7 @@ import {
   laboratories,
   procedures, exams,
   contactOrigins,
-  examPrices, nursingVisitPrices,
+  nursingVisitPrices,
 } from './schema'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
@@ -483,6 +483,35 @@ const examenesData = [
   { nombre: 'Panel metabólico completo', codigo: 'LAB-100' },
 ]
 
+// Función para calcular precio de examen basado en el índice
+function seedExamenPrice(i: number): number {
+  const normalizedIndex = i % 100
+
+  if (normalizedIndex < 35) {
+    // Exámenes básicos: hemograma, glucosa, etc.
+    return 8000 + ((i % 20) * 500) // 8000-18000
+  } else if (normalizedIndex < 70) {
+    // Exámenes medianos: bioquímica, perfil lipídico, etc.
+    return 22000 + ((i % 25) * 800) // 22000-42000
+  } else {
+    // Exámenes caros: serología, marcadores tumorales, etc.
+    return 55000 + ((i % 30) * 1000) // 55000-85000
+  }
+}
+
+// Mapear exámenes para agregar grupoExamen y precio
+const examenesDataWithPrices = examenesData.map((exam, i) => {
+  const grupos = ['imalab', 'imalab_fonasa_3', 'integramedica'] as const
+  const grupoExamen = grupos[i % grupos.length]
+  const precio = seedExamenPrice(i)
+
+  return {
+    ...exam,
+    grupoExamen,
+    precio,
+  }
+})
+
 // ─── Orígenes de contacto ─────────────────────────────────────────────────────
 
 const origenesContactoData = [
@@ -501,95 +530,6 @@ const origenesContactoData = [
   { nombre: 'U Andes' },
 ]
 
-// ─── Precios de exámenes por previsión y comuna ────────────────────────────────
-
-function buildExamPrices(examIds: number[]): Array<{
-  idExamen: number
-  tipoPrevision: string
-  comuna: string | null
-  precio: number
-}> {
-  const precios: Array<{
-    idExamen: number
-    tipoPrevision: string
-    comuna: string | null
-    precio: number
-  }> = []
-
-  // Comunas de Santiago
-  const comunasStgo = [
-    'Providencia', 'Las Condes', 'Ñuñoa', 'Santiago', 'La Florida', 'Maipú',
-    'Vitacura', 'Lo Barnechea', 'La Reina', 'Peñalolén', 'Macul', 'San Miguel',
-    'Independencia', 'Recoleta', 'La Cisterna', 'La Granja', 'Pudahuel',
-    'Quilicura', 'Huechuraba', 'Conchalí', 'Cerrillos', 'Estación Central',
-    'Puente Alto', 'San Bernardo', 'Colina', 'Lampa',
-  ]
-
-  // Función para calcular precio según índice y previsión
-  const getPriceByExam = (index: number, prevision: string): number => {
-    // Categorizar basado en el índice del examen
-    let basePrice = 0
-    const normalizedIndex = index % 100
-
-    if (normalizedIndex < 35) {
-      // Exámenes básicos: hemograma, glucosa, etc.
-      basePrice = prevision === 'fonasa' ? 5000 : prevision === 'isapre' ? 8000 : 10000
-    } else if (normalizedIndex < 70) {
-      // Exámenes medianos: bioquímica, perfil lipídico, etc.
-      basePrice = prevision === 'fonasa' ? 15000 : prevision === 'isapre' ? 22000 : 28000
-    } else {
-      // Exámenes caros: serología, marcadores tumorales, etc.
-      basePrice = prevision === 'fonasa' ? 40000 : prevision === 'isapre' ? 55000 : 70000
-    }
-    return basePrice
-  }
-
-  // Para cada examen, crear precios para cada previsión
-  for (let i = 0; i < examIds.length; i++) {
-    const examId = examIds[i]!
-
-    // Precios nacionales (sin comuna específica)
-    for (const prevision of ['fonasa', 'isapre', 'particular']) {
-      const basePrice = getPriceByExam(i, prevision)
-      // Agregar variación de ±10%
-      const variation = Math.floor(basePrice * 0.1 * ((i + (prevision.charCodeAt(0) || 0)) % 20 / 10 - 1))
-      precios.push({
-        idExamen: examId,
-        tipoPrevision: prevision,
-        comuna: null,
-        precio: basePrice + variation,
-      })
-    }
-
-    // Precios específicos por comuna (solo para 30% de los exámenes)
-    if (i % 3 === 0) {
-      const startIdx = (i * 3) % comunasStgo.length
-      const comunasParaExamen = [
-        comunasStgo[startIdx]!,
-        comunasStgo[(startIdx + 1) % comunasStgo.length]!,
-        comunasStgo[(startIdx + 2) % comunasStgo.length]!,
-      ]
-
-      for (const comuna of comunasParaExamen) {
-        for (const prevision of ['fonasa', 'isapre', 'particular']) {
-          const basePrice = getPriceByExam(i, prevision)
-          // Communes más caras: Providencia, Las Condes, Vitacura, Lo Barnechea (surcharge 15%)
-          const isCommuneExpensive = ['Providencia', 'Las Condes', 'Vitacura', 'Lo Barnechea'].includes(comuna)
-          const surcharge = isCommuneExpensive ? Math.floor(basePrice * 0.15) : 0
-          const variation = Math.floor(basePrice * 0.08 * ((i + (comuna.charCodeAt(0) || 0)) % 16 / 8 - 1))
-          precios.push({
-            idExamen: examId,
-            tipoPrevision: prevision,
-            comuna,
-            precio: basePrice + variation + surcharge,
-          })
-        }
-      }
-    }
-  }
-
-  return precios
-}
 
 // ─── Precios de visita de enfermería por comuna ────────────────────────────────
 
@@ -785,7 +725,6 @@ async function seed() {
   await db.delete(visitExams)
   await db.delete(visitProcedures)
   await db.delete(visits)
-  await db.delete(examPrices)
   await db.delete(nursingVisitPrices)
   await db.delete(patientPhones)
   await db.delete(patients)
@@ -830,7 +769,7 @@ async function seed() {
 
   // Exámenes
   console.log(`   Insertando ${examenesData.length} exámenes...`)
-  const insertedExams = await db.insert(exams).values(examenesData).returning()
+  const insertedExams = await db.insert(exams).values(examenesDataWithPrices).returning()
   const examIds = insertedExams.map(e => e.id)
 
   // Orígenes de contacto
@@ -883,6 +822,7 @@ async function seed() {
       idLaboratorio: number
       numeroBoleta: string
       tipoDocumento: string
+      numeroAtencion: number | null
       origenContacto: string
       informacionAdicional: string
     }> = []
@@ -927,6 +867,7 @@ async function seed() {
     // Sort by date and create visit rows
     visitDates.sort((a, b) => a.date.getTime() - b.date.getTime())
 
+    let realizadaCounter = 0
     for (let idx = 0; idx < visitDates.length; idx++) {
       const { date, state, assignNurse } = visitDates[idx]!
       const fecha = date.toISOString().split('T')[0]!
@@ -937,6 +878,16 @@ async function seed() {
       const minute = Math.floor(Math.random() * 60).toString().padStart(2, '0')
       const second = '00'
 
+      let numeroBoleta = ''
+      let tipoDocumento = ''
+      let numeroAtencion: number | null = null
+      if (state === 'realizada') {
+        realizadaCounter++
+        numeroAtencion = realizadaCounter
+        tipoDocumento = realizadaCounter % 3 === 0 ? 'factura' : 'boleta'
+        numeroBoleta = String(realizadaCounter).padStart(7, '0')
+      }
+
       visitRows.push({
         fecha,
         hora: `${hour}:${minute}:${second}`,
@@ -945,8 +896,9 @@ async function seed() {
         idPaciente: patientId,
         idEnfermera: nurseId,
         idLaboratorio: labId,
-        numeroBoleta: '',
-        tipoDocumento: '',
+        numeroBoleta,
+        tipoDocumento,
+        numeroAtencion,
         origenContacto: 'Sistema',
         informacionAdicional: '',
       })
@@ -1011,14 +963,6 @@ async function seed() {
   }
   */
 
-  // Precios de exámenes por previsión y comuna
-  console.log(`   Generando precios de exámenes...`)
-  const examPricesData = buildExamPrices(examIds)
-  const EXAM_PRICES_BATCH = 100
-  for (let offset = 0; offset < examPricesData.length; offset += EXAM_PRICES_BATCH) {
-    await db.insert(examPrices).values(examPricesData.slice(offset, offset + EXAM_PRICES_BATCH))
-  }
-
   // Precios de visita de enfermería por comuna
   console.log(`   Generando precios de visitas de enfermería...`)
   const visitPricesData = buildNursingVisitPrices()
@@ -1035,7 +979,6 @@ async function seed() {
   console.log(`   ${previsionesData.length} previsiones de salud`)
   console.log(`   ${cadenasData.length} laboratorios`)
   console.log(`   ${procedimientosData.length} procedimientos · ${examenesData.length} exámenes`)
-  console.log(`   ${examPricesData.length} precios de exámenes (por previsión y comuna)`)
   console.log(`   ${visitPricesData.length} precios de visitas de enfermería (por comuna)`)
   console.log(`   ${residenciasData.length} residencias adulto mayor`)
   console.log(`   ${origenesContactoData.length} orígenes de contacto`)
