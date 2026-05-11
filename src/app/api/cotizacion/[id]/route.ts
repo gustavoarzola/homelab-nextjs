@@ -167,6 +167,9 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
   if (data.costoVisitaEnfermeria > 0) {
     itemsHTML += subtotalRow('Visita de enfermería', data.costoVisitaEnfermeria)
   }
+  if (data.montoRecargo > 0) {
+    itemsHTML += subtotalRow('Recargo excepcional', data.montoRecargo)
+  }
 
   const totalCell =
     data.total > 0

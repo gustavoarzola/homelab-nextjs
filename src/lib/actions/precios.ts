@@ -300,6 +300,7 @@ export type CotizacionVisita = {
   items: ItemCotizacion[]
   subtotalExamenes: number
   costoVisitaEnfermeria: number
+  montoRecargo: number
   total: number
   tipoPrevision: 'fonasa' | 'isapre' | 'particular'
 }
@@ -316,6 +317,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       idPaciente: visits.idPaciente,
       idEnfermera: visits.idEnfermera,
       idLaboratorio: visits.idLaboratorio,
+      montoRecargo: visits.montoRecargo,
     })
     .from(visits)
     .where(eq(visits.id, idVisita))
@@ -401,6 +403,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
   }
 
   const laboratorioLabel = laboratorioRow?.nombre ?? null
+  const montoRecargo = visitRow.montoRecargo ?? 0
 
   return {
     id: visitRow.id,
@@ -432,6 +435,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     items,
     subtotalExamenes: costoCalculado.subtotalExamenes,
     costoVisitaEnfermeria: costoCalculado.costoVisitaEnfermeria,
+    montoRecargo,
     total: costoCalculado.total,
     tipoPrevision,
   }
