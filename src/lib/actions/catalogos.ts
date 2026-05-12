@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { procedures, exams, healthInsurances, elderlyResidences } from '@/db/schema'
+import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes } from '@/db/schema'
 import { eq, count, and, or, ilike, asc, desc, not, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/components/data-table'
@@ -15,6 +15,7 @@ export type ProcedimientoRow = { id: number; nombre: string; codigo: string; cat
 export type ExamenRow       = { id: number; nombre: string; codigo: string; grupoExamen: string; precio: number; activo: boolean }
 export type PrevisionRow    = { id: number; nombre: string; categoria: string | null; activo: boolean }
 export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
+export type TipoRecargoRow  = { id: number; nombre: string; activo: boolean }
 
 export async function getPrevisionCategorias(): Promise<string[]> {
   await requireSession()
@@ -328,4 +329,85 @@ export async function toggleResidencia(id: number, activo: boolean): Promise<Res
   } catch {
     return { success: false, error: 'Error al cambiar estado' }
   }
+}
+
+// ─── Tipos de Recargos ────────────────────────────────────────────────────────
+
+export async function searchTiposRecargos(params: SearchParams): Promise<{ rows: TipoRecargoRow[]; total: number }> {
+  await requireSession()
+
+  const { filters, sort, page, pageSize } = params
+  const buscar = (filters.buscar as string | undefined)?.trim()
+  const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
+
+  const conditions: SQL[] = []
+  if (buscar) conditions.push(ilike(surchargeTypes.nombre, `%${buscar}%`))
+  if (!mostrarInactivos) conditions.push(eq(surchargeTypes.activo, true))
+  const where = conditions.length ? and(...conditions) : undefined
+
+  const [countRow] = await db.select({ total: count() }).from(surchargeTypes).where(where)
+  const order = sort?.dir === 'desc' ? desc(surchargeTypes.nombre) : asc(surchargeTypes.nombre)
+
+  const rows = await db.select().from(surchargeTypes).where(where).orderBy(order).limit(pageSize).offset((page - 1) * pageSize)
+  return { rows, total: Number(countRow?.total ?? 0) }
+}
+
+export async function createTipoRecargo(formData: FormData): Promise<Result> {
+  await requireSession()
+
+  const nombre = (formData.get('nombre') as string)?.trim()
+  if (!nombre) return { success: false, error: 'Nombre requerido' }
+  try {
+    const existing = await db.select().from(surchargeTypes).where(ilike(surchargeTypes.nombre, nombre))
+    if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
+    await db.insert(surchargeTypes).values({ nombre })
+    revalidatePath('/tipos-recargos')
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Error al crear' }
+  }
+}
+
+export async function updateTipoRecargo(formData: FormData): Promise<Result> {
+  await requireSession()
+
+  const id = Number(formData.get('id'))
+  const nombre = (formData.get('nombre') as string)?.trim()
+  if (!id || !nombre) return { success: false, error: 'Datos inválidos' }
+  try {
+    const duplicated = await db
+      .select()
+      .from(surchargeTypes)
+      .where(and(ilike(surchargeTypes.nombre, nombre), not(eq(surchargeTypes.id, id))))
+    if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
+    await db.update(surchargeTypes).set({ nombre, updatedAt: new Date() }).where(eq(surchargeTypes.id, id))
+    revalidatePath('/tipos-recargos')
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Error al actualizar' }
+  }
+}
+
+export async function toggleTipoRecargo(id: number, activo: boolean): Promise<Result> {
+  await requireSession()
+
+  try {
+    await db.update(surchargeTypes).set({ activo: !activo }).where(eq(surchargeTypes.id, id))
+    revalidatePath('/tipos-recargos')
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Error al cambiar estado' }
+  }
+}
+
+export async function getTiposRecargosForSelect(): Promise<{ id: number; label: string }[]> {
+  await requireSession()
+
+  const rows = await db
+    .select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre })
+    .from(surchargeTypes)
+    .where(eq(surchargeTypes.activo, true))
+    .orderBy(asc(surchargeTypes.nombre))
+
+  return rows.map((r) => ({ id: r.id, label: r.nombre }))
 }

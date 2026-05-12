@@ -230,6 +230,20 @@ export const contactOrigins = pgTable(
 )
 
 // ============================================================================
+// 13b. TipoRecargo - Catálogo de tipos de recargos excepcionales
+// ============================================================================
+export const surchargeTypes = pgTable(
+  'tipos_recargos',
+  {
+    id: serial('id').primaryKey(),
+    nombre: varchar('nombre', { length: 200 }).notNull(),
+    activo: boolean('activo').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  }
+)
+
+// ============================================================================
 // 14. Visita - Entidad central: visita programada a domicilio
 // ============================================================================
 export const visits = pgTable(
@@ -256,7 +270,7 @@ export const visits = pgTable(
     costoTraslado: integer('costo_traslado').notNull().default(0),
     cobraVisita: boolean('cobra_visita').notNull().default(false),
     montoRecargo: integer('monto_recargo').default(0),
-    razonRecargo: text('razon_recargo'),
+    idTipoRecargo: integer('id_tipo_recargo'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -266,6 +280,8 @@ export const visits = pgTable(
     foreignKey({ columns: [table.idEnfermera], foreignColumns: [nurses.id] })
       .onDelete('restrict'),
     foreignKey({ columns: [table.idLaboratorio], foreignColumns: [laboratories.id] })
+      .onDelete('restrict'),
+    foreignKey({ columns: [table.idTipoRecargo], foreignColumns: [surchargeTypes.id] })
       .onDelete('restrict'),
     index('visitas_fecha_idx').on(table.fecha),
     index('visitas_estado_idx').on(table.estado),

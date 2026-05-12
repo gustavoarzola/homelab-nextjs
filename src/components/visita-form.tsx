@@ -47,6 +47,7 @@ type Props = {
   procedimientos: ProcedimientoRow[]
   examenes: ExamenRow[]
   origenesContacto: { id: number; nombre: string }[]
+  tiposRecargos: { id: number; label: string }[]
   pricingContext: VisitaFormPricingContext
   onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
 }
@@ -379,7 +380,7 @@ export function VisitaForm({
 
   // Recargos
   const [montoRecargo, setMontoRecargo] = useState<string>(visita?.montoRecargo ? String(visita.montoRecargo) : '0')
-  const [razonRecargo, setRazonRecargo] = useState<string>(visita?.razonRecargo ?? '')
+  const [selectedIdTipoRecargo, setSelectedIdTipoRecargo] = useState<number | null>(visita?.idTipoRecargo ?? null)
 
   const estadoActual = selectedEstadoId === 0 ? 'creada'
     : selectedEstadoId === 1 ? 'confirmada'
@@ -404,7 +405,7 @@ export function VisitaForm({
     fd.set('pagado', String(pagado))
     fd.set('resultadosEnviados', String(resultadosEnviados))
     fd.set('montoRecargo', montoRecargo)
-    fd.set('razonRecargo', razonRecargo)
+    fd.set('idTipoRecargo', selectedIdTipoRecargo ? String(selectedIdTipoRecargo) : '')
 
     startTransition(async () => {
       const result = await onSubmit(fd)
@@ -604,7 +605,7 @@ export function VisitaForm({
               )}
 
               <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Monto recargo (excepcional)</label>
+                <label className={labelClass} style={labelStyle}>Monto recargo</label>
                 <input
                   type="number"
                   min="0"
@@ -618,16 +619,16 @@ export function VisitaForm({
               </div>
 
               {parseInt(montoRecargo) > 0 && (
-                <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
-                  <label className={labelClass} style={labelStyle}>Razón del recargo</label>
-                  <textarea
-                    value={razonRecargo}
-                    onChange={(e) => setRazonRecargo(e.target.value)}
+                <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-2">
+                  <label className={labelClass} style={labelStyle}>Tipo de recargo</label>
+                  <input type="hidden" name="idTipoRecargo" value={selectedIdTipoRecargo ?? ''} />
+                  <SelectCombobox
+                    mode="single"
+                    options={tiposRecargos}
+                    selected={selectedIdTipoRecargo}
+                    onChange={setSelectedIdTipoRecargo}
+                    placeholder="Seleccionar tipo de recargo..."
                     disabled={isPending}
-                    className={inputClass}
-                    style={inputStyle}
-                    rows={2}
-                    placeholder="Explicar razón del recargo excepcional..."
                   />
                 </div>
               )}
