@@ -13,6 +13,7 @@ import {
   visitProcedures,
   visitExams,
   procedures,
+  surchargeTypes,
 } from '@/db/schema'
 import { eq, and, or, isNull, ne, asc, desc, count, ilike, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
@@ -301,7 +302,7 @@ export type CotizacionVisita = {
   subtotalExamenes: number
   costoVisitaEnfermeria: number
   montoRecargo: number
-  razonRecargo: string | null
+  tipoRecargoNombre: string | null
   total: number
   tipoPrevision: 'fonasa' | 'isapre' | 'particular'
 }
@@ -319,9 +320,10 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       idEnfermera: visits.idEnfermera,
       idLaboratorio: visits.idLaboratorio,
       montoRecargo: visits.montoRecargo,
-      razonRecargo: visits.razonRecargo,
+      tipoRecargoNombre: surchargeTypes.nombre,
     })
     .from(visits)
+    .leftJoin(surchargeTypes, eq(visits.idTipoRecargo, surchargeTypes.id))
     .where(eq(visits.id, idVisita))
 
   if (!visitRow) return null
@@ -406,7 +408,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
 
   const laboratorioLabel = laboratorioRow?.nombre ?? null
   const montoRecargo = visitRow.montoRecargo ?? 0
-  const razonRecargo = visitRow.razonRecargo ?? null
+  const tipoRecargoNombre = visitRow.tipoRecargoNombre ?? null
 
   return {
     id: visitRow.id,
@@ -439,7 +441,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     subtotalExamenes: costoCalculado.subtotalExamenes,
     costoVisitaEnfermeria: costoCalculado.costoVisitaEnfermeria,
     montoRecargo,
-    razonRecargo,
+    tipoRecargoNombre,
     total: costoCalculado.total,
     tipoPrevision,
   }
