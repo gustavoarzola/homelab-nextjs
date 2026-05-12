@@ -6,6 +6,7 @@ import {
   laboratories,
   procedures, exams,
   contactOrigins,
+  surchargeTypes,
   nursingVisitPrices,
 } from './schema'
 import { eq } from 'drizzle-orm'
@@ -514,6 +515,17 @@ const examenesDataWithPrices = examenesData.map((exam, i) => {
 
 // ─── Orígenes de contacto ─────────────────────────────────────────────────────
 
+const tiposRecargosData = [
+  { nombre: 'Atención fuera de horario' },
+  { nombre: 'Urgencia médica' },
+  { nombre: 'Viaje especial/distancia' },
+  { nombre: 'Procedimiento adicional no previsto' },
+  { nombre: 'Materiales especiales' },
+  { nombre: 'Acompañamiento extendido' },
+  { nombre: 'Atención nocturna' },
+  { nombre: 'Caso especial/complejidad' },
+]
+
 const origenesContactoData = [
   { nombre: 'Bionet' },
   { nombre: 'Facebook' },
@@ -736,6 +748,7 @@ async function seed() {
   await db.delete(procedures)
   await db.delete(exams)
   await db.delete(contactOrigins)
+  await db.delete(surchargeTypes)
   await db.delete(users)
 
   // Usuarios del sistema
@@ -775,6 +788,10 @@ async function seed() {
   // Orígenes de contacto
   console.log(`   Insertando ${origenesContactoData.length} orígenes de contacto...`)
   await db.insert(contactOrigins).values(origenesContactoData)
+
+  // Tipos de recargos
+  console.log(`   Insertando ${tiposRecargosData.length} tipos de recargos...`)
+  await db.insert(surchargeTypes).values(tiposRecargosData)
 
   // Enfermeras
   await db.insert(nurses).values(nurseData.map((n, i) => ({ ...n, rut: n.rut?.replace(/[.\-]/g, '') ?? null, comunaResidencia: pick(COMUNAS_RM, i) })))
@@ -982,6 +999,7 @@ async function seed() {
   console.log(`   ${visitPricesData.length} precios de visitas de enfermería (por comuna)`)
   console.log(`   ${residenciasData.length} residencias adulto mayor`)
   console.log(`   ${origenesContactoData.length} orígenes de contacto`)
+  console.log(`   ${tiposRecargosData.length} tipos de recargos`)
   process.exit(0)
 }
 
