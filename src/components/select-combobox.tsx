@@ -142,11 +142,11 @@ export function SelectCombobox(props: Props) {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={openDropdown}
           onClick={openDropdown}
-          placeholder={isSingleMode && selectedOptions.length > 0 ? '' : props.placeholder}
+          placeholder=''
           disabled={props.disabled}
           className="flex-1 bg-transparent pr-6 outline-none"
         />
-        {displayValue && (
+        {displayValue ? (
           <span
             className="absolute left-3 right-8 pointer-events-none text-sm truncate"
             style={{ color: 'var(--foreground)' }}
@@ -154,7 +154,14 @@ export function SelectCombobox(props: Props) {
           >
             {displayValue}
           </span>
-        )}
+        ) : !open && !query && props.placeholder && selectedOptions.length === 0 ? (
+          <span
+            className="absolute left-3 right-8 pointer-events-none text-sm truncate"
+            style={{ color: 'var(--muted-foreground)' }}
+          >
+            {props.placeholder}
+          </span>
+        ) : null}
         <button
           type="button"
           onClick={(e) => {

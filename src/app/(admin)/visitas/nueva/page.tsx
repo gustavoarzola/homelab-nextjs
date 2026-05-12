@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
 import { searchLaboratorios } from '@/lib/actions/laboratorios'
-import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias } from '@/lib/actions/catalogos'
+import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect } from '@/lib/actions/catalogos'
 import { searchOrigenesContacto, createVisita, getVisitaFormPricingContext } from '@/lib/actions/visitas'
 import { VisitaForm } from '@/components/visita-form'
 
@@ -26,6 +26,7 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
     origenesContacto,
     { rows: previsiones },
     { rows: residencias },
+    tiposRecargos,
   ] = await Promise.all([
     getPaciente(id),
     searchEnfermeras({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
@@ -35,6 +36,7 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
     searchOrigenesContacto(),
     searchPrevisiones({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
     searchResidencias({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
+    getTiposRecargosForSelect(),
   ])
 
   if (!detalle) notFound()
@@ -67,6 +69,7 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
       examenes={examenes}
       origenesContacto={origenesContacto}
       pricingContext={pricingContext}
+      tiposRecargos={tiposRecargos}
       onSubmit={createVisita}
     />
   )

@@ -3,7 +3,7 @@ import { getVisita, updateVisita, searchOrigenesContacto, getVisitaFormPricingCo
 import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
 import { searchLaboratorios } from '@/lib/actions/laboratorios'
-import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias } from '@/lib/actions/catalogos'
+import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect } from '@/lib/actions/catalogos'
 import { VisitaForm } from '@/components/visita-form'
 
 export default async function EditarVisitaPage({
@@ -24,6 +24,7 @@ export default async function EditarVisitaPage({
     origenesContacto,
     { rows: previsiones },
     { rows: residencias },
+    tiposRecargos,
   ] = await Promise.all([
     getPaciente(visita.idPaciente),
     searchEnfermeras({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
@@ -33,6 +34,7 @@ export default async function EditarVisitaPage({
     searchOrigenesContacto(),
     searchPrevisiones({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
     searchResidencias({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
+    getTiposRecargosForSelect(),
   ])
 
   if (!detalle) notFound()
@@ -66,6 +68,7 @@ export default async function EditarVisitaPage({
       examenes={examenes}
       origenesContacto={origenesContacto}
       pricingContext={pricingContext}
+      tiposRecargos={tiposRecargos}
       onSubmit={updateVisita}
     />
   )

@@ -16,6 +16,8 @@ describe('calcularCostoVisitaPreview', () => {
       selectedExamIds: [10],
       catalogProcedurePrices: [{ id: 1, precio: 15000 }],
       pricingContext,
+      cobraVisita: true,
+      montoRecargo: 0,
     })
 
     expect(costo.total).toBe(23000)
@@ -28,6 +30,8 @@ describe('calcularCostoVisitaPreview', () => {
       selectedExamIds: [10, 11],
       catalogProcedurePrices: [],
       pricingContext,
+      cobraVisita: true,
+      montoRecargo: 0,
     })
 
     expect(costo.total).toBe(50000)
@@ -40,6 +44,8 @@ describe('calcularCostoVisitaPreview', () => {
       selectedExamIds: [10],
       catalogProcedurePrices: [],
       pricingContext: { examPrices: [{ idExamen: 10, precioActual: 8000 }], nursingVisitPrice: null },
+      cobraVisita: true,
+      montoRecargo: 0,
     })
 
     expect(costo.total).toBe(8000)
@@ -54,6 +60,8 @@ describe('calcularCostoVisitaPreview', () => {
       savedProcedurePrices: [{ idProcedimiento: 1, precio: 10000 }],
       savedExamPrices: [{ idExamen: 10, precio: 5000 }],
       pricingContext,
+      cobraVisita: true,
+      montoRecargo: 0,
     })
 
     expect(costo.total).toBe(15000)
@@ -65,8 +73,24 @@ describe('calcularCostoVisitaPreview', () => {
       selectedExamIds: [],
       catalogProcedurePrices: [],
       pricingContext,
+      cobraVisita: true,
+      montoRecargo: 0,
     })
 
     expect(costo.total).toBe(0)
+  })
+
+  it('aplica recargo al total', () => {
+    const costo = calcularCostoVisitaPreview({
+      selectedProcedureIds: [1],
+      selectedExamIds: [10],
+      catalogProcedurePrices: [{ id: 1, precio: 15000 }],
+      pricingContext,
+      cobraVisita: true,
+      montoRecargo: 5000,
+    })
+
+    expect(costo.total).toBe(28000)
+    expect(costo.montoRecargo).toBe(5000)
   })
 })
