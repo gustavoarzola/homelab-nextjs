@@ -346,6 +346,12 @@ export async function updateVisita(
   const montoRecargo = Number(fd.get('montoRecargo')) || 0
   const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
 
+  // Validate that if there's a surcharge amount, a surcharge type must be selected
+  if (montoRecargo > 0 && !idTipoRecargo) {
+    return { success: false, error: 'Tipo de recargo es requerido cuando hay monto de recargo' }
+  }
+
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -464,6 +470,12 @@ export async function createVisita(
   const cobraVisita = fd.get('cobraVisita') === 'true'
   const montoRecargo = Number(fd.get('montoRecargo')) || 0
   const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
+
+  // Validate that if there's a surcharge amount, a surcharge type must be selected
+  if (montoRecargo > 0 && !idTipoRecargo) {
+    return { success: false, error: 'Tipo de recargo es requerido cuando hay monto de recargo' }
+  }
+
 
   try {
     const visitId = await db.transaction(async (tx) => {

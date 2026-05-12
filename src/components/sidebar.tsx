@@ -13,6 +13,7 @@ import {
   Microscope,
   Shield,
   Building2,
+  AlertCircle,
   Settings,
   LogOut,
   ChevronLeft,
@@ -35,6 +36,7 @@ const navItems = [
   { href: '/examenes', label: 'Exámenes', icon: Microscope },
   { href: '/previsiones', label: 'Previsiones', icon: Shield },
   { href: '/residencias', label: 'Residencias', icon: Building2 },
+  { href: '/tipos-recargos', label: 'Tipos de Recargos', icon: AlertCircle },
   { href: '/precios/visitas', label: 'Precios visitas', icon: Tag },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]

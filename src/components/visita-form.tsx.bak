@@ -337,7 +337,6 @@ export function VisitaForm({
   examenes,
   origenesContacto,
   pricingContext,
-  tiposRecargos,
   onSubmit,
 }: Props) {
   const router = useRouter()
@@ -380,7 +379,7 @@ export function VisitaForm({
   const [fechaEnvioResultados, setFechaEnvioResultados] = useState<string | null>(visita?.fechaEnvioResultados ?? null)
 
   // Recargos
-  const [montoRecargo, setMontoRecargo] = useState<string>(visita?.montoRecargo ? String(visita.montoRecargo) : '')
+  const [montoRecargo, setMontoRecargo] = useState<string>(visita?.montoRecargo ? String(visita.montoRecargo) : '0')
   const [selectedIdTipoRecargo, setSelectedIdTipoRecargo] = useState<number | null>(visita?.idTipoRecargo ?? null)
 
   const estadoActual = selectedEstadoId === 0 ? 'creada'
@@ -405,7 +404,7 @@ export function VisitaForm({
     fd.set('cobraVisita', String(cobraVisita))
     fd.set('pagado', String(pagado))
     fd.set('resultadosEnviados', String(resultadosEnviados))
-    fd.set('montoRecargo', montoRecargo || '0')
+    fd.set('montoRecargo', montoRecargo)
     fd.set('idTipoRecargo', selectedIdTipoRecargo ? String(selectedIdTipoRecargo) : '')
 
     startTransition(async () => {
@@ -605,6 +604,34 @@ export function VisitaForm({
                 </div>
               )}
 
+              <div className="flex flex-col gap-1.5">
+                <label className={labelClass} style={labelStyle}>Monto recargo</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={montoRecargo}
+                  onChange={(e) => setMontoRecargo(e.target.value)}
+                  disabled={isPending}
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="0"
+                />
+              </div>
+
+              {parseInt(montoRecargo) > 0 && (
+                <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-2">
+                  <label className={labelClass} style={labelStyle}>Tipo de recargo</label>
+                  <input type="hidden" name="idTipoRecargo" value={selectedIdTipoRecargo ?? ''} />
+                  <SelectCombobox
+                    mode="single"
+                    options={tiposRecargos}
+                    selected={selectedIdTipoRecargo}
+                    onChange={setSelectedIdTipoRecargo}
+                    placeholder="Seleccionar tipo de recargo..."
+                    disabled={isPending}
+                  />
+                </div>
+              )}
 
               {isEdit && (
                 <div className="flex flex-col gap-1.5">
@@ -868,46 +895,6 @@ export function VisitaForm({
                 />
               )
             })}
-          </div>
-        </section>
-
-
-        {/* ── Recargos Excepcionales ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Recargos Excepcionales</h2>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Monto recargo</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={montoRecargo}
-                  onChange={(e) => {
-                  const val = e.target.value
-                  setMontoRecargo(val)
-                  if (!val || parseInt(val) === 0) setSelectedIdTipoRecargo(null)
-                }}
-                  disabled={isPending}
-                  className={inputClass}
-                  style={inputStyle}
-                  placeholder="0"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Tipo de recargo</label>
-                <input type="hidden" name="idTipoRecargo" value={selectedIdTipoRecargo ?? ''} />
-                <SelectCombobox
-                  mode="single"
-                  options={tiposRecargos}
-                  selected={selectedIdTipoRecargo}
-                  onChange={setSelectedIdTipoRecargo}
-                  placeholder="Buscar tipo recargo..."
-                  disabled={isPending || !montoRecargo || parseInt(montoRecargo) === 0}
-                />
-              </div>
-            </div>
           </div>
         </section>
 
