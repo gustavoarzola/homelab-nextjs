@@ -13,6 +13,7 @@ import {
   visits,
   visitProcedures,
   visitExams,
+  nursingVisitPrices,
 } from '@/db/schema'
 import { eq, and, or, ilike, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
@@ -582,4 +583,25 @@ export async function convertirCotizacionAVisita(
     console.error('Error converting cotizacion to visit:', error)
     return { success: false, error: 'Error al convertir cotización a visita' }
   }
+}
+
+// ─── getPreciosVisita ─────────────────────────────────────────────────────
+
+export async function getPreciosVisita(): Promise<Record<string, number>> {
+  await requireSession()
+
+  const rows = await db
+    .select({ comuna: nursingVisitPrices.comuna, precio: nursingVisitPrices.precio })
+    .from(nursingVisitPrices)
+    .where(eq(nursingVisitPrices.activo, true))
+
+  const map: Record<string, number> = {}
+  for (const row of rows) {
+    if (row.comuna === null) {
+      map['__base__'] = row.precio
+    } else {
+      map[row.comuna] = row.precio
+    }
+  }
+  return map
 }
