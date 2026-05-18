@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Mail,
   Tag,
+  FileText,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/visitas', label: 'Visitas', icon: Calendar },
+  { href: '/cotizaciones', label: 'Cotizaciones', icon: FileText },
   { href: '/asignacion', label: 'Asignación', icon: ClipboardCheck },
   { href: '/asignacion/envio-correos', label: 'Envío de correos', icon: Mail },
   { href: '/pacientes', label: 'Pacientes', icon: Users },
