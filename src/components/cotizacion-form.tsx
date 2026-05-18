@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, Printer } from 'lucide-react'
 import { SelectCombobox } from '@/components/select-combobox'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatNombre } from '@/lib/paciente'
@@ -14,6 +14,7 @@ export type PacienteOption = {
   nombres: string
   apellidoPaterno: string | null
   apellidoMaterno?: string | null
+  comuna: string | null
 }
 
 type ProcedimientoOption = {
@@ -95,7 +96,13 @@ export function CotizacionForm({
   const [selectedComunaIdx, setSelectedComunaIdx] = useState<number | null>(
     idxFromComuna(cotizacion?.comuna ?? null)
   )
-  const comunaNombre = comunaFromIdx(selectedComunaIdx)
+
+  // La comuna del paciente seleccionado (si hay)
+  const pacienteSeleccionado = pacientes.find((p) => p.id === selectedIdPaciente) ?? null
+  const comunaPaciente = pacienteSeleccionado?.comuna ?? null
+
+  // Si hay paciente, usamos su comuna; si no, la seleccionada manualmente
+  const comunaNombre = selectedIdPaciente ? comunaPaciente : comunaFromIdx(selectedComunaIdx)
 
   // Items
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(cotizacion?.procedureIds ?? [])
@@ -204,6 +211,18 @@ export function CotizacionForm({
           >
             Cancelar
           </button>
+          {isEdit && (
+            <a
+              href={`/api/cotizacion-standalone/${cotizacion!.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+              style={{ color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Imprimir
+            </a>
+          )}
           {isEdit && cotizacion?.estado === 'borrador' && !cotizacion?.idVisita && (
             <button
               type="button"
@@ -270,10 +289,15 @@ export function CotizacionForm({
                   onChange={(value) => {
                     setSelectedIdPaciente(value)
                     if (value) {
+                      // Se seleccionó paciente: limpiar campos manuales y selector de comuna
                       setNombreDestinatario('')
                       setEmailDestinatario('')
                       setTelefonoDestinatario('')
                       setIdentificacionDestinatario('')
+                      setSelectedComunaIdx(null)
+                    } else {
+                      // Se limpió el paciente: limpiar selector de comuna para que no quede un valor residual
+                      setSelectedComunaIdx(null)
                     }
                   }}
                   disabled={isPending}
@@ -331,25 +355,37 @@ export function CotizacionForm({
                 </div>
               )}
 
-              {/* Comuna via autocomplete combobox */}
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>
-                  Comuna <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <SelectCombobox
-                  mode="single"
-                  placeholder="Buscar comuna…"
-                  options={COMUNAS_OPTIONS}
-                  selected={selectedComunaIdx}
-                  onChange={setSelectedComunaIdx}
-                  disabled={isPending}
-                />
-                {!comunaNombre && (
-                  <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                    Requerida para calcular el precio de visita
-                  </p>
-                )}
-              </div>
+              {/* Comuna — automática si hay paciente, manual si no */}
+              {selectedIdPaciente ? (
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelClass} style={labelStyle}>Comuna</label>
+                  <div
+                    className="rounded-lg px-3 py-2 text-sm"
+                    style={{ backgroundColor: 'var(--muted)', color: comunaPaciente ? 'var(--foreground)' : 'var(--muted-foreground)', border: '1px solid var(--input)' }}
+                  >
+                    {comunaPaciente ?? 'El paciente no tiene comuna registrada'}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelClass} style={labelStyle}>
+                    Comuna <span style={{ color: 'var(--destructive)' }}>*</span>
+                  </label>
+                  <SelectCombobox
+                    mode="single"
+                    placeholder="Buscar comuna…"
+                    options={COMUNAS_OPTIONS}
+                    selected={selectedComunaIdx}
+                    onChange={setSelectedComunaIdx}
+                    disabled={isPending}
+                  />
+                  {!comunaNombre && (
+                    <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                      Requerida para calcular el precio de visita
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </section>

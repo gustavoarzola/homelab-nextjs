@@ -52,6 +52,7 @@ export type CotizacionRow = {
   paciente: string | null
   destinatario: string | null
   total: number
+  idVisita: number | null
 }
 
 // ─── getCotizacion ────────────────────────────────────────────────────────
@@ -147,6 +148,7 @@ export async function searchCotizaciones(
       pacienteApellido: patients.apellidoPaterno,
       destinatario: quotations.nombreDestinatario,
       total: quotations.total,
+      idVisita: quotations.idVisita,
     })
     .from(quotations)
     .leftJoin(patients, eq(quotations.idPaciente, patients.id))
@@ -163,6 +165,7 @@ export async function searchCotizaciones(
       paciente: r.pacienteNombre ? formatNombre({ nombres: r.pacienteNombre, apellidoPaterno: r.pacienteApellido || '' }) : null,
       destinatario: r.destinatario,
       total: r.total ?? 0,
+      idVisita: r.idVisita ?? null,
     })),
     total: countResult,
   }

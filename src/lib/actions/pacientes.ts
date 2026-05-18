@@ -621,11 +621,18 @@ export async function deletePaciente(id: number): Promise<Result> {
 
 // ─── getPacientes (all for select dropdowns) ────────────────────────────────
 
-export async function getPacientes(): Promise<{ id: number; nombres: string; apellidoPaterno: string | null; apellidoMaterno?: string | null }[]> {
+export async function getPacientes(): Promise<{ id: number; nombres: string; apellidoPaterno: string | null; apellidoMaterno?: string | null; comuna: string | null }[]> {
   await requireSession()
 
   return db
-    .select({ id: patients.id, nombres: patients.nombres, apellidoPaterno: patients.apellidoPaterno, apellidoMaterno: patients.apellidoMaterno })
+    .select({
+      id: patients.id,
+      nombres: patients.nombres,
+      apellidoPaterno: patients.apellidoPaterno,
+      apellidoMaterno: patients.apellidoMaterno,
+      comuna: addresses.areaAdministrativa3,
+    })
     .from(patients)
+    .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
     .orderBy(asc(patients.apellidoPaterno), asc(patients.nombres))
 }

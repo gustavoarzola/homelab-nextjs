@@ -178,7 +178,7 @@ export function VisitasTable({ initialData, search, onDelete, enfermeras }: Prop
       entityLabel="visita"
       createHref="/pacientes"
       createLabel="Nueva visita"
-      getEditHref={(id) => `/visitas/${id}`}
+      getEditHref={(row) => `/visitas/${row.id}`}
     />
   )
 }

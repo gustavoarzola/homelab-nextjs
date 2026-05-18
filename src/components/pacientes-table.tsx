@@ -111,7 +111,7 @@ export function PacientesTable({ initialData, previsiones, search, onDelete }: P
       entityLabel="paciente"
       createLabel="Nuevo paciente"
       createHref="/pacientes/nuevo"
-      getEditHref={(id) => `/pacientes/${id}`}
+      getEditHref={(row) => `/pacientes/${row.id}`}
     />
   )
 }
