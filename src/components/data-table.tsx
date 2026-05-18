@@ -77,7 +77,7 @@ type Props<T extends { id: number; activo?: boolean }> = {
   entityLabel?: string
   createLabel?: string
   createHref?: string
-  getEditHref?: (id: number) => string
+  getEditHref?: (row: T) => string | null
   extraRowActions?: (row: T) => React.ReactNode
 }
 
@@ -491,33 +491,42 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                 {/* Row actions */}
                 <div className="flex items-center justify-end gap-1">
                   {extraRowActions?.(row.original)}
-                  {getEditHref ? (
-                    <Link
-                      href={getEditHref(row.original.id)}
-                      title="Editar"
-                      className="rounded p-1.5 hover:opacity-80 transition-opacity"
-                      style={{ color: 'var(--muted-foreground)' }}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        const initialDraft: Record<string, string> = {}
-                        formFields.forEach((f) => {
-                          initialDraft[f.name] = String((row.original as Record<string, unknown>)[f.name] ?? '')
-                        })
-                        setFormDraft(initialDraft)
-                        setModal({ type: 'edit', row: row.original })
-                      }}
-                      disabled={isPending}
-                      title="Editar"
-                      className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
-                      style={{ color: 'var(--muted-foreground)' }}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                  {(() => {
+                    const editHref = getEditHref?.(row.original)
+                    if (editHref) {
+                      return (
+                        <Link
+                          href={editHref}
+                          title="Editar"
+                          className="rounded p-1.5 hover:opacity-80 transition-opacity"
+                          style={{ color: 'var(--muted-foreground)' }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Link>
+                      )
+                    }
+                    if (!getEditHref) {
+                      return (
+                        <button
+                          onClick={() => {
+                            const initialDraft: Record<string, string> = {}
+                            formFields.forEach((f) => {
+                              initialDraft[f.name] = String((row.original as Record<string, unknown>)[f.name] ?? '')
+                            })
+                            setFormDraft(initialDraft)
+                            setModal({ type: 'edit', row: row.original })
+                          }}
+                          disabled={isPending}
+                          title="Editar"
+                          className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
+                          style={{ color: 'var(--muted-foreground)' }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )
+                    }
+                    return null
+                  })()}
 
                   {onToggle && row.original.activo !== undefined && (
                     <button

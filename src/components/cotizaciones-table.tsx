@@ -3,6 +3,7 @@
 import { DataTable, type ColumnDef, type FilterDef, type SearchParams } from './data-table'
 import type { CotizacionRow } from '@/lib/actions/cotizaciones'
 import { formatDate } from '@/lib/format'
+import { Printer, Stethoscope } from 'lucide-react'
 
 const ESTADO_LABELS: Record<string, string> = {
   borrador: 'Borrador',
@@ -19,6 +20,15 @@ const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
 }
 
 const columns: ColumnDef<CotizacionRow>[] = [
+  {
+    id: 'id',
+    header: 'N°',
+    cell: ({ row }) => (
+      <span className="tabular-nums text-sm font-mono" style={{ color: 'var(--muted-foreground)' }}>
+        COT-{String(row.original.id).padStart(5, '0')}
+      </span>
+    ),
+  },
   {
     id: 'fecha',
     header: 'Fecha',
@@ -102,9 +112,33 @@ export function CotizacionesTable({ initialData, search }: Props) {
       formFields={[]}
       search={search}
       createHref="/cotizaciones/nueva"
-      getEditHref={(id) => `/cotizaciones/${id}`}
+      getEditHref={(row) => row.estado === 'convertida' ? null : `/cotizaciones/${row.id}`}
       entityLabel="cotización"
       createLabel="Nueva cotización"
+      extraRowActions={(row) => (
+        <>
+          {row.idVisita && (
+            <a
+              href={`/visitas/${row.idVisita}`}
+              title="Ver visita"
+              className="rounded p-1.5 transition-opacity hover:opacity-80"
+              style={{ color: 'oklch(0.45 0.13 145)' }}
+            >
+              <Stethoscope className="h-4 w-4" />
+            </a>
+          )}
+          <a
+            href={`/api/cotizacion-standalone/${row.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Imprimir cotización"
+            className="rounded p-1.5 transition-opacity hover:opacity-80"
+            style={{ color: 'var(--muted-foreground)' }}
+          >
+            <Printer className="h-4 w-4" />
+          </a>
+        </>
+      )}
     />
   )
 }
