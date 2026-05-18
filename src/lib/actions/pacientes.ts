@@ -618,3 +618,14 @@ export async function deletePaciente(id: number): Promise<Result> {
     return { success: false, error: 'Error al eliminar el paciente' }
   }
 }
+
+// ─── getPacientes (all for select dropdowns) ────────────────────────────────
+
+export async function getPacientes(): Promise<{ id: number; nombres: string; apellidoPaterno: string | null; apellidoMaterno?: string | null }[]> {
+  await requireSession()
+
+  return db
+    .select({ id: patients.id, nombres: patients.nombres, apellidoPaterno: patients.apellidoPaterno, apellidoMaterno: patients.apellidoMaterno })
+    .from(patients)
+    .orderBy(asc(patients.apellidoPaterno), asc(patients.nombres))
+}

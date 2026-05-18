@@ -350,3 +350,84 @@ export const nursingVisitPrices = pgTable(
     index('precios_visita_enfermeria_comuna_idx').on(table.comuna),
   ]
 )
+
+// ============================================================================
+// 19. Cotizacion - Cotización independiente (puede convertirse en visita)
+// ============================================================================
+export const quotations = pgTable(
+  'cotizaciones',
+  {
+    id: serial('id').primaryKey(),
+    estado: varchar('estado', { length: 20 }).notNull().default('borrador'), // borrador, enviada, aceptada, convertida
+    idPaciente: integer('id_paciente'),
+    nombreDestinatario: varchar('nombre_destinatario', { length: 255 }),
+    emailDestinatario: varchar('email_destinatario', { length: 255 }),
+    telefonoDestinatario: varchar('telefono_destinatario', { length: 50 }),
+    identificacionDestinatario: varchar('identificacion_destinatario', { length: 50 }),
+    comuna: varchar('comuna', { length: 100 }),
+    cobraVisita: boolean('cobra_visita').notNull().default(false),
+    montoRecargo: integer('monto_recargo').default(0),
+    idTipoRecargo: integer('id_tipo_recargo'),
+    total: integer('total').default(0),
+    idVisita: integer('id_visita'),
+    notas: text('notas'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idPaciente], foreignColumns: [patients.id] })
+      .onDelete('set null'),
+    foreignKey({ columns: [table.idTipoRecargo], foreignColumns: [surchargeTypes.id] })
+      .onDelete('restrict'),
+    foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
+      .onDelete('set null'),
+    index('cotizaciones_estado_idx').on(table.estado),
+    index('cotizaciones_id_paciente_idx').on(table.idPaciente),
+  ]
+)
+
+// ============================================================================
+// 20. CotizacionExamen - Exámenes en una cotización
+// ============================================================================
+export const quotationExams = pgTable(
+  'cotizacion_examenes',
+  {
+    id: serial('id').primaryKey(),
+    idCotizacion: integer('id_cotizacion').notNull(),
+    idExamen: integer('id_examen').notNull(),
+    descripcion: varchar('descripcion', { length: 255 }).notNull(),
+    codigo: varchar('codigo', { length: 50 }),
+    precio: integer('precio').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idCotizacion], foreignColumns: [quotations.id] })
+      .onDelete('cascade'),
+    foreignKey({ columns: [table.idExamen], foreignColumns: [exams.id] })
+      .onDelete('restrict'),
+    index('cotizacion_examenes_id_cotizacion_idx').on(table.idCotizacion),
+  ]
+)
+
+// ============================================================================
+// 21. CotizacionProcedimiento - Procedimientos en una cotización
+// ============================================================================
+export const quotationProcedures = pgTable(
+  'cotizacion_procedimientos',
+  {
+    id: serial('id').primaryKey(),
+    idCotizacion: integer('id_cotizacion').notNull(),
+    idProcedimiento: integer('id_procedimiento').notNull(),
+    descripcion: varchar('descripcion', { length: 255 }).notNull(),
+    codigo: varchar('codigo', { length: 50 }),
+    precio: integer('precio').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idCotizacion], foreignColumns: [quotations.id] })
+      .onDelete('cascade'),
+    foreignKey({ columns: [table.idProcedimiento], foreignColumns: [procedures.id] })
+      .onDelete('restrict'),
+    index('cotizacion_procedimientos_id_cotizacion_idx').on(table.idCotizacion),
+  ]
+)
