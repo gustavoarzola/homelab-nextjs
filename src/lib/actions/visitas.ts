@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices } from '@/db/schema'
+import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
@@ -24,6 +24,23 @@ export async function getEnfermeras(): Promise<{ id: number; nombre: string }[]>
   return rows.map((r) => ({
     id: r.id,
     nombre: formatNombre(r),
+  }))
+}
+
+// ─── getTiposRecargos ──────────────────────────────────────────────────────────
+
+export async function getTiposRecargos(): Promise<{ id: number; label: string }[]> {
+  await requireSession()
+
+  const rows = await db
+    .select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre })
+    .from(surchargeTypes)
+    .where(eq(surchargeTypes.activo, true))
+    .orderBy(asc(surchargeTypes.nombre))
+
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.nombre,
   }))
 }
 

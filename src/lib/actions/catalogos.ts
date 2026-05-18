@@ -411,3 +411,27 @@ export async function getTiposRecargosForSelect(): Promise<{ id: number; label: 
 
   return rows.map((r) => ({ id: r.id, label: r.nombre }))
 }
+
+// ─── getProcedimientos (all active) ────────────────────────────────────────
+
+export async function getProcedimientos(): Promise<ProcedimientoRow[]> {
+  await requireSession()
+
+  return db
+    .select()
+    .from(procedures)
+    .where(eq(procedures.activo, true))
+    .orderBy(asc(procedures.nombre))
+}
+
+// ─── getExamenes (all active) ────────────────────────────────────────────────
+
+export async function getExamenes(): Promise<ExamenRow[]> {
+  await requireSession()
+
+  return db
+    .select()
+    .from(exams)
+    .where(eq(exams.activo, true))
+    .orderBy(asc(exams.nombre))
+}

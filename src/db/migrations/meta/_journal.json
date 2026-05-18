@@ -29,6 +29,13 @@
       "when": 1778458800000,
       "tag": "0003_add_surcharge_types",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779129600000,
+      "tag": "0004_create_cotizaciones_tables",
+      "breakpoints": true
     }
   ]
 }

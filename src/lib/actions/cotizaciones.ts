@@ -1,0 +1,585 @@
+'use server'
+
+import { db } from '@/db'
+import {
+  quotations,
+  quotationExams,
+  quotationProcedures,
+  patients,
+  procedures,
+  exams,
+  surchargeTypes,
+  addresses,
+  visits,
+  visitProcedures,
+  visitExams,
+} from '@/db/schema'
+import { eq, and, or, ilike, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
+import { revalidatePath } from 'next/cache'
+import type { SearchParams, Result } from '@/components/data-table'
+import { requireSession } from '@/lib/auth-guard'
+import { formatNombre } from '@/lib/paciente'
+import { getPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
+
+// ─── Types ────────────────────────────────────────────────────────────────
+
+export type CotizacionDetalle = {
+  id: number
+  estado: string
+  idPaciente: number | null
+  nombreDestinatario: string | null
+  emailDestinatario: string | null
+  telefonoDestinatario: string | null
+  identificacionDestinatario: string | null
+  comuna: string | null
+  cobraVisita: boolean
+  montoRecargo: number | null
+  idTipoRecargo: number | null
+  total: number
+  idVisita: number | null
+  notas: string | null
+  examIds: number[]
+  examPrices: { idExamen: number; precio: number }[]
+  procedureIds: number[]
+  procedurePrices: { idProcedimiento: number; precio: number }[]
+}
+
+export type CotizacionRow = {
+  id: number
+  fecha: string
+  estado: string
+  paciente: string | null
+  destinatario: string | null
+  total: number
+}
+
+// ─── getCotizacion ────────────────────────────────────────────────────────
+
+export async function getCotizacion(id: number): Promise<CotizacionDetalle | null> {
+  await requireSession()
+
+  const [quotation] = await db.select().from(quotations).where(eq(quotations.id, id))
+  if (!quotation) return null
+
+  const [exams_, procs] = await Promise.all([
+    db
+      .select({ idExamen: quotationExams.idExamen, precio: quotationExams.precio })
+      .from(quotationExams)
+      .where(eq(quotationExams.idCotizacion, id)),
+    db
+      .select({ idProcedimiento: quotationProcedures.idProcedimiento, precio: quotationProcedures.precio })
+      .from(quotationProcedures)
+      .where(eq(quotationProcedures.idCotizacion, id)),
+  ])
+
+  return {
+    id: quotation.id,
+    estado: quotation.estado,
+    idPaciente: quotation.idPaciente ?? null,
+    nombreDestinatario: quotation.nombreDestinatario ?? null,
+    emailDestinatario: quotation.emailDestinatario ?? null,
+    telefonoDestinatario: quotation.telefonoDestinatario ?? null,
+    identificacionDestinatario: quotation.identificacionDestinatario ?? null,
+    comuna: quotation.comuna ?? null,
+    cobraVisita: quotation.cobraVisita,
+    montoRecargo: quotation.montoRecargo ?? null,
+    idTipoRecargo: quotation.idTipoRecargo ?? null,
+    total: quotation.total ?? 0,
+    idVisita: quotation.idVisita ?? null,
+    notas: quotation.notas ?? null,
+    examIds: exams_.map((e) => e.idExamen),
+    examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
+    procedureIds: procs.map((p) => p.idProcedimiento),
+    procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
+  }
+}
+
+// ─── searchCotizaciones ───────────────────────────────────────────────────
+
+export async function searchCotizaciones(
+  params: SearchParams,
+): Promise<{ rows: CotizacionRow[]; total: number }> {
+  await requireSession()
+
+  const { filters, sort, page, pageSize } = params
+  const buscar = (filters.buscar as string | undefined)?.trim()
+  const estado = (filters.estado as string | undefined)?.trim()
+
+  const conditions: SQL[] = []
+  if (buscar) {
+    const normalized = buscar.replace(/[\.\-\s]/g, '').toUpperCase()
+    const orConditions = [
+      sql`unaccent(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, '')) ILIKE unaccent(${'%' + buscar + '%'})`,
+      sql`${quotations.nombreDestinatario} ILIKE ${'%' + buscar + '%'}`,
+      sql`${quotations.emailDestinatario} ILIKE ${'%' + buscar + '%'}`,
+    ]
+    const orCondition = or(...orConditions)
+    if (orCondition) conditions.push(orCondition)
+  }
+  if (estado && estado !== 'todas') {
+    conditions.push(eq(quotations.estado, estado))
+  }
+
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(quotations)
+    .leftJoin(patients, eq(quotations.idPaciente, patients.id))
+    .where(and(...conditions))
+    .then((r) => r[0]?.count ?? 0)
+
+  const sortCols: Record<string, any> = {
+    paciente: patients.apellidoPaterno,
+    estado: quotations.estado,
+    total: quotations.total,
+    fecha: quotations.createdAt,
+  }
+
+  const sortCol = (sort?.key && sortCols[sort.key]) ?? quotations.createdAt
+  const orderClause = sort?.dir === 'asc' ? asc(sortCol) : desc(sortCol)
+
+  const rows = await db
+    .select({
+      id: quotations.id,
+      createdAt: quotations.createdAt,
+      estado: quotations.estado,
+      pacienteNombre: patients.nombres,
+      pacienteApellido: patients.apellidoPaterno,
+      destinatario: quotations.nombreDestinatario,
+      total: quotations.total,
+    })
+    .from(quotations)
+    .leftJoin(patients, eq(quotations.idPaciente, patients.id))
+    .where(and(...conditions))
+    .orderBy(orderClause)
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  return {
+    rows: rows.map((r) => ({
+      id: r.id,
+      fecha: (r.createdAt.toISOString().split('T')[0]) || '',
+      estado: r.estado,
+      paciente: r.pacienteNombre ? formatNombre({ nombres: r.pacienteNombre, apellidoPaterno: r.pacienteApellido || '' }) : null,
+      destinatario: r.destinatario,
+      total: r.total ?? 0,
+    })),
+    total: countResult,
+  }
+}
+
+// ─── createCotizacion ──────────────────────────────────────────────────────
+
+export async function createCotizacion(
+  fd: FormData,
+): Promise<{ success: true; id: number } | { success: false; error: string }> {
+  await requireSession()
+
+  const idPaciente = Number(fd.get('idPaciente')) || null
+  const nombreDestinatario = (fd.get('nombreDestinatario') as string)?.trim() || null
+  const emailDestinatario = (fd.get('emailDestinatario') as string)?.trim() || null
+  const telefonoDestinatario = (fd.get('telefonoDestinatario') as string)?.trim() || null
+  const identificacionDestinatario = (fd.get('identificacionDestinatario') as string)?.trim() || null
+  const comuna = (fd.get('comuna') as string)?.trim()
+  const cobraVisita = fd.get('cobraVisita') === 'true'
+  const montoRecargo = Number(fd.get('montoRecargo')) || 0
+  const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
+  const notas = (fd.get('notas') as string)?.trim() || null
+
+  if (!comuna) return { success: false, error: 'Comuna requerida' }
+
+  const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
+  const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
+
+  if (montoRecargo && !idTipoRecargo) {
+    return { success: false, error: 'Tipo de recargo requerido cuando hay monto de recargo' }
+  }
+
+  try {
+    // Calculate total
+    let total = 0
+
+    // Get procedure prices
+    if (procedureIds.length > 0) {
+      const procs = await db
+        .select({ precio: procedures.precio })
+        .from(procedures)
+        .where(inArray(procedures.id, procedureIds))
+        .catch(() => [])
+
+      total += procs.reduce((sum, p) => sum + p.precio, 0)
+    }
+
+    // Get exam prices
+    if (examIds.length > 0) {
+      const examRows = await db
+        .select({ precio: exams.precio })
+        .from(exams)
+        .where(inArray(exams.id, examIds))
+        .catch(() => [])
+
+      total += examRows.reduce((sum, e) => sum + e.precio, 0)
+    }
+
+    // Add nursing visit price if requested
+    let visitPrice = 0
+    if (cobraVisita) {
+      visitPrice = (await getPrecioVisitaEnfermeria(db, comuna)) ?? 0
+      total += visitPrice
+    }
+
+    // Add surcharge
+    total += montoRecargo
+
+    // Create quotation
+    const inserted = await db
+      .insert(quotations)
+      .values({
+        estado: 'borrador',
+        idPaciente,
+        nombreDestinatario,
+        emailDestinatario,
+        telefonoDestinatario,
+        identificacionDestinatario,
+        comuna,
+        cobraVisita,
+        montoRecargo,
+        idTipoRecargo,
+        total,
+        notas,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning()
+
+    if (!inserted || !Array.isArray(inserted) || inserted.length === 0) {
+      return { success: false, error: 'Error al crear la cotización' }
+    }
+
+    const cotizacionId = inserted[0]!.id
+
+    // Insert procedure items
+    if (procedureIds.length > 0) {
+      const procItems = await db
+        .select({
+          id: procedures.id,
+          nombre: procedures.nombre,
+          codigo: procedures.codigo,
+          precio: procedures.precio,
+        })
+        .from(procedures)
+        .where(inArray(procedures.id, procedureIds))
+
+      await db.insert(quotationProcedures).values(
+        procItems.map((p) => ({
+          idCotizacion: cotizacionId,
+          idProcedimiento: p.id,
+          descripcion: p.nombre,
+          codigo: p.codigo,
+          precio: p.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Insert exam items
+    if (examIds.length > 0) {
+      const examItems = await db
+        .select({
+          id: exams.id,
+          nombre: exams.nombre,
+          codigo: exams.codigo,
+          precio: exams.precio,
+        })
+        .from(exams)
+        .where(inArray(exams.id, examIds))
+
+      await db.insert(quotationExams).values(
+        examItems.map((e) => ({
+          idCotizacion: cotizacionId,
+          idExamen: e.id,
+          descripcion: e.nombre,
+          codigo: e.codigo,
+          precio: e.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    revalidatePath('/cotizaciones')
+    return { success: true, id: cotizacionId }
+  } catch (error) {
+    console.error('Error creating cotizacion:', error)
+    return { success: false, error: 'Error al crear cotización' }
+  }
+}
+
+// ─── updateCotizacion ──────────────────────────────────────────────────────
+
+export async function updateCotizacion(
+  fd: FormData,
+): Promise<{ success: true; id: number } | { success: false; error: string }> {
+  await requireSession()
+
+  const id = Number(fd.get('id'))
+  if (!id) return { success: false, error: 'ID requerido' }
+
+  const idPaciente = Number(fd.get('idPaciente')) || null
+  const nombreDestinatario = (fd.get('nombreDestinatario') as string)?.trim() || null
+  const emailDestinatario = (fd.get('emailDestinatario') as string)?.trim() || null
+  const telefonoDestinatario = (fd.get('telefonoDestinatario') as string)?.trim() || null
+  const identificacionDestinatario = (fd.get('identificacionDestinatario') as string)?.trim() || null
+  const comuna = (fd.get('comuna') as string)?.trim()
+  const cobraVisita = fd.get('cobraVisita') === 'true'
+  const montoRecargo = Number(fd.get('montoRecargo')) || 0
+  const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
+  const notas = (fd.get('notas') as string)?.trim() || null
+
+  if (!comuna) return { success: false, error: 'Comuna requerida' }
+
+  const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
+  const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
+
+  if (montoRecargo && !idTipoRecargo) {
+    return { success: false, error: 'Tipo de recargo requerido cuando hay monto de recargo' }
+  }
+
+  try {
+    // Calculate total
+    let total = 0
+
+    if (procedureIds.length > 0) {
+      const procs = await db
+        .select({ precio: procedures.precio })
+        .from(procedures)
+        .where(inArray(procedures.id, procedureIds))
+        .catch(() => [])
+
+      total += procs.reduce((sum, p) => sum + p.precio, 0)
+    }
+
+    if (examIds.length > 0) {
+      const examRows = await db
+        .select({ precio: exams.precio })
+        .from(exams)
+        .where(inArray(exams.id, examIds))
+        .catch(() => [])
+
+      total += examRows.reduce((sum, e) => sum + e.precio, 0)
+    }
+
+    let visitPrice = 0
+    if (cobraVisita) {
+      visitPrice = (await getPrecioVisitaEnfermeria(db, comuna)) ?? 0
+      total += visitPrice
+    }
+
+    total += montoRecargo
+
+    // Update quotation
+    await db
+      .update(quotations)
+      .set({
+        idPaciente,
+        nombreDestinatario,
+        emailDestinatario,
+        telefonoDestinatario,
+        identificacionDestinatario,
+        comuna,
+        cobraVisita,
+        montoRecargo,
+        idTipoRecargo,
+        total,
+        notas,
+        updatedAt: new Date(),
+      })
+      .where(eq(quotations.id, id))
+
+    // Delete existing items
+    await db.delete(quotationProcedures).where(eq(quotationProcedures.idCotizacion, id))
+    await db.delete(quotationExams).where(eq(quotationExams.idCotizacion, id))
+
+    // Insert procedure items
+    if (procedureIds.length > 0) {
+      const procItems = await db
+        .select({
+          id: procedures.id,
+          nombre: procedures.nombre,
+          codigo: procedures.codigo,
+          precio: procedures.precio,
+        })
+        .from(procedures)
+        .where(inArray(procedures.id, procedureIds))
+
+      await db.insert(quotationProcedures).values(
+        procItems.map((p) => ({
+          idCotizacion: id,
+          idProcedimiento: p.id,
+          descripcion: p.nombre,
+          codigo: p.codigo,
+          precio: p.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Insert exam items
+    if (examIds.length > 0) {
+      const examItems = await db
+        .select({
+          id: exams.id,
+          nombre: exams.nombre,
+          codigo: exams.codigo,
+          precio: exams.precio,
+        })
+        .from(exams)
+        .where(inArray(exams.id, examIds))
+
+      await db.insert(quotationExams).values(
+        examItems.map((e) => ({
+          idCotizacion: id,
+          idExamen: e.id,
+          descripcion: e.nombre,
+          codigo: e.codigo,
+          precio: e.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    revalidatePath('/cotizaciones')
+    revalidatePath(`/cotizaciones/${id}`)
+    return { success: true, id }
+  } catch (error) {
+    console.error('Error updating cotizacion:', error)
+    return { success: false, error: 'Error al actualizar cotización' }
+  }
+}
+
+// ─── deleteCotizacion ──────────────────────────────────────────────────────
+
+export async function deleteCotizacion(id: number): Promise<Result> {
+  await requireSession()
+
+  try {
+    // Only allow deleting draft quotations
+    const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, id))
+
+    if (quotation?.estado !== 'borrador') {
+      return { success: false, error: 'Solo se pueden eliminar cotizaciones en borrador' }
+    }
+
+    await db.delete(quotations).where(eq(quotations.id, id))
+    revalidatePath('/cotizaciones')
+    return { success: true }
+  } catch (error) {
+    console.error('Error deleting cotizacion:', error)
+    return { success: false, error: 'Error al eliminar cotización' }
+  }
+}
+
+// ─── convertirCotizacionAVisita ────────────────────────────────────────────
+
+export async function convertirCotizacionAVisita(
+  idCotizacion: number,
+  idPatient?: number,
+): Promise<{ success: true; idVisita: number } | { success: false; error: string }> {
+  await requireSession()
+
+  try {
+    const [quotation] = await db.select().from(quotations).where(eq(quotations.id, idCotizacion))
+
+    if (!quotation) {
+      return { success: false, error: 'Cotización no encontrada' }
+    }
+
+    // Determine patient ID
+    let finalIdPaciente = quotation.idPaciente
+    if (!finalIdPaciente && idPatient) {
+      finalIdPaciente = idPatient
+    }
+
+    if (!finalIdPaciente) {
+      return { success: false, error: 'Se requiere un paciente para convertir a visita' }
+    }
+
+    // Create visit
+    const hoy = new Date().toISOString().split('T')[0] || '2026-01-01'
+    const insertedVisits = await db
+      .insert(visits)
+      .values({
+        fecha: hoy,
+        estado: 'creada',
+        costo: quotation.total ?? 0,
+        idPaciente: finalIdPaciente,
+        cobraVisita: quotation.cobraVisita,
+        montoRecargo: quotation.montoRecargo,
+        idTipoRecargo: quotation.idTipoRecargo,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning()
+
+    if (!insertedVisits || insertedVisits.length === 0) {
+      return { success: false, error: 'Error al crear la visita' }
+    }
+
+    const visitId = insertedVisits[0]!.id
+
+    // Copy procedures
+    const procs = await db
+      .select({
+        idProcedimiento: quotationProcedures.idProcedimiento,
+        precio: quotationProcedures.precio,
+      })
+      .from(quotationProcedures)
+      .where(eq(quotationProcedures.idCotizacion, idCotizacion))
+
+    if (procs.length > 0) {
+      await db.insert(visitProcedures).values(
+        procs.map((p) => ({
+          idProcedimiento: p.idProcedimiento,
+          idVisita: visitId,
+          precio: p.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Copy exams
+    const examItems = await db
+      .select({
+        idExamen: quotationExams.idExamen,
+        precio: quotationExams.precio,
+      })
+      .from(quotationExams)
+      .where(eq(quotationExams.idCotizacion, idCotizacion))
+
+    if (examItems.length > 0) {
+      await db.insert(visitExams).values(
+        examItems.map((e) => ({
+          idExamen: e.idExamen,
+          idVisita: visitId,
+          precio: e.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Update quotation
+    await db
+      .update(quotations)
+      .set({
+        estado: 'convertida',
+        idVisita: visitId,
+        updatedAt: new Date(),
+      })
+      .where(eq(quotations.id, idCotizacion))
+
+    revalidatePath('/cotizaciones')
+    revalidatePath('/visitas')
+    return { success: true, idVisita: visitId }
+  } catch (error) {
+    console.error('Error converting cotizacion to visit:', error)
+    return { success: false, error: 'Error al convertir cotización a visita' }
+  }
+}

@@ -22,7 +22,7 @@ export type CostoVisitaCalculado = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PricingDb = any
 
-async function getPrecioVisitaEnfermeria(
+export async function getPrecioVisitaEnfermeria(
   conn: PricingDb,
   comuna: string | null,
 ): Promise<number | null> {
