@@ -3,23 +3,20 @@ import { CotizacionForm } from '@/components/cotizacion-form'
 import { getPacientes } from '@/lib/actions/pacientes'
 import { getProcedimientos, getExamenes } from '@/lib/actions/catalogos'
 import { getTiposRecargos } from '@/lib/actions/visitas'
-import { createCotizacion } from '@/lib/actions/cotizaciones'
+import { createCotizacion, getPreciosVisita } from '@/lib/actions/cotizaciones'
 
 export default async function NuevaCotizacionPage() {
-  const [pacientes, procedimientos, examenes, tiposRecargos] = await Promise.all([
+  const [pacientes, procedimientos, examenes, tiposRecargos, preciosVisita] = await Promise.all([
     getPacientes(),
     getProcedimientos(),
     getExamenes(),
     getTiposRecargos(),
-  ]).catch(() => [[], [], [], []])
+    getPreciosVisita(),
+  ])
 
-  const handleSubmit = async (fd: FormData) => {
+  async function handleSubmit(fd: FormData) {
     'use server'
-    const result = await createCotizacion(fd)
-    if (result.success) {
-      redirect(`/cotizaciones/${result.id}`)
-    }
-    return result
+    return await createCotizacion(fd)
   }
 
   return (
@@ -28,6 +25,7 @@ export default async function NuevaCotizacionPage() {
       procedimientos={procedimientos}
       examenes={examenes}
       tiposRecargos={tiposRecargos}
+      preciosVisita={preciosVisita}
       onSubmit={handleSubmit}
     />
   )
