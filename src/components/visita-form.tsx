@@ -961,11 +961,24 @@ export function VisitaForm({
           </div>
         </section>
 
-        {/* ── Recargos Excepcionales ── */}
+        {/* ── Recargos ── */}
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Recargos Excepcionales</h2>
+            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Recargos</h2>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelClass} style={labelStyle}>Tipo de recargo</label>
+                <input type="hidden" name="idTipoRecargo" value={selectedIdTipoRecargo ?? ''} />
+                <SelectCombobox
+                  mode="single"
+                  options={tiposRecargos}
+                  selected={selectedIdTipoRecargo}
+                  onChange={setSelectedIdTipoRecargo}
+                  placeholder="Buscar tipo recargo..."
+                  disabled={isPending || !montoRecargo || parseInt(montoRecargo) === 0}
+                />
+              </div>
+
               <div className="flex flex-col gap-1.5">
                 <label className={labelClass} style={labelStyle}>Monto recargo</label>
                 <input
@@ -981,19 +994,6 @@ export function VisitaForm({
                   className={inputClass}
                   style={inputStyle}
                   placeholder="0"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Tipo de recargo</label>
-                <input type="hidden" name="idTipoRecargo" value={selectedIdTipoRecargo ?? ''} />
-                <SelectCombobox
-                  mode="single"
-                  options={tiposRecargos}
-                  selected={selectedIdTipoRecargo}
-                  onChange={setSelectedIdTipoRecargo}
-                  placeholder="Buscar tipo recargo..."
-                  disabled={isPending || !montoRecargo || parseInt(montoRecargo) === 0}
                 />
               </div>
             </div>

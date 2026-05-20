@@ -291,150 +291,271 @@ export function CotizacionForm({
       <form id="cotizacion-form" onSubmit={handleSubmit} className="flex flex-col gap-6 p-8">
         {isEdit && <input type="hidden" name="id" value={cotizacion!.id} />}
 
-        {/* ── Destinatario ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Destinatario</h2>
-            <div className="space-y-4">
+        {/* ── Destinatario + Resumen ── */}
+        <div className="grid grid-cols-3 gap-6 items-start">
+          {/* Destinatario — 2/3 */}
+          <section className={`col-span-2 ${sectionClass}`} style={sectionStyle}>
+            <div className="p-6">
+              <h2 className={sectionTitleClass} style={sectionTitleStyle}>Destinatario</h2>
+              <div className="space-y-4">
 
-              {/* Paciente selector */}
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Paciente (opcional)</label>
-                <SelectCombobox
-                  mode="single"
-                  placeholder="Buscar paciente…"
-                  options={pacientesOptions}
-                  selected={selectedIdPaciente}
-                  onChange={(value) => {
-                    setSelectedIdPaciente(value)
-                    if (value) {
-                      // Se seleccionó paciente: limpiar campos manuales y selector de comuna
-                      setNombreDestinatario('')
-                      setEmailDestinatario('')
-                      setTelefonoDestinatario('')
-                      setIdentificacionDestinatario('')
-                      setSelectedComunaIdx(null)
-                    } else {
-                      // Se limpió el paciente: limpiar selector de comuna para que no quede un valor residual
-                      setSelectedComunaIdx(null)
-                    }
-                  }}
-                  disabled={isPending}
-                  clearable
-                />
-              </div>
-
-              {/* Manual fields — only when no patient */}
-              {showManualFields && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label className={labelClass} style={labelStyle}>Nombre del destinatario</label>
-                    <input
-                      type="text"
-                      className={inputClass}
-                      style={inputStyle}
-                      value={nombreDestinatario}
-                      onChange={(e) => setNombreDestinatario(e.target.value)}
-                      disabled={isPending}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className={labelClass} style={labelStyle}>Correo electrónico</label>
-                    <input
-                      type="email"
-                      className={inputClass}
-                      style={inputStyle}
-                      value={emailDestinatario}
-                      onChange={(e) => setEmailDestinatario(e.target.value)}
-                      disabled={isPending}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className={labelClass} style={labelStyle}>Teléfono</label>
-                    <input
-                      type="tel"
-                      className={inputClass}
-                      style={inputStyle}
-                      value={telefonoDestinatario}
-                      onChange={(e) => setTelefonoDestinatario(e.target.value)}
-                      disabled={isPending}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className={labelClass} style={labelStyle}>Identificación</label>
-                    <input
-                      type="text"
-                      className={inputClass}
-                      style={inputStyle}
-                      value={identificacionDestinatario}
-                      onChange={(e) => setIdentificacionDestinatario(e.target.value)}
-                      disabled={isPending}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Comuna — automática si hay paciente, manual si no */}
-              {selectedIdPaciente ? (
+                {/* Paciente selector */}
                 <div className="flex flex-col gap-1.5">
-                  <label className={labelClass} style={labelStyle}>Comuna</label>
-                  <div
-                    className="rounded-lg px-3 py-2 text-sm"
-                    style={{ backgroundColor: 'var(--muted)', color: comunaPaciente ? 'var(--foreground)' : 'var(--muted-foreground)', border: '1px solid var(--input)' }}
-                  >
-                    {comunaPaciente ?? 'El paciente no tiene comuna registrada'}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  <label className={labelClass} style={labelStyle}>
-                    Comuna <span style={{ color: 'var(--destructive)' }}>*</span>
-                  </label>
+                  <label className={labelClass} style={labelStyle}>Paciente (opcional)</label>
                   <SelectCombobox
                     mode="single"
-                    placeholder="Buscar comuna…"
-                    options={COMUNAS_OPTIONS}
-                    selected={selectedComunaIdx}
-                    onChange={setSelectedComunaIdx}
+                    placeholder="Buscar paciente…"
+                    options={pacientesOptions}
+                    selected={selectedIdPaciente}
+                    onChange={(value) => {
+                      setSelectedIdPaciente(value)
+                      if (value) {
+                        setNombreDestinatario('')
+                        setEmailDestinatario('')
+                        setTelefonoDestinatario('')
+                        setIdentificacionDestinatario('')
+                        setSelectedComunaIdx(null)
+                      } else {
+                        setSelectedComunaIdx(null)
+                      }
+                    }}
                     disabled={isPending}
+                    clearable
                   />
-                  {!comunaNombre && (
-                    <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                      Requerida para calcular el precio de visita
-                    </p>
-                  )}
                 </div>
-              )}
+
+                {/* Manual fields — only when no patient */}
+                {showManualFields && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5">
+                      <label className={labelClass} style={labelStyle}>Nombre del destinatario</label>
+                      <input
+                        type="text"
+                        className={inputClass}
+                        style={inputStyle}
+                        value={nombreDestinatario}
+                        onChange={(e) => setNombreDestinatario(e.target.value)}
+                        disabled={isPending}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className={labelClass} style={labelStyle}>Correo electrónico</label>
+                      <input
+                        type="email"
+                        className={inputClass}
+                        style={inputStyle}
+                        value={emailDestinatario}
+                        onChange={(e) => setEmailDestinatario(e.target.value)}
+                        disabled={isPending}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className={labelClass} style={labelStyle}>Teléfono</label>
+                      <input
+                        type="tel"
+                        className={inputClass}
+                        style={inputStyle}
+                        value={telefonoDestinatario}
+                        onChange={(e) => setTelefonoDestinatario(e.target.value)}
+                        disabled={isPending}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className={labelClass} style={labelStyle}>Identificación</label>
+                      <input
+                        type="text"
+                        className={inputClass}
+                        style={inputStyle}
+                        value={identificacionDestinatario}
+                        onChange={(e) => setIdentificacionDestinatario(e.target.value)}
+                        disabled={isPending}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Comuna — automática si hay paciente, manual si no */}
+                {selectedIdPaciente ? (
+                  <div className="flex flex-col gap-1.5">
+                    <label className={labelClass} style={labelStyle}>Comuna</label>
+                    <div
+                      className="rounded-lg px-3 py-2 text-sm"
+                      style={{ backgroundColor: 'var(--muted)', color: comunaPaciente ? 'var(--foreground)' : 'var(--muted-foreground)', border: '1px solid var(--input)' }}
+                    >
+                      {comunaPaciente ?? 'El paciente no tiene comuna registrada'}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <label className={labelClass} style={labelStyle}>
+                      Comuna <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <SelectCombobox
+                      mode="single"
+                      placeholder="Buscar comuna…"
+                      options={COMUNAS_OPTIONS}
+                      selected={selectedComunaIdx}
+                      onChange={setSelectedComunaIdx}
+                      disabled={isPending}
+                    />
+                    {!comunaNombre && (
+                      <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                        Requerida para calcular el precio de visita
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Resumen — 1/3 */}
+          <section className={`col-span-1 ${sectionClass}`} style={sectionStyle}>
+            <div className="p-6">
+              <h2 className={sectionTitleClass} style={sectionTitleStyle}>Resumen</h2>
+              <div className="space-y-2 text-sm">
+                {totalProcedimientos > 0 && (
+                  <div className="flex justify-between">
+                    <span style={{ color: 'var(--muted-foreground)' }}>Procedimientos</span>
+                    <span className="tabular-nums">${totalProcedimientos.toLocaleString('es-CL')}</span>
+                  </div>
+                )}
+                {totalExamenes > 0 && (
+                  <div className="flex justify-between">
+                    <span style={{ color: 'var(--muted-foreground)' }}>Exámenes</span>
+                    <span className="tabular-nums">${totalExamenes.toLocaleString('es-CL')}</span>
+                  </div>
+                )}
+                {totalTalleres > 0 && (
+                  <div className="flex justify-between">
+                    <span style={{ color: 'var(--muted-foreground)' }}>Talleres</span>
+                    <span className="tabular-nums">${totalTalleres.toLocaleString('es-CL')}</span>
+                  </div>
+                )}
+                {cobraVisita && (
+                  <div className="flex justify-between">
+                    <span style={{ color: 'var(--muted-foreground)' }}>
+                      Visita{comunaNombre ? ` (${comunaNombre})` : ''}
+                    </span>
+                    <span className="tabular-nums">
+                      {precioVisita > 0
+                        ? `$${precioVisita.toLocaleString('es-CL')}`
+                        : <span style={{ color: 'oklch(0.6 0.12 50)' }}>—</span>
+                      }
+                    </span>
+                  </div>
+                )}
+                {totalRecargo > 0 && (
+                  <div className="flex justify-between">
+                    <span style={{ color: 'var(--muted-foreground)' }}>Recargo</span>
+                    <span className="tabular-nums">${totalRecargo.toLocaleString('es-CL')}</span>
+                  </div>
+                )}
+                <div
+                  className="flex justify-between border-t pt-2 font-semibold"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  <span>Total</span>
+                  <span className="tabular-nums">${totalGeneral.toLocaleString('es-CL')}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* ── Procedimientos ── */}
+        <section className={sectionClass} style={sectionStyle}>
+          <div className="p-6">
+            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Procedimientos</h2>
+            <div className="grid grid-cols-2 gap-8">
+              {/* Columna izquierda: selector */}
+              <SelectCombobox
+                mode="multi"
+                placeholder="Buscar procedimiento…"
+                options={procedimientosOptions}
+                selected={selectedProcedures}
+                onChange={setSelectedProcedures}
+                disabled={isPending}
+              />
+
+              {/* Columna derecha: lista con monto y subtotal */}
+              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
+                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                  Seleccionados
+                </p>
+                {selectedProcedures.length === 0 ? (
+                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Sin procedimientos seleccionados.</p>
+                ) : (
+                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {selectedProcedures.map((id) => {
+                      const proc = procedimientos.find((p) => p.id === id)
+                      if (!proc) return null
+                      return (
+                        <li key={id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                          <span style={{ color: 'var(--foreground)' }}>{proc.nombre}</span>
+                          <span className="shrink-0 font-medium tabular-nums" style={{ color: 'var(--foreground)' }}>
+                            ${proc.precio.toLocaleString('es-CL')}
+                          </span>
+                        </li>
+                      )
+                    })}
+                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
+                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
+                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
+                        ${totalProcedimientos.toLocaleString('es-CL')}
+                      </span>
+                    </li>
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
         </section>
 
-        {/* ── Procedimientos y Exámenes ── */}
+        {/* ── Exámenes ── */}
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Procedimientos y Exámenes</h2>
-            <div className="space-y-4">
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Procedimientos</label>
-                <SelectCombobox
-                  mode="multi"
-                  placeholder="Seleccionar procedimientos…"
-                  options={procedimientosOptions}
-                  selected={selectedProcedures}
-                  onChange={setSelectedProcedures}
-                  disabled={isPending}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Exámenes</label>
-                <SelectCombobox
-                  mode="multi"
-                  placeholder="Seleccionar exámenes…"
-                  options={examenesOptions}
-                  selected={selectedExams}
-                  onChange={setSelectedExams}
-                  disabled={isPending}
-                />
+            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Exámenes</h2>
+            <div className="grid grid-cols-2 gap-8">
+              {/* Columna izquierda: selector */}
+              <SelectCombobox
+                mode="multi"
+                placeholder="Buscar examen…"
+                options={examenesOptions}
+                selected={selectedExams}
+                onChange={setSelectedExams}
+                disabled={isPending}
+              />
+
+              {/* Columna derecha: lista con monto y subtotal */}
+              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
+                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                  Seleccionados
+                </p>
+                {selectedExams.length === 0 ? (
+                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Sin exámenes seleccionados.</p>
+                ) : (
+                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {selectedExams.map((id) => {
+                      const examen = examenes.find((e) => e.id === id)
+                      if (!examen) return null
+                      return (
+                        <li key={id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                          <span style={{ color: 'var(--foreground)' }}>{examen.nombre}</span>
+                          <span className="shrink-0 font-medium tabular-nums" style={{ color: 'var(--foreground)' }}>
+                            ${examen.precio.toLocaleString('es-CL')}
+                          </span>
+                        </li>
+                      )
+                    })}
+                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
+                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
+                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
+                        ${totalExamenes.toLocaleString('es-CL')}
+                      </span>
+                    </li>
+                  </ul>
+                )}
               </div>
             </div>
           </div>
@@ -444,90 +565,117 @@ export function CotizacionForm({
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
             <h2 className={sectionTitleClass} style={sectionTitleStyle}>Talleres</h2>
-            <div className="space-y-3">
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Talleres</label>
-                <SelectCombobox
-                  mode="multi"
-                  placeholder="Seleccionar talleres…"
-                  options={talleres.filter((t) => t.activo).map((t) => ({ id: t.id, label: `${t.nombre} (${t.codigo})` }))}
-                  selected={selectedTallers}
-                  onChange={(ids) => {
-                    setSelectedTallers(ids)
-                    setTallerPriceMap((prev) => {
-                      const next = { ...prev }
-                      for (const id of ids) {
-                        if (!(id in next)) next[id] = '0'
-                      }
-                      return next
-                    })
-                  }}
-                  disabled={isPending}
-                />
-              </div>
-              {selectedTallers.length > 0 && (
-                <div className="space-y-2">
-                  {selectedTallers.map((id) => {
-                    const taller = talleres.find((t) => t.id === id)
-                    if (!taller) return null
-                    return (
-                      <div key={id} className="flex items-center gap-3">
-                        <span className="flex-1 text-sm truncate" style={{ color: 'var(--foreground)' }}>
-                          {taller.nombre}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>$</span>
+            <div className="grid grid-cols-2 gap-8">
+              {/* Columna izquierda: selector */}
+              <SelectCombobox
+                mode="multi"
+                placeholder="Buscar taller…"
+                options={talleres.filter((t) => t.activo).map((t) => ({ id: t.id, label: `${t.nombre} (${t.codigo})` }))}
+                selected={selectedTallers}
+                onChange={(ids) => {
+                  setSelectedTallers(ids)
+                  setTallerPriceMap((prev) => {
+                    const next = { ...prev }
+                    for (const key of Object.keys(next)) {
+                      if (!ids.includes(Number(key))) delete next[Number(key)]
+                    }
+                    for (const id of ids) {
+                      if (!(id in next)) next[id] = '0'
+                    }
+                    return next
+                  })
+                }}
+                disabled={isPending}
+              />
+
+              {/* Columna derecha: lista con input de precio y subtotal */}
+              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
+                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                  Seleccionados
+                </p>
+                {selectedTallers.length === 0 ? (
+                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Sin talleres seleccionados.</p>
+                ) : (
+                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {selectedTallers.map((id) => {
+                      const taller = talleres.find((t) => t.id === id)
+                      if (!taller) return null
+                      return (
+                        <li key={id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                          <span style={{ color: 'var(--foreground)' }}>{taller.nombre}</span>
                           <input
                             type="number"
                             min="0"
-                            placeholder="0"
-                            value={tallerPriceMap[id] ?? '0'}
+                            value={tallerPriceMap[id] ?? ''}
                             onChange={(e) => setTallerPriceMap((prev) => ({ ...prev, [id]: e.target.value }))}
+                            placeholder="0"
                             disabled={isPending}
-                            className="w-28 rounded-lg px-3 py-1.5 text-sm outline-none disabled:opacity-50"
-                            style={inputStyle}
+                            className="w-28 shrink-0 rounded border px-2 py-1 text-right text-sm tabular-nums"
+                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
                           />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+                        </li>
+                      )
+                    })}
+                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
+                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
+                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
+                        ${totalTalleres.toLocaleString('es-CL')}
+                      </span>
+                    </li>
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
         </section>
 
-        {/* ── Costos adicionales ── */}
+        {/* ── Visita ── */}
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Costos adicionales</h2>
-            <div className="space-y-4">
+            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Visita</h2>
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="cobraVisita"
+                checked={cobraVisita}
+                onCheckedChange={(checked) => setCobraVisita(checked as boolean)}
+                disabled={isPending}
+              />
+              <label htmlFor="cobraVisita" className="cursor-pointer text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                Cobrar visita de enfermería
+                {cobraVisita && comunaNombre && (
+                  <span className="ml-2 font-normal" style={{ color: 'var(--muted-foreground)' }}>
+                    — ${precioVisita.toLocaleString('es-CL')} ({comunaNombre})
+                  </span>
+                )}
+                {cobraVisita && !comunaNombre && (
+                  <span className="ml-2 font-normal" style={{ color: 'oklch(0.6 0.12 50)' }}>
+                    — selecciona una comuna para ver el precio
+                  </span>
+                )}
+              </label>
+            </div>
+          </div>
+        </section>
 
-              {/* Cobrar visita */}
-              <div className="flex items-center gap-3">
-                <Checkbox
-                  id="cobraVisita"
-                  checked={cobraVisita}
-                  onCheckedChange={(checked) => setCobraVisita(checked as boolean)}
-                  disabled={isPending}
-                />
-                <label htmlFor="cobraVisita" className="cursor-pointer text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                  Cobrar visita de enfermería
-                  {cobraVisita && comunaNombre && (
-                    <span className="ml-2 font-normal" style={{ color: 'var(--muted-foreground)' }}>
-                      — ${precioVisita.toLocaleString('es-CL')} ({comunaNombre})
-                    </span>
-                  )}
-                  {cobraVisita && !comunaNombre && (
-                    <span className="ml-2 font-normal" style={{ color: 'oklch(0.6 0.12 50)' }}>
-                      — selecciona una comuna para ver el precio
-                    </span>
-                  )}
-                </label>
-              </div>
-
-              {/* Recargo */}
-              <div className="grid gap-4 sm:grid-cols-2">
+        {/* ── Recargos ── */}
+        <section className={sectionClass} style={sectionStyle}>
+          <div className="p-6">
+            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Recargos</h2>
+            <div className="grid grid-cols-2 gap-8">
+              {/* Columna izquierda: tipo + monto */}
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelClass} style={labelStyle}>Tipo de recargo</label>
+                  <SelectCombobox
+                    mode="single"
+                    placeholder="Seleccionar tipo…"
+                    options={tipoRecargosOptions}
+                    selected={selectedIdTipoRecargo}
+                    onChange={setSelectedIdTipoRecargo}
+                    disabled={isPending || !parseInt(montoRecargo)}
+                    clearable
+                  />
+                </div>
                 <div className="flex flex-col gap-1.5">
                   <label className={labelClass} style={labelStyle}>Monto recargo</label>
                   <input
@@ -546,18 +694,33 @@ export function CotizacionForm({
                     placeholder="0"
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className={labelClass} style={labelStyle}>Tipo de recargo</label>
-                  <SelectCombobox
-                    mode="single"
-                    placeholder="Seleccionar tipo…"
-                    options={tipoRecargosOptions}
-                    selected={selectedIdTipoRecargo}
-                    onChange={setSelectedIdTipoRecargo}
-                    disabled={isPending || !parseInt(montoRecargo)}
-                    clearable
-                  />
-                </div>
+              </div>
+
+              {/* Columna derecha: preview con subtotal */}
+              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
+                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                  Seleccionados
+                </p>
+                {totalRecargo === 0 ? (
+                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Sin recargo.</p>
+                ) : (
+                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                      <span style={{ color: 'var(--foreground)' }}>
+                        {tipoRecargosOptions.find((t) => t.id === selectedIdTipoRecargo)?.label ?? 'Recargo'}
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums" style={{ color: 'var(--foreground)' }}>
+                        ${totalRecargo.toLocaleString('es-CL')}
+                      </span>
+                    </li>
+                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
+                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
+                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
+                        ${totalRecargo.toLocaleString('es-CL')}
+                      </span>
+                    </li>
+                  </ul>
+                )}
               </div>
             </div>
           </div>
@@ -580,58 +743,6 @@ export function CotizacionForm({
           </div>
         </section>
 
-        {/* ── Resumen ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Resumen</h2>
-            <div className="space-y-2 text-sm max-w-xs">
-              {totalProcedimientos > 0 && (
-                <div className="flex justify-between">
-                  <span style={{ color: 'var(--muted-foreground)' }}>Procedimientos</span>
-                  <span className="tabular-nums">${totalProcedimientos.toLocaleString('es-CL')}</span>
-                </div>
-              )}
-              {totalExamenes > 0 && (
-                <div className="flex justify-between">
-                  <span style={{ color: 'var(--muted-foreground)' }}>Exámenes</span>
-                  <span className="tabular-nums">${totalExamenes.toLocaleString('es-CL')}</span>
-                </div>
-              )}
-              {totalTalleres > 0 && (
-                <div className="flex justify-between">
-                  <span style={{ color: 'var(--muted-foreground)' }}>Talleres</span>
-                  <span className="tabular-nums">${totalTalleres.toLocaleString('es-CL')}</span>
-                </div>
-              )}
-              {cobraVisita && (
-                <div className="flex justify-between">
-                  <span style={{ color: 'var(--muted-foreground)' }}>
-                    Visita{comunaNombre ? ` (${comunaNombre})` : ''}
-                  </span>
-                  <span className="tabular-nums">
-                    {precioVisita > 0
-                      ? `$${precioVisita.toLocaleString('es-CL')}`
-                      : <span style={{ color: 'oklch(0.6 0.12 50)' }}>—</span>
-                    }
-                  </span>
-                </div>
-              )}
-              {totalRecargo > 0 && (
-                <div className="flex justify-between">
-                  <span style={{ color: 'var(--muted-foreground)' }}>Recargo</span>
-                  <span className="tabular-nums">${totalRecargo.toLocaleString('es-CL')}</span>
-                </div>
-              )}
-              <div
-                className="flex justify-between border-t pt-2 font-semibold"
-                style={{ borderColor: 'var(--border)' }}
-              >
-                <span>Total</span>
-                <span className="tabular-nums">${totalGeneral.toLocaleString('es-CL')}</span>
-              </div>
-            </div>
-          </div>
-        </section>
       </form>
     </>
   )
