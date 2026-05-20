@@ -10,6 +10,7 @@ import type { PacienteDetalle } from '@/lib/actions/pacientes'
 import { formatRut, validatePasaporte } from '@/lib/rut'
 import { BirthDatePicker } from '@/components/birth-date-picker'
 import { SelectCombobox } from '@/components/select-combobox'
+import { FileUpload } from '@/components/file-upload'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ type Props = {
   paciente?: PacienteDetalle
   previsiones: { id: number; nombre: string }[]
   residencias: { id: number; nombre: string }[]
+  signedUrlIdentificacion?: string | null
 }
 
 type AddressState = {
@@ -210,11 +212,14 @@ const TIPO_IDENTIFICADOR_OPTIONS = [
   { id: 2, label: 'Pasaporte', value: 'pasaporte' },
 ]
 
-export function PacienteForm({ paciente, previsiones, residencias }: Props) {
+export function PacienteForm({ paciente, previsiones, residencias, signedUrlIdentificacion }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [createdId, setCreatedId] = useState<number | null>(null)
+  const [keyIdentificacion, setKeyIdentificacion] = useState<string | null>(
+    paciente?.keyIdentificacion ?? null,
+  )
 
   const getTipoIdOptionId = (value: string): number | null => {
     const opt = TIPO_IDENTIFICADOR_OPTIONS.find((o) => o.value === value)
@@ -596,6 +601,25 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
             <input type="hidden" name="latitud" value={addressFields.latitud} />
             <input type="hidden" name="longitud" value={addressFields.longitud} />
           </div>
+        </section>
+
+        {/* ── Documento de identificación ── */}
+        <section className={sectionClass} style={sectionStyle}>
+          <h2 className={sectionTitleClass} style={sectionTitleStyle}>
+            Documento de identificación
+          </h2>
+          <p className="mb-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            Imagen (JPG, PNG, WEBP) o PDF. Máximo 10 MB.
+          </p>
+          <input type="hidden" name="keyIdentificacion" value={keyIdentificacion ?? ''} />
+          <FileUpload
+            folder="pacientes"
+            accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+            currentKey={keyIdentificacion}
+            signedUrl={signedUrlIdentificacion}
+            onUploaded={setKeyIdentificacion}
+            disabled={isPending}
+          />
         </section>
 
         {/* ── Teléfonos ── */}

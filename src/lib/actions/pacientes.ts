@@ -44,6 +44,7 @@ export type PacienteDetalle = {
   fechaNacimiento: string | null
   correo: string | null
   informacionAdicional: string | null
+  keyIdentificacion: string | null
   idCompaniaSeguro: number | null
   idResidenciaAdulto: number | null
   // address
@@ -160,6 +161,7 @@ export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
       fechaNacimiento: patients.fechaNacimiento,
       correo: patients.correo,
       informacionAdicional: patients.informacionAdicional,
+      keyIdentificacion: patients.keyIdentificacion,
       idCompaniaSeguro: patients.idCompaniaSeguro,
       idResidenciaAdulto: patients.idResidenciaAdulto,
       // address fields
@@ -189,6 +191,7 @@ export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
   return {
     ...row,
     direccionFormateada: row.direccionFormateada ?? null,
+    keyIdentificacion: row.keyIdentificacion ?? null,
     telefonos: phoneRows,
   }
 }
@@ -211,6 +214,7 @@ export async function createPaciente(
   const informacionAdicional = (formData.get('informacionAdicional') as string)?.trim() || null
   const idCompaniaSeguro = Number(formData.get('idCompaniaSeguro')) || null
   const idResidenciaAdulto = Number(formData.get('idResidenciaAdulto')) || null
+  const keyIdentificacion = (formData.get('keyIdentificacion') as string)?.trim() || null
 
   if (!nombres) return { success: false, error: 'Nombres son requeridos' }
   if (!apellidoPaterno) return { success: false, error: 'Apellido paterno es requerido' }
@@ -291,6 +295,7 @@ export async function createPaciente(
           fechaNacimiento,
           correo,
           informacionAdicional,
+          keyIdentificacion,
           idDireccion,
           idCompaniaSeguro,
           idResidenciaAdulto,
@@ -334,6 +339,7 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
   const informacionAdicional = (formData.get('informacionAdicional') as string)?.trim() || null
   const idCompaniaSeguro = Number(formData.get('idCompaniaSeguro')) || null
   const idResidenciaAdulto = Number(formData.get('idResidenciaAdulto')) || null
+  const keyIdentificacion = (formData.get('keyIdentificacion') as string)?.trim() || null
 
   if (!nombres) return { success: false, error: 'Nombres son requeridos' }
   if (!apellidoPaterno) return { success: false, error: 'Apellido paterno es requerido' }
@@ -423,6 +429,7 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
           fechaNacimiento,
           correo,
           informacionAdicional,
+          keyIdentificacion,
           idCompaniaSeguro,
           idResidenciaAdulto,
           updatedAt: new Date(),
