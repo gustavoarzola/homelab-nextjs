@@ -3,7 +3,10 @@
 import { useState, useTransition, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, Pencil, FileText, AlertTriangle } from 'lucide-react'
+import {
+  Loader2, Pencil, FileText, AlertTriangle,
+  ChevronRight, Stethoscope, FlaskConical, BookOpen, X, MapPin,
+} from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { SelectCombobox } from '@/components/select-combobox'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -53,13 +56,42 @@ type Props = {
   onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
 }
 
+type ServiceTab = 'procedimientos' | 'examenes' | 'talleres'
+
+const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
+
+// ─── Estado badge ──────────────────────────────────────────────────────────────
+
+const estadoConfig = {
+  creada:       { bg: 'var(--muted)',                 fg: 'var(--muted-foreground)', label: 'Creada' },
+  confirmada:   { bg: 'oklch(0.97 0.025 240)',        fg: 'oklch(0.45 0.12 240)',   label: 'Confirmada' },
+  realizada:    { bg: 'oklch(0.97 0.025 145)',        fg: 'oklch(0.45 0.13 145)',   label: 'Realizada' },
+  cancelada:    { bg: 'oklch(0.95 0.025 25)',         fg: 'oklch(0.5 0.18 25)',     label: 'Cancelada' },
+  no_realizada: { bg: 'oklch(0.97 0.04 70)',          fg: 'oklch(0.5 0.13 70)',     label: 'No realizada' },
+} as const
+
+function EstadoBadge({ estado, size = 'sm' }: { estado: string; size?: 'sm' | 'lg' }) {
+  const cfg = estadoConfig[estado as keyof typeof estadoConfig] ?? estadoConfig.creada
+  return (
+    <span
+      className="rounded-md font-medium uppercase tracking-wide"
+      style={{
+        backgroundColor: cfg.bg,
+        color: cfg.fg,
+        fontSize: size === 'lg' ? 11 : 10.5,
+        padding: size === 'lg' ? '4px 10px' : '2px 8px',
+        letterSpacing: '0.06em',
+      }}
+    >
+      {cfg.label}
+    </span>
+  )
+}
+
 // ─── ProcedimientoPriceWarning ────────────────────────────────────────────────
 
 function ProcedimientoPriceWarning({
-  procedimiento,
-  savedPrice,
-  idVisita,
-  onDismiss,
+  procedimiento, savedPrice, idVisita, onDismiss,
 }: {
   procedimiento: ProcedimientoRow
   savedPrice: number
@@ -67,29 +99,25 @@ function ProcedimientoPriceWarning({
   onDismiss: () => void
 }) {
   const [isPending, startTransition] = useTransition()
-
   const handleActualizar = () => {
     startTransition(async () => {
       await actualizarPrecioProcedimientoVisita(idVisita, procedimiento.id)
       onDismiss()
     })
   }
-
   return (
     <div
-      className="mt-2 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 text-sm"
-      style={{ backgroundColor: 'oklch(0.8 0.12 80 / 15%)', border: '1px solid oklch(0.7 0.12 80 / 40%)' }}
+      className="mt-2 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 text-[13px]"
+      style={{ backgroundColor: 'oklch(0.97 0.05 75)', border: '1px solid oklch(0.85 0.12 75)' }}
     >
-      <div className="flex items-center gap-2.5">
-        <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />
-        <span style={{ color: 'var(--foreground)' }}>
+      <div className="flex items-center gap-2.5" style={{ color: 'oklch(0.35 0.14 70)' }}>
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        <span>
           <span className="font-medium">{procedimiento.nombre}</span>
-          <span style={{ color: 'var(--muted-foreground)' }}>
-            {' '}— Precio cambió:{' '}
-            <span className="line-through">${savedPrice.toLocaleString('es-CL')}</span>
-            {' → '}
-            <span className="font-medium">${procedimiento.precio.toLocaleString('es-CL')}</span>
-          </span>
+          {' — Precio cambió: '}
+          <span className="line-through">${savedPrice.toLocaleString('es-CL')}</span>
+          {' → '}
+          <span className="font-semibold">${procedimiento.precio.toLocaleString('es-CL')}</span>
         </span>
       </div>
       <div className="flex shrink-0 gap-2">
@@ -97,8 +125,8 @@ function ProcedimientoPriceWarning({
           type="button"
           onClick={handleActualizar}
           disabled={isPending}
-          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-[11.5px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+          style={{ backgroundColor: 'oklch(0.4 0.14 70)', color: 'white' }}
         >
           {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
           Actualizar
@@ -106,8 +134,8 @@ function ProcedimientoPriceWarning({
         <button
           type="button"
           onClick={onDismiss}
-          className="rounded px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
-          style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
+          className="rounded px-2.5 py-1 text-[11.5px] font-medium transition-opacity hover:opacity-80"
+          style={{ border: '1px solid oklch(0.75 0.08 70)', color: 'oklch(0.4 0.14 70)' }}
         >
           Mantener
         </button>
@@ -116,20 +144,61 @@ function ProcedimientoPriceWarning({
   )
 }
 
-// ─── Style helpers ────────────────────────────────────────────────────────────
+// ─── ExamenPriceWarning ───────────────────────────────────────────────────────
 
-const inputClass = 'w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50'
-const inputStyle = {
-  backgroundColor: 'var(--background)',
-  border: '1px solid var(--input)',
-  color: 'var(--foreground)',
+function ExamenPriceWarning({
+  examen, savedPrice, idVisita, onDismiss,
+}: {
+  examen: ExamenRow
+  savedPrice: number
+  idVisita: number
+  onDismiss: () => void
+}) {
+  const [isPending, startTransition] = useTransition()
+  const handleActualizar = () => {
+    startTransition(async () => {
+      await actualizarPrecioExamenVisita(idVisita, examen.id)
+      onDismiss()
+    })
+  }
+  return (
+    <div
+      className="mt-2 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 text-[13px]"
+      style={{ backgroundColor: 'oklch(0.97 0.05 75)', border: '1px solid oklch(0.85 0.12 75)' }}
+    >
+      <div className="flex items-center gap-2.5" style={{ color: 'oklch(0.35 0.14 70)' }}>
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          <span className="font-medium">{examen.nombre}</span>
+          {' — Precio cambió: '}
+          <span className="line-through">${savedPrice.toLocaleString('es-CL')}</span>
+          {' → '}
+          <span className="font-semibold">${examen.precio.toLocaleString('es-CL')}</span>
+        </span>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          onClick={handleActualizar}
+          disabled={isPending}
+          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-[11.5px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+          style={{ backgroundColor: 'oklch(0.4 0.14 70)', color: 'white' }}
+        >
+          {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+          Actualizar
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded px-2.5 py-1 text-[11.5px] font-medium transition-opacity hover:opacity-80"
+          style={{ border: '1px solid oklch(0.75 0.08 70)', color: 'oklch(0.4 0.14 70)' }}
+        >
+          Mantener
+        </button>
+      </div>
+    </div>
+  )
 }
-const labelClass = 'text-sm font-medium'
-const labelStyle = { color: 'var(--foreground)' }
-const sectionClass = 'rounded-xl border'
-const sectionStyle = { backgroundColor: 'var(--card)', borderColor: 'var(--border)' }
-const sectionTitleClass = 'mb-4 text-sm font-semibold uppercase tracking-wide'
-const sectionTitleStyle = { color: 'var(--muted-foreground)' }
 
 // ─── MapPreview ────────────────────────────────────────────────────────────────
 
@@ -174,20 +243,13 @@ function MapPreview({ lat, lng }: { lat: string; lng: string }) {
 
 function PacienteCard({ paciente }: { paciente: PacienteData }) {
   const nombreDisplay = formatNombre(paciente)
-
   const fechaDisplay = paciente.fechaNacimiento ? formatDate(paciente.fechaNacimiento) : null
-
   const telefonosDisplay = paciente.telefonos.length > 0
-    ? paciente.telefonos
-        .map((t) => t.descripcion ? `${t.telefono} (${t.descripcion})` : t.telefono)
-        .join(' · ')
+    ? paciente.telefonos.map((t) => t.descripcion ? `${t.telefono} (${t.descripcion})` : t.telefono).join(' · ')
     : null
 
   const fields = [
-    telefonosDisplay && {
-      label: paciente.telefonos.length === 1 ? 'Teléfono' : 'Teléfonos',
-      value: telefonosDisplay,
-    },
+    telefonosDisplay && { label: paciente.telefonos.length === 1 ? 'Teléfono' : 'Teléfonos', value: telefonosDisplay },
     fechaDisplay       && { label: 'Nacimiento',  value: fechaDisplay },
     paciente.prevision && { label: 'Previsión',   value: paciente.prevision },
     paciente.residencia && { label: 'Residencia', value: paciente.residencia },
@@ -201,26 +263,30 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
 
   return (
     <div className="overflow-hidden rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-      {/* Header */}
-      <div
-        className="flex items-center justify-between gap-4 border-b px-6 py-4"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <div>
-          <p className="text-base font-semibold" style={{ color: 'var(--foreground)' }}>
-            {nombreDisplay}
-          </p>
-          {paciente.identificador && (
-            <p className="mt-0.5 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-              {paciente.tipoIdentificador === 'rut' && formatRut(paciente.identificador)}
-              {paciente.tipoIdentificador === 'pasaporte' && `Pasaporte ${paciente.identificador}`}
-              {!paciente.tipoIdentificador && paciente.identificador}
+      <div className="flex items-center justify-between gap-4 border-b px-6 py-4" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold"
+            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+          >
+            {(paciente.nombres?.charAt(0) ?? '') + (paciente.apellidoPaterno?.charAt(0) ?? '')}
+          </div>
+          <div>
+            <p className="text-[15px] font-semibold" style={{ color: 'var(--foreground)' }}>
+              {nombreDisplay}
             </p>
-          )}
+            {paciente.identificador && (
+              <p className="mt-0.5 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+                {paciente.tipoIdentificador === 'rut' && formatRut(paciente.identificador)}
+                {paciente.tipoIdentificador === 'pasaporte' && `Pasaporte ${paciente.identificador}`}
+                {!paciente.tipoIdentificador && paciente.identificador}
+              </p>
+            )}
+          </div>
         </div>
         <Link
           href={`/pacientes/${paciente.id}`}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-70"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-opacity hover:opacity-70"
           style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -228,34 +294,24 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
         </Link>
       </div>
 
-      {/* Body */}
-      <div className="flex" style={{ minHeight: '180px' }}>
-        {/* Data */}
-        <div className="flex-1 p-6">
+      <div className="flex" style={{ minHeight: '160px' }}>
+        <div className="flex-1 p-5">
           {fields.length > 0 ? (
-            <dl className="flex flex-col gap-2.5">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
               {fields.map(({ label, value }) => (
-                <div key={label} className="flex gap-3 text-sm">
-                  <dt className="w-24 shrink-0 font-medium" style={{ color: 'var(--muted-foreground)' }}>
-                    {label}
-                  </dt>
+                <div key={label} className={`flex gap-2 text-[12.5px] ${label === 'Dirección' ? 'col-span-2' : ''}`}>
+                  <dt className="w-20 shrink-0 font-medium" style={{ color: 'var(--muted-foreground)' }}>{label}</dt>
                   <dd style={{ color: 'var(--foreground)' }}>{value}</dd>
                 </div>
               ))}
             </dl>
           ) : (
-            <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-              Sin datos adicionales registrados.
-            </p>
+            <p className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>Sin datos adicionales registrados.</p>
           )}
         </div>
 
-        {/* Map */}
         {hasMap && (
-          <div
-            className="w-2/5 shrink-0 overflow-hidden border-l"
-            style={{ borderColor: 'var(--border)' }}
-          >
+          <div className="w-[200px] shrink-0 overflow-hidden border-l" style={{ borderColor: 'var(--border)' }}>
             <MapPreview lat={paciente.latitud!} lng={paciente.longitud!} />
           </div>
         )}
@@ -264,65 +320,49 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
   )
 }
 
-// ─── ExamenPriceWarning ───────────────────────────────────────────────────────
+// ─── SummaryGroup ─────────────────────────────────────────────────────────────
 
-function ExamenPriceWarning({
-  examen,
-  savedPrice,
-  idVisita,
-  onDismiss,
+function SummaryGroup({
+  label, tone, items, subtotal,
 }: {
-  examen: ExamenRow
-  savedPrice: number
-  idVisita: number
-  onDismiss: () => void
+  label: string
+  tone: 'blue' | 'green' | 'violet' | 'amber'
+  items: { name: string; price: number }[]
+  subtotal: number
 }) {
-  const [isPending, startTransition] = useTransition()
+  const dotColor = {
+    blue:   'oklch(0.45 0.12 240)',
+    green:  'oklch(0.45 0.13 145)',
+    violet: 'oklch(0.45 0.13 290)',
+    amber:  'oklch(0.5 0.13 70)',
+  }[tone]
 
-  const handleActualizar = () => {
-    startTransition(async () => {
-      await actualizarPrecioExamenVisita(idVisita, examen.id)
-      onDismiss()
-    })
+  if (!items.length || subtotal === 0) {
+    return (
+      <div className="flex items-center justify-between text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+        <span>{label}</span>
+        <span>—</span>
+      </div>
+    )
   }
 
   return (
-    <div
-      className="mt-2 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 text-sm"
-      style={{ backgroundColor: 'oklch(0.8 0.12 80 / 15%)', border: '1px solid oklch(0.7 0.12 80 / 40%)' }}
-    >
-      <div className="flex items-center gap-2.5">
-        <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />
-        <span style={{ color: 'var(--foreground)' }}>
-          <span className="font-medium">{examen.nombre}</span>
-          <span style={{ color: 'var(--muted-foreground)' }}>
-            {' '}— Precio cambió:{' '}
-            <span className="line-through">${savedPrice.toLocaleString('es-CL')}</span>
-            {' → '}
-            <span className="font-medium">${examen.precio.toLocaleString('es-CL')}</span>
-          </span>
+    <div>
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="inline-flex items-center gap-2 text-[12px] font-medium" style={{ color: 'var(--foreground)' }}>
+          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: dotColor }} />
+          {label}
         </span>
+        <span className="text-[12px] font-medium tabular-nums">{CLP(subtotal)}</span>
       </div>
-      <div className="flex shrink-0 gap-2">
-        <button
-          type="button"
-          onClick={handleActualizar}
-          disabled={isPending}
-          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-        >
-          {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-          Actualizar
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="rounded px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80"
-          style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
-        >
-          Mantener
-        </button>
-      </div>
+      <ul className="space-y-0.5 pl-3.5">
+        {items.filter((i) => i.price > 0).map((item, idx) => (
+          <li key={idx} className="flex items-baseline justify-between gap-2 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+            <span className="truncate">{item.name}</span>
+            <span className="shrink-0 tabular-nums">{CLP(item.price)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -338,12 +378,14 @@ export function VisitaForm({
   examenes,
   talleres,
   origenesContacto,
-  pricingContext,
   tiposRecargos,
+  pricingContext,
   onSubmit,
 }: Props) {
   const router = useRouter()
   const isEdit = !!visita
+  const [activeTab, setActiveTab] = useState<ServiceTab>('procedimientos')
+
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(visita?.procedureIds ?? [])
   const [selectedExams, setSelectedExams] = useState<number[]>(visita?.examIds ?? [])
   const [selectedTallers, setSelectedTallers] = useState<number[]>(visita?.tallerIds ?? [])
@@ -377,8 +419,6 @@ export function VisitaForm({
   const [error, setError] = useState<string | null>(null)
 
   const [cobraVisita, setCobraVisita] = useState(visita?.cobraVisita ?? false)
-
-  // Pago y resultados
   const [pagado, setPagado] = useState(visita?.pagado ?? false)
   const [metodoPago, setMetodoPago] = useState<number | null>(
     visita?.metodoPago === 'transferencia' ? 0 : visita?.metodoPago === 'cheque' ? 1 : visita?.metodoPago === 'efectivo' ? 2 : null
@@ -386,8 +426,6 @@ export function VisitaForm({
   const [fechaPago, setFechaPago] = useState<string | null>(visita?.fechaPago ?? null)
   const [resultadosEnviados, setResultadosEnviados] = useState(visita?.resultadosEnviados ?? false)
   const [fechaEnvioResultados, setFechaEnvioResultados] = useState<string | null>(visita?.fechaEnvioResultados ?? null)
-
-  // Recargos
   const [montoRecargo, setMontoRecargo] = useState<string>(visita?.montoRecargo ? String(visita.montoRecargo) : '')
   const [selectedIdTipoRecargo, setSelectedIdTipoRecargo] = useState<number | null>(visita?.idTipoRecargo ?? null)
 
@@ -401,11 +439,7 @@ export function VisitaForm({
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
-
-    if (!selectedFecha) {
-      setError('La fecha es obligatoria')
-      return
-    }
+    if (!selectedFecha) { setError('La fecha es obligatoria'); return }
 
     const fd = new FormData(e.currentTarget)
     selectedProcedures.forEach((id) => fd.append('procedure_ids', String(id)))
@@ -430,6 +464,7 @@ export function VisitaForm({
     })
   }
 
+  // Options
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: `${p.nombre} (${p.codigo})` }))
   const talleresOptions = talleres.map((t) => ({ id: t.id, label: `${t.nombre} (${t.codigo})` }))
   const examenesOptions = examenes.map((e) => ({
@@ -439,10 +474,7 @@ export function VisitaForm({
   const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatNombre(e) }))
   const laboratoriosOptions = laboratorios.map((l) => ({ id: l.id, label: l.nombre }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
-  const tipoDocumentoOptions = [
-    { id: 0, label: 'Boleta' },
-    { id: 1, label: 'Factura' },
-  ]
+  const tipoDocumentoOptions = [{ id: 0, label: 'Boleta' }, { id: 1, label: 'Factura' }]
   const estadoOptions = [
     { id: 0, label: 'Creada' },
     { id: 1, label: 'Confirmada' },
@@ -450,7 +482,6 @@ export function VisitaForm({
     { id: 3, label: 'Cancelada' },
     { id: 4, label: 'No realizada' },
   ]
-
   const metodoPagoOptions = [
     { id: 0, label: 'Transferencia' },
     { id: 1, label: 'Cheque' },
@@ -458,37 +489,80 @@ export function VisitaForm({
   ]
 
   const costoPreview = useMemo(
-    () =>
-      calcularCostoVisitaPreview({
-        selectedProcedureIds: selectedProcedures,
-        selectedExamIds: selectedExams,
-        selectedTallerIds: selectedTallers,
-        tallerPriceMap,
-        catalogProcedurePrices: procedimientos.map((p) => ({ id: p.id, precio: p.precio })),
-        savedProcedurePrices: visita?.procedurePrices,
-        savedExamPrices: visita?.examPrices,
-        pricingContext,
-        cobraVisita,
-        montoRecargo: parseInt(montoRecargo) || 0,
-      }),
+    () => calcularCostoVisitaPreview({
+      selectedProcedureIds: selectedProcedures,
+      selectedExamIds: selectedExams,
+      selectedTallerIds: selectedTallers,
+      tallerPriceMap,
+      catalogProcedurePrices: procedimientos.map((p) => ({ id: p.id, precio: p.precio })),
+      savedProcedurePrices: visita?.procedurePrices,
+      savedExamPrices: visita?.examPrices,
+      pricingContext,
+      cobraVisita,
+      montoRecargo: parseInt(montoRecargo) || 0,
+    }),
     [selectedProcedures, selectedExams, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, montoRecargo],
   )
 
+  // Compute which tabs have undismissed price warnings (for warning dot)
+  const hasProcWarning = isEdit && visita && visita.estado !== 'realizada'
+    ? selectedProcedures.some((id) => {
+        if (dismissedPriceWarnings.has(id)) return false
+        const saved = visita.procedurePrices.find((p) => p.idProcedimiento === id)
+        if (!saved) return false
+        const proc = procedimientos.find((p) => p.id === id)
+        return proc && proc.precio !== saved.precio
+      })
+    : false
+
+  const hasExamWarning = isEdit && visita && visita.estado !== 'realizada'
+    ? selectedExams.some((id) => {
+        if (dismissedExamWarnings.has(id)) return false
+        const saved = visita.examPrices.find((e) => e.idExamen === id)
+        if (!saved || saved.precio === 0) return false
+        const examen = examenes.find((e) => e.id === id)
+        return examen && examen.precio !== saved.precio
+      })
+    : false
+
+  const tabs: { id: ServiceTab; label: string; count: number; hasWarning: boolean; Icon: typeof Stethoscope }[] = [
+    { id: 'procedimientos', label: 'Procedimientos', count: selectedProcedures.length, hasWarning: hasProcWarning, Icon: Stethoscope },
+    { id: 'examenes',       label: 'Exámenes',       count: selectedExams.length,      hasWarning: hasExamWarning, Icon: FlaskConical },
+    { id: 'talleres',       label: 'Talleres',        count: selectedTallers.length,    hasWarning: false,         Icon: BookOpen },
+  ]
+
+  // Enfermera display name for rail
+  const enfermeraNombre = enfermeras.find((e) => e.id === selectedEnfermeraId)
+  const enfermeraLabel = enfermeraNombre ? formatNombre(enfermeraNombre) : '—'
+
   return (
     <>
-      {/* Sticky header */}
+      {/* ── Sticky header ── */}
       <div
-        className="sticky top-0 z-10 flex items-center justify-between border-b px-8 py-3"
+        className="sticky top-0 z-10 flex h-[60px] items-center justify-between border-b px-8"
         style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
       >
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
-          {isEdit ? 'Editar visita' : 'Nueva visita'}
-        </h1>
-        <div className="flex gap-2">
-          <Link
-            href="/pacientes"
-            className="rounded-lg px-4 py-2 text-sm transition-opacity hover:opacity-80"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push('/visitas')}
+            className="text-[13px] transition-opacity hover:opacity-70"
             style={{ color: 'var(--muted-foreground)' }}
+          >
+            Visitas
+          </button>
+          <ChevronRight className="h-3.5 w-3.5" style={{ color: 'var(--muted-foreground)' }} />
+          <h1 className="text-[16px] font-semibold" style={{ color: 'var(--foreground)' }}>
+            {isEdit ? `Visita #${visita.id}` : 'Nueva visita'}
+          </h1>
+          {isEdit && estadoActual && <EstadoBadge estado={estadoActual} size="lg" />}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href="/visitas"
+            className="rounded-lg px-3.5 text-[13px] font-medium transition-opacity hover:opacity-80"
+            style={{ height: 36, lineHeight: '36px', color: 'var(--muted-foreground)' }}
           >
             Cancelar
           </Link>
@@ -497,8 +571,8 @@ export function VisitaForm({
               href={`/api/cotizacion/${visita.id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
-              style={{ color: 'var(--foreground)', borderColor: 'var(--border)' }}
+              className="flex items-center gap-1.5 rounded-lg border px-3.5 text-[13px] font-medium transition-opacity hover:opacity-80"
+              style={{ height: 36, color: 'var(--foreground)', borderColor: 'var(--border)' }}
             >
               <FileText className="h-3.5 w-3.5" />
               Cotización PDF
@@ -508,8 +582,8 @@ export function VisitaForm({
             type="submit"
             form="visita-form"
             disabled={isPending}
-            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+            className="flex items-center gap-2 rounded-lg px-3.5 text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+            style={{ height: 36, backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
           >
             {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {isEdit ? 'Guardar cambios' : 'Crear visita'}
@@ -517,30 +591,61 @@ export function VisitaForm({
         </div>
       </div>
 
-      {/* Error banner */}
+      {/* ── Error banner ── */}
       {error && (
         <div
-          className="mx-8 mt-4 rounded-lg px-4 py-3 text-sm"
+          className="mx-8 mt-4 flex items-center gap-2 rounded-lg px-4 py-3 text-[13px]"
           style={{ backgroundColor: 'var(--destructive)', color: 'white' }}
         >
+          <AlertTriangle className="h-4 w-4 shrink-0" />
           {error}
         </div>
       )}
 
-      <form id="visita-form" onSubmit={handleSubmit} className="flex flex-col gap-6 p-8">
+      {/* ── Two-column form ── */}
+      <form
+        id="visita-form"
+        onSubmit={handleSubmit}
+        className="grid gap-5 px-8 py-6"
+        style={{ gridTemplateColumns: 'minmax(0,1fr) 340px', alignItems: 'start' }}
+      >
         <input type="hidden" name="idPaciente" value={paciente.id} />
         {isEdit && <input type="hidden" name="id" value={visita.id} />}
+        <input type="hidden" name="estado" value={estadoActual} />
+        <input type="hidden" name="idEnfermera" value={selectedEnfermeraId ?? ''} />
+        <input type="hidden" name="idLaboratorio" value={selectedLaboratorioId ?? ''} />
+        <input type="hidden" name="origenContacto" value={selectedOrigenContactoId !== null ? origenesContacto.find((o) => o.id === selectedOrigenContactoId)?.nombre ?? '' : ''} />
+        <input type="hidden" name="tipoDocumento" value={selectedTipoDocumentoId === 0 ? 'boleta' : selectedTipoDocumentoId === 1 ? 'factura' : ''} />
+        <input type="hidden" name="hora" value={selectedHora ?? ''} />
+        {pagado && (
+          <input type="hidden" name="metodoPago" value={metodoPago === 0 ? 'transferencia' : metodoPago === 1 ? 'cheque' : metodoPago === 2 ? 'efectivo' : ''} />
+        )}
+        <input type="hidden" name="idTipoRecargo" value={selectedIdTipoRecargo ?? ''} />
 
-        {/* ── Paciente ── */}
-        <PacienteCard paciente={paciente} />
+        {/* ── LEFT column ── */}
+        <div className="flex flex-col gap-5">
 
-        {/* ── Datos de la visita ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Datos de la visita</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>
+          {/* Paciente */}
+          <PacienteCard paciente={paciente} />
+
+          {/* Agenda */}
+          <section
+            className="rounded-xl border p-6"
+            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+          >
+            <div className="mb-4">
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+                Agenda
+              </h2>
+              <p className="mt-0.5 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+                Fecha, hora y quién realiza la visita.
+              </p>
+            </div>
+
+            <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
+              {/* Fecha */}
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
                   Fecha <span style={{ color: 'var(--destructive)' }}>*</span>
                 </label>
                 <FormDatePicker
@@ -555,82 +660,42 @@ export function VisitaForm({
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Hora</label>
-                <input type="hidden" name="hora" value={selectedHora ?? ''} />
+              {/* Hora */}
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Hora</label>
                 <TimePicker value={selectedHora} onChange={setSelectedHora} disabled={isPending} className="w-full" />
               </div>
 
-              <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-2">
-                <label className={labelClass} style={labelStyle}>Costo total</label>
-                <div
-                  className="w-full rounded-lg px-4 py-3 text-sm space-y-1.5"
-                  style={{ backgroundColor: 'var(--muted)', borderColor: 'var(--border)' }}
-                >
-                  <div className="flex justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                    <span>Procedimientos:</span>
-                    <span>${costoPreview.subtotalProcedimientos.toLocaleString('es-CL')}</span>
-                  </div>
-                  <div className="flex justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                    <span>Exámenes:</span>
-                    <span>${costoPreview.subtotalExamenes.toLocaleString('es-CL')}</span>
-                  </div>
-                  {costoPreview.subtotalTalleres > 0 && (
-                    <div className="flex justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                      <span>Talleres:</span>
-                      <span>${costoPreview.subtotalTalleres.toLocaleString('es-CL')}</span>
-                    </div>
-                  )}
-                  {costoPreview.costoVisitaEnfermeria > 0 && (
-                    <div className="flex justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                      <span>Visita enfermería:</span>
-                      <span>${costoPreview.costoVisitaEnfermeria.toLocaleString('es-CL')}</span>
-                    </div>
-                  )}
-                  {costoPreview.montoRecargo > 0 && (
-                    <div className="flex justify-between text-xs" style={{ color: 'var(--destructive)' }}>
-                      <span>Recargo:</span>
-                      <span>${costoPreview.montoRecargo.toLocaleString('es-CL')}</span>
-                    </div>
-                  )}
-                  <div
-                    className="flex justify-between pt-1.5 font-semibold border-t"
-                    style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
-                  >
-                    <span>Total:</span>
-                    <span>${costoPreview.total.toLocaleString('es-CL')}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="cobraVisita"
-                    checked={cobraVisita}
-                    onCheckedChange={(checked) => setCobraVisita(checked === true)}
-                    disabled={isPending}
-                  />
-                  <label htmlFor="cobraVisita" className="cursor-pointer text-sm" style={labelStyle}>
-                    Cobrar visita
-                  </label>
-                </div>
-                {cobraVisita && !costoPreview.precioVisitaConfigurado && (
-                  <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                    Sin precio de visita configurado para esta comuna.
-                  </p>
-                )}
+              {/* Enfermera */}
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Enfermera</label>
+                <SelectCombobox
+                  mode="single"
+                  options={enfermerasOptions}
+                  selected={selectedEnfermeraId}
+                  onChange={setSelectedEnfermeraId}
+                  placeholder="Buscar enfermera…"
+                  disabled={isPending}
+                />
               </div>
 
-              {estadoActual === 'no_realizada' && (
-                <div className="flex flex-col gap-1.5">
-                  <label className={labelClass} style={labelStyle}>Costo traslado</label>
-                  <input name="costoTraslado" type="number" min="0" defaultValue={visita?.costoTraslado ?? 7000} disabled={isPending} className={inputClass} style={inputStyle} />
-                </div>
-              )}
+              {/* Laboratorio */}
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Laboratorio</label>
+                <SelectCombobox
+                  mode="single"
+                  options={laboratoriosOptions}
+                  selected={selectedLaboratorioId}
+                  onChange={setSelectedLaboratorioId}
+                  placeholder="Buscar laboratorio…"
+                  disabled={isPending}
+                />
+              </div>
 
-
+              {/* Estado (edit only) */}
               {isEdit && (
-                <div className="flex flex-col gap-1.5">
-                  <label className={labelClass} style={labelStyle}>Estado</label>
-                  <input type="hidden" name="estado" value={estadoActual} />
+                <div className="col-span-2 flex flex-col gap-1.5">
+                  <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Estado</label>
                   <SelectCombobox
                     mode="single"
                     options={estadoOptions}
@@ -642,35 +707,457 @@ export function VisitaForm({
                 </div>
               )}
 
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Enfermera</label>
-                <input type="hidden" name="idEnfermera" value={selectedEnfermeraId ?? ''} />
+              {/* Costo traslado (no_realizada only) */}
+              {estadoActual === 'no_realizada' && (
+                <div className="col-span-2 flex flex-col gap-1.5">
+                  <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Costo traslado</label>
+                  <input
+                    name="costoTraslado"
+                    type="number"
+                    min="0"
+                    defaultValue={visita?.costoTraslado ?? 7000}
+                    disabled={isPending}
+                    className="w-full rounded-lg px-3 py-2 text-[13px] outline-none disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                  />
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Servicios — tabbed */}
+          <section
+            className="rounded-xl border p-6"
+            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+          >
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+                  Servicios
+                </h2>
+                <p className="mt-0.5 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+                  Procedimientos y exámenes usan precios del catálogo. Los talleres permiten precio personalizado.
+                </p>
+              </div>
+              {(costoPreview.subtotalProcedimientos + costoPreview.subtotalExamenes + costoPreview.subtotalTalleres) > 0 && (
+                <span className="shrink-0 text-[13px] tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                  Subtotal{' '}
+                  <span className="font-semibold" style={{ color: 'var(--foreground)' }}>
+                    {CLP(costoPreview.subtotalProcedimientos + costoPreview.subtotalExamenes + costoPreview.subtotalTalleres)}
+                  </span>
+                </span>
+              )}
+            </div>
+
+            {/* Tab strip */}
+            <div
+              className="mb-5 flex items-center gap-1 rounded-lg p-1"
+              style={{ backgroundColor: 'var(--muted)', width: 'fit-content' }}
+            >
+              {tabs.map(({ id, label, count, hasWarning, Icon: TabIcon }) => {
+                const active = activeTab === id
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActiveTab(id)}
+                    className="relative inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors"
+                    style={{
+                      backgroundColor: active ? 'var(--card)' : 'transparent',
+                      color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
+                      boxShadow: active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                    }}
+                  >
+                    <TabIcon className="h-3.5 w-3.5" />
+                    {label}
+                    {count > 0 && (
+                      <span
+                        className="ml-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10.5px] font-semibold tabular-nums"
+                        style={{
+                          backgroundColor: active ? 'var(--foreground)' : 'transparent',
+                          color: active ? 'var(--background)' : 'var(--muted-foreground)',
+                          border: active ? 'none' : '1px solid var(--border)',
+                        }}
+                      >
+                        {count}
+                      </span>
+                    )}
+                    {hasWarning && !active && (
+                      <span
+                        className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full"
+                        style={{ backgroundColor: 'oklch(0.65 0.18 70)' }}
+                      />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Tab: Procedimientos */}
+            {activeTab === 'procedimientos' && (
+              <div>
+                <div className="mb-4">
+                  <SelectCombobox
+                    options={procedimientosOptions}
+                    selected={selectedProcedures}
+                    onChange={(ids) => {
+                      setSelectedProcedures(ids)
+                      setDismissedPriceWarnings((prev) => {
+                        const next = new Set(prev)
+                        for (const id of prev) { if (!ids.includes(id)) next.delete(id) }
+                        return next
+                      })
+                    }}
+                    placeholder="Buscar procedimiento…"
+                    disabled={isPending}
+                  />
+                </div>
+                {selectedProcedures.length === 0 ? (
+                  <div
+                    className="rounded-lg border border-dashed py-8 text-center text-[13px]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                  >
+                    Sin procedimientos seleccionados.
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
+                    {selectedProcedures.map((id, i) => {
+                      const proc = procedimientos.find((p) => p.id === id)
+                      if (!proc) return null
+                      const savedEntry = visita?.procedurePrices.find((p) => p.idProcedimiento === id)
+                      const precio = savedEntry?.precio ?? proc.precio
+                      const priceChanged = savedEntry && savedEntry.precio !== proc.precio && !dismissedPriceWarnings.has(id)
+                      return (
+                        <div
+                          key={id}
+                          className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
+                          style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)', backgroundColor: 'var(--card)' }}
+                        >
+                          <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px]" style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
+                            {proc.codigo}
+                          </span>
+                          <span className="flex-1" style={{ color: 'var(--foreground)' }}>{proc.nombre}</span>
+                          {priceChanged && <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />}
+                          <span className="tabular-nums" style={{ color: 'var(--foreground)', minWidth: 80, textAlign: 'right' }}>
+                            {CLP(precio)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProcedures((prev) => prev.filter((x) => x !== id))}
+                            className="rounded p-1 transition-opacity hover:opacity-70"
+                            style={{ color: 'var(--muted-foreground)' }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {isEdit && visita && visita.estado !== 'realizada' && selectedProcedures.map((procId) => {
+                  if (dismissedPriceWarnings.has(procId)) return null
+                  const savedEntry = visita.procedurePrices.find((p) => p.idProcedimiento === procId)
+                  if (!savedEntry) return null
+                  const proc = procedimientos.find((p) => p.id === procId)
+                  if (!proc || proc.precio === savedEntry.precio) return null
+                  return (
+                    <ProcedimientoPriceWarning
+                      key={procId}
+                      procedimiento={proc}
+                      savedPrice={savedEntry.precio}
+                      idVisita={visita.id}
+                      onDismiss={() => setDismissedPriceWarnings((prev) => new Set([...prev, procId]))}
+                    />
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Tab: Exámenes */}
+            {activeTab === 'examenes' && (
+              <div>
+                <div className="mb-4">
+                  <SelectCombobox
+                    options={examenesOptions}
+                    selected={selectedExams}
+                    onChange={(ids) => {
+                      setSelectedExams(ids)
+                      setDismissedExamWarnings((prev) => {
+                        const next = new Set(prev)
+                        for (const id of prev) { if (!ids.includes(id)) next.delete(id) }
+                        return next
+                      })
+                    }}
+                    placeholder="Buscar examen…"
+                    disabled={isPending}
+                  />
+                </div>
+                {selectedExams.length === 0 ? (
+                  <div
+                    className="rounded-lg border border-dashed py-8 text-center text-[13px]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                  >
+                    Sin exámenes seleccionados.
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
+                    {selectedExams.map((id, i) => {
+                      const examen = examenes.find((e) => e.id === id)
+                      if (!examen) return null
+                      const savedEntry = visita?.examPrices.find((e) => e.idExamen === id)
+                      const precio = savedEntry?.precio ?? examen.precio
+                      const priceChanged = savedEntry && savedEntry.precio !== 0 && savedEntry.precio !== examen.precio && !dismissedExamWarnings.has(id)
+                      return (
+                        <div
+                          key={id}
+                          className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
+                          style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)', backgroundColor: 'var(--card)' }}
+                        >
+                          <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px]" style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
+                            {examen.codigo}
+                          </span>
+                          <span className="flex-1" style={{ color: 'var(--foreground)' }}>{examen.nombre}</span>
+                          {priceChanged && <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />}
+                          <span className="tabular-nums" style={{ color: 'var(--foreground)', minWidth: 80, textAlign: 'right' }}>
+                            {CLP(precio)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedExams((prev) => prev.filter((x) => x !== id))}
+                            className="rounded p-1 transition-opacity hover:opacity-70"
+                            style={{ color: 'var(--muted-foreground)' }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {isEdit && visita && visita.estado !== 'realizada' && selectedExams.map((examId) => {
+                  if (dismissedExamWarnings.has(examId)) return null
+                  const savedEntry = visita.examPrices.find((e) => e.idExamen === examId)
+                  if (!savedEntry || savedEntry.precio === 0) return null
+                  const examen = examenes.find((e) => e.id === examId)
+                  if (!examen || examen.precio === savedEntry.precio) return null
+                  return (
+                    <ExamenPriceWarning
+                      key={examId}
+                      examen={examen}
+                      savedPrice={savedEntry.precio}
+                      idVisita={visita.id}
+                      onDismiss={() => setDismissedExamWarnings((prev) => new Set([...prev, examId]))}
+                    />
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Tab: Talleres */}
+            {activeTab === 'talleres' && (
+              <div>
+                <div className="mb-4">
+                  <SelectCombobox
+                    options={talleresOptions}
+                    selected={selectedTallers}
+                    onChange={(ids) => {
+                      setSelectedTallers(ids)
+                      setTallerPriceMap((prev) => {
+                        const next = { ...prev }
+                        for (const key of Object.keys(next)) {
+                          if (!ids.includes(Number(key))) delete next[Number(key)]
+                        }
+                        return next
+                      })
+                    }}
+                    placeholder="Buscar taller…"
+                    disabled={isPending}
+                  />
+                </div>
+                {selectedTallers.length === 0 ? (
+                  <div
+                    className="rounded-lg border border-dashed py-8 text-center text-[13px]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                  >
+                    Sin talleres seleccionados.
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
+                    {selectedTallers.map((id, i) => {
+                      const taller = talleres.find((t) => t.id === id)
+                      if (!taller) return null
+                      return (
+                        <div
+                          key={id}
+                          className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
+                          style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)', backgroundColor: 'var(--card)' }}
+                        >
+                          <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px]" style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
+                            {taller.codigo}
+                          </span>
+                          <span className="flex-1" style={{ color: 'var(--foreground)' }}>{taller.nombre}</span>
+                          <div
+                            className="flex items-center gap-1 rounded border px-1.5 py-0.5"
+                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
+                          >
+                            <span className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={tallerPriceMap[id] ?? ''}
+                              onChange={(e) => setTallerPriceMap((prev) => ({ ...prev, [id]: e.target.value }))}
+                              placeholder="0"
+                              disabled={isPending}
+                              className="w-20 bg-transparent text-right text-[13px] tabular-nums outline-none"
+                              style={{ color: 'var(--foreground)' }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTallers((prev) => prev.filter((x) => x !== id))}
+                            className="rounded p-1 transition-opacity hover:opacity-70"
+                            style={{ color: 'var(--muted-foreground)' }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Cargos adicionales — cobrar visita + recargo */}
+          <section
+            className="rounded-xl border p-6"
+            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+          >
+            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+              Cargos adicionales
+            </h2>
+            <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              {/* Visita */}
+              <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="cobraVisita"
+                    checked={cobraVisita}
+                    onCheckedChange={(checked) => setCobraVisita(checked === true)}
+                    disabled={isPending}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <label htmlFor="cobraVisita" className="cursor-pointer text-[13px] font-medium leading-tight" style={{ color: 'var(--foreground)' }}>
+                        Cobrar visita
+                      </label>
+                      {cobraVisita && costoPreview.costoVisitaEnfermeria > 0 && (
+                        <span className="shrink-0 text-[13px] font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
+                          {CLP(costoPreview.costoVisitaEnfermeria)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+                      {cobraVisita && !costoPreview.precioVisitaConfigurado
+                        ? 'Sin precio configurado para esta comuna'
+                        : 'Precio según comuna del paciente'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recargo */}
+              <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
+                <div className="mb-2.5 flex items-center justify-between">
+                  <span className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Recargo</span>
+                  {(parseInt(montoRecargo) || 0) > 0 && (
+                    <span className="text-[13px] font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
+                      {CLP(parseInt(montoRecargo) || 0)}
+                    </span>
+                  )}
+                </div>
+                <div className="grid gap-2" style={{ gridTemplateColumns: '1fr 110px' }}>
+                  <SelectCombobox
+                    mode="single"
+                    options={tiposRecargos}
+                    selected={selectedIdTipoRecargo}
+                    onChange={setSelectedIdTipoRecargo}
+                    placeholder="Tipo…"
+                    disabled={isPending || !montoRecargo || parseInt(montoRecargo) === 0}
+                    clearable
+                  />
+                  <div
+                    className="flex items-center gap-1.5 rounded-lg px-3"
+                    style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', height: 38 }}
+                  >
+                    <span className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={montoRecargo}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setMontoRecargo(val)
+                        if (!val || parseInt(val) === 0) setSelectedIdTipoRecargo(null)
+                      }}
+                      placeholder="0"
+                      disabled={isPending}
+                      className="w-full bg-transparent text-right text-[13px] tabular-nums outline-none"
+                      style={{ color: 'var(--foreground)' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Facturación */}
+          <section
+            className="rounded-xl border p-6"
+            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+          >
+            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+              Facturación
+            </h2>
+            <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
+              <div className="col-span-1 flex flex-col gap-1.5">
+                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Tipo de documento</label>
                 <SelectCombobox
                   mode="single"
-                  options={enfermerasOptions}
-                  selected={selectedEnfermeraId}
-                  onChange={setSelectedEnfermeraId}
-                  placeholder="Buscar enfermera…"
+                  options={tipoDocumentoOptions}
+                  selected={selectedTipoDocumentoId}
+                  onChange={setSelectedTipoDocumentoId}
+                  placeholder="Seleccionar…"
                   disabled={isPending}
                 />
               </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Laboratorio</label>
-                <input type="hidden" name="idLaboratorio" value={selectedLaboratorioId ?? ''} />
-                <SelectCombobox
-                  mode="single"
-                  options={laboratoriosOptions}
-                  selected={selectedLaboratorioId}
-                  onChange={setSelectedLaboratorioId}
-                  placeholder="Buscar laboratorio…"
+              <div className="col-span-1 flex flex-col gap-1.5">
+                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>N° boleta / factura</label>
+                <input
+                  name="numeroBoleta"
+                  type="text"
+                  defaultValue={visita?.numeroBoleta ?? ''}
                   disabled={isPending}
+                  className="w-full rounded-lg px-3 py-2 text-[13px] outline-none disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
                 />
               </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Origen de contacto</label>
-                <input type="hidden" name="origenContacto" value={selectedOrigenContactoId !== null ? origenesContacto.find((o) => o.id === selectedOrigenContactoId)?.nombre ?? '' : ''} />
+              <div className="col-span-1 flex flex-col gap-1.5">
+                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>N° atención</label>
+                <input
+                  name="numeroAtencion"
+                  type="number"
+                  defaultValue={visita?.numeroAtencion ?? ''}
+                  disabled={isPending}
+                  className="w-full rounded-lg px-3 py-2 text-[13px] outline-none disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+                />
+              </div>
+              <div className="col-span-1 flex flex-col gap-1.5">
+                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Origen de contacto</label>
                 <SelectCombobox
                   mode="single"
                   options={origenesContactoOptions}
@@ -680,406 +1167,275 @@ export function VisitaForm({
                   disabled={isPending}
                 />
               </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Tipo de documento</label>
-                <input type="hidden" name="tipoDocumento" value={selectedTipoDocumentoId === 0 ? 'boleta' : selectedTipoDocumentoId === 1 ? 'factura' : ''} />
-                <SelectCombobox
-                  mode="single"
-                  options={tipoDocumentoOptions}
-                  selected={selectedTipoDocumentoId}
-                  onChange={setSelectedTipoDocumentoId}
-                  placeholder="Seleccionar tipo…"
-                  disabled={isPending}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>N° boleta / factura</label>
-                <input name="numeroBoleta" type="text" defaultValue={visita?.numeroBoleta ?? ''} disabled={isPending} className={inputClass} style={inputStyle} />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>N° atención</label>
-                <input name="numeroAtencion" type="number" defaultValue={visita?.numeroAtencion ?? ''} disabled={isPending} className={inputClass} style={inputStyle} />
-              </div>
-
-              <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-4">
-                <label className={labelClass} style={labelStyle}>Información adicional</label>
-                <textarea name="informacionAdicional" rows={2} defaultValue={visita?.informacionAdicional ?? ''} disabled={isPending} className={inputClass} style={inputStyle} />
-              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* ── Procedimientos ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Procedimientos</h2>
-            <div className="grid grid-cols-2 gap-8">
-              {/* Columna izquierda: selector */}
-              <SelectCombobox
-                options={procedimientosOptions}
-                selected={selectedProcedures}
-                onChange={(ids) => {
-                  setSelectedProcedures(ids)
-                  setDismissedPriceWarnings((prev) => {
-                    const next = new Set(prev)
-                    for (const id of prev) {
-                      if (!ids.includes(id)) next.delete(id)
-                    }
-                    return next
-                  })
-                }}
-                placeholder="Buscar procedimiento..."
-                disabled={isPending}
-              />
-
-              {/* Columna derecha: lista de seleccionados con precio */}
-              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
-                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-                  Seleccionados
-                </p>
-                {selectedProcedures.length === 0 ? (
-                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                    Sin procedimientos seleccionados.
-                  </p>
-                ) : (
-                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                    {selectedProcedures.map((id) => {
-                      const proc = procedimientos.find((p) => p.id === id)
-                      if (!proc) return null
-                      const savedEntry = visita?.procedurePrices.find((p) => p.idProcedimiento === id)
-                      const precio = savedEntry?.precio ?? proc.precio
-                      return (
-                        <li
-                          key={id}
-                          className="flex items-center justify-between gap-2 py-1.5 text-sm"
-                        >
-                          <span style={{ color: 'var(--foreground)' }}>{proc.nombre}</span>
-                          <span
-                            className="shrink-0 font-medium tabular-nums"
-                            style={{ color: 'var(--foreground)' }}
-                          >
-                            ${precio.toLocaleString('es-CL')}
-                          </span>
-                        </li>
-                      )
-                    })}
-                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
-                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
-                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
-                        ${selectedProcedures.reduce((sum, id) => {
-                          const proc = procedimientos.find((p) => p.id === id)
-                          if (!proc) return sum
-                          const savedEntry = visita?.procedurePrices.find((p) => p.idProcedimiento === id)
-                          return sum + (savedEntry?.precio ?? proc.precio)
-                        }, 0).toLocaleString('es-CL')}
-                      </span>
-                    </li>
-                  </ul>
-                )}
-              </div>
-            </div>
-
-            {/* Price change warnings — debajo del grid */}
-            {isEdit && visita.estado !== 'realizada' && selectedProcedures.map((procId) => {
-              if (dismissedPriceWarnings.has(procId)) return null
-              const savedEntry = visita.procedurePrices.find((p) => p.idProcedimiento === procId)
-              if (!savedEntry) return null
-              const proc = procedimientos.find((p) => p.id === procId)
-              if (!proc || proc.precio === savedEntry.precio) return null
-              return (
-                <ProcedimientoPriceWarning
-                  key={procId}
-                  procedimiento={proc}
-                  savedPrice={savedEntry.precio}
-                  idVisita={visita.id}
-                  onDismiss={() => setDismissedPriceWarnings((prev) => new Set([...prev, procId]))}
-                />
-              )
-            })}
-          </div>
-        </section>
-
-        {/* ── Exámenes ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Exámenes</h2>
-            <div className="grid grid-cols-2 gap-8">
-              {/* Columna izquierda: selector */}
-              <SelectCombobox
-                options={examenesOptions}
-                selected={selectedExams}
-                onChange={(ids) => {
-                  setSelectedExams(ids)
-                  setDismissedExamWarnings((prev) => {
-                    const next = new Set(prev)
-                    for (const id of prev) {
-                      if (!ids.includes(id)) next.delete(id)
-                    }
-                    return next
-                  })
-                }}
-                placeholder="Buscar examen..."
-                disabled={isPending}
-              />
-
-              {/* Columna derecha: lista de seleccionados con precio */}
-              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
-                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-                  Seleccionados
-                </p>
-                {selectedExams.length === 0 ? (
-                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                    Sin exámenes seleccionados.
-                  </p>
-                ) : (
-                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                    {selectedExams.map((id) => {
-                      const examen = examenes.find((e) => e.id === id)
-                      if (!examen) return null
-                      const savedEntry = visita?.examPrices.find((e) => e.idExamen === id)
-                      const precio = savedEntry?.precio ?? examen.precio
-                      return (
-                        <li
-                          key={id}
-                          className="flex items-center justify-between gap-2 py-1.5 text-sm"
-                        >
-                          <span style={{ color: 'var(--foreground)' }}>{examen.nombre}</span>
-                          <span
-                            className="shrink-0 font-medium tabular-nums"
-                            style={{ color: 'var(--foreground)' }}
-                          >
-                            ${precio.toLocaleString('es-CL')}
-                          </span>
-                        </li>
-                      )
-                    })}
-                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
-                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
-                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
-                        ${selectedExams.reduce((sum, id) => {
-                          const examen = examenes.find((e) => e.id === id)
-                          if (!examen) return sum
-                          const savedEntry = visita?.examPrices.find((e) => e.idExamen === id)
-                          return sum + (savedEntry?.precio ?? examen.precio)
-                        }, 0).toLocaleString('es-CL')}
-                      </span>
-                    </li>
-                  </ul>
-                )}
-              </div>
-            </div>
-
-            {/* Price change warnings — debajo del grid */}
-            {isEdit && visita.estado !== 'realizada' && selectedExams.map((examId) => {
-              if (dismissedExamWarnings.has(examId)) return null
-              const savedEntry = visita.examPrices.find((e) => e.idExamen === examId)
-              if (!savedEntry || savedEntry.precio === 0) return null
-              const examen = examenes.find((e) => e.id === examId)
-              if (!examen || examen.precio === savedEntry.precio) return null
-              return (
-                <ExamenPriceWarning
-                  key={examId}
-                  examen={examen}
-                  savedPrice={savedEntry.precio}
-                  idVisita={visita.id}
-                  onDismiss={() => setDismissedExamWarnings((prev) => new Set([...prev, examId]))}
-                />
-              )
-            })}
-          </div>
-        </section>
-
-
-        {/* ── Talleres ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Talleres</h2>
-            <div className="grid grid-cols-2 gap-8">
-              {/* Columna izquierda: selector */}
-              <SelectCombobox
-                options={talleresOptions}
-                selected={selectedTallers}
-                onChange={(ids) => {
-                  setSelectedTallers(ids)
-                  setTallerPriceMap((prev) => {
-                    const next = { ...prev }
-                    for (const key of Object.keys(next)) {
-                      if (!ids.includes(Number(key))) delete next[Number(key)]
-                    }
-                    return next
-                  })
-                }}
-                placeholder="Buscar taller..."
-                disabled={isPending}
-              />
-
-              {/* Columna derecha: lista con input de precio libre */}
-              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
-                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-                  Seleccionados
-                </p>
-                {selectedTallers.length === 0 ? (
-                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                    Sin talleres seleccionados.
-                  </p>
-                ) : (
-                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                    {selectedTallers.map((id) => {
-                      const taller = talleres.find((t) => t.id === id)
-                      if (!taller) return null
-                      return (
-                        <li key={id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
-                          <span style={{ color: 'var(--foreground)' }}>{taller.nombre}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={tallerPriceMap[id] ?? ''}
-                            onChange={(e) =>
-                              setTallerPriceMap((prev) => ({ ...prev, [id]: e.target.value }))
-                            }
-                            placeholder="0"
-                            disabled={isPending}
-                            className="w-28 shrink-0 rounded border px-2 py-1 text-right text-sm tabular-nums"
-                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-                          />
-                        </li>
-                      )
-                    })}
-                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
-                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
-                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
-                        ${selectedTallers.reduce((sum, id) => sum + (parseInt(tallerPriceMap[id] ?? '0') || 0), 0).toLocaleString('es-CL')}
-                      </span>
-                    </li>
-                  </ul>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Recargos ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <div className="p-6">
-            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Recargos</h2>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Tipo de recargo</label>
-                <input type="hidden" name="idTipoRecargo" value={selectedIdTipoRecargo ?? ''} />
-                <SelectCombobox
-                  mode="single"
-                  options={tiposRecargos}
-                  selected={selectedIdTipoRecargo}
-                  onChange={setSelectedIdTipoRecargo}
-                  placeholder="Buscar tipo recargo..."
-                  disabled={isPending || !montoRecargo || parseInt(montoRecargo) === 0}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className={labelClass} style={labelStyle}>Monto recargo</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={montoRecargo}
-                  onChange={(e) => {
-                  const val = e.target.value
-                  setMontoRecargo(val)
-                  if (!val || parseInt(val) === 0) setSelectedIdTipoRecargo(null)
-                }}
-                  disabled={isPending}
-                  className={inputClass}
-                  style={inputStyle}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Pago y resultados ── */}
-        {isEdit && (
-          <section className={sectionClass} style={sectionStyle}>
-            <div className="p-6">
-              <h2 className={sectionTitleClass} style={sectionTitleStyle}>Pago y resultados</h2>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          {/* Pago y resultados (edit only) */}
+          {isEdit && (
+            <section
+              className="rounded-xl border p-6"
+              style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+            >
+              <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+                Pago y resultados
+              </h2>
+              <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
                 {/* Pago */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
+                <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
+                  <div className="mb-3 flex items-start gap-3">
                     <Checkbox
                       id="pagado"
                       checked={pagado}
                       onCheckedChange={(checked) => setPagado(checked === true)}
                       disabled={isPending}
+                      className="mt-0.5"
                     />
-                    <label htmlFor="pagado" className={`${labelClass} cursor-pointer`} style={labelStyle}>Pagado</label>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <label htmlFor="pagado" className="cursor-pointer text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
+                          Visita pagada
+                        </label>
+                        {pagado && <EstadoBadge estado="realizada" />}
+                      </div>
+                      <p className="mt-0.5 text-[11.5px]" style={{ color: 'var(--muted-foreground)' }}>
+                        {pagado ? `Pago confirmado${fechaPago ? ` · ${fechaPago}` : ''}` : 'Pago pendiente'}
+                      </p>
+                    </div>
                   </div>
                   {pagado && (
-                    <div className="flex flex-col gap-3 pl-6">
-                      <div className="flex flex-col gap-1.5">
-                        <label className={labelClass} style={labelStyle}>Método de pago</label>
-                        <input type="hidden" name="metodoPago" value={metodoPago === 0 ? 'transferencia' : metodoPago === 1 ? 'cheque' : metodoPago === 2 ? 'efectivo' : ''} />
-                        <SelectCombobox
-                          mode="single"
-                          options={metodoPagoOptions}
-                          selected={metodoPago}
-                          onChange={setMetodoPago}
-                          placeholder="Seleccionar método…"
-                          disabled={isPending}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className={labelClass} style={labelStyle}>Fecha de pago</label>
-                        <FormDatePicker
-                          mode="single"
-                          name="fechaPago"
-                          value={fechaPago ?? undefined}
-                          onChange={(v) => setFechaPago(v ?? null)}
-                          disabled={isPending}
-                          weekStartsOn={1}
-                          placeholder="Seleccionar fecha"
-                        />
-                      </div>
+                    <div className="grid grid-cols-2 gap-2 pl-7">
+                      <SelectCombobox
+                        mode="single"
+                        options={metodoPagoOptions}
+                        selected={metodoPago}
+                        onChange={setMetodoPago}
+                        placeholder="Método…"
+                        disabled={isPending}
+                      />
+                      <FormDatePicker
+                        mode="single"
+                        name="fechaPago"
+                        value={fechaPago ?? undefined}
+                        onChange={(v) => setFechaPago(v ?? null)}
+                        disabled={isPending}
+                        weekStartsOn={1}
+                        placeholder="Fecha pago"
+                      />
                     </div>
                   )}
                 </div>
 
                 {/* Resultados */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
+                <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
+                  <div className="mb-3 flex items-start gap-3">
                     <Checkbox
                       id="resultadosEnviados"
                       checked={resultadosEnviados}
                       onCheckedChange={(checked) => setResultadosEnviados(checked === true)}
                       disabled={isPending}
+                      className="mt-0.5"
                     />
-                    <label htmlFor="resultadosEnviados" className={`${labelClass} cursor-pointer`} style={labelStyle}>Resultados enviados</label>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <label htmlFor="resultadosEnviados" className="cursor-pointer text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
+                          Resultados enviados
+                        </label>
+                        {!resultadosEnviados && (
+                          <span
+                            className="rounded-md px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide"
+                            style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}
+                          >
+                            Pendiente
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-[11.5px]" style={{ color: 'var(--muted-foreground)' }}>
+                        {resultadosEnviados
+                          ? fechaEnvioResultados ? `Enviados el ${fechaEnvioResultados}` : 'Enviados'
+                          : 'Aún no se envían los resultados al paciente.'
+                        }
+                      </p>
+                    </div>
                   </div>
                   {resultadosEnviados && (
-                    <div className="pl-6">
-                      <div className="flex flex-col gap-1.5">
-                        <label className={labelClass} style={labelStyle}>Fecha de envío</label>
-                        <FormDatePicker
-                          mode="single"
-                          name="fechaEnvioResultados"
-                          value={fechaEnvioResultados ?? undefined}
-                          onChange={(v) => setFechaEnvioResultados(v ?? null)}
-                          disabled={isPending}
-                          weekStartsOn={1}
-                          placeholder="Seleccionar fecha"
-                        />
-                      </div>
+                    <div className="pl-7">
+                      <FormDatePicker
+                        mode="single"
+                        name="fechaEnvioResultados"
+                        value={fechaEnvioResultados ?? undefined}
+                        onChange={(v) => setFechaEnvioResultados(v ?? null)}
+                        disabled={isPending}
+                        weekStartsOn={1}
+                        placeholder="Fecha de envío"
+                      />
                     </div>
                   )}
                 </div>
               </div>
-            </div>
+            </section>
+          )}
+
+          {/* Información adicional */}
+          <section
+            className="rounded-xl border p-6"
+            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+          >
+            <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+              Información adicional
+            </h2>
+            <p className="mb-3 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+              Notas internas del equipo de enfermería.
+            </p>
+            <textarea
+              name="informacionAdicional"
+              rows={3}
+              defaultValue={visita?.informacionAdicional ?? ''}
+              disabled={isPending}
+              className="w-full resize-none rounded-lg px-3 py-2.5 text-[13px] outline-none disabled:opacity-50"
+              style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
+              placeholder="Notas para el equipo de enfermería…"
+            />
           </section>
-        )}
+        </div>
+
+        {/* ── RIGHT — sticky rail ── */}
+        <aside style={{ position: 'sticky', top: 80, height: 'fit-content' }}>
+          <div className="overflow-hidden rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
+
+            {/* Estado de la visita */}
+            <div className="px-5 pt-5 pb-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+                  Estado de la visita
+                </h3>
+                {estadoActual && <EstadoBadge estado={estadoActual} />}
+              </div>
+              <div className="space-y-1.5 text-[12.5px]">
+                <RailRow label="Fecha" value={selectedFecha ? formatDate(selectedFecha) : '—'} />
+                <RailRow label="Hora"  value={selectedHora ?? '—'} />
+                <RailRow label="Enfermera" value={enfermeraLabel} />
+                <RailRow
+                  label="Pago"
+                  value={pagado ? `Pagada${metodoPago === 0 ? ' · Transferencia' : metodoPago === 1 ? ' · Cheque' : metodoPago === 2 ? ' · Efectivo' : ''}` : 'Pendiente'}
+                  tone={pagado ? 'green' : 'muted'}
+                />
+              </div>
+            </div>
+
+            {/* Resumen de costos */}
+            <div className="space-y-3 px-5 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+              <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+                Resumen de costos
+              </h3>
+              <SummaryGroup
+                tone="blue"
+                label="Procedimientos"
+                items={selectedProcedures.map((id) => {
+                  const p = procedimientos.find((x) => x.id === id)!
+                  const saved = visita?.procedurePrices.find((x) => x.idProcedimiento === id)
+                  return { name: p?.nombre ?? '', price: saved?.precio ?? p?.precio ?? 0 }
+                })}
+                subtotal={costoPreview.subtotalProcedimientos}
+              />
+              <SummaryGroup
+                tone="green"
+                label="Exámenes"
+                items={selectedExams.map((id) => {
+                  const e = examenes.find((x) => x.id === id)!
+                  const saved = visita?.examPrices.find((x) => x.idExamen === id)
+                  return { name: e?.nombre ?? '', price: saved?.precio ?? e?.precio ?? 0 }
+                })}
+                subtotal={costoPreview.subtotalExamenes}
+              />
+              <SummaryGroup
+                tone="violet"
+                label="Talleres"
+                items={selectedTallers.map((id) => {
+                  const t = talleres.find((x) => x.id === id)!
+                  return { name: t?.nombre ?? '', price: parseInt(tallerPriceMap[id] ?? '0') || 0 }
+                })}
+                subtotal={costoPreview.subtotalTalleres}
+              />
+              <SummaryGroup
+                tone="amber"
+                label="Adicionales"
+                items={[
+                  ...(cobraVisita ? [{ name: `Visita enfermería`, price: costoPreview.costoVisitaEnfermeria }] : []),
+                  ...((parseInt(montoRecargo) || 0) > 0 ? [{
+                    name: `Recargo${selectedIdTipoRecargo ? ` · ${tiposRecargos.find((t) => t.id === selectedIdTipoRecargo)?.label}` : ''}`,
+                    price: parseInt(montoRecargo) || 0,
+                  }] : []),
+                ]}
+                subtotal={costoPreview.costoVisitaEnfermeria + (parseInt(montoRecargo) || 0)}
+              />
+            </div>
+
+            {/* Total */}
+            <div
+              className="space-y-1 px-5 py-4"
+              style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}
+            >
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+                  Total visita
+                </span>
+                <span className="text-[22px] font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
+                  {CLP(costoPreview.total)}
+                </span>
+              </div>
+              {visita?.numeroBoleta && (
+                <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                  {visita.tipoDocumento === 'boleta' ? 'Boleta' : 'Factura'} {visita.numeroBoleta}
+                </p>
+              )}
+            </div>
+
+            {/* CTA buttons */}
+            <div className="flex flex-col gap-2 p-3" style={{ borderTop: '1px solid var(--border)' }}>
+              <button
+                type="submit"
+                form="visita-form"
+                disabled={isPending}
+                className="flex h-[42px] w-full items-center justify-center gap-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+              >
+                {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {isEdit ? 'Guardar cambios' : 'Crear visita'}
+              </button>
+              {isEdit && (
+                <Link
+                  href={`/api/cotizacion/${visita.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border text-[13px] font-medium transition-opacity hover:opacity-80"
+                  style={{ color: 'var(--foreground)', borderColor: 'var(--border)' }}
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Cotización PDF
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {isEdit && (
+            <p className="mt-3 px-2 text-[11px] space-y-0.5" style={{ color: 'var(--muted-foreground)' }}>
+              Visita #{visita.id}
+            </p>
+          )}
+        </aside>
       </form>
     </>
+  )
+}
+
+// ─── RailRow ──────────────────────────────────────────────────────────────────
+
+function RailRow({ label, value, tone }: { label: string; value: string; tone?: 'green' | 'muted' }) {
+  const color = tone === 'green' ? 'oklch(0.45 0.13 145)' : 'var(--foreground)'
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-[12.5px]" style={{ color: 'var(--muted-foreground)' }}>{label}</span>
+      <span className="text-right text-[12.5px]" style={{ color, fontWeight: tone === 'green' ? 500 : 400 }}>{value}</span>
+    </div>
   )
 }
