@@ -410,6 +410,45 @@ export const quotationExams = pgTable(
 )
 
 // ============================================================================
+// 17. Taller - Catálogo de talleres
+// ============================================================================
+export const workshops = pgTable(
+  'talleres',
+  {
+    id: serial('id').primaryKey(),
+    nombre: varchar('nombre', { length: 200 }).notNull(),
+    codigo: varchar('codigo', { length: 50 }).notNull(),
+    activo: boolean('activo').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('talleres_codigo_idx').on(table.codigo),
+  ]
+)
+
+// ============================================================================
+// 17b. TallerVisita - Talleres en una visita (precio libre)
+// ============================================================================
+export const visitWorkshops = pgTable(
+  'talleres_visitas',
+  {
+    id: serial('id').primaryKey(),
+    idTaller: integer('id_taller').notNull(),
+    idVisita: integer('id_visita').notNull(),
+    precio: integer('precio').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idTaller], foreignColumns: [workshops.id] })
+      .onDelete('restrict'),
+    foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
+      .onDelete('cascade'),
+    index('talleres_visitas_id_visita_idx').on(table.idVisita),
+  ]
+)
+
+// ============================================================================
 // 21. CotizacionProcedimiento - Procedimientos en una cotización
 // ============================================================================
 export const quotationProcedures = pgTable(
@@ -429,5 +468,28 @@ export const quotationProcedures = pgTable(
     foreignKey({ columns: [table.idProcedimiento], foreignColumns: [procedures.id] })
       .onDelete('restrict'),
     index('cotizacion_procedimientos_id_cotizacion_idx').on(table.idCotizacion),
+  ]
+)
+
+// ============================================================================
+// 22. CotizacionTaller - Talleres en una cotización (precio libre)
+// ============================================================================
+export const quotationWorkshops = pgTable(
+  'cotizacion_talleres',
+  {
+    id: serial('id').primaryKey(),
+    idCotizacion: integer('id_cotizacion').notNull(),
+    idTaller: integer('id_taller').notNull(),
+    descripcion: varchar('descripcion', { length: 255 }).notNull(),
+    codigo: varchar('codigo', { length: 50 }),
+    precio: integer('precio').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idCotizacion], foreignColumns: [quotations.id] })
+      .onDelete('cascade'),
+    foreignKey({ columns: [table.idTaller], foreignColumns: [workshops.id] })
+      .onDelete('restrict'),
+    index('cotizacion_talleres_id_cotizacion_idx').on(table.idCotizacion),
   ]
 )

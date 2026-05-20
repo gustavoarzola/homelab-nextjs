@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { CotizacionForm } from '@/components/cotizacion-form'
 import { getCotizacion, updateCotizacion, convertirCotizacionAVisita, getPreciosVisita } from '@/lib/actions/cotizaciones'
 import { getPacientes } from '@/lib/actions/pacientes'
-import { getProcedimientos, getExamenes } from '@/lib/actions/catalogos'
+import { getProcedimientos, getExamenes, getTalleres } from '@/lib/actions/catalogos'
 import { getTiposRecargos } from '@/lib/actions/visitas'
 
 export default async function CotizacionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -12,11 +12,12 @@ export default async function CotizacionDetailPage({ params }: { params: Promise
   const id = Number(idStr)
   if (isNaN(id)) return notFound()
 
-  const [cotizacion, pacientes, procedimientos, examenes, tiposRecargos, preciosVisita] = await Promise.all([
+  const [cotizacion, pacientes, procedimientos, examenes, talleres, tiposRecargos, preciosVisita] = await Promise.all([
     getCotizacion(id),
     getPacientes(),
     getProcedimientos(),
     getExamenes(),
+    getTalleres(),
     getTiposRecargos(),
     getPreciosVisita(),
   ])
@@ -54,6 +55,7 @@ export default async function CotizacionDetailPage({ params }: { params: Promise
         pacientes={pacientes}
         procedimientos={procedimientos}
         examenes={examenes}
+        talleres={talleres}
         tiposRecargos={tiposRecargos}
         preciosVisita={preciosVisita}
         onSubmit={handleSubmit}

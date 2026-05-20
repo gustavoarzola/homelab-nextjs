@@ -5,6 +5,7 @@ import {
   patients,
   visitExams,
   visitProcedures,
+  visitWorkshops,
   visits,
 } from '@/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -12,6 +13,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 export type CostoVisitaCalculado = {
   subtotalProcedimientos: number
   subtotalExamenes: number
+  subtotalTalleres: number
   costoVisitaEnfermeria: number
   montoRecargo: number
   total: number
@@ -57,6 +59,10 @@ export async function calcularCostoVisitaPersistida(
     .select({ precio: visitExams.precio })
     .from(visitExams)
     .where(eq(visitExams.idVisita, idVisita))
+  const talleres = await conn
+    .select({ precio: visitWorkshops.precio })
+    .from(visitWorkshops)
+    .where(eq(visitWorkshops.idVisita, idVisita))
   const [visitaPaciente] = await conn
     .select({
       comuna: addresses.areaAdministrativa3,
@@ -77,6 +83,10 @@ export async function calcularCostoVisitaPersistida(
     (sum: number, row: { precio: number }) => sum + row.precio,
     0,
   )
+  const subtotalTalleres = talleres.reduce(
+    (sum: number, row: { precio: number }) => sum + row.precio,
+    0,
+  )
   const aplicaVisitaEnfermeria = visitaPaciente?.cobraVisita ?? false
   const precioVisita = aplicaVisitaEnfermeria
     ? await getPrecioVisitaEnfermeria(conn, visitaPaciente?.comuna ?? null)
@@ -87,9 +97,10 @@ export async function calcularCostoVisitaPersistida(
   return {
     subtotalProcedimientos,
     subtotalExamenes,
+    subtotalTalleres,
     costoVisitaEnfermeria,
     montoRecargo,
-    total: subtotalProcedimientos + subtotalExamenes + costoVisitaEnfermeria + montoRecargo,
+    total: subtotalProcedimientos + subtotalExamenes + subtotalTalleres + costoVisitaEnfermeria + montoRecargo,
     aplicaVisitaEnfermeria,
     precioVisitaConfigurado: precioVisita !== null,
   }

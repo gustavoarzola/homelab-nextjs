@@ -12,7 +12,9 @@ import {
   laboratories,
   visitProcedures,
   visitExams,
+  visitWorkshops,
   procedures,
+  workshops,
   surchargeTypes,
 } from '@/db/schema'
 import { eq, and, or, isNull, ne, asc, desc, count, ilike, SQL } from 'drizzle-orm'
@@ -279,7 +281,7 @@ export async function togglePrecioVisita(id: number, activo: boolean): Promise<R
 export type ItemCotizacion = {
   descripcion: string
   codigo: string
-  tipo: 'examen' | 'procedimiento' | 'visita'
+  tipo: 'examen' | 'procedimiento' | 'visita' | 'taller'
   precio: number | null   // null = sin precio configurado
 }
 
@@ -300,6 +302,7 @@ export type CotizacionVisita = {
   laboratorio: string | null
   items: ItemCotizacion[]
   subtotalExamenes: number
+  subtotalTalleres: number
   costoVisitaEnfermeria: number
   montoRecargo: number
   tipoRecargoNombre: string | null
@@ -329,7 +332,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
   if (!visitRow) return null
 
   // Datos en paralelo
-  const [pacienteRow, enfermeraRow, laboratorioRow, procRows, examRows] = await Promise.all([
+  const [pacienteRow, enfermeraRow, laboratorioRow, procRows, examRows, tallerRows] = await Promise.all([
     visitRow.idPaciente
       ? db
           .select({
@@ -380,6 +383,12 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       .from(visitExams)
       .innerJoin(exams, eq(visitExams.idExamen, exams.id))
       .where(eq(visitExams.idVisita, idVisita)),
+
+    db
+      .select({ nombre: workshops.nombre, codigo: workshops.codigo, precio: visitWorkshops.precio })
+      .from(visitWorkshops)
+      .innerJoin(workshops, eq(visitWorkshops.idTaller, workshops.id))
+      .where(eq(visitWorkshops.idVisita, idVisita)),
   ])
 
   const tipoPrevision = normalizarCategoria(pacienteRow?.categoriaSeguro ?? null)
@@ -395,6 +404,10 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
   for (const proc of procRows) {
     const precio = proc.precio || null
     items.push({ descripcion: proc.nombre, codigo: proc.codigo, tipo: 'procedimiento', precio })
+  }
+
+  for (const taller of tallerRows) {
+    items.push({ descripcion: taller.nombre, codigo: taller.codigo, tipo: 'taller', precio: taller.precio })
   }
 
   if (costoCalculado.aplicaVisitaEnfermeria) {
@@ -439,6 +452,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     laboratorio: laboratorioLabel,
     items,
     subtotalExamenes: costoCalculado.subtotalExamenes,
+    subtotalTalleres: costoCalculado.subtotalTalleres,
     costoVisitaEnfermeria: costoCalculado.costoVisitaEnfermeria,
     montoRecargo,
     tipoRecargoNombre,

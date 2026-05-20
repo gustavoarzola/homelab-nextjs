@@ -58,6 +58,7 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
 
   const examenes = data.items.filter((i) => i.tipo === 'examen')
   const procedimientos = data.items.filter((i) => i.tipo === 'procedimiento')
+  const talleres = data.items.filter((i) => i.tipo === 'taller')
   const visitaItem = data.items.find((i) => i.tipo === 'visita')
 
   // ── Campos paciente ──
@@ -152,6 +153,12 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
     idx += procedimientos.length
   }
 
+  if (talleres.length > 0) {
+    itemsHTML += groupHeader('Talleres')
+    itemsHTML += itemRows(talleres, idx, false)
+    idx += talleres.length
+  }
+
   if (visitaItem) {
     itemsHTML += groupHeader('Traslado y atención')
     itemsHTML += itemRows([visitaItem], idx, false)
@@ -163,6 +170,9 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
   const subtotalProcedimientos = procedimientos.reduce((s, p) => s + (p.precio ?? 0), 0)
   if (subtotalProcedimientos > 0) {
     itemsHTML += subtotalRow('Subtotal procedimientos', subtotalProcedimientos)
+  }
+  if (data.subtotalTalleres > 0) {
+    itemsHTML += subtotalRow('Subtotal talleres', data.subtotalTalleres)
   }
   if (data.costoVisitaEnfermeria > 0) {
     itemsHTML += subtotalRow('Visita de enfermería', data.costoVisitaEnfermeria)

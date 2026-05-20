@@ -15,7 +15,7 @@ import { formatRut } from '@/lib/rut'
 import { EXAM_GRUPO_LABELS, type ExamGrupo } from '@/lib/exam-grupos'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { LaboratorioRow } from '@/lib/actions/laboratorios'
-import type { ProcedimientoRow, ExamenRow } from '@/lib/actions/catalogos'
+import type { ProcedimientoRow, ExamenRow, TallerRow } from '@/lib/actions/catalogos'
 import type { VisitaDetalle } from '@/lib/actions/visitas'
 import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
 import { calcularCostoVisitaPreview, type VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
@@ -46,6 +46,7 @@ type Props = {
   laboratorios: LaboratorioRow[]
   procedimientos: ProcedimientoRow[]
   examenes: ExamenRow[]
+  talleres: TallerRow[]
   origenesContacto: { id: number; nombre: string }[]
   tiposRecargos: { id: number; label: string }[]
   pricingContext: VisitaFormPricingContext
@@ -335,6 +336,7 @@ export function VisitaForm({
   laboratorios,
   procedimientos,
   examenes,
+  talleres,
   origenesContacto,
   pricingContext,
   tiposRecargos,
@@ -344,6 +346,12 @@ export function VisitaForm({
   const isEdit = !!visita
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(visita?.procedureIds ?? [])
   const [selectedExams, setSelectedExams] = useState<number[]>(visita?.examIds ?? [])
+  const [selectedTallers, setSelectedTallers] = useState<number[]>(visita?.tallerIds ?? [])
+  const [tallerPriceMap, setTallerPriceMap] = useState<Record<number, string>>(() => {
+    const map: Record<number, string> = {}
+    visita?.tallerPrices.forEach(({ idTaller, precio }) => { map[idTaller] = String(precio) })
+    return map
+  })
   const [dismissedPriceWarnings, setDismissedPriceWarnings] = useState<Set<number>>(new Set())
   const [dismissedExamWarnings, setDismissedExamWarnings] = useState<Set<number>>(new Set())
   const [selectedEnfermeraId, setSelectedEnfermeraId] = useState<number | null>(visita?.idEnfermera ?? null)
@@ -402,6 +410,10 @@ export function VisitaForm({
     const fd = new FormData(e.currentTarget)
     selectedProcedures.forEach((id) => fd.append('procedure_ids', String(id)))
     selectedExams.forEach((id) => fd.append('exam_ids', String(id)))
+    selectedTallers.forEach((id) => {
+      fd.append('taller_ids', String(id))
+      fd.set(`taller_precio_${id}`, tallerPriceMap[id] ?? '0')
+    })
     fd.set('cobraVisita', String(cobraVisita))
     fd.set('pagado', String(pagado))
     fd.set('resultadosEnviados', String(resultadosEnviados))
@@ -419,6 +431,7 @@ export function VisitaForm({
   }
 
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: `${p.nombre} (${p.codigo})` }))
+  const talleresOptions = talleres.map((t) => ({ id: t.id, label: `${t.nombre} (${t.codigo})` }))
   const examenesOptions = examenes.map((e) => ({
     id: e.id,
     label: `${e.nombre} (${EXAM_GRUPO_LABELS[e.grupoExamen as ExamGrupo] ?? e.grupoExamen})`,
@@ -449,6 +462,8 @@ export function VisitaForm({
       calcularCostoVisitaPreview({
         selectedProcedureIds: selectedProcedures,
         selectedExamIds: selectedExams,
+        selectedTallerIds: selectedTallers,
+        tallerPriceMap,
         catalogProcedurePrices: procedimientos.map((p) => ({ id: p.id, precio: p.precio })),
         savedProcedurePrices: visita?.procedurePrices,
         savedExamPrices: visita?.examPrices,
@@ -456,7 +471,7 @@ export function VisitaForm({
         cobraVisita,
         montoRecargo: parseInt(montoRecargo) || 0,
       }),
-    [selectedProcedures, selectedExams, procedimientos, visita, pricingContext, cobraVisita, montoRecargo],
+    [selectedProcedures, selectedExams, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, montoRecargo],
   )
 
   return (
@@ -560,6 +575,12 @@ export function VisitaForm({
                     <span>Exámenes:</span>
                     <span>${costoPreview.subtotalExamenes.toLocaleString('es-CL')}</span>
                   </div>
+                  {costoPreview.subtotalTalleres > 0 && (
+                    <div className="flex justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                      <span>Talleres:</span>
+                      <span>${costoPreview.subtotalTalleres.toLocaleString('es-CL')}</span>
+                    </div>
+                  )}
                   {costoPreview.costoVisitaEnfermeria > 0 && (
                     <div className="flex justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
                       <span>Visita enfermería:</span>
@@ -871,6 +892,74 @@ export function VisitaForm({
           </div>
         </section>
 
+
+        {/* ── Talleres ── */}
+        <section className={sectionClass} style={sectionStyle}>
+          <div className="p-6">
+            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Talleres</h2>
+            <div className="grid grid-cols-2 gap-8">
+              {/* Columna izquierda: selector */}
+              <SelectCombobox
+                options={talleresOptions}
+                selected={selectedTallers}
+                onChange={(ids) => {
+                  setSelectedTallers(ids)
+                  setTallerPriceMap((prev) => {
+                    const next = { ...prev }
+                    for (const key of Object.keys(next)) {
+                      if (!ids.includes(Number(key))) delete next[Number(key)]
+                    }
+                    return next
+                  })
+                }}
+                placeholder="Buscar taller..."
+                disabled={isPending}
+              />
+
+              {/* Columna derecha: lista con input de precio libre */}
+              <div className="flex flex-col gap-2 pl-6" style={{ borderLeft: '1px solid var(--muted)' }}>
+                <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                  Seleccionados
+                </p>
+                {selectedTallers.length === 0 ? (
+                  <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                    Sin talleres seleccionados.
+                  </p>
+                ) : (
+                  <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {selectedTallers.map((id) => {
+                      const taller = talleres.find((t) => t.id === id)
+                      if (!taller) return null
+                      return (
+                        <li key={id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                          <span style={{ color: 'var(--foreground)' }}>{taller.nombre}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={tallerPriceMap[id] ?? ''}
+                            onChange={(e) =>
+                              setTallerPriceMap((prev) => ({ ...prev, [id]: e.target.value }))
+                            }
+                            placeholder="0"
+                            disabled={isPending}
+                            className="w-28 shrink-0 rounded border px-2 py-1 text-right text-sm tabular-nums"
+                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                          />
+                        </li>
+                      )
+                    })}
+                    <li className="flex items-center justify-between gap-2 py-1.5 text-sm font-semibold">
+                      <span style={{ color: 'var(--muted-foreground)' }}>Subtotal</span>
+                      <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>
+                        ${selectedTallers.reduce((sum, id) => sum + (parseInt(tallerPriceMap[id] ?? '0') || 0), 0).toLocaleString('es-CL')}
+                      </span>
+                    </li>
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* ── Recargos Excepcionales ── */}
         <section className={sectionClass} style={sectionStyle}>
