@@ -11,12 +11,14 @@ import { Resend } from 'resend'
 import { formatDateFull, formatDateLong, formatDate, parseDateLocal } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
+import { getR2Object } from '@/lib/r2'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type VisitaConDetalles = {
   id: number
   idEnfermera: number | null
+  keyOrdenMedica: string | null
   fecha: string
   hora: string | null
   paciente: {
@@ -117,6 +119,7 @@ async function getVisitasConDetalles(
       costo: visits.costo,
       informacionAdicional: visits.informacionAdicional,
       idEnfermera: visits.idEnfermera,
+      keyOrdenMedica: visits.keyOrdenMedica,
       pacienteNombres: patients.nombres,
       pacienteApellidos: patients.apellidoPaterno,
       pacienteApellidoM: patients.apellidoMaterno,
@@ -197,6 +200,7 @@ async function getVisitasConDetalles(
   return rawVisitas.map((v) => ({
     id: v.visitaId,
     idEnfermera: v.idEnfermera ?? null,
+    keyOrdenMedica: v.keyOrdenMedica ?? null,
     fecha: v.fecha || '',
     hora: v.hora,
     paciente: {
@@ -248,11 +252,26 @@ export async function sendScheduledVisitsEmail(
     const nombreEnfermera = formatNombre(enfermera)
     const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
 
+    // Adjuntar órdenes médicas si existen
+    const attachments: { filename: string; content: Buffer }[] = []
+    for (const visita of enfermera.visitas) {
+      if (visita.keyOrdenMedica) {
+        try {
+          const { buffer, contentType } = await getR2Object(visita.keyOrdenMedica)
+          const ext = contentType.split('/')[1] ?? 'jpg'
+          attachments.push({ filename: `orden-medica-visita-${visita.id}.${ext}`, content: buffer })
+        } catch (err) {
+          console.error(`Error descargando orden médica para visita ${visita.id}:`, err)
+        }
+      }
+    }
+
     const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev',
       to: enfermera.correo,
       subject,
       html: htmlContent,
+      ...(attachments.length > 0 && { attachments }),
     })
 
     if (error) {

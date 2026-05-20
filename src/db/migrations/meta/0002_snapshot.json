@@ -1,6 +1,6 @@
 {
-  "id": "351c8cb8-9106-437b-872c-fe058175c0a2",
-  "prevId": "d0d0b3c5-24fa-49d7-aede-24e5efdfba1d",
+  "id": "55f3383d-2088-4a17-af78-efffa2ee784a",
+  "prevId": "351c8cb8-9106-437b-872c-fe058175c0a2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -721,6 +721,12 @@
         "informacion_adicional": {
           "name": "informacion_adicional",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key_identificacion": {
+          "name": "key_identificacion",
+          "type": "varchar(500)",
           "primaryKey": false,
           "notNull": false
         },
@@ -1913,6 +1919,12 @@
         "id_tipo_recargo": {
           "name": "id_tipo_recargo",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key_orden_medica": {
+          "name": "key_orden_medica",
+          "type": "varchar(500)",
           "primaryKey": false,
           "notNull": false
         },

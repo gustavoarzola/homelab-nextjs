@@ -5,6 +5,7 @@ import { searchEnfermeras } from '@/lib/actions/enfermeras'
 import { searchLaboratorios } from '@/lib/actions/laboratorios'
 import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres } from '@/lib/actions/catalogos'
 import { VisitaForm } from '@/components/visita-form'
+import { getSignedUrl } from '@/lib/r2'
 
 export default async function EditarVisitaPage({
   params,
@@ -41,7 +42,10 @@ export default async function EditarVisitaPage({
 
   if (!detalle) notFound()
 
-  const pricingContext = await getVisitaFormPricingContext(visita.idPaciente, examenes.map((e) => e.id))
+  const [pricingContext, signedUrlOrdenMedica] = await Promise.all([
+    getVisitaFormPricingContext(visita.idPaciente, examenes.map((e) => e.id)),
+    visita.keyOrdenMedica ? getSignedUrl(visita.keyOrdenMedica) : Promise.resolve(null),
+  ])
 
   const paciente = {
     id: detalle.id,
@@ -72,6 +76,7 @@ export default async function EditarVisitaPage({
       origenesContacto={origenesContacto}
       pricingContext={pricingContext}
       tiposRecargos={tiposRecargos}
+      signedUrlOrdenMedica={signedUrlOrdenMedica}
       onSubmit={updateVisita}
     />
   )

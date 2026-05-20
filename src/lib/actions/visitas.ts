@@ -69,6 +69,7 @@ export type VisitaDetalle = {
   cobraVisita: boolean
   montoRecargo: number | null
   idTipoRecargo: number | null
+  keyOrdenMedica: string | null
   procedureIds: number[]
   procedurePrices: { idProcedimiento: number; precio: number }[]
   examIds: number[]
@@ -290,6 +291,7 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     cobraVisita: visit.cobraVisita,
     montoRecargo: visit.montoRecargo ?? null,
     idTipoRecargo: visit.idTipoRecargo ?? null,
+    keyOrdenMedica: visit.keyOrdenMedica ?? null,
     procedureIds: procs.map((p) => p.idProcedimiento),
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
     examIds: exams_.map((e) => e.idExamen),
@@ -372,6 +374,7 @@ export async function updateVisita(
   const cobraVisita = fd.get('cobraVisita') === 'true'
   const montoRecargo = Number(fd.get('montoRecargo')) || 0
   const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
+  const keyOrdenMedica = (fd.get('keyOrdenMedica') as string)?.trim() || null
 
   // Validate that if there's a surcharge amount, a surcharge type must be selected
   if (montoRecargo > 0 && !idTipoRecargo) {
@@ -383,7 +386,7 @@ export async function updateVisita(
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, montoRecargo, idTipoRecargo, updatedAt: new Date() })
+        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, montoRecargo, idTipoRecargo, keyOrdenMedica, updatedAt: new Date() })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.

@@ -10,6 +10,7 @@ import {
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { SelectCombobox } from '@/components/select-combobox'
 import { Checkbox } from '@/components/ui/checkbox'
+import { FileUpload } from '@/components/file-upload'
 import { TimePicker } from '@/components/time-picker'
 import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
@@ -53,6 +54,7 @@ type Props = {
   origenesContacto: { id: number; nombre: string }[]
   tiposRecargos: { id: number; label: string }[]
   pricingContext: VisitaFormPricingContext
+  signedUrlOrdenMedica?: string | null
   onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
 }
 
@@ -380,6 +382,7 @@ export function VisitaForm({
   origenesContacto,
   tiposRecargos,
   pricingContext,
+  signedUrlOrdenMedica,
   onSubmit,
 }: Props) {
   const router = useRouter()
@@ -428,6 +431,9 @@ export function VisitaForm({
   const [fechaEnvioResultados, setFechaEnvioResultados] = useState<string | null>(visita?.fechaEnvioResultados ?? null)
   const [montoRecargo, setMontoRecargo] = useState<string>(visita?.montoRecargo ? String(visita.montoRecargo) : '')
   const [selectedIdTipoRecargo, setSelectedIdTipoRecargo] = useState<number | null>(visita?.idTipoRecargo ?? null)
+
+  // Orden médica
+  const [keyOrdenMedica, setKeyOrdenMedica] = useState<string | null>(visita?.keyOrdenMedica ?? null)
 
   const estadoActual = selectedEstadoId === 0 ? 'creada'
     : selectedEstadoId === 1 ? 'confirmada'
@@ -1168,6 +1174,28 @@ export function VisitaForm({
                 />
               </div>
             </div>
+          </section>
+
+          {/* ── Orden médica ── */}
+          <section
+            className="rounded-xl border p-6"
+            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+          >
+            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
+              Orden médica
+            </h2>
+            <p className="mb-3 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+              Imagen de la orden original (JPG, PNG, WEBP). Máximo 10 MB. Se adjunta al correo de asignación.
+            </p>
+            <input type="hidden" name="keyOrdenMedica" value={keyOrdenMedica ?? ''} />
+            <FileUpload
+              folder="visitas"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              currentKey={keyOrdenMedica}
+              signedUrl={signedUrlOrdenMedica}
+              onUploaded={setKeyOrdenMedica}
+              disabled={isPending}
+            />
           </section>
 
           {/* Pago y resultados (edit only) */}
