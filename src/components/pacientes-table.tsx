@@ -16,6 +16,13 @@ type Props = {
 
 const columns: ColumnDef<PacienteRow>[] = [
   {
+    id: 'id',
+    accessorKey: 'id',
+    header: 'ID',
+    enableSorting: true,
+    cell: ({ row }) => row.original.id,
+  },
+  {
     id: 'apellidoPaterno',
     accessorFn: (row) => formatNombre(row),
     header: 'Nombre',
