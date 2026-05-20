@@ -14,6 +14,8 @@ describe('calcularCostoVisitaPreview', () => {
     const costo = calcularCostoVisitaPreview({
       selectedProcedureIds: [1],
       selectedExamIds: [10],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
       catalogProcedurePrices: [{ id: 1, precio: 15000 }],
       pricingContext,
       cobraVisita: true,
@@ -28,6 +30,8 @@ describe('calcularCostoVisitaPreview', () => {
     const costo = calcularCostoVisitaPreview({
       selectedProcedureIds: [],
       selectedExamIds: [10, 11],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
       catalogProcedurePrices: [],
       pricingContext,
       cobraVisita: true,
@@ -42,6 +46,8 @@ describe('calcularCostoVisitaPreview', () => {
     const costo = calcularCostoVisitaPreview({
       selectedProcedureIds: [],
       selectedExamIds: [10],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
       catalogProcedurePrices: [],
       pricingContext: { examPrices: [{ idExamen: 10, precioActual: 8000 }], nursingVisitPrice: null },
       cobraVisita: true,
@@ -56,6 +62,8 @@ describe('calcularCostoVisitaPreview', () => {
     const costo = calcularCostoVisitaPreview({
       selectedProcedureIds: [1],
       selectedExamIds: [10],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
       catalogProcedurePrices: [{ id: 1, precio: 15000 }],
       savedProcedurePrices: [{ idProcedimiento: 1, precio: 10000 }],
       savedExamPrices: [{ idExamen: 10, precio: 5000 }],
@@ -71,6 +79,8 @@ describe('calcularCostoVisitaPreview', () => {
     const costo = calcularCostoVisitaPreview({
       selectedProcedureIds: [],
       selectedExamIds: [],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
       catalogProcedurePrices: [],
       pricingContext,
       cobraVisita: true,
@@ -84,6 +94,8 @@ describe('calcularCostoVisitaPreview', () => {
     const costo = calcularCostoVisitaPreview({
       selectedProcedureIds: [1],
       selectedExamIds: [10],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
       catalogProcedurePrices: [{ id: 1, precio: 15000 }],
       pricingContext,
       cobraVisita: true,

@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { formatNombre } from '@/lib/paciente'
 import { COMUNAS_OPTIONS, COMUNAS_RM } from '@/lib/comunas'
 import type { CotizacionDetalle } from '@/lib/actions/cotizaciones'
+import type { TallerRow } from '@/lib/actions/catalogos'
 
 export type PacienteOption = {
   id: number
@@ -37,6 +38,7 @@ type Props = {
   pacientes: PacienteOption[]
   procedimientos: ProcedimientoOption[]
   examenes: ExamenOption[]
+  talleres: TallerRow[]
   tiposRecargos: { id: number; label: string }[]
   // Map of { [comunaNombre]: precio } for nursing visit price lookup
   preciosVisita: Record<string, number>
@@ -75,6 +77,7 @@ export function CotizacionForm({
   pacientes,
   procedimientos,
   examenes,
+  talleres,
   tiposRecargos,
   preciosVisita,
   onSubmit,
@@ -107,6 +110,14 @@ export function CotizacionForm({
   // Items
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(cotizacion?.procedureIds ?? [])
   const [selectedExams, setSelectedExams] = useState<number[]>(cotizacion?.examIds ?? [])
+  const [selectedTallers, setSelectedTallers] = useState<number[]>(cotizacion?.tallerIds ?? [])
+  const [tallerPriceMap, setTallerPriceMap] = useState<Record<number, string>>(() => {
+    const map: Record<number, string> = {}
+    for (const t of cotizacion?.tallerPrices ?? []) {
+      map[t.idTaller] = String(t.precio)
+    }
+    return map
+  })
 
   // Costos adicionales
   const [cobraVisita, setCobraVisita] = useState(cotizacion?.cobraVisita ?? false)
@@ -132,8 +143,12 @@ export function CotizacionForm({
     selectedExams.reduce((sum, id) => sum + (examenes.find((e) => e.id === id)?.precio ?? 0), 0),
     [selectedExams, examenes]
   )
+  const totalTalleres = useMemo(() =>
+    selectedTallers.reduce((sum, id) => sum + (parseInt(tallerPriceMap[id] ?? '0') || 0), 0),
+    [selectedTallers, tallerPriceMap]
+  )
   const totalRecargo = parseInt(montoRecargo) || 0
-  const totalGeneral = totalProcedimientos + totalExamenes + precioVisita + totalRecargo
+  const totalGeneral = totalProcedimientos + totalExamenes + totalTalleres + precioVisita + totalRecargo
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -157,6 +172,10 @@ export function CotizacionForm({
     fd.set('identificacionDestinatario', identificacionDestinatario)
     selectedProcedures.forEach((id) => fd.append('procedure_ids', String(id)))
     selectedExams.forEach((id) => fd.append('exam_ids', String(id)))
+    selectedTallers.forEach((id) => {
+      fd.append('taller_ids', String(id))
+      fd.append(`taller_precio_${id}`, tallerPriceMap[id] ?? '0')
+    })
 
     startTransition(async () => {
       const result = await onSubmit(fd)
@@ -421,6 +440,63 @@ export function CotizacionForm({
           </div>
         </section>
 
+        {/* ── Talleres ── */}
+        <section className={sectionClass} style={sectionStyle}>
+          <div className="p-6">
+            <h2 className={sectionTitleClass} style={sectionTitleStyle}>Talleres</h2>
+            <div className="space-y-3">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelClass} style={labelStyle}>Talleres</label>
+                <SelectCombobox
+                  mode="multi"
+                  placeholder="Seleccionar talleres…"
+                  options={talleres.filter((t) => t.activo).map((t) => ({ id: t.id, label: `${t.nombre} (${t.codigo})` }))}
+                  selected={selectedTallers}
+                  onChange={(ids) => {
+                    setSelectedTallers(ids)
+                    setTallerPriceMap((prev) => {
+                      const next = { ...prev }
+                      for (const id of ids) {
+                        if (!(id in next)) next[id] = '0'
+                      }
+                      return next
+                    })
+                  }}
+                  disabled={isPending}
+                />
+              </div>
+              {selectedTallers.length > 0 && (
+                <div className="space-y-2">
+                  {selectedTallers.map((id) => {
+                    const taller = talleres.find((t) => t.id === id)
+                    if (!taller) return null
+                    return (
+                      <div key={id} className="flex items-center gap-3">
+                        <span className="flex-1 text-sm truncate" style={{ color: 'var(--foreground)' }}>
+                          {taller.nombre}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={tallerPriceMap[id] ?? '0'}
+                            onChange={(e) => setTallerPriceMap((prev) => ({ ...prev, [id]: e.target.value }))}
+                            disabled={isPending}
+                            className="w-28 rounded-lg px-3 py-1.5 text-sm outline-none disabled:opacity-50"
+                            style={inputStyle}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* ── Costos adicionales ── */}
         <section className={sectionClass} style={sectionStyle}>
           <div className="p-6">
@@ -519,6 +595,12 @@ export function CotizacionForm({
                 <div className="flex justify-between">
                   <span style={{ color: 'var(--muted-foreground)' }}>Exámenes</span>
                   <span className="tabular-nums">${totalExamenes.toLocaleString('es-CL')}</span>
+                </div>
+              )}
+              {totalTalleres > 0 && (
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--muted-foreground)' }}>Talleres</span>
+                  <span className="tabular-nums">${totalTalleres.toLocaleString('es-CL')}</span>
                 </div>
               )}
               {cobraVisita && (

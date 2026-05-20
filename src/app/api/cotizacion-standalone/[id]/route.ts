@@ -3,6 +3,7 @@ import {
   quotations,
   quotationExams,
   quotationProcedures,
+  quotationWorkshops,
   patients,
   surchargeTypes,
 } from '@/db/schema'
@@ -28,7 +29,7 @@ export async function GET(
   }
 
   // Load items, patient, surcharge type in parallel
-  const [examItems, procItems, patientRow, surchargeRow] = await Promise.all([
+  const [examItems, procItems, tallerItems, patientRow, surchargeRow] = await Promise.all([
     db
       .select({ descripcion: quotationExams.descripcion, codigo: quotationExams.codigo, precio: quotationExams.precio })
       .from(quotationExams)
@@ -37,6 +38,10 @@ export async function GET(
       .select({ descripcion: quotationProcedures.descripcion, codigo: quotationProcedures.codigo, precio: quotationProcedures.precio })
       .from(quotationProcedures)
       .where(eq(quotationProcedures.idCotizacion, cotizacionId)),
+    db
+      .select({ descripcion: quotationWorkshops.descripcion, codigo: quotationWorkshops.codigo, precio: quotationWorkshops.precio })
+      .from(quotationWorkshops)
+      .where(eq(quotationWorkshops.idCotizacion, cotizacionId)),
     quotation.idPaciente
       ? db.select().from(patients).where(eq(patients.id, quotation.idPaciente)).then((r) => r[0] ?? null)
       : Promise.resolve(null),
@@ -54,6 +59,7 @@ export async function GET(
     quotation,
     examItems,
     procItems,
+    tallerItems,
     patient: patientRow,
     surchargeLabel: surchargeRow?.label ?? null,
     precioVisita,
@@ -89,6 +95,7 @@ function buildHTML({
   quotation,
   examItems,
   procItems,
+  tallerItems,
   patient,
   surchargeLabel,
   precioVisita,
@@ -110,6 +117,7 @@ function buildHTML({
   }
   examItems: Item[]
   procItems: Item[]
+  tallerItems: Item[]
   patient: { nombres: string; apellidoPaterno: string | null; apellidoMaterno: string | null; identificador: string | null; tipoIdentificador: string | null } | null
   surchargeLabel: string | null
   precioVisita: number
@@ -207,14 +215,24 @@ function buildHTML({
     idx += procItems.length
   }
 
+  if (tallerItems.length > 0) {
+    itemsHTML += groupHeader('Talleres')
+    itemsHTML += itemRows(tallerItems, idx)
+    idx += tallerItems.length
+  }
+
   const subtotalExamenes = examItems.reduce((s, e) => s + e.precio, 0)
   const subtotalProcedimientos = procItems.reduce((s, p) => s + p.precio, 0)
+  const subtotalTalleres = tallerItems.reduce((s, t) => s + t.precio, 0)
 
   if (subtotalExamenes > 0) {
     itemsHTML += subtotalRow('Subtotal exámenes', subtotalExamenes)
   }
   if (subtotalProcedimientos > 0) {
     itemsHTML += subtotalRow('Subtotal procedimientos', subtotalProcedimientos)
+  }
+  if (subtotalTalleres > 0) {
+    itemsHTML += subtotalRow('Subtotal talleres', subtotalTalleres)
   }
 
   if (quotation.cobraVisita && precioVisita > 0) {

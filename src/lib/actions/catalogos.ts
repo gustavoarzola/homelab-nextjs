@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes } from '@/db/schema'
+import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops } from '@/db/schema'
 import { eq, count, and, or, ilike, asc, desc, not, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/components/data-table'
@@ -13,6 +13,7 @@ type Result = { success: boolean; error?: string }
 
 export type ProcedimientoRow = { id: number; nombre: string; codigo: string; categoria: string; precio: number; activo: boolean }
 export type ExamenRow       = { id: number; nombre: string; codigo: string; grupoExamen: string; precio: number; activo: boolean }
+export type TallerRow       = { id: number; nombre: string; codigo: string; activo: boolean }
 export type PrevisionRow    = { id: number; nombre: string; categoria: string | null; activo: boolean }
 export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
 export type TipoRecargoRow  = { id: number; nombre: string; activo: boolean }
@@ -410,6 +411,90 @@ export async function getTiposRecargosForSelect(): Promise<{ id: number; label: 
     .orderBy(asc(surchargeTypes.nombre))
 
   return rows.map((r) => ({ id: r.id, label: r.nombre }))
+}
+
+// ─── Talleres ─────────────────────────────────────────────────────────────────
+
+export async function searchTalleres(params: SearchParams): Promise<{ rows: TallerRow[]; total: number }> {
+  await requireSession()
+
+  const { filters, sort, page, pageSize } = params
+  const buscar = (filters.buscar as string | undefined)?.trim()
+  const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
+
+  const conditions: SQL[] = []
+  if (buscar) conditions.push(or(ilike(workshops.nombre, `%${buscar}%`), ilike(workshops.codigo, `%${buscar}%`))!)
+  if (!mostrarInactivos) conditions.push(eq(workshops.activo, true))
+  const where = conditions.length ? and(...conditions) : undefined
+
+  const [countRow] = await db.select({ total: count() }).from(workshops).where(where)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sortCols: Record<string, any> = { nombre: workshops.nombre, codigo: workshops.codigo }
+  const sortCol = (sort?.key && sortCols[sort.key]) ?? workshops.nombre
+  const order = sort?.dir === 'desc' ? desc(sortCol) : asc(sortCol)
+
+  const rows = await db.select().from(workshops).where(where).orderBy(order, asc(workshops.nombre)).limit(pageSize).offset((page - 1) * pageSize)
+  return { rows, total: Number(countRow?.total ?? 0) }
+}
+
+export async function createTaller(formData: FormData): Promise<Result> {
+  await requireSession()
+
+  const nombre = (formData.get('nombre') as string)?.trim()
+  const codigo = (formData.get('codigo') as string)?.trim()
+  if (!nombre || !codigo) return { success: false, error: 'Nombre y código son requeridos' }
+  try {
+    const existing = await db.select().from(workshops).where(ilike(workshops.nombre, nombre))
+    if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
+    await db.insert(workshops).values({ nombre, codigo })
+    revalidatePath('/talleres')
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Error al crear' }
+  }
+}
+
+export async function updateTaller(formData: FormData): Promise<Result> {
+  await requireSession()
+
+  const id = Number(formData.get('id'))
+  const nombre = (formData.get('nombre') as string)?.trim()
+  const codigo = (formData.get('codigo') as string)?.trim()
+  if (!id || !nombre || !codigo) return { success: false, error: 'Datos inválidos' }
+  try {
+    const duplicated = await db
+      .select()
+      .from(workshops)
+      .where(and(ilike(workshops.nombre, nombre), not(eq(workshops.id, id))))
+    if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
+    await db.update(workshops).set({ nombre, codigo, updatedAt: new Date() }).where(eq(workshops.id, id))
+    revalidatePath('/talleres')
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Error al actualizar' }
+  }
+}
+
+export async function toggleTaller(id: number, activo: boolean): Promise<Result> {
+  await requireSession()
+
+  try {
+    await db.update(workshops).set({ activo: !activo }).where(eq(workshops.id, id))
+    revalidatePath('/talleres')
+    return { success: true }
+  } catch {
+    return { success: false, error: 'Error al cambiar estado' }
+  }
+}
+
+export async function getTalleres(): Promise<TallerRow[]> {
+  await requireSession()
+
+  return db
+    .select()
+    .from(workshops)
+    .where(eq(workshops.activo, true))
+    .orderBy(asc(workshops.nombre))
 }
 
 // ─── getProcedimientos (all active) ────────────────────────────────────────

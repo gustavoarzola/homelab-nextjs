@@ -5,14 +5,17 @@ import {
   quotations,
   quotationExams,
   quotationProcedures,
+  quotationWorkshops,
   patients,
   procedures,
   exams,
+  workshops,
   surchargeTypes,
   addresses,
   visits,
   visitProcedures,
   visitExams,
+  visitWorkshops,
   nursingVisitPrices,
 } from '@/db/schema'
 import { eq, and, or, ilike, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
@@ -43,6 +46,8 @@ export type CotizacionDetalle = {
   examPrices: { idExamen: number; precio: number }[]
   procedureIds: number[]
   procedurePrices: { idProcedimiento: number; precio: number }[]
+  tallerIds: number[]
+  tallerPrices: { idTaller: number; precio: number }[]
 }
 
 export type CotizacionRow = {
@@ -63,7 +68,7 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
   const [quotation] = await db.select().from(quotations).where(eq(quotations.id, id))
   if (!quotation) return null
 
-  const [exams_, procs] = await Promise.all([
+  const [exams_, procs, talleres_] = await Promise.all([
     db
       .select({ idExamen: quotationExams.idExamen, precio: quotationExams.precio })
       .from(quotationExams)
@@ -72,6 +77,10 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
       .select({ idProcedimiento: quotationProcedures.idProcedimiento, precio: quotationProcedures.precio })
       .from(quotationProcedures)
       .where(eq(quotationProcedures.idCotizacion, id)),
+    db
+      .select({ idTaller: quotationWorkshops.idTaller, precio: quotationWorkshops.precio })
+      .from(quotationWorkshops)
+      .where(eq(quotationWorkshops.idCotizacion, id)),
   ])
 
   return {
@@ -93,6 +102,8 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
     procedureIds: procs.map((p) => p.idProcedimiento),
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
+    tallerIds: talleres_.map((t) => t.idTaller),
+    tallerPrices: talleres_.map((t) => ({ idTaller: t.idTaller, precio: t.precio })),
   }
 }
 
@@ -193,6 +204,11 @@ export async function createCotizacion(
 
   const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
   const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
+  const tallerIds = fd.getAll('taller_ids').map(Number).filter(Boolean)
+  const tallerPrecioMap: Record<number, number> = {}
+  for (const id of tallerIds) {
+    tallerPrecioMap[id] = parseInt(fd.get(`taller_precio_${id}`) as string) || 0
+  }
 
   if (montoRecargo && !idTipoRecargo) {
     return { success: false, error: 'Tipo de recargo requerido cuando hay monto de recargo' }
@@ -223,6 +239,9 @@ export async function createCotizacion(
 
       total += examRows.reduce((sum, e) => sum + e.precio, 0)
     }
+
+    // Add taller prices (free-form per cotizacion)
+    total += Object.values(tallerPrecioMap).reduce((sum, p) => sum + p, 0)
 
     // Add nursing visit price if requested
     let visitPrice = 0
@@ -309,6 +328,25 @@ export async function createCotizacion(
       )
     }
 
+    // Insert taller items
+    if (tallerIds.length > 0) {
+      const tallerItems = await db
+        .select({ id: workshops.id, nombre: workshops.nombre, codigo: workshops.codigo })
+        .from(workshops)
+        .where(inArray(workshops.id, tallerIds))
+
+      await db.insert(quotationWorkshops).values(
+        tallerItems.map((t) => ({
+          idCotizacion: cotizacionId,
+          idTaller: t.id,
+          descripcion: t.nombre,
+          codigo: t.codigo,
+          precio: tallerPrecioMap[t.id] ?? 0,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
     revalidatePath('/cotizaciones')
     return { success: true, id: cotizacionId }
   } catch (error) {
@@ -342,6 +380,11 @@ export async function updateCotizacion(
 
   const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
   const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
+  const tallerIds = fd.getAll('taller_ids').map(Number).filter(Boolean)
+  const tallerPrecioMap: Record<number, number> = {}
+  for (const tid of tallerIds) {
+    tallerPrecioMap[tid] = parseInt(fd.get(`taller_precio_${tid}`) as string) || 0
+  }
 
   if (montoRecargo && !idTipoRecargo) {
     return { success: false, error: 'Tipo de recargo requerido cuando hay monto de recargo' }
@@ -370,6 +413,8 @@ export async function updateCotizacion(
 
       total += examRows.reduce((sum, e) => sum + e.precio, 0)
     }
+
+    total += Object.values(tallerPrecioMap).reduce((sum, p) => sum + p, 0)
 
     let visitPrice = 0
     if (cobraVisita) {
@@ -401,6 +446,7 @@ export async function updateCotizacion(
     // Delete existing items
     await db.delete(quotationProcedures).where(eq(quotationProcedures.idCotizacion, id))
     await db.delete(quotationExams).where(eq(quotationExams.idCotizacion, id))
+    await db.delete(quotationWorkshops).where(eq(quotationWorkshops.idCotizacion, id))
 
     // Insert procedure items
     if (procedureIds.length > 0) {
@@ -445,6 +491,25 @@ export async function updateCotizacion(
           descripcion: e.nombre,
           codigo: e.codigo,
           precio: e.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Insert taller items
+    if (tallerIds.length > 0) {
+      const tallerItems = await db
+        .select({ id: workshops.id, nombre: workshops.nombre, codigo: workshops.codigo })
+        .from(workshops)
+        .where(inArray(workshops.id, tallerIds))
+
+      await db.insert(quotationWorkshops).values(
+        tallerItems.map((t) => ({
+          idCotizacion: id,
+          idTaller: t.id,
+          descripcion: t.nombre,
+          codigo: t.codigo,
+          precio: tallerPrecioMap[t.id] ?? 0,
           createdAt: new Date(),
         })),
       )
@@ -564,6 +629,23 @@ export async function convertirCotizacionAVisita(
           idExamen: e.idExamen,
           idVisita: visitId,
           precio: e.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Copy talleres
+    const tallerItems = await db
+      .select({ idTaller: quotationWorkshops.idTaller, precio: quotationWorkshops.precio })
+      .from(quotationWorkshops)
+      .where(eq(quotationWorkshops.idCotizacion, idCotizacion))
+
+    if (tallerItems.length > 0) {
+      await db.insert(visitWorkshops).values(
+        tallerItems.map((t) => ({
+          idTaller: t.idTaller,
+          idVisita: visitId,
+          precio: t.precio,
           createdAt: new Date(),
         })),
       )

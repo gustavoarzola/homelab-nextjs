@@ -6,6 +6,8 @@ export type VisitaFormPricingContext = {
 export type VisitaPreviewInput = {
   selectedProcedureIds: number[]
   selectedExamIds: number[]
+  selectedTallerIds: number[]
+  tallerPriceMap: Record<number, string>
   catalogProcedurePrices: { id: number; precio: number }[]
   savedProcedurePrices?: { idProcedimiento: number; precio: number }[]
   savedExamPrices?: { idExamen: number; precio: number }[]
@@ -17,6 +19,7 @@ export type VisitaPreviewInput = {
 export type VisitaPreviewCosto = {
   subtotalProcedimientos: number
   subtotalExamenes: number
+  subtotalTalleres: number
   costoVisitaEnfermeria: number
   montoRecargo: number
   total: number
@@ -47,6 +50,10 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
     (sum, idExamen) => sum + (savedExamPriceMap.get(idExamen) ?? currentExamPriceMap.get(idExamen) ?? 0),
     0,
   )
+  const subtotalTalleres = input.selectedTallerIds.reduce(
+    (sum, idTaller) => sum + (parseInt(input.tallerPriceMap[idTaller] ?? '0') || 0),
+    0,
+  )
   const aplicaVisitaEnfermeria = input.cobraVisita
   const precioVisitaConfigurado = input.pricingContext.nursingVisitPrice !== null
   const costoVisitaEnfermeria =
@@ -58,9 +65,10 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
   return {
     subtotalProcedimientos,
     subtotalExamenes,
+    subtotalTalleres,
     costoVisitaEnfermeria,
     montoRecargo,
-    total: subtotalProcedimientos + subtotalExamenes + costoVisitaEnfermeria + montoRecargo,
+    total: subtotalProcedimientos + subtotalExamenes + subtotalTalleres + costoVisitaEnfermeria + montoRecargo,
     aplicaVisitaEnfermeria,
     precioVisitaConfigurado,
   }

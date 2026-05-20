@@ -1,5 +1,5 @@
 {
-  "id": "2ac36a6b-b516-4e74-96cd-15e6c05799e2",
+  "id": "d0d0b3c5-24fa-49d7-aede-24e5efdfba1d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -885,6 +885,538 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.cotizacion_examenes": {
+      "name": "cotizacion_examenes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_cotizacion": {
+          "name": "id_cotizacion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_examen": {
+          "name": "id_examen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descripcion": {
+          "name": "descripcion",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "codigo": {
+          "name": "codigo",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "precio": {
+          "name": "precio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cotizacion_examenes_id_cotizacion_idx": {
+          "name": "cotizacion_examenes_id_cotizacion_idx",
+          "columns": [
+            {
+              "expression": "id_cotizacion",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cotizacion_examenes_id_cotizacion_cotizaciones_id_fk": {
+          "name": "cotizacion_examenes_id_cotizacion_cotizaciones_id_fk",
+          "tableFrom": "cotizacion_examenes",
+          "tableTo": "cotizaciones",
+          "columnsFrom": [
+            "id_cotizacion"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cotizacion_examenes_id_examen_examenes_id_fk": {
+          "name": "cotizacion_examenes_id_examen_examenes_id_fk",
+          "tableFrom": "cotizacion_examenes",
+          "tableTo": "examenes",
+          "columnsFrom": [
+            "id_examen"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cotizacion_procedimientos": {
+      "name": "cotizacion_procedimientos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_cotizacion": {
+          "name": "id_cotizacion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_procedimiento": {
+          "name": "id_procedimiento",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descripcion": {
+          "name": "descripcion",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "codigo": {
+          "name": "codigo",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "precio": {
+          "name": "precio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cotizacion_procedimientos_id_cotizacion_idx": {
+          "name": "cotizacion_procedimientos_id_cotizacion_idx",
+          "columns": [
+            {
+              "expression": "id_cotizacion",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cotizacion_procedimientos_id_cotizacion_cotizaciones_id_fk": {
+          "name": "cotizacion_procedimientos_id_cotizacion_cotizaciones_id_fk",
+          "tableFrom": "cotizacion_procedimientos",
+          "tableTo": "cotizaciones",
+          "columnsFrom": [
+            "id_cotizacion"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cotizacion_procedimientos_id_procedimiento_procedimientos_id_fk": {
+          "name": "cotizacion_procedimientos_id_procedimiento_procedimientos_id_fk",
+          "tableFrom": "cotizacion_procedimientos",
+          "tableTo": "procedimientos",
+          "columnsFrom": [
+            "id_procedimiento"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cotizacion_talleres": {
+      "name": "cotizacion_talleres",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_cotizacion": {
+          "name": "id_cotizacion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_taller": {
+          "name": "id_taller",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descripcion": {
+          "name": "descripcion",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "codigo": {
+          "name": "codigo",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "precio": {
+          "name": "precio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cotizacion_talleres_id_cotizacion_idx": {
+          "name": "cotizacion_talleres_id_cotizacion_idx",
+          "columns": [
+            {
+              "expression": "id_cotizacion",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cotizacion_talleres_id_cotizacion_cotizaciones_id_fk": {
+          "name": "cotizacion_talleres_id_cotizacion_cotizaciones_id_fk",
+          "tableFrom": "cotizacion_talleres",
+          "tableTo": "cotizaciones",
+          "columnsFrom": [
+            "id_cotizacion"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cotizacion_talleres_id_taller_talleres_id_fk": {
+          "name": "cotizacion_talleres_id_taller_talleres_id_fk",
+          "tableFrom": "cotizacion_talleres",
+          "tableTo": "talleres",
+          "columnsFrom": [
+            "id_taller"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cotizaciones": {
+      "name": "cotizaciones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "estado": {
+          "name": "estado",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'borrador'"
+        },
+        "id_paciente": {
+          "name": "id_paciente",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nombre_destinatario": {
+          "name": "nombre_destinatario",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_destinatario": {
+          "name": "email_destinatario",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telefono_destinatario": {
+          "name": "telefono_destinatario",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "identificacion_destinatario": {
+          "name": "identificacion_destinatario",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comuna": {
+          "name": "comuna",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cobra_visita": {
+          "name": "cobra_visita",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "monto_recargo": {
+          "name": "monto_recargo",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "id_tipo_recargo": {
+          "name": "id_tipo_recargo",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total": {
+          "name": "total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "id_visita": {
+          "name": "id_visita",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notas": {
+          "name": "notas",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cotizaciones_estado_idx": {
+          "name": "cotizaciones_estado_idx",
+          "columns": [
+            {
+              "expression": "estado",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cotizaciones_id_paciente_idx": {
+          "name": "cotizaciones_id_paciente_idx",
+          "columns": [
+            {
+              "expression": "id_paciente",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cotizaciones_id_paciente_pacientes_id_fk": {
+          "name": "cotizaciones_id_paciente_pacientes_id_fk",
+          "tableFrom": "cotizaciones",
+          "tableTo": "pacientes",
+          "columnsFrom": [
+            "id_paciente"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cotizaciones_id_tipo_recargo_tipos_recargos_id_fk": {
+          "name": "cotizaciones_id_tipo_recargo_tipos_recargos_id_fk",
+          "tableFrom": "cotizaciones",
+          "tableTo": "tipos_recargos",
+          "columnsFrom": [
+            "id_tipo_recargo"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cotizaciones_id_visita_visitas_id_fk": {
+          "name": "cotizaciones_id_visita_visitas_id_fk",
+          "tableFrom": "cotizaciones",
+          "tableTo": "visitas",
+          "columnsFrom": [
+            "id_visita"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tipos_recargos": {
+      "name": "tipos_recargos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.usuarios": {
       "name": "usuarios",
       "schema": "",
@@ -1150,6 +1682,94 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.talleres_visitas": {
+      "name": "talleres_visitas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_taller": {
+          "name": "id_taller",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_visita": {
+          "name": "id_visita",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "precio": {
+          "name": "precio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "talleres_visitas_id_visita_idx": {
+          "name": "talleres_visitas_id_visita_idx",
+          "columns": [
+            {
+              "expression": "id_visita",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "talleres_visitas_id_taller_talleres_id_fk": {
+          "name": "talleres_visitas_id_taller_talleres_id_fk",
+          "tableFrom": "talleres_visitas",
+          "tableTo": "talleres",
+          "columnsFrom": [
+            "id_taller"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "talleres_visitas_id_visita_visitas_id_fk": {
+          "name": "talleres_visitas_id_visita_visitas_id_fk",
+          "tableFrom": "talleres_visitas",
+          "tableTo": "visitas",
+          "columnsFrom": [
+            "id_visita"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.visitas": {
       "name": "visitas",
       "schema": "",
@@ -1283,6 +1903,19 @@
           "notNull": true,
           "default": false
         },
+        "monto_recargo": {
+          "name": "monto_recargo",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "id_tipo_recargo": {
+          "name": "id_tipo_recargo",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1407,8 +2040,89 @@
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"
+        },
+        "visitas_id_tipo_recargo_tipos_recargos_id_fk": {
+          "name": "visitas_id_tipo_recargo_tipos_recargos_id_fk",
+          "tableFrom": "visitas",
+          "tableTo": "tipos_recargos",
+          "columnsFrom": [
+            "id_tipo_recargo"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.talleres": {
+      "name": "talleres",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "codigo": {
+          "name": "codigo",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "talleres_codigo_idx": {
+          "name": "talleres_codigo_idx",
+          "columns": [
+            {
+              "expression": "codigo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

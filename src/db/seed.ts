@@ -8,6 +8,7 @@ import {
   contactOrigins,
   surchargeTypes,
   nursingVisitPrices,
+  workshops,
 } from './schema'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
@@ -747,6 +748,7 @@ async function seed() {
   await db.delete(elderlyResidences)
   await db.delete(procedures)
   await db.delete(exams)
+  await db.delete(workshops)
   await db.delete(contactOrigins)
   await db.delete(surchargeTypes)
   await db.delete(users)
@@ -792,6 +794,22 @@ async function seed() {
   // Tipos de recargos
   console.log(`   Insertando ${tiposRecargosData.length} tipos de recargos...`)
   await db.insert(surchargeTypes).values(tiposRecargosData)
+
+  // Talleres
+  const talleresData = [
+    { nombre: 'Taller de Heridas y Curaciones', codigo: 'TAL-001' },
+    { nombre: 'Taller de Administración de Medicamentos', codigo: 'TAL-002' },
+    { nombre: 'Taller de Primeros Auxilios', codigo: 'TAL-003' },
+    { nombre: 'Taller de Cuidados del Adulto Mayor', codigo: 'TAL-004' },
+    { nombre: 'Taller de Prevención de Úlceras por Presión', codigo: 'TAL-005' },
+    { nombre: 'Taller de Rehabilitación Respiratoria', codigo: 'TAL-006' },
+    { nombre: 'Taller de Manejo del Dolor Crónico', codigo: 'TAL-007' },
+    { nombre: 'Taller de Nutrición y Alimentación Enteral', codigo: 'TAL-008' },
+    { nombre: 'Taller de Cuidados Postoperatorios', codigo: 'TAL-009' },
+    { nombre: 'Taller de Autocuidado para Pacientes Crónicos', codigo: 'TAL-010' },
+  ]
+  console.log(`   Insertando ${talleresData.length} talleres...`)
+  await db.insert(workshops).values(talleresData)
 
   // Enfermeras
   await db.insert(nurses).values(nurseData.map((n, i) => ({ ...n, rut: n.rut?.replace(/[.\-]/g, '') ?? null, comunaResidencia: pick(COMUNAS_RM, i) })))

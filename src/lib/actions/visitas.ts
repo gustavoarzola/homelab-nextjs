@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
+import { contactOrigins, visits, visitProcedures, visitExams, visitWorkshops, workshops, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
@@ -73,6 +73,8 @@ export type VisitaDetalle = {
   procedurePrices: { idProcedimiento: number; precio: number }[]
   examIds: number[]
   examPrices: { idExamen: number; precio: number }[]
+  tallerIds: number[]
+  tallerPrices: { idTaller: number; precio: number }[]
 }
 
 // ─── Row type ─────────────────────────────────────────────────────────────────
@@ -259,9 +261,10 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
   const [visit] = await db.select().from(visits).where(eq(visits.id, id))
   if (!visit) return null
 
-  const [procs, exams_] = await Promise.all([
+  const [procs, exams_, talleres_] = await Promise.all([
     db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
     db.select({ idExamen: visitExams.idExamen, precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, id)),
+    db.select({ idTaller: visitWorkshops.idTaller, precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, id)),
   ])
 
   return {
@@ -291,6 +294,8 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
     examIds: exams_.map((e) => e.idExamen),
     examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
+    tallerIds: talleres_.map((t) => t.idTaller),
+    tallerPrices: talleres_.map((t) => ({ idTaller: t.idTaller, precio: t.precio })),
   }
 }
 
@@ -352,6 +357,11 @@ export async function updateVisita(
 
   const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
   const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
+  const tallerIds = fd.getAll('taller_ids').map(Number).filter(Boolean)
+  const tallerPrices = tallerIds.map((idTaller) => ({
+    idTaller,
+    precio: Number(fd.get(`taller_precio_${idTaller}`)) || 0,
+  }))
 
   const pagado = fd.get('pagado') === 'true'
   const metodoPago = (fd.get('metodoPago') as string)?.trim() || null
@@ -401,6 +411,7 @@ export async function updateVisita(
 
       await tx.delete(visitProcedures).where(eq(visitProcedures.idVisita, id))
       await tx.delete(visitExams).where(eq(visitExams.idVisita, id))
+      await tx.delete(visitWorkshops).where(eq(visitWorkshops.idVisita, id))
 
       if (procedureIds.length > 0) {
         await tx.insert(visitProcedures).values(
@@ -428,6 +439,12 @@ export async function updateVisita(
           precio: storedExamPriceMap.get(idExamen) ?? catalogExamPriceMap.get(idExamen) ?? 0,
         }))
         await tx.insert(visitExams).values(examValues)
+      }
+
+      if (tallerPrices.length > 0) {
+        await tx.insert(visitWorkshops).values(
+          tallerPrices.map(({ idTaller, precio }) => ({ idTaller, idVisita: id, precio })),
+        )
       }
 
       await actualizarCostoVisitaPersistida(id, tx)
@@ -484,6 +501,11 @@ export async function createVisita(
 
   const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
   const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
+  const tallerIds = fd.getAll('taller_ids').map(Number).filter(Boolean)
+  const tallerPrices = tallerIds.map((idTaller) => ({
+    idTaller,
+    precio: Number(fd.get(`taller_precio_${idTaller}`)) || 0,
+  }))
   const cobraVisita = fd.get('cobraVisita') === 'true'
   const montoRecargo = Number(fd.get('montoRecargo')) || 0
   const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
@@ -549,6 +571,12 @@ export async function createVisita(
           precio: examPriceMap.get(idExamen) ?? 0,
         }))
         await tx.insert(visitExams).values(examPriceValues)
+      }
+
+      if (tallerPrices.length > 0) {
+        await tx.insert(visitWorkshops).values(
+          tallerPrices.map(({ idTaller, precio }) => ({ idTaller, idVisita: id, precio })),
+        )
       }
 
       await actualizarCostoVisitaPersistida(id, tx)
