@@ -5,6 +5,7 @@ import {
   visits, patients, addresses, laboratories, nurses,
   visitProcedures, visitExams, procedures, exams,
   healthInsurances, patientPhones,
+  visitWorkshops, workshops, elderlyResidences, surchargeTypes,
 } from '@/db/schema'
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { Resend } from 'resend'
@@ -42,8 +43,13 @@ export type VisitaConDetalles = {
   laboratorio: string | null
   procedimientos: string[]
   exámenes: string[]
+  talleres: string[]
+  residenciaAdultoMayor: string | null
   informacionAdicional: string | null
   costo: number
+  costoTraslado: number
+  montoRecargo: number
+  tipoRecargo: string | null
 }
 
 export type EnfermeraConVisitas = {
@@ -117,6 +123,8 @@ async function getVisitasConDetalles(
       fecha: visits.fecha,
       hora: visits.hora,
       costo: visits.costo,
+      costoTraslado: visits.costoTraslado,
+      montoRecargo: visits.montoRecargo,
       informacionAdicional: visits.informacionAdicional,
       idEnfermera: visits.idEnfermera,
       keyOrdenMedica: visits.keyOrdenMedica,
@@ -129,12 +137,15 @@ async function getVisitasConDetalles(
       correoPaciente: patients.correo,
       infoAdicionalPaciente: patients.informacionAdicional,
       idCompaniaSeguro: patients.idCompaniaSeguro,
+      idResidenciaAdulto: patients.idResidenciaAdulto,
       direccion: addresses.direccionFormateada,
       comuna: addresses.areaAdministrativa3,
       areaAdministrativa1: addresses.areaAdministrativa1,
       areaAdministrativa2: addresses.areaAdministrativa2,
       laboratorio: laboratories.nombre,
       previsión: healthInsurances.nombre,
+      tipoRecargo: surchargeTypes.nombre,
+      residenciaAdultoMayor: elderlyResidences.nombre,
       idPaciente: patients.id,
     })
     .from(visits)
@@ -142,6 +153,8 @@ async function getVisitasConDetalles(
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
     .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
     .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
+    .leftJoin(surchargeTypes, eq(visits.idTipoRecargo, surchargeTypes.id))
+    .leftJoin(elderlyResidences, eq(patients.idResidenciaAdulto, elderlyResidences.id))
     .where(and(eq(visits.fecha, fecha), inArray(visits.idEnfermera, nurseIds)))
 
   if (!rawVisitas.length) return []
@@ -160,8 +173,8 @@ async function getVisitasConDetalles(
         .where(inArray(patientPhones.idPaciente, pacienteIds))
     : []
 
-  // Obtener procedimientos y exámenes
-  const [procRows, examRows] = await Promise.all([
+  // Obtener procedimientos, exámenes y talleres
+  const [procRows, examRows, workshopRows] = await Promise.all([
     db
       .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre })
       .from(visitProcedures)
@@ -172,10 +185,16 @@ async function getVisitasConDetalles(
       .from(visitExams)
       .innerJoin(exams, eq(visitExams.idExamen, exams.id))
       .where(inArray(visitExams.idVisita, visitaIds)),
+    db
+      .select({ idVisita: visitWorkshops.idVisita, nombre: workshops.nombre })
+      .from(visitWorkshops)
+      .innerJoin(workshops, eq(visitWorkshops.idTaller, workshops.id))
+      .where(inArray(visitWorkshops.idVisita, visitaIds)),
   ])
 
   const procsByVisita = new Map<number, string[]>()
   const examsByVisita = new Map<number, string[]>()
+  const workshopsByVisita = new Map<number, string[]>()
   const phonesByPaciente = new Map<number, string[]>()
 
   for (const p of procRows) {
@@ -188,6 +207,12 @@ async function getVisitasConDetalles(
     const arr = examsByVisita.get(e.idVisita) ?? []
     arr.push(e.nombre)
     examsByVisita.set(e.idVisita, arr)
+  }
+
+  for (const w of workshopRows) {
+    const arr = workshopsByVisita.get(w.idVisita) ?? []
+    arr.push(w.nombre)
+    workshopsByVisita.set(w.idVisita, arr)
   }
 
   for (const phone of phonesData) {
@@ -224,8 +249,13 @@ async function getVisitasConDetalles(
     laboratorio: v.laboratorio || null,
     procedimientos: procsByVisita.get(v.visitaId) ?? [],
     exámenes: examsByVisita.get(v.visitaId) ?? [],
+    talleres: workshopsByVisita.get(v.visitaId) ?? [],
+    residenciaAdultoMayor: v.residenciaAdultoMayor || null,
     informacionAdicional: v.informacionAdicional || null,
     costo: v.costo,
+    costoTraslado: v.costoTraslado ?? 0,
+    montoRecargo: v.montoRecargo ?? 0,
+    tipoRecargo: v.tipoRecargo || null,
   }))
 }
 
@@ -258,8 +288,8 @@ export async function sendScheduledVisitsEmail(
       if (visita.keyOrdenMedica) {
         try {
           const { buffer, contentType } = await getR2Object(visita.keyOrdenMedica)
-          const ext = contentType.split('/')[1] ?? 'jpg'
-          attachments.push({ filename: `orden-medica-visita-${visita.id}.${ext}`, content: buffer })
+          const ext = visita.keyOrdenMedica.split('.').pop() ?? contentType.split('/')[1] ?? 'jpg'
+          attachments.push({ filename: `visita-${visita.id}.${ext}`, content: buffer })
         } catch (err) {
           console.error(`Error descargando orden médica para visita ${visita.id}:`, err)
         }
@@ -312,11 +342,25 @@ export async function sendAllScheduledVisitsEmails(
       const firstFecha = enfermera.visitas[0]?.fecha ?? ''
       const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
 
+      const attachments: { filename: string; content: Buffer }[] = []
+      for (const visita of enfermera.visitas) {
+        if (visita.keyOrdenMedica) {
+          try {
+            const { buffer, contentType } = await getR2Object(visita.keyOrdenMedica)
+            const ext = visita.keyOrdenMedica.split('.').pop() ?? contentType.split('/')[1] ?? 'jpg'
+            attachments.push({ filename: `visita-${visita.id}.${ext}`, content: buffer })
+          } catch (err) {
+            console.error(`Error descargando orden médica para visita ${visita.id}:`, err)
+          }
+        }
+      }
+
       const { error: sendError } = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev',
         to: enfermera.correo,
         subject,
         html: htmlContent,
+        ...(attachments.length > 0 && { attachments }),
       })
 
       if (sendError) {
@@ -355,120 +399,116 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
     return '<p>Sin visitas asignadas.</p>'
   }
 
-  const labelStyle =
-    'font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:3px;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;'
-  const valueStyle =
-    'font-size:13px;color:#1e2835;margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;'
-  const cellStyle = 'padding:10px 16px;vertical-align:top;'
-  const sectionLabelStyle =
-    'font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e8ecf0;padding:10px 16px 6px;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;'
+  const font = '-apple-system,BlinkMacSystemFont,Arial,sans-serif'
+  const labelColStyle = `width:150px;min-width:150px;padding:8px 12px;background:#f1f5f9;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;vertical-align:middle;border:1px solid #e8ecf0;font-family:${font};`
+  const dataColStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:#1e2835;vertical-align:middle;border:1px solid #e8ecf0;font-family:${font};`
+  const headerColStyle = `min-width:180px;padding:10px 12px;background:#1e2835;font-size:12px;font-weight:700;color:#ffffff;text-align:center;border:1px solid #1e2835;font-family:${font};`
+  const costoLabelStyle = `width:150px;min-width:150px;padding:8px 12px;background:#f1f5f9;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;vertical-align:middle;border:1px solid #e8ecf0;font-weight:700;font-family:${font};`
+  const costoDataStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:#1e2835;font-weight:700;vertical-align:middle;border:1px solid #e8ecf0;font-family:${font};`
 
-  let visitCards = ''
-
-  for (let i = 0; i < visitas.length; i++) {
-    const visita = visitas[i]!
-    const fechaFormato = formatDate(visita.fecha)
-
-    // Build 2-col rows for patient info
-    const nombrePaciente = formatNombre(visita.paciente)
-    const nombreCell = `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Nombre</span><p style="${valueStyle}">${nombrePaciente}</p></td>`
-
-    const identificadorCell = visita.paciente.identificador
-      ? `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">${visita.paciente.tipoIdentificador ? visita.paciente.tipoIdentificador.toUpperCase() : 'Identificador'}</span><p style="${valueStyle}">${visita.paciente.identificador}</p></td>`
-      : `<td width="50%" style="${cellStyle}"></td>`
-
-    const nacimientoCell = visita.paciente.fechaNacimiento
-      ? `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Fecha de Nacimiento</span><p style="${valueStyle}">${formatDate(visita.paciente.fechaNacimiento)}</p></td>`
-      : ''
-
-    const previsionCell = visita.paciente.previsión
-      ? `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Prevision</span><p style="${valueStyle}">${visita.paciente.previsión}</p></td>`
-      : ''
-
-    const nacimientoPrevisionRow =
-      nacimientoCell || previsionCell
-        ? `<tr>${nacimientoCell}${previsionCell}</tr>`
-        : ''
-
-    // Contacto rows
-    const telefonosCell =
-      visita.telefonos.length > 0
-        ? `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Telefono(s)</span>${visita.telefonos.map((t) => `<p style="${valueStyle};margin-bottom:2px;">${t}</p>`).join('')}</td>`
-        : ''
-
-    const correoCell = visita.paciente.correo
-      ? `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Correo</span><p style="${valueStyle}"><a href="mailto:${visita.paciente.correo}" style="color:#2a5fad;text-decoration:none;">${visita.paciente.correo}</a></p></td>`
-      : ''
-
-    const contactoSection =
-      telefonosCell || correoCell
-        ? `<tr><td colspan="2" style="${sectionLabelStyle}">Contacto</td></tr><tr>${telefonosCell}${correoCell}</tr>`
-        : ''
-
-    // Dirección
-    const direccionLines = [
-      visita.dirección.dirección,
-      visita.dirección.comuna ? `Comuna: ${visita.dirección.comuna}` : null,
-      visita.dirección.areaAdministrativa2
-        ? `Provincia: ${visita.dirección.areaAdministrativa2}`
-        : null,
-    ]
-      .filter(Boolean)
-      .map((line) => `<p style="${valueStyle};margin-bottom:2px;">${line}</p>`)
-      .join('')
-
-    const laboratorioRow = visita.laboratorio
-      ? `<tr><td colspan="2" style="${cellStyle}"><span style="${labelStyle}">Laboratorio</span><p style="${valueStyle}">${visita.laboratorio}</p></td></tr>`
-      : ''
-
-    // Procedimientos y Exámenes
-    const procsCell =
-      visita.procedimientos.length > 0
-        ? `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Procedimientos</span>${visita.procedimientos.map((p) => `<p style="${valueStyle};margin-bottom:2px;">${p}</p>`).join('')}</td>`
-        : ''
-
-    const examsCell =
-      visita.exámenes.length > 0
-        ? `<td width="50%" style="${cellStyle}"><span style="${labelStyle}">Examenes</span>${visita.exámenes.map((e) => `<p style="${valueStyle};margin-bottom:2px;">${e}</p>`).join('')}</td>`
-        : ''
-
-    const procsExamsSection =
-      procsCell || examsCell
-        ? `<tr><td colspan="2" style="${sectionLabelStyle}">Procedimientos y Examenes</td></tr><tr>${procsCell}${examsCell}</tr>`
-        : ''
-
-    // Info adicional
-    const infoAdicionalSection = visita.informacionAdicional
-      ? `<tr><td colspan="2" style="${sectionLabelStyle}">Informacion Adicional</td></tr><tr><td colspan="2" style="${cellStyle}"><p style="${valueStyle}">${visita.informacionAdicional}</p></td></tr>`
-      : ''
-
-    visitCards += `
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e8ecf0;margin-bottom:16px;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;">
-        <tr style="background-color:#f1f5f9;">
-          <td colspan="2" style="padding:10px 16px;font-weight:600;font-size:13px;color:#1e2835;border-bottom:1px solid #e8ecf0;">
-            Visita ${i + 1} de ${visitas.length}&nbsp;&mdash;&nbsp;${fechaFormato}${visita.hora ? `, ${visita.hora}` : ''}
-          </td>
-        </tr>
-        <tr><td colspan="2" style="${sectionLabelStyle}">Paciente</td></tr>
-        <tr>${nombreCell}${identificadorCell}</tr>
-        ${nacimientoPrevisionRow}
-        ${contactoSection}
-        <tr><td colspan="2" style="${sectionLabelStyle}">Direccion</td></tr>
-        <tr><td colspan="2" style="${cellStyle}">${direccionLines}</td></tr>
-        ${laboratorioRow}
-        ${procsExamsSection}
-        ${infoAdicionalSection}
-        <tr style="background-color:#f8fafc;border-top:1px solid #e8ecf0;">
-          <td style="${cellStyle}font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;">Arancel</td>
-          <td style="${cellStyle}text-align:right;font-weight:700;font-size:14px;color:#1e2835;">$${visita.costo.toLocaleString('es-CL')}</td>
-        </tr>
-      </table>
-    `
+  // Helper to get cell value for each row
+  const getValue = (v: VisitaConDetalles, rowIndex: number): string => {
+    switch (rowIndex) {
+      case 0: return v.hora ?? '—'
+      case 1: return formatNombre(v.paciente)
+      case 2: return v.paciente.identificador ?? '—'
+      case 3: return v.paciente.fechaNacimiento ? formatDate(v.paciente.fechaNacimiento) : '—'
+      case 4: return v.telefonos.join(' / ') || '—'
+      case 5: return v.paciente.correo
+          ? `<a href="mailto:${v.paciente.correo}" style="color:#2a5fad;text-decoration:none;">${v.paciente.correo}</a>`
+          : '—'
+      case 6: {
+          const query = encodeURIComponent(
+            [v.dirección.dirección, v.dirección.comuna].filter(Boolean).join(', '),
+          )
+          const mapsUrl = `https://maps.google.com/?q=${query}`
+          return `${v.dirección.dirección} <a href="${mapsUrl}" style="color:#2a5fad;text-decoration:none;font-size:14px;" title="Abrir en Maps">📍</a>`
+        }
+      case 7: return v.dirección.comuna ?? '—'
+      case 8: return v.paciente.previsión ?? '—'
+      case 9: return v.residenciaAdultoMayor ?? '—'
+      case 10: return v.procedimientos.join(', ') || '—'
+      case 11: return v.exámenes.join(', ') || '—'
+      case 12: return v.talleres.join(', ') || '—'
+      case 13: return v.laboratorio ?? '—'
+      case 14: return v.paciente.informacionAdicional || '—'
+      case 15: return v.informacionAdicional || '—'
+      default: return '—'
+    }
   }
 
+  const rowLabels = [
+    'Hora de atencion',
+    'Nombre Completo',
+    'RUT / Identificador',
+    'Fecha de Nacimiento',
+    'Telefono(s)',
+    'Correo electronico',
+    'Direccion',
+    'Comuna',
+    'Prevision de Salud',
+    'Residencia',
+    'Procedimiento(s)',
+    'Examen(es)',
+    'Taller(es)',
+    'Laboratorio',
+    'Notas paciente',
+    'Informacion adicional',
+  ]
+
+  // Header row: "Visita #ID", one per visit
+  const headerCells = visitas
+    .map((v) => `<td style="${headerColStyle}">Visita #${v.id}</td>`)
+    .join('')
+
+  // Data rows
+  const dataRows = rowLabels
+    .map((label, rowIndex) => {
+      const dataCells = visitas
+        .map((v) => `<td style="${dataColStyle}">${getValue(v, rowIndex)}</td>`)
+        .join('')
+      return `<tr><td style="${labelColStyle}">${label}</td>${dataCells}</tr>`
+    })
+    .join('')
+
+  // Filas de costos (bold, distinct style)
+  const costoCells = visitas
+    .map((v) => `<td style="${costoDataStyle}">$${v.costo.toLocaleString('es-CL')}</td>`)
+    .join('')
+  const costoRow = `<tr><td style="${costoLabelStyle}">Costo</td>${costoCells}</tr>`
+
+  const trasladoCells = visitas
+    .map((v) => `<td style="${costoDataStyle}">${v.costoTraslado > 0 ? `$${v.costoTraslado.toLocaleString('es-CL')}` : '—'}</td>`)
+    .join('')
+  const trasladoRow = `<tr><td style="${costoLabelStyle}">Traslado</td>${trasladoCells}</tr>`
+
+  const recargoCells = visitas
+    .map((v) => {
+      if (!v.montoRecargo) return `<td style="${costoDataStyle}">—</td>`
+      const label = v.tipoRecargo ? ` (${v.tipoRecargo})` : ''
+      return `<td style="${costoDataStyle}">$${v.montoRecargo.toLocaleString('es-CL')}${label}</td>`
+    })
+    .join('')
+  const recargoRow = `<tr><td style="${costoLabelStyle}">Recargo</td>${recargoCells}</tr>`
+
+  const table = `
+    <div style="overflow-x:auto;">
+      <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:${font};">
+        <tr>
+          <td style="width:150px;min-width:150px;padding:10px 12px;background:#1e2835;border:1px solid #1e2835;"></td>
+          ${headerCells}
+        </tr>
+        ${dataRows}
+        ${costoRow}
+        ${trasladoRow}
+        ${recargoRow}
+      </table>
+    </div>
+  `
+
   return `
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;">
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e2835;margin-bottom:16px;">
+    <div style="max-width:100%;margin:0 auto;background:#ffffff;font-family:${font};">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e2835;margin-bottom:16px;">
         <tr>
           <td style="padding:20px 24px;">
             <p style="margin:0 0 4px 0;font-size:18px;font-weight:700;color:#ffffff;font-family:Georgia,serif;">Programacion de Visitas</p>
@@ -477,9 +517,9 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
         </tr>
       </table>
 
-      ${visitCards}
+      ${table}
 
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #e8ecf0;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #e8ecf0;margin-top:16px;">
         <tr>
           <td style="padding:16px;font-size:11px;color:#94a3b8;text-align:center;">
             <p style="margin:0 0 4px 0;">Este es un correo automatico de programacion de visitas.</p>
