@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { db } from './index'
 import {
   users, nurses, patients, addresses, patientPhones,
@@ -366,153 +368,24 @@ const procedimientosData = [
   { nombre: 'Visita de evaluación inicial domiciliaria', codigo: 'ENF-100', categoria: 'otros' },
 ]
 
-// ─── Exámenes de laboratorio y diagnóstico (~100) ────────────────────────────
+// ─── Exámenes de laboratorio y diagnóstico (desde examenes.csv) ──────────────
 
-const examenesData = [
-  // Hematología
-  { nombre: 'Hemograma completo', codigo: 'LAB-001' },
-  { nombre: 'VHS (velocidad de hemosedimentación)', codigo: 'LAB-002' },
-  { nombre: 'Recuento de reticulocitos', codigo: 'LAB-003' },
-  { nombre: 'Perfil de coagulación (TTPA, TP)', codigo: 'LAB-004' },
-  { nombre: 'INR', codigo: 'LAB-005' },
-  { nombre: 'Tiempo de protrombina (TP)', codigo: 'LAB-006' },
-  { nombre: 'Dímero D', codigo: 'LAB-007' },
-  { nombre: 'Fibrinógeno', codigo: 'LAB-008' },
-  { nombre: 'Recuento de plaquetas', codigo: 'LAB-009' },
-  { nombre: 'Frotis de sangre periférica', codigo: 'LAB-010' },
-  // Bioquímica básica
-  { nombre: 'Glicemia en ayunas', codigo: 'LAB-011' },
-  { nombre: 'Hemoglobina glicosilada (HbA1c)', codigo: 'LAB-012' },
-  { nombre: 'Curva de tolerancia a la glucosa', codigo: 'LAB-013' },
-  { nombre: 'Creatinina sérica', codigo: 'LAB-014' },
-  { nombre: 'Uremia (nitrógeno ureico – BUN)', codigo: 'LAB-015' },
-  { nombre: 'Ácido úrico', codigo: 'LAB-016' },
-  { nombre: 'Clearance de creatinina (orina 24 h)', codigo: 'LAB-017' },
-  { nombre: 'Cistatina C', codigo: 'LAB-018' },
-  { nombre: 'Proteínas totales', codigo: 'LAB-019' },
-  { nombre: 'Albúmina sérica', codigo: 'LAB-020' },
-  // Perfil lipídico
-  { nombre: 'Colesterol total', codigo: 'LAB-021' },
-  { nombre: 'Colesterol HDL', codigo: 'LAB-022' },
-  { nombre: 'Colesterol LDL (directo)', codigo: 'LAB-023' },
-  { nombre: 'Triglicéridos', codigo: 'LAB-024' },
-  { nombre: 'Perfil lipídico completo', codigo: 'LAB-025' },
-  // Perfil hepático
-  { nombre: 'GOT / AST', codigo: 'LAB-026' },
-  { nombre: 'GPT / ALT', codigo: 'LAB-027' },
-  { nombre: 'GGT', codigo: 'LAB-028' },
-  { nombre: 'Fosfatasa alcalina', codigo: 'LAB-029' },
-  { nombre: 'Bilirrubina total y fraccionada', codigo: 'LAB-030' },
-  { nombre: 'LDH (deshidrogenasa láctica)', codigo: 'LAB-031' },
-  // Electrolitos y minerales
-  { nombre: 'Sodio sérico', codigo: 'LAB-032' },
-  { nombre: 'Potasio sérico', codigo: 'LAB-033' },
-  { nombre: 'Cloro sérico', codigo: 'LAB-034' },
-  { nombre: 'Calcio sérico', codigo: 'LAB-035' },
-  { nombre: 'Fósforo sérico', codigo: 'LAB-036' },
-  { nombre: 'Magnesio sérico', codigo: 'LAB-037' },
-  { nombre: 'Hierro sérico', codigo: 'LAB-038' },
-  { nombre: 'Ferritina', codigo: 'LAB-039' },
-  { nombre: 'Transferrina', codigo: 'LAB-040' },
-  { nombre: 'TIBC (capacidad total de fijación de hierro)', codigo: 'LAB-041' },
-  // Vitaminas y hormonas
-  { nombre: 'Vitamina D (25-OH)', codigo: 'LAB-042' },
-  { nombre: 'Vitamina B12', codigo: 'LAB-043' },
-  { nombre: 'Ácido fólico', codigo: 'LAB-044' },
-  { nombre: 'TSH (hormona estimulante de tiroides)', codigo: 'LAB-045' },
-  { nombre: 'T3 libre', codigo: 'LAB-046' },
-  { nombre: 'T4 libre', codigo: 'LAB-047' },
-  { nombre: 'Anticuerpos anti-TPO', codigo: 'LAB-048' },
-  { nombre: 'Anticuerpos anti-tiroglobulina', codigo: 'LAB-049' },
-  // Marcadores inflamatorios e infecciosos
-  { nombre: 'PCR (proteína C reactiva)', codigo: 'LAB-050' },
-  { nombre: 'PCR ultrasensible', codigo: 'LAB-051' },
-  { nombre: 'Procalcitonina', codigo: 'LAB-052' },
-  { nombre: 'Interleuquina 6 (IL-6)', codigo: 'LAB-053' },
-  // Orina
-  { nombre: 'Orina completa (uroanálisis)', codigo: 'LAB-054' },
-  { nombre: 'Urocultivo con antibiograma', codigo: 'LAB-055' },
-  { nombre: 'Proteinuria en orina 24 h', codigo: 'LAB-056' },
-  { nombre: 'Microalbuminuria', codigo: 'LAB-057' },
-  { nombre: 'Creatinina en orina', codigo: 'LAB-058' },
-  { nombre: 'Sedimento urinario', codigo: 'LAB-059' },
-  // Microbiología
-  { nombre: 'Hemocultivo (par)', codigo: 'LAB-060' },
-  { nombre: 'Cultivo de secreción de herida', codigo: 'LAB-061' },
-  { nombre: 'Cultivo de catéter', codigo: 'LAB-062' },
-  { nombre: 'Coprocultivo', codigo: 'LAB-063' },
-  { nombre: 'Test para Helicobacter pylori (antígeno en deposiciones)', codigo: 'LAB-064' },
-  { nombre: 'Cultivo de secreción bronquial', codigo: 'LAB-065' },
-  { nombre: 'Panel respiratorio viral (PCR múltiple)', codigo: 'LAB-066' },
-  { nombre: 'Test COVID-19 (PCR)', codigo: 'LAB-067' },
-  { nombre: 'Test de influenza A/B (antígeno)', codigo: 'LAB-068' },
-  // Serología e inmunología
-  { nombre: 'VDRL / RPR (sífilis)', codigo: 'LAB-069' },
-  { nombre: 'VIH (Elisa 4.ª generación)', codigo: 'LAB-070' },
-  { nombre: 'Hepatitis B (HBsAg)', codigo: 'LAB-071' },
-  { nombre: 'Anti-HBs (anticuerpos hepatitis B)', codigo: 'LAB-072' },
-  { nombre: 'Anti-HCV (hepatitis C)', codigo: 'LAB-073' },
-  { nombre: 'IgE total', codigo: 'LAB-074' },
-  { nombre: 'ANA (anticuerpos antinucleares)', codigo: 'LAB-075' },
-  { nombre: 'Anti-DNA doble cadena', codigo: 'LAB-076' },
-  { nombre: 'Factor reumatoide', codigo: 'LAB-077' },
-  { nombre: 'Anti-CCP (artritis reumatoide)', codigo: 'LAB-078' },
-  // Marcadores tumorales
-  { nombre: 'PSA total (próstata)', codigo: 'LAB-079' },
-  { nombre: 'PSA libre', codigo: 'LAB-080' },
-  { nombre: 'CEA (antígeno carcinoembrionario)', codigo: 'LAB-081' },
-  { nombre: 'AFP (alfa-fetoproteína)', codigo: 'LAB-082' },
-  { nombre: 'CA 19-9', codigo: 'LAB-083' },
-  { nombre: 'CA 125', codigo: 'LAB-084' },
-  { nombre: 'CA 15-3', codigo: 'LAB-085' },
-  { nombre: 'Beta-HCG cuantitativa', codigo: 'LAB-086' },
-  // Cardíaco
-  { nombre: 'Troponina I ultrasensible', codigo: 'LAB-087' },
-  { nombre: 'BNP / NT-proBNP (insuficiencia cardíaca)', codigo: 'LAB-088' },
-  { nombre: 'CK total', codigo: 'LAB-089' },
-  { nombre: 'CK-MB', codigo: 'LAB-090' },
-  { nombre: 'Mioglobina', codigo: 'LAB-091' },
-  // Hormonas especiales
-  { nombre: 'Cortisol basal', codigo: 'LAB-092' },
-  { nombre: 'FSH', codigo: 'LAB-093' },
-  { nombre: 'LH', codigo: 'LAB-094' },
-  { nombre: 'Estradiol', codigo: 'LAB-095' },
-  { nombre: 'Testosterona total', codigo: 'LAB-096' },
-  { nombre: 'Prolactina', codigo: 'LAB-097' },
-  { nombre: 'IGF-1 (factor de crecimiento)', codigo: 'LAB-098' },
-  // Toma en domicilio
-  { nombre: 'Toma de muestra en domicilio (varios)', codigo: 'LAB-099' },
-  { nombre: 'Panel metabólico completo', codigo: 'LAB-100' },
-]
+const csvPath = join(process.cwd(), 'examenes.csv')
+const csvLines = readFileSync(csvPath, 'utf-8').trim().split('\n').slice(1) // skip header
 
-// Función para calcular precio de examen basado en el índice
-function seedExamenPrice(i: number): number {
-  const normalizedIndex = i % 100
-
-  if (normalizedIndex < 35) {
-    // Exámenes básicos: hemograma, glucosa, etc.
-    return 8000 + ((i % 20) * 500) // 8000-18000
-  } else if (normalizedIndex < 70) {
-    // Exámenes medianos: bioquímica, perfil lipídico, etc.
-    return 22000 + ((i % 25) * 800) // 22000-42000
-  } else {
-    // Exámenes caros: serología, marcadores tumorales, etc.
-    return 55000 + ((i % 30) * 1000) // 55000-85000
-  }
-}
-
-// Mapear exámenes para agregar grupoExamen y precio
-const examenesDataWithPrices = examenesData.map((exam, i) => {
-  const grupos = ['imalab', 'imalab_fonasa_3', 'integramedica'] as const
-  const grupoExamen = grupos[i % grupos.length]
-  const precio = seedExamenPrice(i)
-
-  return {
-    ...exam,
-    grupoExamen,
-    precio,
-  }
-})
+const examenesDataWithPrices = csvLines
+  .map(line => {
+    const cols = line.match(/(".*?"|[^,]+)(?=,|$)/g) ?? line.split(',')
+    const [codigo, nombre, precio, laboratorio] = cols.map(c => c.replace(/^"|"$/g, '').trim())
+    if (!codigo || !nombre || !precio) return null
+    return {
+      codigo,
+      nombre,
+      precio: parseInt(precio, 10),
+      grupoExamen: laboratorio ?? 'imalab',
+    }
+  })
+  .filter(Boolean) as { codigo: string; nombre: string; precio: number; grupoExamen: string }[]
 
 // ─── Orígenes de contacto ─────────────────────────────────────────────────────
 
@@ -783,8 +656,8 @@ async function seed() {
   )
 
   // Exámenes
-  console.log(`   Insertando ${examenesData.length} exámenes...`)
-  const insertedExams = await db.insert(exams).values(examenesDataWithPrices).returning()
+  console.log(`   Insertando ${examenesDataWithPrices.length} exámenes...`)
+  const insertedExams = await db.insert(exams).values(examenesDataWithPrices).onConflictDoNothing().returning()
   const examIds = insertedExams.map(e => e.id)
 
   // Orígenes de contacto
@@ -1013,7 +886,7 @@ async function seed() {
   console.log(`   ${visitsCount} visitas (ene-abr 2025: 12-22/día lun-sábado, antes 27mar=realizada+enfermera, después=creada+70%enfermera)`)
   console.log(`   ${previsionesData.length} previsiones de salud`)
   console.log(`   ${cadenasData.length} laboratorios`)
-  console.log(`   ${procedimientosData.length} procedimientos · ${examenesData.length} exámenes`)
+  console.log(`   ${procedimientosData.length} procedimientos · ${examenesDataWithPrices.length} exámenes`)
   console.log(`   ${visitPricesData.length} precios de visitas de enfermería (por comuna)`)
   console.log(`   ${residenciasData.length} residencias adulto mayor`)
   console.log(`   ${origenesContactoData.length} orígenes de contacto`)
