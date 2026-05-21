@@ -93,6 +93,7 @@ export type VisitaRow = {
   laboratorio: string | null
   pagado: boolean
   resultadosEnviados: boolean
+  keyOrdenMedica: string | null
 }
 
 // ─── searchVisitas ────────────────────────────────────────────────────────────
@@ -164,6 +165,7 @@ export async function searchVisitas(
       enfermeraApellido: nurses.apellidoPaterno,
       enfermeraApellidoMaterno: nurses.apellidoMaterno,
       laboratorio: laboratories.nombre,
+      keyOrdenMedica: visits.keyOrdenMedica,
     })
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
@@ -195,6 +197,7 @@ export async function searchVisitas(
     laboratorio: r.laboratorio ?? null,
     pagado: r.pagado,
     resultadosEnviados: r.resultadosEnviados,
+    keyOrdenMedica: r.keyOrdenMedica ?? null,
   }))
 
   return { rows, total: Number(countRow?.total ?? 0) }

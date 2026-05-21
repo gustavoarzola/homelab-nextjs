@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   useReactTable,
@@ -138,11 +138,6 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
   const [isPending, startTransition] = useTransition()
 
   const totalPages = Math.ceil(data.total / pageSize)
-
-  const gridTemplate = useMemo(() => {
-    const dataColCount = columns.filter((c) => (c as { id?: string }).id !== ACTIONS_COL).length
-    return `${Array(dataColCount).fill('1fr').join(' ')} auto`
-  }, [columns])
 
   const hasActiveFilters = filterDefs.some((f) => {
     if (f.type === 'checkbox') return applied[f.key] === true
@@ -435,127 +430,140 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
           transition: 'opacity 150ms',
         }}
       >
-        {/* Header */}
-        {table.getHeaderGroups().map((hg) => {
-          const visibleHeaders = hg.headers.filter((h) => h.id !== ACTIONS_COL)
-          return (
-            <div
-              key={hg.id}
-              className="grid border-b px-4 py-2 text-xs font-medium uppercase tracking-wide"
-              style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)', gridTemplateColumns: gridTemplate }}
-            >
-              {visibleHeaders.map((header) => {
-                const canSort = header.column.getCanSort()
-                const sorted = header.column.getIsSorted()
+        <table className="w-full border-collapse">
+          <thead>
+            {table.getHeaderGroups().map((hg) => {
+              const visibleHeaders = hg.headers.filter((h) => h.id !== ACTIONS_COL)
+              return (
+                <tr key={hg.id} className="border-b" style={{ borderColor: 'var(--border)' }}>
+                  {visibleHeaders.map((header) => {
+                    const canSort = header.column.getCanSort()
+                    const sorted = header.column.getIsSorted()
+                    return (
+                      <th
+                        key={header.id}
+                        onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                        className={cn(
+                          'px-4 py-2 text-left text-xs font-medium uppercase tracking-wide select-none whitespace-nowrap',
+                          canSort && 'cursor-pointer hover:opacity-80'
+                        )}
+                        style={{ color: 'var(--muted-foreground)' }}
+                      >
+                        <span className="flex items-center gap-1">
+                          {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                          {canSort && (
+                            sorted === 'asc' ? <ChevronUp className="h-3 w-3" />
+                            : sorted === 'desc' ? <ChevronDown className="h-3 w-3" />
+                            : <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                          )}
+                        </span>
+                      </th>
+                    )
+                  })}
+                  {/* Actions column placeholder */}
+                  <th />
+                </tr>
+              )
+            })}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-4 py-12 text-center text-sm"
+                  style={{ color: 'var(--muted-foreground)' }}
+                >
+                  Sin resultados.
+                </td>
+              </tr>
+            ) : (
+              table.getRowModel().rows.map((row) => {
+                const dataCells = row.getVisibleCells().filter((c) => c.column.id !== ACTIONS_COL)
                 return (
-                  <div
-                    key={header.id}
-                    onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
-                    className={cn('flex items-center gap-1 select-none', canSort && 'cursor-pointer hover:opacity-80')}
+                  <tr
+                    key={row.id}
+                    className={cn('border-b last:border-0', row.original.activo === false && 'opacity-50')}
+                    style={{ borderColor: 'var(--border)' }}
                   >
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                    {canSort && (
-                      sorted === 'asc' ? <ChevronUp className="h-3 w-3" />
-                      : sorted === 'desc' ? <ChevronDown className="h-3 w-3" />
-                      : <ChevronsUpDown className="h-3 w-3 opacity-40" />
-                    )}
-                  </div>
+                    {dataCells.map((cell) => (
+                      <td key={cell.id} className="px-4 py-3 text-sm" style={{ color: 'var(--foreground)' }}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+
+                    {/* Row actions */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {extraRowActions?.(row.original)}
+                        {(() => {
+                          const editHref = getEditHref?.(row.original)
+                          if (editHref) {
+                            return (
+                              <Link
+                                href={editHref}
+                                title="Editar"
+                                className="rounded p-1.5 hover:opacity-80 transition-opacity"
+                                style={{ color: 'var(--muted-foreground)' }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Link>
+                            )
+                          }
+                          if (!getEditHref) {
+                            return (
+                              <button
+                                onClick={() => {
+                                  const initialDraft: Record<string, string> = {}
+                                  formFields.forEach((f) => {
+                                    initialDraft[f.name] = String((row.original as Record<string, unknown>)[f.name] ?? '')
+                                  })
+                                  setFormDraft(initialDraft)
+                                  setModal({ type: 'edit', row: row.original })
+                                }}
+                                disabled={isPending}
+                                title="Editar"
+                                className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
+                                style={{ color: 'var(--muted-foreground)' }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )
+                          }
+                          return null
+                        })()}
+
+                        {onToggle && row.original.activo !== undefined && (
+                          <button
+                            onClick={() => setModal({ type: 'confirmToggle', id: row.original.id, activo: row.original.activo! })}
+                            disabled={isPending}
+                            title={row.original.activo ? 'Desactivar' : 'Activar'}
+                            className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
+                            style={{ color: 'var(--muted-foreground)' }}
+                          >
+                            {row.original.activo ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+
+                        {onDelete && (
+                          <button
+                            onClick={() => setModal({ type: 'confirmDelete', id: row.original.id })}
+                            disabled={isPending}
+                            title="Eliminar"
+                            className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
+                            style={{ color: 'var(--destructive)' }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 )
-              })}
-              {/* Actions column header placeholder */}
-              <div />
-            </div>
-          )
-        })}
-
-        {/* Rows */}
-        {table.getRowModel().rows.length === 0 ? (
-          <div className="px-4 py-12 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
-            Sin resultados.
-          </div>
-        ) : (
-          table.getRowModel().rows.map((row) => {
-            const dataCells = row.getVisibleCells().filter((c) => c.column.id !== ACTIONS_COL)
-            return (
-              <div
-                key={row.id}
-                className={cn('grid items-center border-b px-4 py-3 last:border-0', row.original.activo === false && 'opacity-50')}
-                style={{ borderColor: 'var(--border)', gridTemplateColumns: gridTemplate }}
-              >
-                {dataCells.map((cell) => (
-                  <div key={cell.id} className="pr-4 text-sm" style={{ color: 'var(--foreground)' }}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </div>
-                ))}
-
-                {/* Row actions */}
-                <div className="flex items-center justify-end gap-1">
-                  {extraRowActions?.(row.original)}
-                  {(() => {
-                    const editHref = getEditHref?.(row.original)
-                    if (editHref) {
-                      return (
-                        <Link
-                          href={editHref}
-                          title="Editar"
-                          className="rounded p-1.5 hover:opacity-80 transition-opacity"
-                          style={{ color: 'var(--muted-foreground)' }}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Link>
-                      )
-                    }
-                    if (!getEditHref) {
-                      return (
-                        <button
-                          onClick={() => {
-                            const initialDraft: Record<string, string> = {}
-                            formFields.forEach((f) => {
-                              initialDraft[f.name] = String((row.original as Record<string, unknown>)[f.name] ?? '')
-                            })
-                            setFormDraft(initialDraft)
-                            setModal({ type: 'edit', row: row.original })
-                          }}
-                          disabled={isPending}
-                          title="Editar"
-                          className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
-                          style={{ color: 'var(--muted-foreground)' }}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                      )
-                    }
-                    return null
-                  })()}
-
-                  {onToggle && row.original.activo !== undefined && (
-                    <button
-                      onClick={() => setModal({ type: 'confirmToggle', id: row.original.id, activo: row.original.activo! })}
-                      disabled={isPending}
-                      title={row.original.activo ? 'Desactivar' : 'Activar'}
-                      className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
-                      style={{ color: 'var(--muted-foreground)' }}
-                    >
-                      {row.original.activo ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-                    </button>
-                  )}
-
-                  {onDelete && (
-                    <button
-                      onClick={() => setModal({ type: 'confirmDelete', id: row.original.id })}
-                      disabled={isPending}
-                      title="Eliminar"
-                      className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
-                      style={{ color: 'var(--destructive)' }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          })
-        )}
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Footer */}

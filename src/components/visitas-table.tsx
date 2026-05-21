@@ -1,5 +1,6 @@
 'use client'
 
+import { Paperclip } from 'lucide-react'
 import { DataTable, type ColumnDef, type FilterDef, type SearchParams, type Result } from './data-table'
 import { formatDateTime } from '@/lib/format'
 import type { VisitaRow } from '@/lib/actions/visitas'
@@ -20,6 +21,13 @@ const ESTADO_LABELS: Record<string, string> = {
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
 const columns: ColumnDef<VisitaRow>[] = [
+  {
+    id: 'id',
+    accessorKey: 'id',
+    header: 'ID',
+    enableSorting: true,
+    cell: ({ row }) => row.original.id,
+  },
   {
     id: 'fecha',
     header: 'Fecha',
@@ -94,6 +102,23 @@ const columns: ColumnDef<VisitaRow>[] = [
       >
         {row.original.resultadosEnviados ? 'Enviados' : 'Pendientes'}
       </span>
+    ) : null,
+  },
+  {
+    id: 'archivo',
+    header: 'Archivo',
+    enableSorting: false,
+    cell: ({ row }) => row.original.keyOrdenMedica ? (
+      <a
+        href={`/api/r2-file?key=${encodeURIComponent(row.original.keyOrdenMedica)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Ver archivo adjunto"
+        className="rounded p-1.5 hover:opacity-80 transition-opacity inline-flex"
+        style={{ color: 'var(--muted-foreground)' }}
+      >
+        <Paperclip className="h-3.5 w-3.5" />
+      </a>
     ) : null,
   },
   {
