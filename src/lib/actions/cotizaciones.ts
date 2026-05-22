@@ -201,10 +201,10 @@ const cotizacionInputSchema = z.object({
   comuna: z.string().trim().min(1, 'Comuna requerida'),
   cobraVisita: fields.bool,
   notas: fields.nullableStr,
-  procedureIds: fields.ids,
-  examIds: fields.ids,
-  tallerIds: fields.ids,
-  surchargeIds: fields.ids,
+  procedure_ids: fields.ids,
+  exam_ids: fields.ids,
+  taller_ids: fields.ids,
+  surcharge_ids: fields.ids,
 })
 
 const cotizacionCreateSchema = cotizacionInputSchema
@@ -223,7 +223,8 @@ export async function createCotizacion(
   const {
     idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
     identificacionDestinatario, comuna, cobraVisita,
-    notas, procedureIds, examIds, tallerIds, surchargeIds,
+    notas,
+    procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
   const tallerPrecioMap: Record<number, number> = {}
@@ -403,7 +404,8 @@ export async function updateCotizacion(
   const {
     id, idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
     identificacionDestinatario, comuna, cobraVisita,
-    notas, procedureIds, examIds, tallerIds, surchargeIds,
+    notas,
+    procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
   const tallerPrecioMap: Record<number, number> = {}
