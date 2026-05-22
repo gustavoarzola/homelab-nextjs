@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, Check, ChevronDown } from 'lucide-react'
 
-type Option = { id: number; label: string }
+type Option = { id: number; label: string; code?: string; tag?: { label: string; bg: string; color: string } }
 
 type BaseProps = {
   options: Option[]
   placeholder?: string
   disabled?: boolean
   clearable?: boolean
+  showPills?: boolean
 }
 
 type MultiProps = BaseProps & {
@@ -51,7 +52,10 @@ export function SelectCombobox(props: Props) {
     s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
   const filtered = query.trim()
-    ? props.options.filter((o) => normalize(o.label).includes(normalize(query)))
+    ? props.options.filter((o) =>
+        normalize(o.label).includes(normalize(query)) ||
+        (o.code && normalize(o.code).includes(normalize(query)))
+      )
     : props.options
 
   const selectedOptions = props.options.filter((o) => {
@@ -93,6 +97,7 @@ export function SelectCombobox(props: Props) {
 
   const isSingleMode = !isMulti(props)
   const isClearable = props.clearable ?? true
+  const showPills = props.showPills ?? true
   const displayValue = isSingleMode && !open ? selectedOptions[0]?.label : undefined
 
   const openDropdown = () => {
@@ -103,7 +108,7 @@ export function SelectCombobox(props: Props) {
   return (
     <div ref={containerRef} className={`relative w-full${open ? ' z-[120]' : ''}`}>
       {/* Pills (multi mode only) */}
-      {isMulti(props) && selectedOptions.length > 0 && (
+      {isMulti(props) && showPills && selectedOptions.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {selectedOptions.map((o) => (
             <span
@@ -235,6 +240,22 @@ export function SelectCombobox(props: Props) {
                       className="h-3.5 w-3.5 shrink-0"
                       style={{ opacity: isSelected ? 1 : 0 }}
                     />
+                    {o.code && (
+                      <span
+                        className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px]"
+                        style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+                      >
+                        {o.code}
+                      </span>
+                    )}
+                    {o.tag && (
+                      <span
+                        className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium"
+                        style={{ backgroundColor: o.tag.bg, color: o.tag.color }}
+                      >
+                        {o.tag.label}
+                      </span>
+                    )}
                     {o.label}
                   </li>
                 )

@@ -16,7 +16,7 @@ import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
-import { EXAM_GRUPO_LABELS, type ExamGrupo } from '@/lib/exam-grupos'
+import { EXAM_GRUPO_LABELS, EXAM_GRUPO_COLORS, type ExamGrupo } from '@/lib/exam-grupos'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { LaboratorioRow } from '@/lib/actions/laboratorios'
 import type { ProcedimientoRow, ExamenRow, TallerRow } from '@/lib/actions/catalogos'
@@ -469,12 +469,20 @@ export function VisitaForm({
   }
 
   // Options
-  const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: `${p.nombre} (${p.codigo})` }))
-  const talleresOptions = talleres.map((t) => ({ id: t.id, label: `${t.nombre} (${t.codigo})` }))
-  const examenesOptions = examenes.map((e) => ({
-    id: e.id,
-    label: `${e.nombre} (${EXAM_GRUPO_LABELS[e.grupoExamen as ExamGrupo] ?? e.grupoExamen})`,
-  }))
+  const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
+  const talleresOptions = talleres.map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
+  const examenesOptions = examenes.map((e) => {
+    const grupo = e.grupoExamen as ExamGrupo
+    return {
+      id: e.id,
+      label: e.nombre,
+      code: e.codigo,
+      tag: {
+        label: EXAM_GRUPO_LABELS[grupo] ?? e.grupoExamen,
+        ...(EXAM_GRUPO_COLORS[grupo] ?? { bg: '#f3f4f6', color: '#374151' }),
+      },
+    }
+  })
   const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatNombre(e) }))
   const laboratoriosOptions = laboratorios.map((l) => ({ id: l.id, label: l.nombre }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
@@ -814,6 +822,7 @@ export function VisitaForm({
                     }}
                     placeholder="Buscar procedimiento…"
                     disabled={isPending}
+                    showPills={false}
                   />
                 </div>
                 {selectedProcedures.length === 0 ? (
@@ -894,6 +903,7 @@ export function VisitaForm({
                     }}
                     placeholder="Buscar examen…"
                     disabled={isPending}
+                    showPills={false}
                   />
                 </div>
                 {selectedExams.length === 0 ? (
@@ -976,6 +986,7 @@ export function VisitaForm({
                     }}
                     placeholder="Buscar taller…"
                     disabled={isPending}
+                    showPills={false}
                   />
                 </div>
                 {selectedTallers.length === 0 ? (
@@ -1090,6 +1101,7 @@ export function VisitaForm({
                   onChange={setSelectedSurcharges}
                   placeholder="Agregar recargo…"
                   disabled={isPending}
+                  showPills={false}
                 />
                 {selectedSurcharges.length > 0 && (
                   <div className="mt-2 overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>

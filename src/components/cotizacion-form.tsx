@@ -19,6 +19,7 @@ import { SelectCombobox } from '@/components/select-combobox'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatNombre } from '@/lib/paciente'
 import { COMUNAS_OPTIONS, COMUNAS_RM } from '@/lib/comunas'
+import { EXAM_GRUPO_LABELS, EXAM_GRUPO_COLORS, type ExamGrupo } from '@/lib/exam-grupos'
 import type { CotizacionDetalle } from '@/lib/actions/cotizaciones'
 import type { TallerRow } from '@/lib/actions/catalogos'
 
@@ -207,14 +208,19 @@ export function CotizacionForm({
     })
   }
 
-  const procedimientosOptions = procedimientos.map((p) => ({
-    id: p.id,
-    label: `${p.nombre} — $${p.precio.toLocaleString('es-CL')}`,
-  }))
-  const examenesOptions = examenes.map((e) => ({
-    id: e.id,
-    label: `${e.nombre} — $${e.precio.toLocaleString('es-CL')}`,
-  }))
+  const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
+  const examenesOptions = examenes.map((e) => {
+    const grupo = e.grupoExamen as ExamGrupo
+    return {
+      id: e.id,
+      label: e.nombre,
+      code: e.codigo,
+      tag: {
+        label: EXAM_GRUPO_LABELS[grupo] ?? e.grupoExamen,
+        ...(EXAM_GRUPO_COLORS[grupo] ?? { bg: '#f3f4f6', color: '#374151' }),
+      },
+    }
+  })
   const pacientesOptions = pacientes.map((p) => ({ id: p.id, label: formatNombre(p) }))
   const tabs: { id: ServiceTab; label: string; count: number; Icon: typeof Stethoscope }[] = [
     { id: 'procedimientos', label: 'Procedimientos', count: selectedProcedures.length, Icon: Stethoscope },
@@ -704,6 +710,7 @@ export function CotizacionForm({
                   selected={selectedSurcharges}
                   onChange={setSelectedSurcharges}
                   disabled={isPending}
+                  showPills={false}
                 />
                 {selectedSurcharges.length > 0 && (
                   <div className="mt-2 overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
@@ -944,6 +951,7 @@ function ServiceTabContent({
           selected={selected}
           onChange={onChange}
           disabled={disabled}
+          showPills={false}
         />
       </div>
 
@@ -1006,7 +1014,7 @@ function TalleresTabContent({
   onPriceChange: (id: number, val: string) => void
   disabled: boolean
 }) {
-  const options = talleres.filter((t) => t.activo).map((t) => ({ id: t.id, label: `${t.nombre} (${t.codigo})` }))
+  const options = talleres.filter((t) => t.activo).map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
   const items = selected.map((id) => talleres.find((t) => t.id === id)!).filter(Boolean)
 
   return (
@@ -1019,6 +1027,7 @@ function TalleresTabContent({
           selected={selected}
           onChange={onChange}
           disabled={disabled}
+          showPills={false}
         />
       </div>
 

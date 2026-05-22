@@ -347,10 +347,10 @@ const visitaSharedFields = {
   origenContacto: fields.nullableStr,
   informacionAdicional: z.string().trim().optional().default(''),
   cobraVisita: fields.bool,
-  procedureIds: fields.ids,
-  examIds: fields.ids,
-  tallerIds: fields.ids,
-  surchargeIds: fields.ids,
+  procedure_ids: fields.ids,
+  exam_ids: fields.ids,
+  taller_ids: fields.ids,
+  surcharge_ids: fields.ids,
 }
 
 const visitaCreateSchema = z.object({
@@ -393,7 +393,8 @@ export async function updateVisita(
     id, fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
     numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago,
     resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita,
-    keyOrdenMedica, procedureIds, examIds, tallerIds, surchargeIds,
+    keyOrdenMedica,
+    procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
   const tallerPrices = tallerIds.map((idTaller) => ({
@@ -537,7 +538,7 @@ export async function createVisita(
   const {
     idPaciente, fecha, hora, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
     numeroAtencion, origenContacto, informacionAdicional, cobraVisita,
-    procedureIds, examIds, tallerIds, surchargeIds,
+    procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
   const tallerPrices = tallerIds.map((idTaller) => ({
