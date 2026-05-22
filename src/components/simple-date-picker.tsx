@@ -45,7 +45,7 @@ export function SimpleDatePicker({
         align="start"
         side="bottom"
         sideOffset={6}
-        avoidCollisions={false}
+        collisionPadding={8}
       >
         <SimpleCalendar className={calendarClassName} {...calendarProps} />
       </PopoverContent>

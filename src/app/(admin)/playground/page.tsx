@@ -62,7 +62,7 @@ export default function PlaygroundPage() {
   const [birthDatePreset, setBirthDatePreset] = useState<string | undefined>('1988-04-23')
 
   return (
-    <div className="mx-auto max-w-2xl px-8 pt-10 pb-[410px]">
+    <div className="mx-auto max-w-2xl px-8 py-10">
       <h1 className="mb-1 text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
         Playground
       </h1>
