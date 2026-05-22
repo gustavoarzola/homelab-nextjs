@@ -51,12 +51,6 @@ const COMUNAS_RM = [
 
 // Precio sesgado hacia valores bajos (10.000–50.000, en centenas)
 // Usa raw^2 para concentrar la distribución cerca de 10.000
-function seedProcedimientoPrice(i: number): number {
-  const raw = ((i * 31 + 137) % 100) / 100   // uniforme [0, 1)
-  const skewed = raw * raw                     // cuadrado → sesgo hacia 0
-  return Math.round((10000 + skewed * 40000) / 100) * 100
-}
-
 // ─── Name & address pools ─────────────────────────────────────────────────────
 
 const NOMBRES_M = [
@@ -264,108 +258,23 @@ const residenciasData = [
 // ─── Procedimientos de enfermería (~100) ─────────────────────────────────────
 
 const procedimientosData = [
-  // Curaciones
-  { nombre: 'Curación simple', codigo: 'ENF-001', categoria: 'curaciones' },
-  { nombre: 'Curación compleja', codigo: 'ENF-002', categoria: 'curaciones' },
-  { nombre: 'Curación de úlcera por presión', codigo: 'ENF-003', categoria: 'curaciones' },
-  { nombre: 'Curación de herida quirúrgica', codigo: 'ENF-004', categoria: 'curaciones' },
-  { nombre: 'Curación de pie diabético', codigo: 'ENF-005', categoria: 'curaciones' },
-  { nombre: 'Curación de quemadura', codigo: 'ENF-006', categoria: 'curaciones' },
-  { nombre: 'Desbridamiento de herida', codigo: 'ENF-007', categoria: 'curaciones' },
-  // Otros procedimientos
-  { nombre: 'Vendaje simple', codigo: 'ENF-008', categoria: 'otros' },
-  { nombre: 'Vendaje compresivo', codigo: 'ENF-009', categoria: 'otros' },
-  { nombre: 'Vendaje elástico de extremidad inferior', codigo: 'ENF-010', categoria: 'otros' },
-  { nombre: 'Inmovilización con vendaje enyesado', codigo: 'ENF-011', categoria: 'otros' },
-  { nombre: 'Inyectable intramuscular', codigo: 'ENF-012', categoria: 'otros' },
-  { nombre: 'Inyectable subcutáneo', codigo: 'ENF-013', categoria: 'otros' },
-  { nombre: 'Inyectable intradérmico', codigo: 'ENF-014', categoria: 'otros' },
-  { nombre: 'Administración endovenosa en bolo', codigo: 'ENF-015', categoria: 'otros' },
-  { nombre: 'Administración de medicamentos orales', codigo: 'ENF-016', categoria: 'otros' },
-  { nombre: 'Administración de medicamentos sublinguales', codigo: 'ENF-017', categoria: 'otros' },
-  { nombre: 'Administración de medicamentos por sonda', codigo: 'ENF-018', categoria: 'otros' },
-  { nombre: 'Infusión endovenosa continua', codigo: 'ENF-019', categoria: 'otros' },
-  { nombre: 'Preparación de medicamentos parenterales', codigo: 'ENF-020', categoria: 'otros' },
-  { nombre: 'Instalación de vía venosa periférica', codigo: 'ENF-021', categoria: 'otros' },
-  { nombre: 'Retiro de vía venosa periférica', codigo: 'ENF-022', categoria: 'otros' },
-  { nombre: 'Instalación de catéter venoso central (CVC)', codigo: 'ENF-023', categoria: 'otros' },
-  { nombre: 'Curación de catéter venoso central', codigo: 'ENF-024', categoria: 'curaciones' },
-  { nombre: 'Instalación de catéter PICC', codigo: 'ENF-025', categoria: 'otros' },
-  { nombre: 'Flush de catéter PICC', codigo: 'ENF-026', categoria: 'otros' },
-  { nombre: 'Instalación de sonda Foley', codigo: 'ENF-027', categoria: 'otros' },
-  { nombre: 'Retiro de sonda Foley', codigo: 'ENF-028', categoria: 'otros' },
-  { nombre: 'Cambio de sonda Foley', codigo: 'ENF-029', categoria: 'otros' },
-  { nombre: 'Instalación de sonda nasogástrica', codigo: 'ENF-030', categoria: 'otros' },
-  { nombre: 'Retiro de sonda nasogástrica', codigo: 'ENF-031', categoria: 'otros' },
-  { nombre: 'Instalación de sonda de gastrostomía', codigo: 'ENF-032', categoria: 'otros' },
-  { nombre: 'Irrigación vesical', codigo: 'ENF-033', categoria: 'otros' },
-  { nombre: 'Lavado gástrico', codigo: 'ENF-034', categoria: 'otros' },
-  { nombre: 'Cambio de bolsa de colostomía', codigo: 'ENF-035', categoria: 'otros' },
-  { nombre: 'Cambio de bolsa de ileostomía', codigo: 'ENF-036', categoria: 'otros' },
-  { nombre: 'Curación de estoma', codigo: 'ENF-037', categoria: 'curaciones' },
-  { nombre: 'Educación en manejo de ostomía', codigo: 'ENF-038', categoria: 'otros' },
-  { nombre: 'Control de signos vitales', codigo: 'ENF-039', categoria: 'otros' },
-  { nombre: 'Medición de presión arterial', codigo: 'ENF-040', categoria: 'otros' },
-  { nombre: 'Toma de electrocardiograma (ECG)', codigo: 'ENF-041', categoria: 'otros' },
-  { nombre: 'Oximetría de pulso', codigo: 'ENF-042', categoria: 'otros' },
-  { nombre: 'Control de glicemia capilar', codigo: 'ENF-043', categoria: 'otros' },
-  { nombre: 'Control de temperatura', codigo: 'ENF-044', categoria: 'otros' },
-  { nombre: 'Balance hídrico', codigo: 'ENF-045', categoria: 'otros' },
-  { nombre: 'Nebulización', codigo: 'ENF-046', categoria: 'otros' },
-  { nombre: 'Oxigenoterapia con mascarilla', codigo: 'ENF-047', categoria: 'otros' },
-  { nombre: 'Oxigenoterapia con cánula nasal', codigo: 'ENF-048', categoria: 'otros' },
-  { nombre: 'Aspiración de secreciones orofaríngeas', codigo: 'ENF-049', categoria: 'otros' },
-  { nombre: 'Aspiración de secreciones traqueales', codigo: 'ENF-050', categoria: 'otros' },
-  { nombre: 'Cuidado de traqueostomía', codigo: 'ENF-051', categoria: 'otros' },
-  { nombre: 'Cambio de cánula de traqueostomía', codigo: 'ENF-052', categoria: 'otros' },
-  { nombre: 'Kinesioterapia respiratoria', codigo: 'ENF-053', categoria: 'otros' },
-  { nombre: 'Baño en cama', codigo: 'ENF-054', categoria: 'otros' },
-  { nombre: 'Higiene oral', codigo: 'ENF-055', categoria: 'otros' },
-  { nombre: 'Lavado de cabello en cama', codigo: 'ENF-056', categoria: 'otros' },
-  { nombre: 'Cuidado de piel y masajes preventivos', codigo: 'ENF-057', categoria: 'otros' },
-  { nombre: 'Cambio de posición y movilización', codigo: 'ENF-058', categoria: 'otros' },
-  { nombre: 'Alimentación enteral continua por SNG', codigo: 'ENF-059', categoria: 'otros' },
-  { nombre: 'Alimentación enteral en bolo', codigo: 'ENF-060', categoria: 'otros' },
-  { nombre: 'Preparación y administración de nutrición parenteral', codigo: 'ENF-061', categoria: 'otros' },
-  { nombre: 'Ejercicios de rango de movimiento pasivo', codigo: 'ENF-062', categoria: 'otros' },
-  { nombre: 'Ejercicios de rango de movimiento activo asistido', codigo: 'ENF-063', categoria: 'otros' },
-  { nombre: 'Apoyo en marcha y traslado', codigo: 'ENF-064', categoria: 'otros' },
-  { nombre: 'Prevención de úlceras por presión', codigo: 'ENF-065', categoria: 'otros' },
-  { nombre: 'Toma de muestra para hemocultivo', codigo: 'ENF-066', categoria: 'otros' },
-  { nombre: 'Punción venosa para exámenes de laboratorio', codigo: 'ENF-067', categoria: 'otros' },
-  { nombre: 'Extracción de sutura o grapa', codigo: 'ENF-068', categoria: 'otros' },
-  { nombre: 'Instalación y retiro de apósito oclusivo', codigo: 'ENF-069', categoria: 'otros' },
-  { nombre: 'Lavado de oído', codigo: 'ENF-070', categoria: 'otros' },
-  { nombre: 'Instilación de colirio', codigo: 'ENF-071', categoria: 'otros' },
-  { nombre: 'Instilación de gotas óticas', codigo: 'ENF-072', categoria: 'otros' },
-  { nombre: 'Aplicación de parche transdérmico', codigo: 'ENF-073', categoria: 'otros' },
-  { nombre: 'Enema evacuante', codigo: 'ENF-074', categoria: 'otros' },
-  { nombre: 'Extracción manual de fecaloma', codigo: 'ENF-075', categoria: 'otros' },
-  { nombre: 'Aplicación de TENS (electroterapia)', codigo: 'ENF-076', categoria: 'otros' },
-  { nombre: 'Crioterapia', codigo: 'ENF-077', categoria: 'otros' },
-  { nombre: 'Termoterapia superficial', codigo: 'ENF-078', categoria: 'otros' },
-  { nombre: 'Educación al paciente sobre medicamentos', codigo: 'ENF-079', categoria: 'otros' },
-  { nombre: 'Educación al cuidador principal', codigo: 'ENF-080', categoria: 'otros' },
-  { nombre: 'Valoración de riesgo de caídas', codigo: 'ENF-081', categoria: 'otros' },
-  { nombre: 'Valoración de riesgo de úlceras por presión (Braden)', codigo: 'ENF-082', categoria: 'otros' },
-  { nombre: 'Valoración funcional del adulto mayor', codigo: 'ENF-083', categoria: 'otros' },
-  { nombre: 'Valoración del dolor (escala EVA)', codigo: 'ENF-084', categoria: 'otros' },
-  { nombre: 'Control y registro de diuresis', codigo: 'ENF-085', categoria: 'otros' },
-  { nombre: 'Control y registro de deposiciones', codigo: 'ENF-086', categoria: 'otros' },
-  { nombre: 'Cuidados de herida por cirugía laparoscópica', codigo: 'ENF-087', categoria: 'curaciones' },
-  { nombre: 'Instalación de sistema de vacío (VAC)', codigo: 'ENF-088', categoria: 'otros' },
-  { nombre: 'Cambio de sistema de vacío (VAC)', codigo: 'ENF-089', categoria: 'otros' },
-  { nombre: 'Fototerapia domiciliaria', codigo: 'ENF-090', categoria: 'otros' },
-  { nombre: 'Aplicación de ozono tópico', codigo: 'ENF-091', categoria: 'otros' },
-  { nombre: 'Inserción de catéter suprapúbico (curación)', codigo: 'ENF-092', categoria: 'curaciones' },
-  { nombre: 'Control de sitio de fijador externo', codigo: 'ENF-093', categoria: 'otros' },
-  { nombre: 'Instalación de bomba de insulina', codigo: 'ENF-094', categoria: 'otros' },
-  { nombre: 'Educación en uso de bomba de insulina', codigo: 'ENF-095', categoria: 'otros' },
-  { nombre: 'Cuidados paliativos domiciliarios', codigo: 'ENF-096', categoria: 'otros' },
-  { nombre: 'Infusión de quimioterapia oral (supervisión)', codigo: 'ENF-097', categoria: 'otros' },
-  { nombre: 'Control de sonda de gastrostomía percutánea', codigo: 'ENF-098', categoria: 'otros' },
-  { nombre: 'Colocación de media de compresión', codigo: 'ENF-099', categoria: 'otros' },
-  { nombre: 'Visita de evaluación inicial domiciliaria', codigo: 'ENF-100', categoria: 'otros' },
+  { nombre: 'Administración tto intramuscular / Sector Nororiente', codigo: 'ENF-001', categoria: 'inyectables', precio: 22000 },
+  { nombre: 'Administración tto intradérmico', codigo: 'ENF-002', categoria: 'inyectables', precio: 22000 },
+  { nombre: 'Curación de herida', codigo: 'ENF-003', categoria: 'curaciones', precio: 25000 },
+  { nombre: 'Curación colostomía', codigo: 'ENF-004', categoria: 'curaciones', precio: 25000 },
+  { nombre: 'Curación gastrostomía', codigo: 'ENF-005', categoria: 'curaciones', precio: 25000 },
+  { nombre: 'Instalación S. Foley', codigo: 'ENF-006', categoria: 'sondas', precio: 35000 },
+  { nombre: 'Instalación S. Nasogástrica', codigo: 'ENF-007', categoria: 'sondas', precio: 35000 },
+  { nombre: 'Cambio bolsa colostomía', codigo: 'ENF-008', categoria: 'curaciones', precio: 25000 },
+  { nombre: 'Cateterización vesical, vaciamiento globo', codigo: 'ENF-009', categoria: 'sondas', precio: 32000 },
+  { nombre: 'Instalación Via Venosa Periferica (VVP)', codigo: 'ENF-010', categoria: 'endovenosos', precio: 35000 },
+  { nombre: 'Tto EV menor 15 min', codigo: 'ENF-011', categoria: 'endovenosos', precio: 25000 },
+  { nombre: 'Tto EV mayor 15 min', codigo: 'ENF-012', categoria: 'endovenosos', precio: 35000 },
+  { nombre: 'Instalación VVP + tto EV menor 15 min', codigo: 'ENF-013', categoria: 'endovenosos', precio: 40000 },
+  { nombre: 'Instalación VVP + tto EV mayor 15 min', codigo: 'ENF-014', categoria: 'endovenosos', precio: 45000 },
+  { nombre: 'Vacuna Influenza colocada junto con examenes', codigo: 'ENF-015', categoria: 'vacunas', precio: 16000 },
+  { nombre: 'Vacuna Influenza del pte colocada junto con examenes', codigo: 'ENF-016', categoria: 'vacunas', precio: 7000 },
+  { nombre: 'Visita por deposiones y orina', codigo: 'ENF-017', categoria: 'otros', precio: 7000 },
 ]
 
 // ─── Exámenes de laboratorio y diagnóstico (desde examenes.csv) ──────────────
@@ -390,14 +299,15 @@ const examenesDataWithPrices = csvLines
 // ─── Orígenes de contacto ─────────────────────────────────────────────────────
 
 const tiposRecargosData = [
-  { nombre: 'Atención fuera de horario' },
-  { nombre: 'Urgencia médica' },
-  { nombre: 'Viaje especial/distancia' },
-  { nombre: 'Procedimiento adicional no previsto' },
-  { nombre: 'Materiales especiales' },
-  { nombre: 'Acompañamiento extendido' },
-  { nombre: 'Atención nocturna' },
-  { nombre: 'Caso especial/complejidad' },
+  { nombre: 'Frasco glucosa 75gm', precio: 5000 },
+  { nombre: 'Extracción muestra por sondeo', precio: 7000 },
+  { nombre: 'Extracción menor 5 años 1 EU', precio: 7000 },
+  { nombre: 'Extracción menor 3 años y/o cond. Especial 2 EU', precio: 7000 },
+  { nombre: 'Extraccion Especial (diferentes diagnosticos)', precio: 7000 },
+  { nombre: 'Domingos, Festivos y Sábado en la tarde', precio: 7000 },
+  { nombre: 'Inyecciones fuera de lo estipulado', precio: 10000 },
+  { nombre: 'Suspensión domicilio estando allá', precio: 7000 },
+  { nombre: 'Transporte rapido de muestra (Gases, IFI, Copro)', precio: 0 },
 ]
 
 const origenesContactoData = [
@@ -651,9 +561,7 @@ async function seed() {
 
   // Procedimientos
   console.log(`   Insertando ${procedimientosData.length} procedimientos...`)
-  await db.insert(procedures).values(
-    procedimientosData.map((p, i) => ({ ...p, precio: seedProcedimientoPrice(i) }))
-  )
+  await db.insert(procedures).values(procedimientosData)
 
   // Exámenes
   console.log(`   Insertando ${examenesDataWithPrices.length} exámenes...`)

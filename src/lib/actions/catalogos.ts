@@ -36,7 +36,7 @@ const previsionUpdateSchema = previsionSchema.extend({ id: fields.id })
 const residenciaSchema = z.object({ nombre: fields.nombre })
 const residenciaUpdateSchema = residenciaSchema.extend({ id: fields.id })
 
-const tipoRecargoSchema = z.object({ nombre: fields.nombre })
+const tipoRecargoSchema = z.object({ nombre: fields.nombre, precio: fields.precio.optional().default(0) })
 const tipoRecargoUpdateSchema = tipoRecargoSchema.extend({ id: fields.id })
 
 const tallerSchema = z.object({ nombre: fields.nombre, codigo: fields.codigo })
@@ -51,7 +51,7 @@ export type ExamenRow       = { id: number; nombre: string; codigo: string; grup
 export type TallerRow       = { id: number; nombre: string; codigo: string; activo: boolean }
 export type PrevisionRow    = { id: number; nombre: string; categoria: string | null; activo: boolean }
 export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
-export type TipoRecargoRow  = { id: number; nombre: string; activo: boolean }
+export type TipoRecargoRow  = { id: number; nombre: string; precio: number; activo: boolean }
 
 export async function getPrevisionCategorias(): Promise<string[]> {
   await requireSession()
@@ -383,11 +383,11 @@ export async function createTipoRecargo(formData: FormData): Promise<Result> {
 
   const parsed = parseFormData(tipoRecargoSchema, formData)
   if (!parsed.success) return parsed
-  const { nombre } = parsed.data
+  const { nombre, precio } = parsed.data
   try {
     const existing = await db.select().from(surchargeTypes).where(ilike(surchargeTypes.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.insert(surchargeTypes).values({ nombre })
+    await db.insert(surchargeTypes).values({ nombre, precio })
     revalidatePath('/tipos-recargos')
     return { success: true }
   } catch {
@@ -400,14 +400,14 @@ export async function updateTipoRecargo(formData: FormData): Promise<Result> {
 
   const parsed = parseFormData(tipoRecargoUpdateSchema, formData)
   if (!parsed.success) return parsed
-  const { id, nombre } = parsed.data
+  const { id, nombre, precio } = parsed.data
   try {
     const duplicated = await db
       .select()
       .from(surchargeTypes)
       .where(and(ilike(surchargeTypes.nombre, nombre), not(eq(surchargeTypes.id, id))))
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
-    await db.update(surchargeTypes).set({ nombre, updatedAt: new Date() }).where(eq(surchargeTypes.id, id))
+    await db.update(surchargeTypes).set({ nombre, precio, updatedAt: new Date() }).where(eq(surchargeTypes.id, id))
     revalidatePath('/tipos-recargos')
     return { success: true }
   } catch {
@@ -427,16 +427,16 @@ export async function toggleTipoRecargo(id: number, activo: boolean): Promise<Re
   }
 }
 
-export async function getTiposRecargosForSelect(): Promise<{ id: number; label: string }[]> {
+export async function getTiposRecargosForSelect(): Promise<{ id: number; label: string; precio: number }[]> {
   await requireSession()
 
   const rows = await db
-    .select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre })
+    .select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre, precio: surchargeTypes.precio })
     .from(surchargeTypes)
     .where(eq(surchargeTypes.activo, true))
     .orderBy(asc(surchargeTypes.nombre))
 
-  return rows.map((r) => ({ id: r.id, label: r.nombre }))
+  return rows.map((r) => ({ id: r.id, label: r.nombre, precio: r.precio }))
 }
 
 // ─── Talleres ─────────────────────────────────────────────────────────────────

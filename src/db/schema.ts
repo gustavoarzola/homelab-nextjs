@@ -238,6 +238,7 @@ export const surchargeTypes = pgTable(
   {
     id: serial('id').primaryKey(),
     nombre: varchar('nombre', { length: 200 }).notNull(),
+    precio: integer('precio').notNull().default(0),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -270,8 +271,6 @@ export const visits = pgTable(
     fechaEnvioResultados: date('fecha_envio_resultados'),
     costoTraslado: integer('costo_traslado').notNull().default(0),
     cobraVisita: boolean('cobra_visita').notNull().default(false),
-    montoRecargo: integer('monto_recargo').default(0),
-    idTipoRecargo: integer('id_tipo_recargo'),
     keyOrdenMedica: varchar('key_orden_medica', { length: 500 }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -282,8 +281,6 @@ export const visits = pgTable(
     foreignKey({ columns: [table.idEnfermera], foreignColumns: [nurses.id] })
       .onDelete('restrict'),
     foreignKey({ columns: [table.idLaboratorio], foreignColumns: [laboratories.id] })
-      .onDelete('restrict'),
-    foreignKey({ columns: [table.idTipoRecargo], foreignColumns: [surchargeTypes.id] })
       .onDelete('restrict'),
     index('visitas_fecha_idx').on(table.fecha),
     index('visitas_estado_idx').on(table.estado),
@@ -368,8 +365,6 @@ export const quotations = pgTable(
     identificacionDestinatario: varchar('identificacion_destinatario', { length: 50 }),
     comuna: varchar('comuna', { length: 100 }),
     cobraVisita: boolean('cobra_visita').notNull().default(false),
-    montoRecargo: integer('monto_recargo').default(0),
-    idTipoRecargo: integer('id_tipo_recargo'),
     total: integer('total').default(0),
     idVisita: integer('id_visita'),
     notas: text('notas'),
@@ -379,8 +374,6 @@ export const quotations = pgTable(
   (table) => [
     foreignKey({ columns: [table.idPaciente], foreignColumns: [patients.id] })
       .onDelete('set null'),
-    foreignKey({ columns: [table.idTipoRecargo], foreignColumns: [surchargeTypes.id] })
-      .onDelete('restrict'),
     foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
       .onDelete('set null'),
     index('cotizaciones_estado_idx').on(table.estado),
@@ -451,6 +444,27 @@ export const visitWorkshops = pgTable(
 )
 
 // ============================================================================
+// 17c. RecargoVisita - Recargos aplicados a una visita
+// ============================================================================
+export const visitSurcharges = pgTable(
+  'recargos_visitas',
+  {
+    id: serial('id').primaryKey(),
+    idTipoRecargo: integer('id_tipo_recargo').notNull(),
+    idVisita: integer('id_visita').notNull(),
+    precio: integer('precio').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idTipoRecargo], foreignColumns: [surchargeTypes.id] })
+      .onDelete('restrict'),
+    foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
+      .onDelete('cascade'),
+    index('recargos_visitas_id_visita_idx').on(table.idVisita),
+  ]
+)
+
+// ============================================================================
 // 21. CotizacionProcedimiento - Procedimientos en una cotización
 // ============================================================================
 export const quotationProcedures = pgTable(
@@ -470,6 +484,27 @@ export const quotationProcedures = pgTable(
     foreignKey({ columns: [table.idProcedimiento], foreignColumns: [procedures.id] })
       .onDelete('restrict'),
     index('cotizacion_procedimientos_id_cotizacion_idx').on(table.idCotizacion),
+  ]
+)
+
+// ============================================================================
+// 22b. CotizacionRecargo - Recargos en una cotización
+// ============================================================================
+export const quotationSurcharges = pgTable(
+  'cotizacion_recargos',
+  {
+    id: serial('id').primaryKey(),
+    idTipoRecargo: integer('id_tipo_recargo').notNull(),
+    idCotizacion: integer('id_cotizacion').notNull(),
+    precio: integer('precio').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idTipoRecargo], foreignColumns: [surchargeTypes.id] })
+      .onDelete('restrict'),
+    foreignKey({ columns: [table.idCotizacion], foreignColumns: [quotations.id] })
+      .onDelete('cascade'),
+    index('cotizacion_recargos_id_cotizacion_idx').on(table.idCotizacion),
   ]
 )
 
