@@ -79,6 +79,7 @@ src/
     actions/                # Server actions (toda la lógica de negocio)
     pricing/                # Lógica de cálculo de precios
     auth-guard.ts           # requireSession() helper
+    validation.ts           # parseFormData / parseFormDataWithArrays + campos reutilizables (fields)
     r2.ts                   # Cliente S3 para Cloudflare R2
     format.ts               # Formateo de fechas (zona Chile)
     rut.ts                  # Validación/formateo RUT chileno
@@ -353,6 +354,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 8. **Formateo de nombres con `formatNombre()`** de `src/lib/paciente.ts`
 9. **Notificaciones con `toast` de sonner** (toast.success, toast.error)
 10. **Estilos con CSS variables** para colores del tema (`var(--foreground)`, `var(--muted-foreground)`, etc.)
+11. **Server actions con FormData usan Zod** — `parseFormData` para campos escalares, `parseFormDataWithArrays` para forms con arrays (`procedure_ids`, `exam_ids`, etc.), ambos en `src/lib/validation.ts`. Campos reutilizables en `fields` (nullableStr, nullableId, bool, fechaRequerida, ids). Validación cruzada con `.superRefine()`. Claves dinámicas (`taller_precio_${id}`, `phone_${i}`) siguen extrayéndose manualmente después del parse.
 
 ### Patrones de UI
 - Páginas de listado: Server Component que hace fetch inicial + Client Component tabla
@@ -400,9 +402,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 3. **Duplicación de lógica HTML entre cotización y cotización-standalone** — Ambos route handlers (`/api/cotizacion/[id]` y `/api/cotizacion-standalone/[id]`) tienen funciones `buildHTML` casi idénticas con cientos de líneas de HTML inline. Deberían compartir un template.
 
-4. **No hay validación con Zod en server actions** — Zod está instalado pero la mayoría de actions extraen datos de FormData manualmente sin schema de validación. Esto es propenso a errores.
-
-5. **`SimpleDatePicker` solo se usa en playground** — El componente existe pero no se usa en producción. Evaluar si eliminarlo o adoptarlo.
+4. **`SimpleDatePicker` solo se usa en playground** — El componente existe pero no se usa en producción. Evaluar si eliminarlo o adoptarlo.
 
 ### Media prioridad
 
@@ -410,7 +410,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 7. **Catálogos siguen un patrón repetitivo** — `catalogos.ts` tiene ~500 líneas con CRUD casi idéntico para 6 entidades. Podría abstraerse en un factory genérico.
 
-8. **Formularios sin react-hook-form** — Los formularios complejos (visita, cotización, paciente) manejan estado manualmente con muchos `useState`. Esto es funcional pero verboso. Considerar migrar a react-hook-form + zod para validación.
+8. **Formularios sin react-hook-form** — Los formularios complejos (visita, cotización, paciente) manejan estado manualmente con muchos `useState`. Esto es funcional pero verboso. Considerar migrar a react-hook-form para gestión de estado en el cliente (la validación server-side con Zod ya está en place).
 
 9. **Tests limitados** — Existen tests en `src/lib/actions/__tests__/` para catalogos, enfermeras, laboratorios y pricing, pero faltan tests para las funcionalidades más críticas (visitas CRUD, cotizaciones, asignación, email).
 
