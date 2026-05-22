@@ -1,5 +1,6 @@
 'use server'
 
+import { z } from 'zod'
 import { db } from '@/db'
 import { contactOrigins, visits, visitProcedures, visitExams, visitWorkshops, workshops, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
@@ -9,6 +10,7 @@ import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 import { actualizarCostoVisitaPersistida } from '@/lib/pricing/visitas'
 import type { VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
+import { parseFormDataWithArrays, fields } from '@/lib/validation'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
@@ -330,6 +332,61 @@ export async function searchOrigenesContacto(): Promise<{ id: number; nombre: st
     .orderBy(asc(contactOrigins.nombre))
 }
 
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
+const visitaSharedFields = {
+  fecha: fields.fechaRequerida,
+  hora: fields.nullableStr,
+  idEnfermera: fields.nullableId,
+  idLaboratorio: fields.nullableId,
+  numeroBoleta: z.string().trim().optional().default(''),
+  tipoDocumento: z.string().trim().optional().default(''),
+  numeroAtencion: z.string().trim().optional().transform((v) => (v ? Number(v) || null : null)),
+  origenContacto: fields.nullableStr,
+  informacionAdicional: z.string().trim().optional().default(''),
+  cobraVisita: fields.bool,
+  montoRecargo: z.coerce.number().int().min(0).default(0),
+  idTipoRecargo: fields.nullableId,
+  procedureIds: fields.ids,
+  examIds: fields.ids,
+  tallerIds: fields.ids,
+}
+
+const visitaCreateSchema = z
+  .object({
+    idPaciente: z.coerce.number().int().positive('Paciente requerido'),
+    ...visitaSharedFields,
+  })
+  .superRefine((data, ctx) => {
+    if (data.montoRecargo > 0 && !data.idTipoRecargo) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['idTipoRecargo'], message: 'Tipo de recargo es requerido cuando hay monto de recargo' })
+    }
+  })
+
+const visitaUpdateSchema = z
+  .object({
+    id: fields.id,
+    estado: z.string().trim().optional().default('creada'),
+    pagado: fields.bool,
+    metodoPago: fields.nullableStr,
+    fechaPago: fields.nullableStr,
+    resultadosEnviados: fields.bool,
+    fechaEnvioResultados: fields.nullableStr,
+    costoTraslado: z.coerce.number().int().min(0).default(0),
+    keyOrdenMedica: fields.nullableStr,
+    ...visitaSharedFields,
+  })
+  .superRefine((data, ctx) => {
+    if (data.estado === 'realizada') {
+      if (!data.numeroBoleta) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['numeroBoleta'], message: 'N° boleta/factura requerido para marcar como realizada' })
+      if (!data.tipoDocumento) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tipoDocumento'], message: 'Tipo de documento requerido para marcar como realizada' })
+      if (!data.numeroAtencion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['numeroAtencion'], message: 'N° atención requerido para marcar como realizada' })
+    }
+    if (data.montoRecargo > 0 && !data.idTipoRecargo) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['idTipoRecargo'], message: 'Tipo de recargo es requerido cuando hay monto de recargo' })
+    }
+  })
+
 // ─── updateVisita ─────────────────────────────────────────────────────────────
 
 export async function updateVisita(
@@ -337,53 +394,20 @@ export async function updateVisita(
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
   await requireSession()
 
-  const id = Number(fd.get('id'))
-  const fecha = (fd.get('fecha') as string)?.trim()
+  const parsed = parseFormDataWithArrays(visitaUpdateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids'])
+  if (!parsed.success) return parsed
 
-  if (!id) return { success: false, error: 'ID requerido' }
-  if (!fecha) return { success: false, error: 'Fecha requerida' }
+  const {
+    id, fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
+    numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago,
+    resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, montoRecargo,
+    idTipoRecargo, keyOrdenMedica, procedureIds, examIds, tallerIds,
+  } = parsed.data
 
-  const hora = (fd.get('hora') as string)?.trim() || null
-  const estado = (fd.get('estado') as string)?.trim() || 'creada'
-  const idEnfermera = Number(fd.get('idEnfermera')) || null
-  const idLaboratorio = Number(fd.get('idLaboratorio')) || null
-  const numeroBoleta = (fd.get('numeroBoleta') as string)?.trim() || ''
-  const tipoDocumento = (fd.get('tipoDocumento') as string)?.trim() || ''
-  const rawNumeroAtencion = (fd.get('numeroAtencion') as string)?.trim()
-  const numeroAtencion = rawNumeroAtencion ? (Number(rawNumeroAtencion) || null) : null
-  const origenContacto = (fd.get('origenContacto') as string)?.trim() || null
-  const informacionAdicional = (fd.get('informacionAdicional') as string)?.trim() || ''
-
-  if (estado === 'realizada') {
-    if (!numeroBoleta) return { success: false, error: 'N° boleta/factura requerido para marcar como realizada' }
-    if (!tipoDocumento) return { success: false, error: 'Tipo de documento requerido para marcar como realizada' }
-    if (!numeroAtencion) return { success: false, error: 'N° atención requerido para marcar como realizada' }
-  }
-
-  const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
-  const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
-  const tallerIds = fd.getAll('taller_ids').map(Number).filter(Boolean)
   const tallerPrices = tallerIds.map((idTaller) => ({
     idTaller,
     precio: Number(fd.get(`taller_precio_${idTaller}`)) || 0,
   }))
-
-  const pagado = fd.get('pagado') === 'true'
-  const metodoPago = (fd.get('metodoPago') as string)?.trim() || null
-  const fechaPago = (fd.get('fechaPago') as string)?.trim() || null
-  const resultadosEnviados = fd.get('resultadosEnviados') === 'true'
-  const fechaEnvioResultados = (fd.get('fechaEnvioResultados') as string)?.trim() || null
-  const costoTraslado = Number(fd.get('costoTraslado')) || 0
-  const cobraVisita = fd.get('cobraVisita') === 'true'
-  const montoRecargo = Number(fd.get('montoRecargo')) || 0
-  const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
-  const keyOrdenMedica = (fd.get('keyOrdenMedica') as string)?.trim() || null
-
-  // Validate that if there's a surcharge amount, a surcharge type must be selected
-  if (montoRecargo > 0 && !idTipoRecargo) {
-    return { success: false, error: 'Tipo de recargo es requerido cuando hay monto de recargo' }
-  }
-
 
   try {
     await db.transaction(async (tx) => {
@@ -488,63 +512,30 @@ export async function createVisita(
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
   await requireSession()
 
-  const idPaciente = Number(fd.get('idPaciente'))
-  const fecha = (fd.get('fecha') as string)?.trim()
+  const parsed = parseFormDataWithArrays(visitaCreateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids'])
+  if (!parsed.success) return parsed
 
-  if (!idPaciente) return { success: false, error: 'Paciente requerido' }
-  if (!fecha) return { success: false, error: 'Fecha requerida' }
+  const {
+    idPaciente, fecha, hora, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
+    numeroAtencion, origenContacto, informacionAdicional, cobraVisita, montoRecargo,
+    idTipoRecargo, procedureIds, examIds, tallerIds,
+  } = parsed.data
 
-  const hora = (fd.get('hora') as string)?.trim() || null
-  const estado = 'creada'
-  const idEnfermera = Number(fd.get('idEnfermera')) || null
-  const idLaboratorio = Number(fd.get('idLaboratorio')) || null
-  const numeroBoleta = (fd.get('numeroBoleta') as string)?.trim() || ''
-  const tipoDocumento = (fd.get('tipoDocumento') as string)?.trim() || ''
-  const rawNumeroAtencion = (fd.get('numeroAtencion') as string)?.trim()
-  const numeroAtencion = rawNumeroAtencion ? (Number(rawNumeroAtencion) || null) : null
-  const origenContacto = (fd.get('origenContacto') as string)?.trim() || null
-  const informacionAdicional = (fd.get('informacionAdicional') as string)?.trim() || ''
-
-  const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
-  const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
-  const tallerIds = fd.getAll('taller_ids').map(Number).filter(Boolean)
   const tallerPrices = tallerIds.map((idTaller) => ({
     idTaller,
     precio: Number(fd.get(`taller_precio_${idTaller}`)) || 0,
   }))
-  const cobraVisita = fd.get('cobraVisita') === 'true'
-  const montoRecargo = Number(fd.get('montoRecargo')) || 0
-  const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
-
-  // Validate that if there's a surcharge amount, a surcharge type must be selected
-  if (montoRecargo > 0 && !idTipoRecargo) {
-    return { success: false, error: 'Tipo de recargo es requerido cuando hay monto de recargo' }
-  }
-
 
   try {
     const visitId = await db.transaction(async (tx) => {
       const [visit] = await tx
         .insert(visits)
         .values({
-          fecha,
-          hora,
-          estado,
-          costo: 0,
-          idPaciente,
-          idEnfermera,
-          idLaboratorio,
-          numeroBoleta,
-          tipoDocumento,
-          numeroAtencion,
-          origenContacto,
-          informacionAdicional,
-          pagado: false,
-          resultadosEnviados: false,
-          costoTraslado: 0,
-          cobraVisita,
-          montoRecargo,
-          idTipoRecargo,
+          fecha, hora, estado: 'creada', costo: 0,
+          idPaciente, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
+          numeroAtencion, origenContacto, informacionAdicional,
+          pagado: false, resultadosEnviados: false, costoTraslado: 0,
+          cobraVisita, montoRecargo, idTipoRecargo,
         })
         .returning()
 

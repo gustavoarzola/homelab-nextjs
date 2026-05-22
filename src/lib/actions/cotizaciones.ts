@@ -1,5 +1,6 @@
 'use server'
 
+import { z } from 'zod'
 import { db } from '@/db'
 import {
   quotations,
@@ -24,6 +25,7 @@ import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 import { getPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
+import { parseFormDataWithArrays, fields } from '@/lib/validation'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -182,6 +184,40 @@ export async function searchCotizaciones(
   }
 }
 
+// ─── Schemas ──────────────────────────────────────────────────────────────
+
+const cotizacionInputSchema = z.object({
+  idPaciente: fields.nullableId,
+  nombreDestinatario: fields.nullableStr,
+  emailDestinatario: fields.nullableStr,
+  telefonoDestinatario: fields.nullableStr,
+  identificacionDestinatario: fields.nullableStr,
+  comuna: z.string().trim().min(1, 'Comuna requerida'),
+  cobraVisita: fields.bool,
+  montoRecargo: z.coerce.number().int().min(0).default(0),
+  idTipoRecargo: fields.nullableId,
+  notas: fields.nullableStr,
+  procedureIds: fields.ids,
+  examIds: fields.ids,
+  tallerIds: fields.ids,
+})
+
+const recargoRefine = (
+  data: { montoRecargo: number; idTipoRecargo: number | null },
+  ctx: z.RefinementCtx,
+) => {
+  if (data.montoRecargo > 0 && !data.idTipoRecargo) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['idTipoRecargo'],
+      message: 'Tipo de recargo requerido cuando hay monto de recargo',
+    })
+  }
+}
+
+const cotizacionCreateSchema = cotizacionInputSchema.superRefine(recargoRefine)
+const cotizacionUpdateSchema = cotizacionInputSchema.extend({ id: fields.id }).superRefine(recargoRefine)
+
 // ─── createCotizacion ──────────────────────────────────────────────────────
 
 export async function createCotizacion(
@@ -189,29 +225,18 @@ export async function createCotizacion(
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
   await requireSession()
 
-  const idPaciente = Number(fd.get('idPaciente')) || null
-  const nombreDestinatario = (fd.get('nombreDestinatario') as string)?.trim() || null
-  const emailDestinatario = (fd.get('emailDestinatario') as string)?.trim() || null
-  const telefonoDestinatario = (fd.get('telefonoDestinatario') as string)?.trim() || null
-  const identificacionDestinatario = (fd.get('identificacionDestinatario') as string)?.trim() || null
-  const comuna = (fd.get('comuna') as string)?.trim()
-  const cobraVisita = fd.get('cobraVisita') === 'true'
-  const montoRecargo = Number(fd.get('montoRecargo')) || 0
-  const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
-  const notas = (fd.get('notas') as string)?.trim() || null
+  const parsed = parseFormDataWithArrays(cotizacionCreateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids'])
+  if (!parsed.success) return parsed
 
-  if (!comuna) return { success: false, error: 'Comuna requerida' }
+  const {
+    idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
+    identificacionDestinatario, comuna, cobraVisita, montoRecargo, idTipoRecargo,
+    notas, procedureIds, examIds, tallerIds,
+  } = parsed.data
 
-  const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
-  const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
-  const tallerIds = fd.getAll('taller_ids').map(Number).filter(Boolean)
   const tallerPrecioMap: Record<number, number> = {}
   for (const id of tallerIds) {
     tallerPrecioMap[id] = parseInt(fd.get(`taller_precio_${id}`) as string) || 0
-  }
-
-  if (montoRecargo && !idTipoRecargo) {
-    return { success: false, error: 'Tipo de recargo requerido cuando hay monto de recargo' }
   }
 
   try {
@@ -362,32 +387,18 @@ export async function updateCotizacion(
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
   await requireSession()
 
-  const id = Number(fd.get('id'))
-  if (!id) return { success: false, error: 'ID requerido' }
+  const parsed = parseFormDataWithArrays(cotizacionUpdateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids'])
+  if (!parsed.success) return parsed
 
-  const idPaciente = Number(fd.get('idPaciente')) || null
-  const nombreDestinatario = (fd.get('nombreDestinatario') as string)?.trim() || null
-  const emailDestinatario = (fd.get('emailDestinatario') as string)?.trim() || null
-  const telefonoDestinatario = (fd.get('telefonoDestinatario') as string)?.trim() || null
-  const identificacionDestinatario = (fd.get('identificacionDestinatario') as string)?.trim() || null
-  const comuna = (fd.get('comuna') as string)?.trim()
-  const cobraVisita = fd.get('cobraVisita') === 'true'
-  const montoRecargo = Number(fd.get('montoRecargo')) || 0
-  const idTipoRecargo = Number(fd.get('idTipoRecargo')) || null
-  const notas = (fd.get('notas') as string)?.trim() || null
+  const {
+    id, idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
+    identificacionDestinatario, comuna, cobraVisita, montoRecargo, idTipoRecargo,
+    notas, procedureIds, examIds, tallerIds,
+  } = parsed.data
 
-  if (!comuna) return { success: false, error: 'Comuna requerida' }
-
-  const procedureIds = fd.getAll('procedure_ids').map(Number).filter(Boolean)
-  const examIds = fd.getAll('exam_ids').map(Number).filter(Boolean)
-  const tallerIds = fd.getAll('taller_ids').map(Number).filter(Boolean)
   const tallerPrecioMap: Record<number, number> = {}
   for (const tid of tallerIds) {
     tallerPrecioMap[tid] = parseInt(fd.get(`taller_precio_${tid}`) as string) || 0
-  }
-
-  if (montoRecargo && !idTipoRecargo) {
-    return { success: false, error: 'Tipo de recargo requerido cuando hay monto de recargo' }
   }
 
   try {

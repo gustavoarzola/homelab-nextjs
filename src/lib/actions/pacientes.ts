@@ -1,5 +1,6 @@
 'use server'
 
+import { z } from 'zod'
 import { db } from '@/db'
 import {
   patients,
@@ -19,6 +20,62 @@ import { validateRut, validatePasaporte } from '@/lib/rut'
 import { formatNombre } from '@/lib/paciente'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { parseFormData, fields } from '@/lib/validation'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function resolveIdentificador(
+  raw: string | null,
+  tipo: string | null,
+): { identificador: string; tipoId: string } | { error: string } | null {
+  if (!raw || !tipo) return null
+  if (tipo === 'rut') {
+    const r = validateRut(raw)
+    if (!r.valid) return { error: 'RUT inválido' }
+    return { identificador: r.normalized, tipoId: 'rut' }
+  }
+  if (tipo === 'pasaporte') {
+    const r = validatePasaporte(raw)
+    if (!r.valid) return { error: 'Pasaporte inválido' }
+    return { identificador: r.normalized, tipoId: 'pasaporte' }
+  }
+  return { error: 'Tipo de identificador no válido' }
+}
+
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
+const addressSchema = z.object({
+  direccion: z.string().trim().min(1, 'Dirección requerida'),
+  direccionFormateada: z.string().trim().optional().transform((v) => v ?? ''),
+  numero: fields.nullableStr,
+  calle: fields.nullableStr,
+  localidad: fields.nullableStr,
+  areaAdministrativa1: fields.nullableStr,
+  areaAdministrativa2: fields.nullableStr,
+  areaAdministrativa3: fields.nullableStr,
+  pais: fields.nullableStr,
+  latitud: fields.nullableStr,
+  longitud: fields.nullableStr,
+})
+
+const pacienteBaseSchema = z
+  .object({
+    nombres: z.string().trim().min(1, 'Nombres requeridos'),
+    apellidoPaterno: z.string().trim().min(1, 'Apellido paterno requerido'),
+    apellidoMaterno: z.string().trim().optional().transform((v) => v ?? ''),
+    tipoIdentificador: fields.nullableStr,
+    identificador: fields.nullableStr,
+    fechaNacimiento: fields.nullableStr,
+    correo: fields.nullableStr,
+    informacionAdicional: fields.nullableStr,
+    keyIdentificacion: fields.nullableStr,
+    idCompaniaSeguro: fields.nullableId,
+    idResidenciaAdulto: fields.nullableId,
+  })
+  .merge(addressSchema)
+
+const pacienteCreateSchema = pacienteBaseSchema
+const pacienteUpdateSchema = pacienteBaseSchema.extend({ id: fields.id })
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
@@ -203,58 +260,27 @@ export async function createPaciente(
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
   await requireSession()
 
-  // Personal fields
-  const nombres = (formData.get('nombres') as string)?.trim()
-  const apellidoPaterno = (formData.get('apellidoPaterno') as string)?.trim()
-  const apellidoMaterno = (formData.get('apellidoMaterno') as string)?.trim() ?? ''
-  const tipoIdentificador = (formData.get('tipoIdentificador') as string)?.trim() || null
-  const rawIdentificador = (formData.get('identificador') as string)?.trim() || null
-  const fechaNacimiento = (formData.get('fechaNacimiento') as string)?.trim() || null
-  const correo = (formData.get('correo') as string)?.trim() || null
-  const informacionAdicional = (formData.get('informacionAdicional') as string)?.trim() || null
-  const idCompaniaSeguro = Number(formData.get('idCompaniaSeguro')) || null
-  const idResidenciaAdulto = Number(formData.get('idResidenciaAdulto')) || null
-  const keyIdentificacion = (formData.get('keyIdentificacion') as string)?.trim() || null
+  const parsed = parseFormData(pacienteCreateSchema, formData)
+  if (!parsed.success) return parsed
 
-  if (!nombres) return { success: false, error: 'Nombres son requeridos' }
-  if (!apellidoPaterno) return { success: false, error: 'Apellido paterno es requerido' }
+  const {
+    nombres, apellidoPaterno, apellidoMaterno, tipoIdentificador, identificador: rawIdentificador,
+    fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
+    idResidenciaAdulto, direccion, direccionFormateada, numero, calle, localidad,
+    areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
+  } = parsed.data
 
-  let identificador: string | null = null
-  let tipoId: string | null = null
-  if (rawIdentificador && tipoIdentificador) {
-    if (tipoIdentificador === 'rut') {
-      const result = validateRut(rawIdentificador)
-      if (!result.valid) return { success: false, error: 'RUT inválido' }
-      identificador = result.normalized
-      tipoId = 'rut'
-    } else if (tipoIdentificador === 'pasaporte') {
-      const result = validatePasaporte(rawIdentificador)
-      if (!result.valid) return { success: false, error: 'Pasaporte inválido' }
-      identificador = result.normalized
-      tipoId = 'pasaporte'
-    } else {
-      return { success: false, error: 'Tipo de identificador no válido' }
-    }
-    // Validar identificador único
-    const existing = await db.select().from(patients).where(eq(patients.identificador, identificador))
+  const idResult = resolveIdentificador(rawIdentificador, tipoIdentificador)
+  if (idResult && 'error' in idResult) return { success: false, error: idResult.error }
+
+  if (idResult) {
+    const existing = await db.select().from(patients).where(eq(patients.identificador, idResult.identificador))
     if (existing.length > 0) return { success: false, error: 'Este identificador ya está registrado' }
   }
 
-  // Address fields
-  const direccion = (formData.get('direccion') as string)?.trim()
-  if (!direccion) return { success: false, error: 'Dirección es requerida' }
-  const direccionFormateada = (formData.get('direccionFormateada') as string)?.trim() || ''
-  const numero = (formData.get('numero') as string)?.trim() || null
-  const calle = (formData.get('calle') as string)?.trim() || null
-  const localidad = (formData.get('localidad') as string)?.trim() || null
-  const areaAdministrativa1 = (formData.get('areaAdministrativa1') as string)?.trim() || null
-  const areaAdministrativa2 = (formData.get('areaAdministrativa2') as string)?.trim() || null
-  const areaAdministrativa3 = (formData.get('areaAdministrativa3') as string)?.trim() || null
-  const pais = (formData.get('pais') as string)?.trim() || null
-  const latitud = (formData.get('latitud') as string)?.trim() || null
-  const longitud = (formData.get('longitud') as string)?.trim() || null
+  const identificador = idResult?.identificador ?? null
+  const tipoId = idResult?.tipoId ?? null
 
-  // Phones
   const phones: { telefono: string; descripcion: string | null }[] = []
   for (let i = 0; i < 20; i++) {
     const tel = (formData.get(`phone_${i}`) as string)?.trim()
@@ -268,17 +294,9 @@ export async function createPaciente(
       const [addr] = await tx
         .insert(addresses)
         .values({
-          direccion,
-          direccionFormateada,
-          numero,
-          calle,
-          localidad,
-          areaAdministrativa1,
-          areaAdministrativa2,
-          areaAdministrativa3,
-          pais,
-          latitud: latitud ?? undefined,
-          longitud: longitud ?? undefined,
+          direccion, direccionFormateada, numero, calle, localidad,
+          areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais,
+          latitud: latitud ?? undefined, longitud: longitud ?? undefined,
         })
         .returning()
 
@@ -287,18 +305,9 @@ export async function createPaciente(
       const [patient] = await tx
         .insert(patients)
         .values({
-          identificador,
-          tipoIdentificador: tipoId,
-          nombres,
-          apellidoPaterno,
-          apellidoMaterno,
-          fechaNacimiento,
-          correo,
-          informacionAdicional,
-          keyIdentificacion,
-          idDireccion,
-          idCompaniaSeguro,
-          idResidenciaAdulto,
+          identificador, tipoIdentificador: tipoId, nombres, apellidoPaterno, apellidoMaterno,
+          fechaNacimiento, correo, informacionAdicional, keyIdentificacion,
+          idDireccion, idCompaniaSeguro, idResidenciaAdulto,
         })
         .returning()
 
@@ -325,64 +334,30 @@ export async function createPaciente(
 export async function updatePaciente(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(formData.get('id'))
-  if (!id) return { success: false, error: 'ID inválido' }
+  const parsed = parseFormData(pacienteUpdateSchema, formData)
+  if (!parsed.success) return parsed
 
-  // Personal fields
-  const nombres = (formData.get('nombres') as string)?.trim()
-  const apellidoPaterno = (formData.get('apellidoPaterno') as string)?.trim()
-  const apellidoMaterno = (formData.get('apellidoMaterno') as string)?.trim() ?? ''
-  const tipoIdentificador = (formData.get('tipoIdentificador') as string)?.trim() || null
-  const rawIdentificador = (formData.get('identificador') as string)?.trim() || null
-  const fechaNacimiento = (formData.get('fechaNacimiento') as string)?.trim() || null
-  const correo = (formData.get('correo') as string)?.trim() || null
-  const informacionAdicional = (formData.get('informacionAdicional') as string)?.trim() || null
-  const idCompaniaSeguro = Number(formData.get('idCompaniaSeguro')) || null
-  const idResidenciaAdulto = Number(formData.get('idResidenciaAdulto')) || null
-  const keyIdentificacion = (formData.get('keyIdentificacion') as string)?.trim() || null
+  const {
+    id, nombres, apellidoPaterno, apellidoMaterno, tipoIdentificador, identificador: rawIdentificador,
+    fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
+    idResidenciaAdulto, direccion, direccionFormateada, numero, calle, localidad,
+    areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
+  } = parsed.data
 
-  if (!nombres) return { success: false, error: 'Nombres son requeridos' }
-  if (!apellidoPaterno) return { success: false, error: 'Apellido paterno es requerido' }
+  const idResult = resolveIdentificador(rawIdentificador, tipoIdentificador)
+  if (idResult && 'error' in idResult) return { success: false, error: idResult.error }
 
-  let identificador: string | null = null
-  let tipoId: string | null = null
-  if (rawIdentificador && tipoIdentificador) {
-    if (tipoIdentificador === 'rut') {
-      const result = validateRut(rawIdentificador)
-      if (!result.valid) return { success: false, error: 'RUT inválido' }
-      identificador = result.normalized
-      tipoId = 'rut'
-    } else if (tipoIdentificador === 'pasaporte') {
-      const result = validatePasaporte(rawIdentificador)
-      if (!result.valid) return { success: false, error: 'Pasaporte inválido' }
-      identificador = result.normalized
-      tipoId = 'pasaporte'
-    } else {
-      return { success: false, error: 'Tipo de identificador no válido' }
-    }
-    // Validar identificador único (excluyendo el paciente actual)
+  if (idResult) {
     const duplicated = await db
       .select()
       .from(patients)
-      .where(and(eq(patients.identificador, identificador), not(eq(patients.id, id))))
+      .where(and(eq(patients.identificador, idResult.identificador), not(eq(patients.id, id))))
     if (duplicated.length > 0) return { success: false, error: 'Este identificador ya está registrado' }
   }
 
-  // Address fields
-  const direccion = (formData.get('direccion') as string)?.trim()
-  if (!direccion) return { success: false, error: 'Dirección es requerida' }
-  const direccionFormateada = (formData.get('direccionFormateada') as string)?.trim() || ''
-  const numero = (formData.get('numero') as string)?.trim() || null
-  const calle = (formData.get('calle') as string)?.trim() || null
-  const localidad = (formData.get('localidad') as string)?.trim() || null
-  const areaAdministrativa1 = (formData.get('areaAdministrativa1') as string)?.trim() || null
-  const areaAdministrativa2 = (formData.get('areaAdministrativa2') as string)?.trim() || null
-  const areaAdministrativa3 = (formData.get('areaAdministrativa3') as string)?.trim() || null
-  const pais = (formData.get('pais') as string)?.trim() || null
-  const latitud = (formData.get('latitud') as string)?.trim() || null
-  const longitud = (formData.get('longitud') as string)?.trim() || null
+  const identificador = idResult?.identificador ?? null
+  const tipoId = idResult?.tipoId ?? null
 
-  // Phones
   const phones: { telefono: string; descripcion: string | null }[] = []
   for (let i = 0; i < 20; i++) {
     const tel = (formData.get(`phone_${i}`) as string)?.trim()
@@ -393,7 +368,6 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
 
   try {
     await db.transaction(async (tx) => {
-      // Get patient to find idDireccion
       const [existingPatient] = await tx
         .select({ idDireccion: patients.idDireccion })
         .from(patients)
@@ -404,35 +378,18 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
       await tx
         .update(addresses)
         .set({
-          direccion,
-          direccionFormateada,
-          numero,
-          calle,
-          localidad,
-          areaAdministrativa1,
-          areaAdministrativa2,
-          areaAdministrativa3,
-          pais,
-          latitud: latitud ?? undefined,
-          longitud: longitud ?? undefined,
+          direccion, direccionFormateada, numero, calle, localidad,
+          areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais,
+          latitud: latitud ?? undefined, longitud: longitud ?? undefined,
         })
         .where(eq(addresses.id, existingPatient.idDireccion))
 
       await tx
         .update(patients)
         .set({
-          identificador,
-          tipoIdentificador: tipoId,
-          nombres,
-          apellidoPaterno,
-          apellidoMaterno,
-          fechaNacimiento,
-          correo,
-          informacionAdicional,
-          keyIdentificacion,
-          idCompaniaSeguro,
-          idResidenciaAdulto,
-          updatedAt: new Date(),
+          identificador, tipoIdentificador: tipoId, nombres, apellidoPaterno, apellidoMaterno,
+          fechaNacimiento, correo, informacionAdicional, keyIdentificacion,
+          idCompaniaSeguro, idResidenciaAdulto, updatedAt: new Date(),
         })
         .where(eq(patients.id, id))
 

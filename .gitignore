@@ -42,3 +42,6 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+*.tsbuildinfo
+tsconfig.tsbuildinfo
