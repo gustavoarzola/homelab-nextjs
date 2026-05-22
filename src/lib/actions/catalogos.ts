@@ -4,8 +4,43 @@ import { db } from '@/db'
 import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops } from '@/db/schema'
 import { eq, count, and, or, ilike, asc, desc, not, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { parseFormData, fields } from '@/lib/validation'
+
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
+const procedimientoSchema = z.object({
+  nombre: fields.nombre,
+  codigo: fields.codigo,
+  categoria: z.string().trim().optional().transform((v) => v || 'otros'),
+  precio: fields.precio.optional().default(0),
+})
+const procedimientoUpdateSchema = procedimientoSchema.extend({ id: fields.id })
+
+const examenSchema = z.object({
+  nombre: fields.nombre,
+  codigo: fields.codigo,
+  grupoExamen: z.string().trim().min(1, 'Grupo requerido'),
+  precio: fields.precio.optional().default(0),
+})
+const examenUpdateSchema = examenSchema.extend({ id: fields.id })
+
+const previsionSchema = z.object({
+  nombre: fields.nombre,
+  categoria: z.string().trim().optional().transform((v) => v || null),
+})
+const previsionUpdateSchema = previsionSchema.extend({ id: fields.id })
+
+const residenciaSchema = z.object({ nombre: fields.nombre })
+const residenciaUpdateSchema = residenciaSchema.extend({ id: fields.id })
+
+const tipoRecargoSchema = z.object({ nombre: fields.nombre })
+const tipoRecargoUpdateSchema = tipoRecargoSchema.extend({ id: fields.id })
+
+const tallerSchema = z.object({ nombre: fields.nombre, codigo: fields.codigo })
+const tallerUpdateSchema = tallerSchema.extend({ id: fields.id })
 
 type Result = { success: boolean; error?: string }
 
@@ -61,11 +96,9 @@ export async function searchProcedimientos(params: SearchParams): Promise<{ rows
 export async function createProcedimiento(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const nombre = (formData.get('nombre') as string)?.trim()
-  const codigo = (formData.get('codigo') as string)?.trim()
-  const categoria = (formData.get('categoria') as string)?.trim() || 'otros'
-  const precio = Number(formData.get('precio')) || 0
-  if (!nombre || !codigo) return { success: false, error: 'Nombre y código son requeridos' }
+  const parsed = parseFormData(procedimientoSchema, formData)
+  if (!parsed.success) return parsed
+  const { nombre, codigo, categoria, precio } = parsed.data
   try {
     const existing = await db.select().from(procedures).where(ilike(procedures.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
@@ -80,12 +113,9 @@ export async function createProcedimiento(formData: FormData): Promise<Result> {
 export async function updateProcedimiento(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(formData.get('id'))
-  const nombre = (formData.get('nombre') as string)?.trim()
-  const codigo = (formData.get('codigo') as string)?.trim()
-  const categoria = (formData.get('categoria') as string)?.trim() || 'otros'
-  const precio = Number(formData.get('precio')) || 0
-  if (!id || !nombre || !codigo) return { success: false, error: 'Datos inválidos' }
+  const parsed = parseFormData(procedimientoUpdateSchema, formData)
+  if (!parsed.success) return parsed
+  const { id, nombre, codigo, categoria, precio } = parsed.data
   try {
     const duplicated = await db
       .select()
@@ -139,11 +169,9 @@ export async function searchExamenes(params: SearchParams): Promise<{ rows: Exam
 export async function createExamen(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const nombre = (formData.get('nombre') as string)?.trim()
-  const codigo = (formData.get('codigo') as string)?.trim()
-  const grupoExamen = (formData.get('grupoExamen') as string)?.trim()
-  const precio = Number(formData.get('precio') ?? 0)
-  if (!nombre || !codigo || !grupoExamen) return { success: false, error: 'Nombre, código y grupo son requeridos' }
+  const parsed = parseFormData(examenSchema, formData)
+  if (!parsed.success) return parsed
+  const { nombre, codigo, grupoExamen, precio } = parsed.data
   try {
     const existing = await db.select().from(exams).where(ilike(exams.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
@@ -158,12 +186,9 @@ export async function createExamen(formData: FormData): Promise<Result> {
 export async function updateExamen(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(formData.get('id'))
-  const nombre = (formData.get('nombre') as string)?.trim()
-  const codigo = (formData.get('codigo') as string)?.trim()
-  const grupoExamen = (formData.get('grupoExamen') as string)?.trim()
-  const precio = Number(formData.get('precio') ?? 0)
-  if (!id || !nombre || !codigo || !grupoExamen) return { success: false, error: 'Nombre, código y grupo son requeridos' }
+  const parsed = parseFormData(examenUpdateSchema, formData)
+  if (!parsed.success) return parsed
+  const { id, nombre, codigo, grupoExamen, precio } = parsed.data
   try {
     const duplicated = await db
       .select()
@@ -216,9 +241,9 @@ export async function searchPrevisiones(params: SearchParams): Promise<{ rows: P
 export async function createPrevision(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const nombre = (formData.get('nombre') as string)?.trim()
-  const categoria = (formData.get('categoria') as string)?.trim() || null
-  if (!nombre) return { success: false, error: 'Nombre requerido' }
+  const parsed = parseFormData(previsionSchema, formData)
+  if (!parsed.success) return parsed
+  const { nombre, categoria } = parsed.data
   try {
     const existing = await db.select().from(healthInsurances).where(ilike(healthInsurances.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
@@ -233,10 +258,9 @@ export async function createPrevision(formData: FormData): Promise<Result> {
 export async function updatePrevision(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(formData.get('id'))
-  const nombre = (formData.get('nombre') as string)?.trim()
-  const categoria = (formData.get('categoria') as string)?.trim() || null
-  if (!id || !nombre) return { success: false, error: 'Datos inválidos' }
+  const parsed = parseFormData(previsionUpdateSchema, formData)
+  if (!parsed.success) return parsed
+  const { id, nombre, categoria } = parsed.data
   try {
     const duplicated = await db
       .select()
@@ -287,8 +311,9 @@ export async function searchResidencias(params: SearchParams): Promise<{ rows: R
 export async function createResidencia(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const nombre = (formData.get('nombre') as string)?.trim()
-  if (!nombre) return { success: false, error: 'Nombre requerido' }
+  const parsed = parseFormData(residenciaSchema, formData)
+  if (!parsed.success) return parsed
+  const { nombre } = parsed.data
   try {
     const existing = await db.select().from(elderlyResidences).where(ilike(elderlyResidences.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
@@ -303,9 +328,9 @@ export async function createResidencia(formData: FormData): Promise<Result> {
 export async function updateResidencia(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(formData.get('id'))
-  const nombre = (formData.get('nombre') as string)?.trim()
-  if (!id || !nombre) return { success: false, error: 'Datos inválidos' }
+  const parsed = parseFormData(residenciaUpdateSchema, formData)
+  if (!parsed.success) return parsed
+  const { id, nombre } = parsed.data
   try {
     const duplicated = await db
       .select()
@@ -356,8 +381,9 @@ export async function searchTiposRecargos(params: SearchParams): Promise<{ rows:
 export async function createTipoRecargo(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const nombre = (formData.get('nombre') as string)?.trim()
-  if (!nombre) return { success: false, error: 'Nombre requerido' }
+  const parsed = parseFormData(tipoRecargoSchema, formData)
+  if (!parsed.success) return parsed
+  const { nombre } = parsed.data
   try {
     const existing = await db.select().from(surchargeTypes).where(ilike(surchargeTypes.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
@@ -372,9 +398,9 @@ export async function createTipoRecargo(formData: FormData): Promise<Result> {
 export async function updateTipoRecargo(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(formData.get('id'))
-  const nombre = (formData.get('nombre') as string)?.trim()
-  if (!id || !nombre) return { success: false, error: 'Datos inválidos' }
+  const parsed = parseFormData(tipoRecargoUpdateSchema, formData)
+  if (!parsed.success) return parsed
+  const { id, nombre } = parsed.data
   try {
     const duplicated = await db
       .select()
@@ -440,9 +466,9 @@ export async function searchTalleres(params: SearchParams): Promise<{ rows: Tall
 export async function createTaller(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const nombre = (formData.get('nombre') as string)?.trim()
-  const codigo = (formData.get('codigo') as string)?.trim()
-  if (!nombre || !codigo) return { success: false, error: 'Nombre y código son requeridos' }
+  const parsed = parseFormData(tallerSchema, formData)
+  if (!parsed.success) return parsed
+  const { nombre, codigo } = parsed.data
   try {
     const existing = await db.select().from(workshops).where(ilike(workshops.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
@@ -457,10 +483,9 @@ export async function createTaller(formData: FormData): Promise<Result> {
 export async function updateTaller(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(formData.get('id'))
-  const nombre = (formData.get('nombre') as string)?.trim()
-  const codigo = (formData.get('codigo') as string)?.trim()
-  if (!id || !nombre || !codigo) return { success: false, error: 'Datos inválidos' }
+  const parsed = parseFormData(tallerUpdateSchema, formData)
+  if (!parsed.success) return parsed
+  const { id, nombre, codigo } = parsed.data
   try {
     const duplicated = await db
       .select()

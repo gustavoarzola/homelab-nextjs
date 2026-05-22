@@ -4,9 +4,37 @@ import { db } from '@/db'
 import { nurses, visits } from '@/db/schema'
 import { eq, count, and, or, ilike, asc, desc, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import { validateRut } from '@/lib/rut'
 import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { parseFormData, fields } from '@/lib/validation'
+
+const enfermeraSchema = z.object({
+  nombres: z.string().trim().min(1, 'Nombres requeridos'),
+  apellidoPaterno: z.string().trim().min(1, 'Apellido paterno requerido'),
+  apellidoMaterno: z.string().trim().optional().transform((v) => v ?? ''),
+  rut: z.string().trim().optional().transform((v, ctx) => {
+    const raw = v || null
+    if (!raw) return null
+    const result = validateRut(raw)
+    if (!result.valid) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'RUT inválido' })
+      return z.NEVER
+    }
+    return result.normalized
+  }),
+  telefono: z.string().trim().optional().transform((v) => v || null),
+  correo: z.string().trim().optional().transform((v) => v || null),
+  porcentajePago: z.string().trim().optional()
+    .transform((v) => v || '67.5')
+    .refine(
+      (v) => { const n = parseFloat(v); return !isNaN(n) && n >= 0 && n <= 100 },
+      'Porcentaje inválido (0–100)',
+    ),
+  comunaResidencia: z.string().trim().optional().transform((v) => v || null),
+})
+const enfermeraUpdateSchema = enfermeraSchema.extend({ id: fields.id })
 
 export type NurseRow = {
   id: number
@@ -71,50 +99,14 @@ export async function searchEnfermeras(
 
 type Result = { success: boolean; error?: string }
 
-function parseFields(formData: FormData): { error: string } | {
-  nombres: string
-  apellidoPaterno: string
-  apellidoMaterno: string
-  rut: string | null
-  telefono: string | null
-  correo: string | null
-  porcentajePago: string
-  comunaResidencia: string | null
-} {
-  const nombres = (formData.get('nombres') as string)?.trim()
-  const apellidoPaterno = (formData.get('apellidoPaterno') as string)?.trim()
-  const apellidoMaterno = (formData.get('apellidoMaterno') as string)?.trim() ?? ''
-  const rawRut = (formData.get('rut') as string)?.trim() || null
-  const telefono = (formData.get('telefono') as string)?.trim() || null
-  const correo = (formData.get('correo') as string)?.trim() || null
-  const rawPorcentaje = (formData.get('porcentajePago') as string)?.trim()
-  const porcentajePago = rawPorcentaje || '67.5'
-  const comunaResidencia = (formData.get('comunaResidencia') as string)?.trim() || null
-
-  if (!nombres) return { error: 'Nombres requeridos' }
-  if (!apellidoPaterno) return { error: 'Apellido paterno requerido' }
-
-  const pct = parseFloat(porcentajePago)
-  if (isNaN(pct) || pct < 0 || pct > 100) return { error: 'Porcentaje de pago inválido (0–100)' }
-
-  let rut: string | null = null
-  if (rawRut) {
-    const result = validateRut(rawRut)
-    if (!result.valid) return { error: 'RUT inválido' }
-    rut = result.normalized
-  }
-
-  return { nombres, apellidoPaterno, apellidoMaterno, rut, telefono, correo, porcentajePago, comunaResidencia }
-}
-
 export async function createEnfermera(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const fields = parseFields(formData)
-  if ('error' in fields) return { success: false, error: fields.error }
+  const parsed = parseFormData(enfermeraSchema, formData)
+  if (!parsed.success) return parsed
 
   try {
-    await db.insert(nurses).values(fields)
+    await db.insert(nurses).values(parsed.data)
     revalidatePath('/enfermeras')
     return { success: true }
   } catch {
@@ -125,14 +117,12 @@ export async function createEnfermera(formData: FormData): Promise<Result> {
 export async function updateEnfermera(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(formData.get('id'))
-  if (!id) return { success: false, error: 'ID inválido' }
-
-  const fields = parseFields(formData)
-  if ('error' in fields) return { success: false, error: fields.error }
+  const parsed = parseFormData(enfermeraUpdateSchema, formData)
+  if (!parsed.success) return parsed
+  const { id, ...data } = parsed.data
 
   try {
-    await db.update(nurses).set(fields).where(eq(nurses.id, id))
+    await db.update(nurses).set(data).where(eq(nurses.id, id))
     revalidatePath('/enfermeras')
     return { success: true }
   } catch {

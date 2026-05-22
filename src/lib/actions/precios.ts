@@ -1,5 +1,7 @@
 'use server'
 
+import { z } from 'zod'
+import { parseFormData, fields } from '@/lib/validation'
 import { db } from '@/db'
 import {
   nursingVisitPrices,
@@ -49,6 +51,29 @@ function normalizarCategoria(categoria: string | null): 'fonasa' | 'isapre' | 'p
   if (categoria === 'fonasa' || categoria === 'isapre') return categoria
   return 'particular'
 }
+
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
+const precioExamenCreateSchema = z.object({
+  idExamen: z.coerce.number().positive('Examen requerido'),
+  precio: fields.precioRequerido,
+})
+
+const precioExamenUpdateSchema = z.object({
+  id: fields.id,
+  precio: fields.precioRequerido,
+})
+
+const precioVisitaCreateSchema = z.object({
+  comuna: z.string().trim().optional().transform((v) => v || null),
+  precio: fields.precioRequerido,
+})
+
+const precioVisitaUpdateSchema = z.object({
+  id: fields.id,
+  comuna: z.string().trim().optional().transform((v) => v || null),
+  precio: fields.precioRequerido,
+})
 
 // ─── searchPreciosExamenes ────────────────────────────────────────────────────
 
@@ -110,11 +135,9 @@ export async function searchPreciosExamenes(
 export async function createPrecioExamen(fd: FormData): Promise<Result> {
   await requireSession()
 
-  const idExamen = Number(fd.get('idExamen'))
-  const precio = Number(fd.get('precio'))
-
-  if (!idExamen || !precio)
-    return { success: false, error: 'Examen y precio son requeridos' }
+  const parsed = parseFormData(precioExamenCreateSchema, fd)
+  if (!parsed.success) return parsed
+  const { idExamen, precio } = parsed.data
 
   try {
     await db.update(exams).set({ precio }).where(eq(exams.id, idExamen))
@@ -128,10 +151,9 @@ export async function createPrecioExamen(fd: FormData): Promise<Result> {
 export async function updatePrecioExamen(fd: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(fd.get('id'))
-  const precio = Number(fd.get('precio'))
-
-  if (!id || !precio) return { success: false, error: 'Datos inválidos' }
+  const parsed = parseFormData(precioExamenUpdateSchema, fd)
+  if (!parsed.success) return parsed
+  const { id, precio } = parsed.data
 
   try {
     await db
@@ -196,10 +218,9 @@ export async function searchPreciosVisita(
 export async function createPrecioVisita(fd: FormData): Promise<Result> {
   await requireSession()
 
-  const comuna = (fd.get('comuna') as string)?.trim() || null
-  const precio = Number(fd.get('precio'))
-
-  if (!precio) return { success: false, error: 'Precio es requerido' }
+  const parsed = parseFormData(precioVisitaCreateSchema, fd)
+  if (!parsed.success) return parsed
+  const { comuna, precio } = parsed.data
 
   const duplicateCondition = comuna
     ? eq(nursingVisitPrices.comuna, comuna)
@@ -228,11 +249,9 @@ export async function createPrecioVisita(fd: FormData): Promise<Result> {
 export async function updatePrecioVisita(fd: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(fd.get('id'))
-  const comuna = (fd.get('comuna') as string)?.trim() || null
-  const precio = Number(fd.get('precio'))
-
-  if (!id || !precio) return { success: false, error: 'Datos inválidos' }
+  const parsed = parseFormData(precioVisitaUpdateSchema, fd)
+  if (!parsed.success) return parsed
+  const { id, comuna, precio } = parsed.data
 
   const duplicateCondition = comuna
     ? and(eq(nursingVisitPrices.comuna, comuna), ne(nursingVisitPrices.id, id))

@@ -4,10 +4,15 @@ import { db } from '@/db'
 import { laboratories } from '@/db/schema'
 import { eq, count, and, ilike, asc, desc, not, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { parseFormData, fields } from '@/lib/validation'
 
 type Result = { success: boolean; error?: string }
+
+const laboratorioSchema = z.object({ nombre: fields.nombre })
+const laboratorioUpdateSchema = laboratorioSchema.extend({ id: fields.id })
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
@@ -37,8 +42,9 @@ export async function searchLaboratorios(params: SearchParams): Promise<{ rows: 
 export async function createLaboratorio(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const nombre = (formData.get('nombre') as string)?.trim()
-  if (!nombre) return { success: false, error: 'Nombre requerido' }
+  const parsed = parseFormData(laboratorioSchema, formData)
+  if (!parsed.success) return parsed
+  const { nombre } = parsed.data
   try {
     const existing = await db.select().from(laboratories).where(ilike(laboratories.nombre, nombre))
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
@@ -53,9 +59,9 @@ export async function createLaboratorio(formData: FormData): Promise<Result> {
 export async function updateLaboratorio(formData: FormData): Promise<Result> {
   await requireSession()
 
-  const id = Number(formData.get('id'))
-  const nombre = (formData.get('nombre') as string)?.trim()
-  if (!id || !nombre) return { success: false, error: 'Datos inválidos' }
+  const parsed = parseFormData(laboratorioUpdateSchema, formData)
+  if (!parsed.success) return parsed
+  const { id, nombre } = parsed.data
   try {
     const duplicated = await db
       .select()
