@@ -339,8 +339,8 @@ const visitaSharedFields = {
   hora: fields.nullableStr,
   idEnfermera: fields.nullableId,
   idLaboratorio: fields.nullableId,
-  numeroBoleta: z.string().trim().optional().default(''),
-  tipoDocumento: z.string().trim().optional().default(''),
+  numeroBoleta: z.string().trim().max(20, 'N° boleta máximo 20 caracteres').optional().default(''),
+  tipoDocumento: z.enum(['boleta', 'factura', '']).optional().default(''),
   numeroAtencion: z.string().trim().optional().transform((v) => (v ? Number(v) || null : null)),
   origenContacto: fields.nullableStr,
   informacionAdicional: z.string().trim().optional().default(''),
@@ -366,7 +366,7 @@ const visitaCreateSchema = z
 const visitaUpdateSchema = z
   .object({
     id: fields.id,
-    estado: z.string().trim().optional().default('creada'),
+    estado: z.enum(['creada', 'asignada', 'realizada', 'cancelada']).optional().default('creada'),
     pagado: fields.bool,
     metodoPago: fields.nullableStr,
     fechaPago: fields.nullableStr,

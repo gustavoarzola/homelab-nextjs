@@ -63,7 +63,7 @@ const pacienteBaseSchema = z
     nombres: z.string().trim().min(1, 'Nombres requeridos'),
     apellidoPaterno: z.string().trim().min(1, 'Apellido paterno requerido'),
     apellidoMaterno: z.string().trim().optional().transform((v) => v ?? ''),
-    tipoIdentificador: fields.nullableStr,
+    tipoIdentificador: z.enum(['rut', 'pasaporte']).optional().transform((v) => v ?? null),
     identificador: fields.nullableStr,
     fechaNacimiento: fields.nullableStr,
     correo: fields.nullableStr,

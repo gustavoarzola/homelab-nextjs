@@ -34,7 +34,7 @@ export const fields = {
   codigo: z.string().trim().min(1, 'Código requerido'),
   precio: z.coerce.number().int().min(0, 'Precio inválido'),
   precioRequerido: z.coerce.number().int().positive('Precio es requerido'),
-  fechaRequerida: z.string().trim().min(1, 'Fecha requerida'),
+  fechaRequerida: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD)'),
   bool: z.string().optional().transform((v) => v === 'true'),
   nullableStr: z.string().trim().optional().transform((v) => v || null),
   nullableId: z.coerce.number().int().optional().transform((v) => v || null),

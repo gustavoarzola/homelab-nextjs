@@ -189,7 +189,7 @@ export async function searchCotizaciones(
 const cotizacionInputSchema = z.object({
   idPaciente: fields.nullableId,
   nombreDestinatario: fields.nullableStr,
-  emailDestinatario: fields.nullableStr,
+  emailDestinatario: z.string().trim().email('Email inválido').optional().transform((v) => v || null),
   telefonoDestinatario: fields.nullableStr,
   identificacionDestinatario: fields.nullableStr,
   comuna: z.string().trim().min(1, 'Comuna requerida'),
