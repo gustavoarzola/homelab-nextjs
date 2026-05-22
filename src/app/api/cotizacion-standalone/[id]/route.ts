@@ -4,6 +4,7 @@ import {
   quotationExams,
   quotationProcedures,
   quotationWorkshops,
+  quotationSurcharges,
   patients,
   surchargeTypes,
 } from '@/db/schema'
@@ -28,8 +29,8 @@ export async function GET(
     return new Response('Cotización no encontrada', { status: 404 })
   }
 
-  // Load items, patient, surcharge type in parallel
-  const [examItems, procItems, tallerItems, patientRow, surchargeRow] = await Promise.all([
+  // Load items, patient, surcharges in parallel
+  const [examItems, procItems, tallerItems, patientRow, surchargesRows] = await Promise.all([
     db
       .select({ descripcion: quotationExams.descripcion, codigo: quotationExams.codigo, precio: quotationExams.precio })
       .from(quotationExams)
@@ -45,9 +46,11 @@ export async function GET(
     quotation.idPaciente
       ? db.select().from(patients).where(eq(patients.id, quotation.idPaciente)).then((r) => r[0] ?? null)
       : Promise.resolve(null),
-    quotation.idTipoRecargo
-      ? db.select({ label: surchargeTypes.nombre }).from(surchargeTypes).where(eq(surchargeTypes.id, quotation.idTipoRecargo)).then((r) => r[0] ?? null)
-      : Promise.resolve(null),
+    db
+      .select({ label: surchargeTypes.nombre, precio: quotationSurcharges.precio })
+      .from(quotationSurcharges)
+      .innerJoin(surchargeTypes, eq(quotationSurcharges.idTipoRecargo, surchargeTypes.id))
+      .where(eq(quotationSurcharges.idCotizacion, cotizacionId)),
   ])
 
   // Get nursing visit price for display
@@ -61,7 +64,7 @@ export async function GET(
     procItems,
     tallerItems,
     patient: patientRow,
-    surchargeLabel: surchargeRow?.label ?? null,
+    surcharges: surchargesRows,
     precioVisita,
   })
 
@@ -97,7 +100,7 @@ function buildHTML({
   procItems,
   tallerItems,
   patient,
-  surchargeLabel,
+  surcharges,
   precioVisita,
 }: {
   quotation: {
@@ -110,7 +113,6 @@ function buildHTML({
     identificacionDestinatario: string | null
     comuna: string | null
     cobraVisita: boolean
-    montoRecargo: number | null
     total: number | null
     notas: string | null
     createdAt: Date
@@ -119,7 +121,7 @@ function buildHTML({
   procItems: Item[]
   tallerItems: Item[]
   patient: { nombres: string; apellidoPaterno: string | null; apellidoMaterno: string | null; identificador: string | null; tipoIdentificador: string | null } | null
-  surchargeLabel: string | null
+  surcharges: { label: string; precio: number }[]
   precioVisita: number
 }): string {
   const today = todaySantiago()
@@ -239,8 +241,10 @@ function buildHTML({
     itemsHTML += subtotalRow(`Visita de enfermería${quotation.comuna ? ` (${quotation.comuna})` : ''}`, precioVisita)
   }
 
-  if ((quotation.montoRecargo ?? 0) > 0 && surchargeLabel) {
-    itemsHTML += subtotalRow(surchargeLabel, quotation.montoRecargo!)
+  for (const recargo of surcharges) {
+    if (recargo.precio > 0) {
+      itemsHTML += subtotalRow(recargo.label, recargo.precio)
+    }
   }
 
   const total = quotation.total ?? 0

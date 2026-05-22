@@ -5,7 +5,7 @@ import {
   visits, patients, addresses, laboratories, nurses,
   visitProcedures, visitExams, procedures, exams,
   healthInsurances, patientPhones,
-  visitWorkshops, workshops, elderlyResidences, surchargeTypes,
+  visitWorkshops, workshops, visitSurcharges, elderlyResidences, surchargeTypes,
 } from '@/db/schema'
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { Resend } from 'resend'
@@ -48,8 +48,7 @@ export type VisitaConDetalles = {
   informacionAdicional: string | null
   costo: number
   costoTraslado: number
-  montoRecargo: number
-  tipoRecargo: string | null
+  recargos: { nombre: string; precio: number }[]
 }
 
 export type EnfermeraConVisitas = {
@@ -124,7 +123,6 @@ async function getVisitasConDetalles(
       hora: visits.hora,
       costo: visits.costo,
       costoTraslado: visits.costoTraslado,
-      montoRecargo: visits.montoRecargo,
       informacionAdicional: visits.informacionAdicional,
       idEnfermera: visits.idEnfermera,
       keyOrdenMedica: visits.keyOrdenMedica,
@@ -144,7 +142,6 @@ async function getVisitasConDetalles(
       areaAdministrativa2: addresses.areaAdministrativa2,
       laboratorio: laboratories.nombre,
       previsión: healthInsurances.nombre,
-      tipoRecargo: surchargeTypes.nombre,
       residenciaAdultoMayor: elderlyResidences.nombre,
       idPaciente: patients.id,
     })
@@ -153,7 +150,6 @@ async function getVisitasConDetalles(
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
     .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
     .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
-    .leftJoin(surchargeTypes, eq(visits.idTipoRecargo, surchargeTypes.id))
     .leftJoin(elderlyResidences, eq(patients.idResidenciaAdulto, elderlyResidences.id))
     .where(and(eq(visits.fecha, fecha), inArray(visits.idEnfermera, nurseIds)))
 
@@ -173,8 +169,8 @@ async function getVisitasConDetalles(
         .where(inArray(patientPhones.idPaciente, pacienteIds))
     : []
 
-  // Obtener procedimientos, exámenes y talleres
-  const [procRows, examRows, workshopRows] = await Promise.all([
+  // Obtener procedimientos, exámenes, talleres y recargos
+  const [procRows, examRows, workshopRows, surchargeRows] = await Promise.all([
     db
       .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre })
       .from(visitProcedures)
@@ -190,11 +186,17 @@ async function getVisitasConDetalles(
       .from(visitWorkshops)
       .innerJoin(workshops, eq(visitWorkshops.idTaller, workshops.id))
       .where(inArray(visitWorkshops.idVisita, visitaIds)),
+    db
+      .select({ idVisita: visitSurcharges.idVisita, nombre: surchargeTypes.nombre, precio: visitSurcharges.precio })
+      .from(visitSurcharges)
+      .innerJoin(surchargeTypes, eq(visitSurcharges.idTipoRecargo, surchargeTypes.id))
+      .where(inArray(visitSurcharges.idVisita, visitaIds)),
   ])
 
   const procsByVisita = new Map<number, string[]>()
   const examsByVisita = new Map<number, string[]>()
   const workshopsByVisita = new Map<number, string[]>()
+  const surchargesByVisita = new Map<number, { nombre: string; precio: number }[]>()
   const phonesByPaciente = new Map<number, string[]>()
 
   for (const p of procRows) {
@@ -213,6 +215,12 @@ async function getVisitasConDetalles(
     const arr = workshopsByVisita.get(w.idVisita) ?? []
     arr.push(w.nombre)
     workshopsByVisita.set(w.idVisita, arr)
+  }
+
+  for (const s of surchargeRows) {
+    const arr = surchargesByVisita.get(s.idVisita) ?? []
+    arr.push({ nombre: s.nombre, precio: s.precio })
+    surchargesByVisita.set(s.idVisita, arr)
   }
 
   for (const phone of phonesData) {
@@ -254,8 +262,7 @@ async function getVisitasConDetalles(
     informacionAdicional: v.informacionAdicional || null,
     costo: v.costo,
     costoTraslado: v.costoTraslado ?? 0,
-    montoRecargo: v.montoRecargo ?? 0,
-    tipoRecargo: v.tipoRecargo || null,
+    recargos: surchargesByVisita.get(v.visitaId) ?? [],
   }))
 }
 
@@ -484,9 +491,10 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
 
   const recargoCells = visitas
     .map((v) => {
-      if (!v.montoRecargo) return `<td style="${costoDataStyle}">—</td>`
-      const label = v.tipoRecargo ? ` (${v.tipoRecargo})` : ''
-      return `<td style="${costoDataStyle}">$${v.montoRecargo.toLocaleString('es-CL')}${label}</td>`
+      if (!v.recargos.length) return `<td style="${costoDataStyle}">—</td>`
+      const total = v.recargos.reduce((s, r) => s + r.precio, 0)
+      const names = v.recargos.map((r) => r.nombre).join(', ')
+      return `<td style="${costoDataStyle}">$${total.toLocaleString('es-CL')} (${names})</td>`
     })
     .join('')
   const recargoRow = `<tr><td style="${costoLabelStyle}">Recargo</td>${recargoCells}</tr>`

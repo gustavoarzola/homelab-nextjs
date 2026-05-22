@@ -7,6 +7,7 @@ import {
   quotationExams,
   quotationProcedures,
   quotationWorkshops,
+  quotationSurcharges,
   patients,
   procedures,
   exams,
@@ -17,6 +18,7 @@ import {
   visitProcedures,
   visitExams,
   visitWorkshops,
+  visitSurcharges,
   nursingVisitPrices,
 } from '@/db/schema'
 import { eq, and, or, ilike, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
@@ -39,8 +41,6 @@ export type CotizacionDetalle = {
   identificacionDestinatario: string | null
   comuna: string | null
   cobraVisita: boolean
-  montoRecargo: number | null
-  idTipoRecargo: number | null
   total: number
   idVisita: number | null
   notas: string | null
@@ -50,6 +50,8 @@ export type CotizacionDetalle = {
   procedurePrices: { idProcedimiento: number; precio: number }[]
   tallerIds: number[]
   tallerPrices: { idTaller: number; precio: number }[]
+  surchargeIds: number[]
+  surchargePrices: { idTipoRecargo: number; precio: number }[]
 }
 
 export type CotizacionRow = {
@@ -70,7 +72,7 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
   const [quotation] = await db.select().from(quotations).where(eq(quotations.id, id))
   if (!quotation) return null
 
-  const [exams_, procs, talleres_] = await Promise.all([
+  const [exams_, procs, talleres_, surcharges_] = await Promise.all([
     db
       .select({ idExamen: quotationExams.idExamen, precio: quotationExams.precio })
       .from(quotationExams)
@@ -83,6 +85,10 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
       .select({ idTaller: quotationWorkshops.idTaller, precio: quotationWorkshops.precio })
       .from(quotationWorkshops)
       .where(eq(quotationWorkshops.idCotizacion, id)),
+    db
+      .select({ idTipoRecargo: quotationSurcharges.idTipoRecargo, precio: quotationSurcharges.precio })
+      .from(quotationSurcharges)
+      .where(eq(quotationSurcharges.idCotizacion, id)),
   ])
 
   return {
@@ -95,8 +101,6 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     identificacionDestinatario: quotation.identificacionDestinatario ?? null,
     comuna: quotation.comuna ?? null,
     cobraVisita: quotation.cobraVisita,
-    montoRecargo: quotation.montoRecargo ?? null,
-    idTipoRecargo: quotation.idTipoRecargo ?? null,
     total: quotation.total ?? 0,
     idVisita: quotation.idVisita ?? null,
     notas: quotation.notas ?? null,
@@ -106,6 +110,8 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
     tallerIds: talleres_.map((t) => t.idTaller),
     tallerPrices: talleres_.map((t) => ({ idTaller: t.idTaller, precio: t.precio })),
+    surchargeIds: surcharges_.map((s) => s.idTipoRecargo),
+    surchargePrices: surcharges_.map((s) => ({ idTipoRecargo: s.idTipoRecargo, precio: s.precio })),
   }
 }
 
@@ -194,29 +200,15 @@ const cotizacionInputSchema = z.object({
   identificacionDestinatario: fields.nullableStr,
   comuna: z.string().trim().min(1, 'Comuna requerida'),
   cobraVisita: fields.bool,
-  montoRecargo: z.coerce.number().int().min(0).default(0),
-  idTipoRecargo: fields.nullableId,
   notas: fields.nullableStr,
   procedureIds: fields.ids,
   examIds: fields.ids,
   tallerIds: fields.ids,
+  surchargeIds: fields.ids,
 })
 
-const recargoRefine = (
-  data: { montoRecargo: number; idTipoRecargo: number | null },
-  ctx: z.RefinementCtx,
-) => {
-  if (data.montoRecargo > 0 && !data.idTipoRecargo) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['idTipoRecargo'],
-      message: 'Tipo de recargo requerido cuando hay monto de recargo',
-    })
-  }
-}
-
-const cotizacionCreateSchema = cotizacionInputSchema.superRefine(recargoRefine)
-const cotizacionUpdateSchema = cotizacionInputSchema.extend({ id: fields.id }).superRefine(recargoRefine)
+const cotizacionCreateSchema = cotizacionInputSchema
+const cotizacionUpdateSchema = cotizacionInputSchema.extend({ id: fields.id })
 
 // ─── createCotizacion ──────────────────────────────────────────────────────
 
@@ -225,13 +217,13 @@ export async function createCotizacion(
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
   await requireSession()
 
-  const parsed = parseFormDataWithArrays(cotizacionCreateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids'])
+  const parsed = parseFormDataWithArrays(cotizacionCreateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids', 'surcharge_ids'])
   if (!parsed.success) return parsed
 
   const {
     idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
-    identificacionDestinatario, comuna, cobraVisita, montoRecargo, idTipoRecargo,
-    notas, procedureIds, examIds, tallerIds,
+    identificacionDestinatario, comuna, cobraVisita,
+    notas, procedureIds, examIds, tallerIds, surchargeIds,
   } = parsed.data
 
   const tallerPrecioMap: Record<number, number> = {}
@@ -275,8 +267,16 @@ export async function createCotizacion(
       total += visitPrice
     }
 
-    // Add surcharge
-    total += montoRecargo
+    // Get surcharge prices and add to total
+    let surchargeItems: { id: number; precio: number }[] = []
+    if (surchargeIds.length > 0) {
+      surchargeItems = await db
+        .select({ id: surchargeTypes.id, precio: surchargeTypes.precio })
+        .from(surchargeTypes)
+        .where(inArray(surchargeTypes.id, surchargeIds))
+        .catch(() => [])
+      total += surchargeItems.reduce((sum, s) => sum + s.precio, 0)
+    }
 
     // Create quotation
     const inserted = await db
@@ -290,8 +290,6 @@ export async function createCotizacion(
         identificacionDestinatario,
         comuna,
         cobraVisita,
-        montoRecargo,
-        idTipoRecargo,
         total,
         notas,
         createdAt: new Date(),
@@ -372,6 +370,18 @@ export async function createCotizacion(
       )
     }
 
+    // Insert surcharge items
+    if (surchargeItems.length > 0) {
+      await db.insert(quotationSurcharges).values(
+        surchargeItems.map((s) => ({
+          idCotizacion: cotizacionId,
+          idTipoRecargo: s.id,
+          precio: s.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
     revalidatePath('/cotizaciones')
     return { success: true, id: cotizacionId }
   } catch (error) {
@@ -387,13 +397,13 @@ export async function updateCotizacion(
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
   await requireSession()
 
-  const parsed = parseFormDataWithArrays(cotizacionUpdateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids'])
+  const parsed = parseFormDataWithArrays(cotizacionUpdateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids', 'surcharge_ids'])
   if (!parsed.success) return parsed
 
   const {
     id, idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
-    identificacionDestinatario, comuna, cobraVisita, montoRecargo, idTipoRecargo,
-    notas, procedureIds, examIds, tallerIds,
+    identificacionDestinatario, comuna, cobraVisita,
+    notas, procedureIds, examIds, tallerIds, surchargeIds,
   } = parsed.data
 
   const tallerPrecioMap: Record<number, number> = {}
@@ -433,7 +443,16 @@ export async function updateCotizacion(
       total += visitPrice
     }
 
-    total += montoRecargo
+    // Get surcharge prices
+    let surchargeItems: { id: number; precio: number }[] = []
+    if (surchargeIds.length > 0) {
+      surchargeItems = await db
+        .select({ id: surchargeTypes.id, precio: surchargeTypes.precio })
+        .from(surchargeTypes)
+        .where(inArray(surchargeTypes.id, surchargeIds))
+        .catch(() => [])
+      total += surchargeItems.reduce((sum, s) => sum + s.precio, 0)
+    }
 
     // Update quotation
     await db
@@ -446,8 +465,6 @@ export async function updateCotizacion(
         identificacionDestinatario,
         comuna,
         cobraVisita,
-        montoRecargo,
-        idTipoRecargo,
         total,
         notas,
         updatedAt: new Date(),
@@ -458,6 +475,7 @@ export async function updateCotizacion(
     await db.delete(quotationProcedures).where(eq(quotationProcedures.idCotizacion, id))
     await db.delete(quotationExams).where(eq(quotationExams.idCotizacion, id))
     await db.delete(quotationWorkshops).where(eq(quotationWorkshops.idCotizacion, id))
+    await db.delete(quotationSurcharges).where(eq(quotationSurcharges.idCotizacion, id))
 
     // Insert procedure items
     if (procedureIds.length > 0) {
@@ -521,6 +539,18 @@ export async function updateCotizacion(
           descripcion: t.nombre,
           codigo: t.codigo,
           precio: tallerPrecioMap[t.id] ?? 0,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Insert surcharge items
+    if (surchargeItems.length > 0) {
+      await db.insert(quotationSurcharges).values(
+        surchargeItems.map((s) => ({
+          idCotizacion: id,
+          idTipoRecargo: s.id,
+          precio: s.precio,
           createdAt: new Date(),
         })),
       )
@@ -592,8 +622,6 @@ export async function convertirCotizacionAVisita(
         costo: quotation.total ?? 0,
         idPaciente: finalIdPaciente,
         cobraVisita: quotation.cobraVisita,
-        montoRecargo: quotation.montoRecargo,
-        idTipoRecargo: quotation.idTipoRecargo,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -657,6 +685,23 @@ export async function convertirCotizacionAVisita(
           idTaller: t.idTaller,
           idVisita: visitId,
           precio: t.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Copy recargos
+    const surchargeItems = await db
+      .select({ idTipoRecargo: quotationSurcharges.idTipoRecargo, precio: quotationSurcharges.precio })
+      .from(quotationSurcharges)
+      .where(eq(quotationSurcharges.idCotizacion, idCotizacion))
+
+    if (surchargeItems.length > 0) {
+      await db.insert(visitSurcharges).values(
+        surchargeItems.map((s) => ({
+          idTipoRecargo: s.idTipoRecargo,
+          idVisita: visitId,
+          precio: s.precio,
           createdAt: new Date(),
         })),
       )

@@ -15,6 +15,7 @@ import {
   visitProcedures,
   visitExams,
   visitWorkshops,
+  visitSurcharges,
   procedures,
   workshops,
   surchargeTypes,
@@ -323,8 +324,8 @@ export type CotizacionVisita = {
   subtotalExamenes: number
   subtotalTalleres: number
   costoVisitaEnfermeria: number
-  montoRecargo: number
-  tipoRecargoNombre: string | null
+  recargos: { nombre: string; precio: number }[]
+  subtotalRecargos: number
   total: number
   tipoPrevision: 'fonasa' | 'isapre' | 'particular'
 }
@@ -341,17 +342,14 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       idPaciente: visits.idPaciente,
       idEnfermera: visits.idEnfermera,
       idLaboratorio: visits.idLaboratorio,
-      montoRecargo: visits.montoRecargo,
-      tipoRecargoNombre: surchargeTypes.nombre,
     })
     .from(visits)
-    .leftJoin(surchargeTypes, eq(visits.idTipoRecargo, surchargeTypes.id))
     .where(eq(visits.id, idVisita))
 
   if (!visitRow) return null
 
   // Datos en paralelo
-  const [pacienteRow, enfermeraRow, laboratorioRow, procRows, examRows, tallerRows] = await Promise.all([
+  const [pacienteRow, enfermeraRow, laboratorioRow, procRows, examRows, tallerRows, surchargesRows] = await Promise.all([
     visitRow.idPaciente
       ? db
           .select({
@@ -408,6 +406,12 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       .from(visitWorkshops)
       .innerJoin(workshops, eq(visitWorkshops.idTaller, workshops.id))
       .where(eq(visitWorkshops.idVisita, idVisita)),
+
+    db
+      .select({ nombre: surchargeTypes.nombre, precio: visitSurcharges.precio })
+      .from(visitSurcharges)
+      .innerJoin(surchargeTypes, eq(visitSurcharges.idTipoRecargo, surchargeTypes.id))
+      .where(eq(visitSurcharges.idVisita, idVisita)),
   ])
 
   const tipoPrevision = normalizarCategoria(pacienteRow?.categoriaSeguro ?? null)
@@ -439,8 +443,6 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
   }
 
   const laboratorioLabel = laboratorioRow?.nombre ?? null
-  const montoRecargo = visitRow.montoRecargo ?? 0
-  const tipoRecargoNombre = visitRow.tipoRecargoNombre ?? null
 
   return {
     id: visitRow.id,
@@ -473,8 +475,8 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     subtotalExamenes: costoCalculado.subtotalExamenes,
     subtotalTalleres: costoCalculado.subtotalTalleres,
     costoVisitaEnfermeria: costoCalculado.costoVisitaEnfermeria,
-    montoRecargo,
-    tipoRecargoNombre,
+    recargos: surchargesRows,
+    subtotalRecargos: costoCalculado.subtotalRecargos,
     total: costoCalculado.total,
     tipoPrevision,
   }

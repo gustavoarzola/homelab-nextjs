@@ -54,7 +54,7 @@ type Props = {
   procedimientos: ProcedimientoOption[]
   examenes: ExamenOption[]
   talleres: TallerRow[]
-  tiposRecargos: { id: number; label: string }[]
+  tiposRecargos: { id: number; label: string; precio: number }[]
   preciosVisita: Record<string, number>
   onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
   onConvertir?: () => Promise<{ success: true; idVisita: number } | { success: false; error: string }>
@@ -127,8 +127,7 @@ export function CotizacionForm({
 
   // Cargos adicionales
   const [cobraVisita, setCobraVisita] = useState(cotizacion?.cobraVisita ?? false)
-  const [montoRecargo, setMontoRecargo] = useState(String(cotizacion?.montoRecargo ?? 0))
-  const [selectedIdTipoRecargo, setSelectedIdTipoRecargo] = useState<number | null>(cotizacion?.idTipoRecargo ?? null)
+  const [selectedSurcharges, setSelectedSurcharges] = useState<number[]>(cotizacion?.surchargeIds ?? [])
   const [notas, setNotas] = useState(cotizacion?.notas ?? '')
 
   const showManualFields = !selectedIdPaciente
@@ -151,8 +150,15 @@ export function CotizacionForm({
     selectedTallers.reduce((sum, id) => sum + (parseInt(tallerPriceMap[id] ?? '0') || 0), 0),
     [selectedTallers, tallerPriceMap]
   )
-  const totalRecargo = parseInt(montoRecargo) || 0
-  const totalGeneral = totalProcedimientos + totalExamenes + totalTalleres + precioVisita + totalRecargo
+  const totalRecargos = useMemo(() =>
+    selectedSurcharges.reduce((sum, id) => {
+      const saved = cotizacion?.surchargePrices?.find((s) => s.idTipoRecargo === id)?.precio
+      const precio = saved ?? tiposRecargos.find((t) => t.id === id)?.precio ?? 0
+      return sum + precio
+    }, 0),
+    [selectedSurcharges, cotizacion, tiposRecargos]
+  )
+  const totalGeneral = totalProcedimientos + totalExamenes + totalTalleres + precioVisita + totalRecargos
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -166,8 +172,7 @@ export function CotizacionForm({
     const fd = new FormData(e.currentTarget)
     fd.set('comuna', comunaNombre)
     fd.set('cobraVisita', String(cobraVisita))
-    fd.set('montoRecargo', montoRecargo || '0')
-    fd.set('idTipoRecargo', selectedIdTipoRecargo ? String(selectedIdTipoRecargo) : '')
+    selectedSurcharges.forEach((id) => fd.append('surcharge_ids', String(id)))
     fd.set('idPaciente', selectedIdPaciente ? String(selectedIdPaciente) : '')
     fd.set('nombreDestinatario', nombreDestinatario)
     fd.set('emailDestinatario', emailDestinatario)
@@ -211,8 +216,6 @@ export function CotizacionForm({
     label: `${e.nombre} — $${e.precio.toLocaleString('es-CL')}`,
   }))
   const pacientesOptions = pacientes.map((p) => ({ id: p.id, label: formatNombre(p) }))
-  const tipoRecargosOptions = tiposRecargos.map((t) => ({ id: t.id, label: t.label }))
-
   const tabs: { id: ServiceTab; label: string; count: number; Icon: typeof Stethoscope }[] = [
     { id: 'procedimientos', label: 'Procedimientos', count: selectedProcedures.length, Icon: Stethoscope },
     { id: 'examenes', label: 'Exámenes', count: selectedExams.length, Icon: FlaskConical },
@@ -679,53 +682,57 @@ export function CotizacionForm({
                 </div>
               </div>
 
-              {/* Recargo */}
+              {/* Recargos */}
               <div
                 className="rounded-lg p-4"
                 style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}
               >
                 <div className="mb-2.5 flex items-center justify-between">
                   <span className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
-                    Recargo
+                    Recargos
                   </span>
-                  {totalRecargo > 0 && (
+                  {totalRecargos > 0 && (
                     <span className="text-[13px] font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
-                      {CLP(totalRecargo)}
+                      {CLP(totalRecargos)}
                     </span>
                   )}
                 </div>
-                <div className="grid gap-2" style={{ gridTemplateColumns: '1fr 110px' }}>
-                  <SelectCombobox
-                    mode="single"
-                    placeholder="Tipo…"
-                    options={tipoRecargosOptions}
-                    selected={selectedIdTipoRecargo}
-                    onChange={setSelectedIdTipoRecargo}
-                    disabled={isPending || !parseInt(montoRecargo)}
-                    clearable
-                  />
-                  <div
-                    className="flex items-center gap-1.5 rounded-lg px-3 text-[13px]"
-                    style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', height: 38 }}
-                  >
-                    <span style={{ color: 'var(--muted-foreground)' }}>$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={montoRecargo}
-                      onChange={(e) => {
-                        setMontoRecargo(e.target.value)
-                        if (!e.target.value || parseInt(e.target.value) === 0) {
-                          setSelectedIdTipoRecargo(null)
-                        }
-                      }}
-                      placeholder="0"
-                      disabled={isPending}
-                      className="w-full bg-transparent outline-none text-right tabular-nums"
-                      style={{ color: 'var(--foreground)' }}
-                    />
+                <SelectCombobox
+                  mode="multi"
+                  placeholder="Agregar recargo…"
+                  options={tiposRecargos}
+                  selected={selectedSurcharges}
+                  onChange={setSelectedSurcharges}
+                  disabled={isPending}
+                />
+                {selectedSurcharges.length > 0 && (
+                  <div className="mt-2 overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
+                    {selectedSurcharges.map((id) => {
+                      const tipo = tiposRecargos.find((t) => t.id === id)
+                      if (!tipo) return null
+                      const precio = cotizacion?.surchargePrices?.find((s) => s.idTipoRecargo === id)?.precio ?? tipo.precio
+                      return (
+                        <div
+                          key={id}
+                          className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
+                          style={{ backgroundColor: 'var(--background)', borderBottom: '1px solid var(--border)' }}
+                        >
+                          <span className="flex-1" style={{ color: 'var(--foreground)' }}>{tipo.label}</span>
+                          <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>{CLP(precio)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSurcharges((prev) => prev.filter((x) => x !== id))}
+                            disabled={isPending}
+                            className="transition-opacity hover:opacity-70"
+                            style={{ color: 'var(--muted-foreground)' }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </section>
@@ -831,9 +838,13 @@ export function CotizacionForm({
                 label="Adicionales"
                 items={[
                   ...(cobraVisita ? [{ name: `Visita${comunaNombre ? ` · ${comunaNombre}` : ''}`, price: precioVisita }] : []),
-                  ...(totalRecargo > 0 ? [{ name: `Recargo${selectedIdTipoRecargo ? ` · ${tipoRecargosOptions.find(t => t.id === selectedIdTipoRecargo)?.label}` : ''}`, price: totalRecargo }] : []),
+                  ...selectedSurcharges.map((id) => {
+                    const tipo = tiposRecargos.find((t) => t.id === id)
+                    const precio = cotizacion?.surchargePrices?.find((s) => s.idTipoRecargo === id)?.precio ?? tipo?.precio ?? 0
+                    return { name: tipo?.label ?? '', price: precio }
+                  }),
                 ]}
-                subtotal={(cobraVisita ? precioVisita : 0) + totalRecargo}
+                subtotal={(cobraVisita ? precioVisita : 0) + totalRecargos}
               />
             </div>
 

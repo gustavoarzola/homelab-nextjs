@@ -177,8 +177,10 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
   if (data.costoVisitaEnfermeria > 0) {
     itemsHTML += subtotalRow('Visita de enfermería', data.costoVisitaEnfermeria)
   }
-  if (data.montoRecargo > 0 && data.tipoRecargoNombre) {
-    itemsHTML += subtotalRow(data.tipoRecargoNombre, data.montoRecargo)
+  for (const recargo of data.recargos) {
+    if (recargo.precio > 0) {
+      itemsHTML += subtotalRow(recargo.nombre, recargo.precio)
+    }
   }
 
   const totalCell =

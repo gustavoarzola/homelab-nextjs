@@ -22,6 +22,13 @@
       "when": 1779259592957,
       "tag": "0002_slim_violations",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779475769152,
+      "tag": "0003_tidy_white_queen",
+      "breakpoints": true
     }
   ]
 }

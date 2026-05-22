@@ -11,12 +11,19 @@ type Props = {
   onToggle: (id: number, activo: boolean) => Promise<Result>
 }
 
+const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
+
 const columns: ColumnDef<TipoRecargoRow>[] = [
   {
     id: 'nombre',
     header: 'Tipo de Recargo',
     enableSorting: true,
     cell: ({ row }) => <span>{row.original.nombre}</span>,
+  },
+  {
+    id: 'precio',
+    header: 'Precio',
+    cell: ({ row }) => <span className="tabular-nums">{CLP(row.original.precio)}</span>,
   },
   {
     id: 'activo',
@@ -43,6 +50,7 @@ const filters: FilterDef[] = [
 
 const formFields: FormFieldDef[] = [
   { name: 'nombre', label: 'Tipo de Recargo', required: true },
+  { name: 'precio', label: 'Precio', type: 'number', required: true },
 ]
 
 export function TiposRecargosTable({ initialData, search, onCreate, onUpdate, onToggle }: Props) {

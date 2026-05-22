@@ -18,8 +18,7 @@ describe('calcularCostoVisitaPreview', () => {
       tallerPriceMap: {},
       catalogProcedurePrices: [{ id: 1, precio: 15000 }],
       pricingContext,
-      cobraVisita: true,
-      montoRecargo: 0,
+      cobraVisita: false,
     })
 
     expect(costo.total).toBe(23000)
@@ -35,7 +34,6 @@ describe('calcularCostoVisitaPreview', () => {
       catalogProcedurePrices: [],
       pricingContext,
       cobraVisita: true,
-      montoRecargo: 0,
     })
 
     expect(costo.total).toBe(50000)
@@ -51,7 +49,6 @@ describe('calcularCostoVisitaPreview', () => {
       catalogProcedurePrices: [],
       pricingContext: { examPrices: [{ idExamen: 10, precioActual: 8000 }], nursingVisitPrice: null },
       cobraVisita: true,
-      montoRecargo: 0,
     })
 
     expect(costo.total).toBe(8000)
@@ -68,8 +65,7 @@ describe('calcularCostoVisitaPreview', () => {
       savedProcedurePrices: [{ idProcedimiento: 1, precio: 10000 }],
       savedExamPrices: [{ idExamen: 10, precio: 5000 }],
       pricingContext,
-      cobraVisita: true,
-      montoRecargo: 0,
+      cobraVisita: false,
     })
 
     expect(costo.total).toBe(15000)
@@ -83,8 +79,7 @@ describe('calcularCostoVisitaPreview', () => {
       tallerPriceMap: {},
       catalogProcedurePrices: [],
       pricingContext,
-      cobraVisita: true,
-      montoRecargo: 0,
+      cobraVisita: false,
     })
 
     expect(costo.total).toBe(0)
@@ -98,11 +93,11 @@ describe('calcularCostoVisitaPreview', () => {
       tallerPriceMap: {},
       catalogProcedurePrices: [{ id: 1, precio: 15000 }],
       pricingContext,
-      cobraVisita: true,
-      montoRecargo: 5000,
+      cobraVisita: false,
+      surchargeItems: [{ precio: 5000 }],
     })
 
     expect(costo.total).toBe(28000)
-    expect(costo.montoRecargo).toBe(5000)
+    expect(costo.subtotalRecargos).toBe(5000)
   })
 })

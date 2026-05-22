@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, visitWorkshops, workshops, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
+import { contactOrigins, visits, visitProcedures, visitExams, visitWorkshops, visitSurcharges, workshops, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
@@ -31,11 +31,11 @@ export async function getEnfermeras(): Promise<{ id: number; nombre: string }[]>
 
 // ─── getTiposRecargos ──────────────────────────────────────────────────────────
 
-export async function getTiposRecargos(): Promise<{ id: number; label: string }[]> {
+export async function getTiposRecargos(): Promise<{ id: number; label: string; precio: number }[]> {
   await requireSession()
 
   const rows = await db
-    .select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre })
+    .select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre, precio: surchargeTypes.precio })
     .from(surchargeTypes)
     .where(eq(surchargeTypes.activo, true))
     .orderBy(asc(surchargeTypes.nombre))
@@ -43,6 +43,7 @@ export async function getTiposRecargos(): Promise<{ id: number; label: string }[
   return rows.map((r) => ({
     id: r.id,
     label: r.nombre,
+    precio: r.precio,
   }))
 }
 
@@ -69,8 +70,6 @@ export type VisitaDetalle = {
   fechaEnvioResultados: string | null
   costoTraslado: number
   cobraVisita: boolean
-  montoRecargo: number | null
-  idTipoRecargo: number | null
   keyOrdenMedica: string | null
   procedureIds: number[]
   procedurePrices: { idProcedimiento: number; precio: number }[]
@@ -78,6 +77,8 @@ export type VisitaDetalle = {
   examPrices: { idExamen: number; precio: number }[]
   tallerIds: number[]
   tallerPrices: { idTaller: number; precio: number }[]
+  surchargeIds: number[]
+  surchargePrices: { idTipoRecargo: number; precio: number }[]
 }
 
 // ─── Row type ─────────────────────────────────────────────────────────────────
@@ -267,10 +268,11 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
   const [visit] = await db.select().from(visits).where(eq(visits.id, id))
   if (!visit) return null
 
-  const [procs, exams_, talleres_] = await Promise.all([
+  const [procs, exams_, talleres_, surcharges_] = await Promise.all([
     db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
     db.select({ idExamen: visitExams.idExamen, precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, id)),
     db.select({ idTaller: visitWorkshops.idTaller, precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, id)),
+    db.select({ idTipoRecargo: visitSurcharges.idTipoRecargo, precio: visitSurcharges.precio }).from(visitSurcharges).where(eq(visitSurcharges.idVisita, id)),
   ])
 
   return {
@@ -294,8 +296,6 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     fechaEnvioResultados: visit.fechaEnvioResultados ?? null,
     costoTraslado: visit.costoTraslado,
     cobraVisita: visit.cobraVisita,
-    montoRecargo: visit.montoRecargo ?? null,
-    idTipoRecargo: visit.idTipoRecargo ?? null,
     keyOrdenMedica: visit.keyOrdenMedica ?? null,
     procedureIds: procs.map((p) => p.idProcedimiento),
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
@@ -303,6 +303,8 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
     tallerIds: talleres_.map((t) => t.idTaller),
     tallerPrices: talleres_.map((t) => ({ idTaller: t.idTaller, precio: t.precio })),
+    surchargeIds: surcharges_.map((s) => s.idTipoRecargo),
+    surchargePrices: surcharges_.map((s) => ({ idTipoRecargo: s.idTipoRecargo, precio: s.precio })),
   }
 }
 
@@ -345,23 +347,16 @@ const visitaSharedFields = {
   origenContacto: fields.nullableStr,
   informacionAdicional: z.string().trim().optional().default(''),
   cobraVisita: fields.bool,
-  montoRecargo: z.coerce.number().int().min(0).default(0),
-  idTipoRecargo: fields.nullableId,
   procedureIds: fields.ids,
   examIds: fields.ids,
   tallerIds: fields.ids,
+  surchargeIds: fields.ids,
 }
 
-const visitaCreateSchema = z
-  .object({
-    idPaciente: z.coerce.number().int().positive('Paciente requerido'),
-    ...visitaSharedFields,
-  })
-  .superRefine((data, ctx) => {
-    if (data.montoRecargo > 0 && !data.idTipoRecargo) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['idTipoRecargo'], message: 'Tipo de recargo es requerido cuando hay monto de recargo' })
-    }
-  })
+const visitaCreateSchema = z.object({
+  idPaciente: z.coerce.number().int().positive('Paciente requerido'),
+  ...visitaSharedFields,
+})
 
 const visitaUpdateSchema = z
   .object({
@@ -382,9 +377,6 @@ const visitaUpdateSchema = z
       if (!data.tipoDocumento) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tipoDocumento'], message: 'Tipo de documento requerido para marcar como realizada' })
       if (!data.numeroAtencion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['numeroAtencion'], message: 'N° atención requerido para marcar como realizada' })
     }
-    if (data.montoRecargo > 0 && !data.idTipoRecargo) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['idTipoRecargo'], message: 'Tipo de recargo es requerido cuando hay monto de recargo' })
-    }
   })
 
 // ─── updateVisita ─────────────────────────────────────────────────────────────
@@ -394,14 +386,14 @@ export async function updateVisita(
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
   await requireSession()
 
-  const parsed = parseFormDataWithArrays(visitaUpdateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids'])
+  const parsed = parseFormDataWithArrays(visitaUpdateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids', 'surcharge_ids'])
   if (!parsed.success) return parsed
 
   const {
     id, fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
     numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago,
-    resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, montoRecargo,
-    idTipoRecargo, keyOrdenMedica, procedureIds, examIds, tallerIds,
+    resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita,
+    keyOrdenMedica, procedureIds, examIds, tallerIds, surchargeIds,
   } = parsed.data
 
   const tallerPrices = tallerIds.map((idTaller) => ({
@@ -413,7 +405,7 @@ export async function updateVisita(
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, montoRecargo, idTipoRecargo, keyOrdenMedica, updatedAt: new Date() })
+        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, keyOrdenMedica, updatedAt: new Date() })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.
@@ -439,9 +431,17 @@ export async function updateVisita(
         catalogPriceMap = new Map(catalogPrices.map((p) => [p.id, p.precio]))
       }
 
+      // Load existing surcharge prices before deleting
+      const existingSurcharges = await tx
+        .select({ idTipoRecargo: visitSurcharges.idTipoRecargo, precio: visitSurcharges.precio })
+        .from(visitSurcharges)
+        .where(eq(visitSurcharges.idVisita, id))
+      const storedSurchargePriceMap = new Map(existingSurcharges.map((s) => [s.idTipoRecargo, s.precio]))
+
       await tx.delete(visitProcedures).where(eq(visitProcedures.idVisita, id))
       await tx.delete(visitExams).where(eq(visitExams.idVisita, id))
       await tx.delete(visitWorkshops).where(eq(visitWorkshops.idVisita, id))
+      await tx.delete(visitSurcharges).where(eq(visitSurcharges.idVisita, id))
 
       if (procedureIds.length > 0) {
         await tx.insert(visitProcedures).values(
@@ -474,6 +474,25 @@ export async function updateVisita(
       if (tallerPrices.length > 0) {
         await tx.insert(visitWorkshops).values(
           tallerPrices.map(({ idTaller, precio }) => ({ idTaller, idVisita: id, precio })),
+        )
+      }
+
+      if (surchargeIds.length > 0) {
+        const newSurchargeIds = surchargeIds.filter((sid) => !storedSurchargePriceMap.has(sid))
+        let catalogSurchargePriceMap = new Map<number, number>()
+        if (newSurchargeIds.length > 0) {
+          const catalogPrices = await tx
+            .select({ id: surchargeTypes.id, precio: surchargeTypes.precio })
+            .from(surchargeTypes)
+            .where(inArray(surchargeTypes.id, newSurchargeIds))
+          catalogSurchargePriceMap = new Map(catalogPrices.map((r) => [r.id, r.precio]))
+        }
+        await tx.insert(visitSurcharges).values(
+          surchargeIds.map((sid) => ({
+            idTipoRecargo: sid,
+            idVisita: id,
+            precio: storedSurchargePriceMap.get(sid) ?? catalogSurchargePriceMap.get(sid) ?? 0,
+          })),
         )
       }
 
@@ -512,13 +531,13 @@ export async function createVisita(
 ): Promise<{ success: true; id: number } | { success: false; error: string }> {
   await requireSession()
 
-  const parsed = parseFormDataWithArrays(visitaCreateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids'])
+  const parsed = parseFormDataWithArrays(visitaCreateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids', 'surcharge_ids'])
   if (!parsed.success) return parsed
 
   const {
     idPaciente, fecha, hora, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
-    numeroAtencion, origenContacto, informacionAdicional, cobraVisita, montoRecargo,
-    idTipoRecargo, procedureIds, examIds, tallerIds,
+    numeroAtencion, origenContacto, informacionAdicional, cobraVisita,
+    procedureIds, examIds, tallerIds, surchargeIds,
   } = parsed.data
 
   const tallerPrices = tallerIds.map((idTaller) => ({
@@ -535,7 +554,7 @@ export async function createVisita(
           idPaciente, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
           numeroAtencion, origenContacto, informacionAdicional,
           pagado: false, resultadosEnviados: false, costoTraslado: 0,
-          cobraVisita, montoRecargo, idTipoRecargo,
+          cobraVisita,
         })
         .returning()
 
@@ -573,6 +592,21 @@ export async function createVisita(
       if (tallerPrices.length > 0) {
         await tx.insert(visitWorkshops).values(
           tallerPrices.map(({ idTaller, precio }) => ({ idTaller, idVisita: id, precio })),
+        )
+      }
+
+      if (surchargeIds.length > 0) {
+        const catalogPrices = await tx
+          .select({ id: surchargeTypes.id, precio: surchargeTypes.precio })
+          .from(surchargeTypes)
+          .where(inArray(surchargeTypes.id, surchargeIds))
+        const surchargePriceMap = new Map(catalogPrices.map((r) => [r.id, r.precio]))
+        await tx.insert(visitSurcharges).values(
+          surchargeIds.map((sid) => ({
+            idTipoRecargo: sid,
+            idVisita: id,
+            precio: surchargePriceMap.get(sid) ?? 0,
+          })),
         )
       }
 
