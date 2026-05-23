@@ -242,16 +242,16 @@ export function SelectCombobox(props: Props) {
                     />
                     {o.code && (
                       <span
-                        className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px]"
-                        style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+                        className="shrink-0 flex items-center justify-center rounded px-1.5 py-0.5 font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
+                        style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', width: '10ch' }}
                       >
                         {o.code}
                       </span>
                     )}
                     {o.tag && (
                       <span
-                        className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium"
-                        style={{ backgroundColor: o.tag.bg, color: o.tag.color }}
+                        className="shrink-0 flex items-center justify-center rounded px-1.5 py-0.5 font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
+                        style={{ backgroundColor: o.tag.bg, color: o.tag.color, width: '17ch' }}
                       >
                         {o.tag.label}
                       </span>

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { SelectCombobox } from '@/components/select-combobox'
+import { ExamLabel } from '@/components/exam-label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FileUpload } from '@/components/file-upload'
 import { TimePicker } from '@/components/time-picker'
@@ -16,7 +17,7 @@ import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
-import { EXAM_GRUPO_LABELS, EXAM_GRUPO_COLORS, type ExamGrupo } from '@/lib/exam-grupos'
+import { buildExamenOption } from '@/lib/exam-option'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { LaboratorioRow } from '@/lib/actions/laboratorios'
 import type { ProcedimientoRow, ExamenRow, TallerRow } from '@/lib/actions/catalogos'
@@ -471,18 +472,7 @@ export function VisitaForm({
   // Options
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
   const talleresOptions = talleres.map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
-  const examenesOptions = examenes.map((e) => {
-    const grupo = e.grupoExamen as ExamGrupo
-    return {
-      id: e.id,
-      label: e.nombre,
-      code: e.codigo,
-      tag: {
-        label: EXAM_GRUPO_LABELS[grupo] ?? e.grupoExamen,
-        ...(EXAM_GRUPO_COLORS[grupo] ?? { bg: '#f3f4f6', color: '#374151' }),
-      },
-    }
-  })
+  const examenesOptions = examenes.map(buildExamenOption)
   const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatNombre(e) }))
   const laboratoriosOptions = laboratorios.map((l) => ({ id: l.id, label: l.nombre }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
@@ -927,12 +917,9 @@ export function VisitaForm({
                           className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
                           style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)', backgroundColor: 'var(--card)' }}
                         >
-                          <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px]" style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-                            {examen.codigo}
-                          </span>
-                          <span className="flex-1" style={{ color: 'var(--foreground)' }}>{examen.nombre}</span>
+                          <ExamLabel codigo={examen.codigo} nombre={examen.nombre} grupoExamen={examen.grupoExamen} />
                           {priceChanged && <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />}
-                          <span className="tabular-nums" style={{ color: 'var(--foreground)', minWidth: 80, textAlign: 'right' }}>
+                          <span className="tabular-nums ml-auto" style={{ color: 'var(--foreground)', minWidth: 80, textAlign: 'right' }}>
                             {CLP(precio)}
                           </span>
                           <button
@@ -1434,31 +1421,6 @@ export function VisitaForm({
               )}
             </div>
 
-            {/* CTA buttons */}
-            <div className="flex flex-col gap-2 p-3" style={{ borderTop: '1px solid var(--border)' }}>
-              <button
-                type="submit"
-                form="visita-form"
-                disabled={isPending}
-                className="flex h-[42px] w-full items-center justify-center gap-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-                style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-              >
-                {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {isEdit ? 'Guardar cambios' : 'Crear visita'}
-              </button>
-              {isEdit && (
-                <Link
-                  href={`/api/cotizacion/${visita.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border text-[13px] font-medium transition-opacity hover:opacity-80"
-                  style={{ color: 'var(--foreground)', borderColor: 'var(--border)' }}
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  Cotización PDF
-                </Link>
-              )}
-            </div>
           </div>
 
           {isEdit && (

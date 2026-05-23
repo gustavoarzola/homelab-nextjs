@@ -16,10 +16,11 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { SelectCombobox } from '@/components/select-combobox'
+import { ExamLabel } from '@/components/exam-label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatNombre } from '@/lib/paciente'
 import { COMUNAS_OPTIONS, COMUNAS_RM } from '@/lib/comunas'
-import { EXAM_GRUPO_LABELS, EXAM_GRUPO_COLORS, type ExamGrupo } from '@/lib/exam-grupos'
+import { buildExamenOption } from '@/lib/exam-option'
 import type { CotizacionDetalle } from '@/lib/actions/cotizaciones'
 import type { TallerRow } from '@/lib/actions/catalogos'
 
@@ -209,18 +210,7 @@ export function CotizacionForm({
   }
 
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
-  const examenesOptions = examenes.map((e) => {
-    const grupo = e.grupoExamen as ExamGrupo
-    return {
-      id: e.id,
-      label: e.nombre,
-      code: e.codigo,
-      tag: {
-        label: EXAM_GRUPO_LABELS[grupo] ?? e.grupoExamen,
-        ...(EXAM_GRUPO_COLORS[grupo] ?? { bg: '#f3f4f6', color: '#374151' }),
-      },
-    }
-  })
+  const examenesOptions = examenes.map(buildExamenOption)
   const pacientesOptions = pacientes.map((p) => ({ id: p.id, label: formatNombre(p) }))
   const tabs: { id: ServiceTab; label: string; count: number; Icon: typeof Stethoscope }[] = [
     { id: 'procedimientos', label: 'Procedimientos', count: selectedProcedures.length, Icon: Stethoscope },
@@ -827,7 +817,7 @@ export function CotizacionForm({
                 label="Exámenes"
                 items={selectedExams.map((id) => {
                   const e = examenes.find((x) => x.id === id)!
-                  return { name: e.nombre, price: e.precio }
+                  return { code: e.codigo, nombre: e.nombre, grupoExamen: e.grupoExamen, price: e.precio }
                 })}
                 subtotal={totalExamenes}
               />
@@ -879,34 +869,6 @@ export function CotizacionForm({
               </p>
             </div>
 
-            {/* CTA buttons */}
-            <div
-              className="flex flex-col gap-2 p-3"
-              style={{ borderTop: '1px solid var(--border)' }}
-            >
-              <button
-                type="submit"
-                form="cotizacion-form"
-                disabled={isPending}
-                className="flex h-[42px] w-full items-center justify-center gap-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-                style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-              >
-                {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {isEdit ? 'Guardar cambios' : 'Crear cotización'}
-              </button>
-              {isEdit && (
-                <a
-                  href={`/api/cotizacion-standalone/${cotizacion!.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border text-[13px] font-medium transition-opacity hover:opacity-80"
-                  style={{ color: 'var(--foreground)', borderColor: 'var(--border)' }}
-                >
-                  <Printer className="h-3.5 w-3.5" />
-                  Imprimir
-                </a>
-              )}
-            </div>
           </div>
 
           <p className="mt-3 px-2 text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
@@ -1096,7 +1058,10 @@ function SummaryGroup({
 }: {
   label: string
   tone: 'blue' | 'green' | 'violet' | 'amber'
-  items: { name: string; price: number }[]
+  items: (
+    | { name: string; price: number }
+    | { code: string; nombre: string; grupoExamen: string; price: number }
+  )[]
   subtotal: number
 }) {
   const dotColor = {
@@ -1134,7 +1099,11 @@ function SummaryGroup({
             className="flex items-baseline justify-between gap-2 text-[12px]"
             style={{ color: 'var(--muted-foreground)' }}
           >
-            <span className="truncate">{item.name}</span>
+            {'code' in item ? (
+              <ExamLabel codigo={item.code} nombre={item.nombre} grupoExamen={item.grupoExamen} />
+            ) : (
+              <span className="truncate">{item.name}</span>
+            )}
             <span className="shrink-0 tabular-nums">{CLP(item.price)}</span>
           </li>
         ))}
