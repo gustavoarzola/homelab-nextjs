@@ -81,6 +81,7 @@ src/
     auth-guard.ts           # requireSession() helper
     validation.ts           # parseFormData / parseFormDataWithArrays + campos reutilizables (fields)
     r2.ts                   # Cliente S3 para Cloudflare R2
+    excel/build-excel.ts    # Helper genérico para generar .xlsx desde columnas + filas (ExcelJS)
     format.ts               # Formateo de fechas (zona Chile)
     rut.ts                  # Validación/formateo RUT chileno
     paciente.ts             # Helper formatNombre()
@@ -260,6 +261,7 @@ Solo se usan cuando se necesita controlar headers HTTP o servir contenido no-JSO
 | `/api/cotizacion-standalone/[id]` | GET | HTML imprimible de cotización independiente |
 | `/api/upload` | POST | Subir archivo a Cloudflare R2 |
 | `/api/r2-file` | GET | Redirect a signed URL de R2 |
+| `/api/visitas/export` | GET | Descarga .xlsx con visitas filtradas (acepta los mismos filtros que `searchVisitas` como query params) |
 
 ---
 

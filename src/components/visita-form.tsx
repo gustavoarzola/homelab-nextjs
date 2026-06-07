@@ -1360,20 +1360,22 @@ export function VisitaForm({
               <SummaryGroup
                 tone="blue"
                 label="Procedimientos"
-                items={selectedProcedures.map((id) => {
-                  const p = procedimientos.find((x) => x.id === id)!
+                items={selectedProcedures.flatMap((id) => {
+                  const p = procedimientos.find((x) => x.id === id)
+                  if (!p) return []
                   const saved = visita?.procedurePrices.find((x) => x.idProcedimiento === id)
-                  return { name: p?.nombre ?? '', price: saved?.precio ?? p?.precio ?? 0 }
+                  return [{ name: p.nombre, price: saved?.precio ?? p.precio }]
                 })}
                 subtotal={costoPreview.subtotalProcedimientos}
               />
               <SummaryGroup
                 tone="green"
                 label="Exámenes"
-                items={selectedExams.map((id) => {
-                  const e = examenes.find((x) => x.id === id)!
+                items={selectedExams.flatMap((id) => {
+                  const e = examenes.find((x) => x.id === id)
+                  if (!e) return []
                   const saved = visita?.examPrices.find((x) => x.idExamen === id)
-                  return { name: e?.nombre ?? '', price: saved?.precio ?? e?.precio ?? 0 }
+                  return [{ name: e.nombre, price: saved?.precio ?? e.precio }]
                 })}
                 subtotal={costoPreview.subtotalExamenes}
               />
