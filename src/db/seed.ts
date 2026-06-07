@@ -3,7 +3,7 @@ import { join } from 'path'
 import { db } from './index'
 import {
   users, nurses, patients, addresses, patientPhones,
-  visits, visitExams, visitProcedures,
+  visits, visitExams, visitProcedures, visitWorkshops, visitSurcharges,
   healthInsurances, elderlyResidences,
   laboratories,
   procedures, exams,
@@ -12,7 +12,7 @@ import {
   nursingVisitPrices,
   workshops,
 } from './schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 
 // ─── RUT helpers ──────────────────────────────────────────────────────────────
@@ -512,29 +512,121 @@ function buildPatient(
   }
 }
 
+// ─── Precio base de visita de enfermería ──────────────────────────────────────
+
+const NURSING_BASE_PRICE = 30000
+
+// ─── Item builder para visitas ────────────────────────────────────────────────
+
+function buildVisitItems(
+  idx: number,
+  allProcsCat: { id: number; precio: number }[],
+  allExamsCat: { id: number; precio: number }[],
+  allWorkshopsCat: { id: number }[],
+  allSurchargesCat: { id: number; precio: number }[],
+) {
+  const h1 = ((idx + 13) * 2654435761) >>> 0
+  const h2 = ((idx + 97) * 1234567891) >>> 0
+  const variant = h1 % 10
+
+  // variant → tipo de visita
+  // 0,1,2 → solo exámenes
+  // 3,4   → solo procedimientos
+  // 5,6   → exámenes + procedimientos
+  // 7     → exámenes + recargo
+  // 8     → procedimientos + taller
+  // 9     → exámenes + procedimientos + recargo
+  const hasExams     = variant !== 3 && variant !== 4 && variant !== 8
+  const hasProcs     = variant === 3 || variant === 4 || (variant >= 5 && variant !== 7)
+  const hasWorkshop  = variant === 8
+  const hasSurcharge = variant === 7 || variant === 9
+
+  const examItems:     { idExamen: number; precio: number }[]       = []
+  const procItems:     { idProcedimiento: number; precio: number }[] = []
+  const workshopItems: { idTaller: number; precio: number }[]        = []
+  const surchargeItems:{ idTipoRecargo: number; precio: number }[]   = []
+
+  if (hasExams && allExamsCat.length > 0) {
+    const count = (h1 % 3) + 1 // 1-3 exámenes
+    const used = new Set<number>()
+    for (let e = 0; e < count; e++) {
+      let ei = ((h1 * (e + 1) * 31 + e * 997) >>> 0) % allExamsCat.length
+      while (used.has(ei)) ei = (ei + 1) % allExamsCat.length
+      used.add(ei)
+      examItems.push({ idExamen: allExamsCat[ei]!.id, precio: allExamsCat[ei]!.precio })
+    }
+  }
+
+  if (hasProcs && allProcsCat.length > 0) {
+    const count = (h2 % 2) + 1 // 1-2 procedimientos
+    const used = new Set<number>()
+    for (let p = 0; p < count; p++) {
+      let pi = ((h2 * (p + 1) * 17 + p * 113) >>> 0) % allProcsCat.length
+      while (used.has(pi)) pi = (pi + 1) % allProcsCat.length
+      used.add(pi)
+      procItems.push({ idProcedimiento: allProcsCat[pi]!.id, precio: allProcsCat[pi]!.precio })
+    }
+  }
+
+  if (hasWorkshop && allWorkshopsCat.length > 0) {
+    const wi = (h1 >>> 4) % allWorkshopsCat.length
+    const workshopPrice = (((h2 >>> 8) % 7) + 2) * 10000 // 20.000-80.000
+    workshopItems.push({ idTaller: allWorkshopsCat[wi]!.id, precio: workshopPrice })
+  }
+
+  if (hasSurcharge && allSurchargesCat.length > 0) {
+    const si = (h2 >>> 4) % allSurchargesCat.length
+    const surcharge = allSurchargesCat[si]!
+    // Si el tipo tiene precio fijo lo usa; si es 0 (ej. transporte) genera monto aleatorio
+    const surchargePrice = surcharge.precio > 0 ? surcharge.precio : (((h1 >>> 12) % 3) + 1) * 5000
+    surchargeItems.push({ idTipoRecargo: surcharge.id, precio: surchargePrice })
+  }
+
+  const cobraVisita = (h2 % 100) < 35 // 35% cobran visita de enfermería
+
+  const total =
+    examItems.reduce((s, e) => s + e.precio, 0) +
+    procItems.reduce((s, p) => s + p.precio, 0) +
+    workshopItems.reduce((s, w) => s + w.precio, 0) +
+    surchargeItems.reduce((s, r) => s + r.precio, 0) +
+    (cobraVisita ? NURSING_BASE_PRICE : 0)
+
+  return { examItems, procItems, workshopItems, surchargeItems, cobraVisita, total }
+}
+
 // ─── Seed ─────────────────────────────────────────────────────────────────────
 
 async function seed() {
   console.log('🌱 Seeding database...')
 
-  // Orden de borrado respetando FK
-  await db.delete(visitExams)
-  await db.delete(visitProcedures)
-  await db.delete(visits)
-  await db.delete(nursingVisitPrices)
-  await db.delete(patientPhones)
-  await db.delete(patients)
-  await db.delete(addresses)
-  await db.delete(nurses)
-  await db.delete(laboratories)
-  await db.delete(healthInsurances)
-  await db.delete(elderlyResidences)
-  await db.delete(procedures)
-  await db.delete(exams)
-  await db.delete(workshops)
-  await db.delete(contactOrigins)
-  await db.delete(surchargeTypes)
-  await db.delete(users)
+  // Truncate sin piedad — CASCADE resuelve todas las FK, RESTART IDENTITY resetea los IDs
+  await db.execute(sql`
+    TRUNCATE TABLE
+      recargos_visitas,
+      talleres_visitas,
+      examenes_visitas,
+      procedimientos_visitas,
+      cotizacion_talleres,
+      cotizacion_procedimientos,
+      cotizacion_examenes,
+      cotizaciones,
+      visitas,
+      precios_visita_enfermeria,
+      telefonos_pacientes,
+      pacientes,
+      direcciones,
+      enfermeras,
+      laboratorios,
+      companias_seguros,
+      residencias_adulto_mayor,
+      procedimientos,
+      examenes,
+      talleres,
+      origenes_contacto,
+      tipos_recargos,
+      usuarios
+    RESTART IDENTITY CASCADE
+  `)
 
   // Usuarios del sistema
   const adminHash = await bcrypt.hash('admin123', 10)
@@ -620,6 +712,12 @@ async function seed() {
   const isapreCount = previsionIds.slice(4, 11).reduce((s, id) => s + (prevDist[id] ?? 0), 0)
   const otrosCount  = TOTAL_PATIENTS - fonasaCount - isapreCount
 
+  // Catálogos para generar items de visitas
+  const allProcsCat    = await db.select({ id: procedures.id, precio: procedures.precio }).from(procedures)
+  const allExamsCat    = await db.select({ id: exams.id, precio: exams.precio }).from(exams)
+  const allWorkshopsCat = await db.select({ id: workshops.id }).from(workshops)
+  const allSurchargesCat = await db.select({ id: surchargeTypes.id, precio: surchargeTypes.precio }).from(surchargeTypes)
+
   // Visitas con historial (enero-early abril 2026)
   const allPatients = await db.select({ id: patients.id }).from(patients)
   const allLaboratories = await db.select({ id: laboratories.id }).from(laboratories)
@@ -633,6 +731,7 @@ async function seed() {
       hora: string
       estado: string
       costo: number
+      cobraVisita: boolean
       idPaciente: number
       idEnfermera: number | null
       idLaboratorio: number
@@ -642,6 +741,9 @@ async function seed() {
       origenContacto: string
       informacionAdicional: string
     }> = []
+
+    // Items por visita (indexados igual que visitRows)
+    const visitItemsByIndex: Array<ReturnType<typeof buildVisitItems>> = []
 
     // Generate 12-22 visits per day (Mon-Sat) for Jan 1 2025 - Apr 15 2025
     const visitDates: { date: Date; state: 'realizada' | 'creada'; assignNurse: boolean }[] = []
@@ -704,11 +806,15 @@ async function seed() {
         numeroBoleta = String(realizadaCounter).padStart(7, '0')
       }
 
+      const items = buildVisitItems(idx, allProcsCat, allExamsCat, allWorkshopsCat, allSurchargesCat)
+      visitItemsByIndex.push(items)
+
       visitRows.push({
         fecha,
         hora: `${hour}:${minute}:${second}`,
         estado: state,
-        costo: Math.floor(Math.random() * 100000) + 20000,
+        costo: items.total,
+        cobraVisita: items.cobraVisita,
         idPaciente: patientId,
         idEnfermera: nurseId,
         idLaboratorio: labId,
@@ -721,11 +827,54 @@ async function seed() {
     }
 
     console.log(`   Insertando ${visitRows.length} visitas (enero-abril 2026)...`)
+    const insertedVisitIds: number[] = []
     const VISIT_BATCH = 100
     for (let offset = 0; offset < visitRows.length; offset += VISIT_BATCH) {
-      await db.insert(visits).values(visitRows.slice(offset, offset + VISIT_BATCH))
+      const returned = await db.insert(visits).values(visitRows.slice(offset, offset + VISIT_BATCH)).returning()
+      insertedVisitIds.push(...returned.map(r => r.id))
     }
     visitsCount = visitRows.length
+
+    // Construir filas de items usando los IDs reales de visitas
+    const allExamRows:     { idExamen: number; idVisita: number; precio: number }[]        = []
+    const allProcRows:     { idProcedimiento: number; idVisita: number; precio: number }[] = []
+    const allWorkshopRows: { idTaller: number; idVisita: number; precio: number }[]        = []
+    const allSurchargeRows:{ idTipoRecargo: number; idVisita: number; precio: number }[]   = []
+
+    for (let i = 0; i < insertedVisitIds.length; i++) {
+      const visitId = insertedVisitIds[i]!
+      const items = visitItemsByIndex[i]!
+      for (const e of items.examItems)     allExamRows.push({ ...e, idVisita: visitId })
+      for (const p of items.procItems)     allProcRows.push({ ...p, idVisita: visitId })
+      for (const w of items.workshopItems) allWorkshopRows.push({ ...w, idVisita: visitId })
+      for (const s of items.surchargeItems)allSurchargeRows.push({ ...s, idVisita: visitId })
+    }
+
+    const ITEM_BATCH = 500
+    if (allExamRows.length > 0) {
+      console.log(`   Insertando ${allExamRows.length} exámenes de visitas...`)
+      for (let offset = 0; offset < allExamRows.length; offset += ITEM_BATCH) {
+        await db.insert(visitExams).values(allExamRows.slice(offset, offset + ITEM_BATCH))
+      }
+    }
+    if (allProcRows.length > 0) {
+      console.log(`   Insertando ${allProcRows.length} procedimientos de visitas...`)
+      for (let offset = 0; offset < allProcRows.length; offset += ITEM_BATCH) {
+        await db.insert(visitProcedures).values(allProcRows.slice(offset, offset + ITEM_BATCH))
+      }
+    }
+    if (allWorkshopRows.length > 0) {
+      console.log(`   Insertando ${allWorkshopRows.length} talleres de visitas...`)
+      for (let offset = 0; offset < allWorkshopRows.length; offset += ITEM_BATCH) {
+        await db.insert(visitWorkshops).values(allWorkshopRows.slice(offset, offset + ITEM_BATCH))
+      }
+    }
+    if (allSurchargeRows.length > 0) {
+      console.log(`   Insertando ${allSurchargeRows.length} recargos de visitas...`)
+      for (let offset = 0; offset < allSurchargeRows.length; offset += ITEM_BATCH) {
+        await db.insert(visitSurcharges).values(allSurchargeRows.slice(offset, offset + ITEM_BATCH))
+      }
+    }
   }
 
   // Visitas sin asignación de enfermeras (24-30 marzo 2026, 40 visitas/día - COMMENTED OUT)
