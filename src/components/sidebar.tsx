@@ -22,6 +22,7 @@ import {
   Tag,
   FileText,
   BookOpen,
+  Wallet,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -34,6 +35,7 @@ const navItems = [
   { href: '/asignacion/envio-correos', label: 'Envío de correos', icon: Mail },
   { href: '/pacientes', label: 'Pacientes', icon: Users },
   { href: '/enfermeras', label: 'Enfermeras', icon: Stethoscope },
+  { href: '/pagos-enfermeras', label: 'Pagos enfermeras', icon: Wallet },
   { href: '/laboratorios', label: 'Laboratorios', icon: Network },
   { href: '/procedimientos', label: 'Procedimientos', icon: ClipboardList },
   { href: '/examenes', label: 'Exámenes', icon: Microscope },

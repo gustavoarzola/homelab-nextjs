@@ -3,9 +3,10 @@
 import { and, asc, count, desc, eq, gte, lte, sql, sum } from 'drizzle-orm'
 
 import { db } from '@/db'
-import { laboratories, nurses, patients, visits } from '@/db/schema'
+import { laboratories, nurses, patients, visitExams, visitWorkshops, visits } from '@/db/schema'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
+import { calcNursePayment, calcNursePaymentBase } from '@/lib/pricing/nurse-payment'
 
 const MONTHS = [
   'enero',
@@ -224,21 +225,37 @@ export async function getDashboardFinanciero(month: number, year: number) {
       .orderBy(desc(visits.fecha))
       .limit(20),
 
-    // Pagos estimados a enfermeras
-    db
-      .select({
-        label: sql<string>`trim(concat(${nurses.nombres}, ' ', ${nurses.apellidoPaterno}))`,
-        visits: count(),
-        totalCosto: sum(visits.costo),
-        porcentaje: nurses.porcentajePago,
-      })
-      .from(visits)
-      .innerJoin(nurses, eq(visits.idEnfermera, nurses.id))
-      .where(
-        and(gte(visits.fecha, start), lte(visits.fecha, end), eq(visits.estado, 'realizada')),
-      )
-      .groupBy(nurses.id, nurses.nombres, nurses.apellidoPaterno, nurses.porcentajePago)
-      .orderBy(desc(sum(visits.costo))),
+    // Pagos estimados a enfermeras (base = costo total − exámenes − talleres)
+    (() => {
+      const sqExams = db
+        .select({ idVisita: visitExams.idVisita, total: sum(visitExams.precio).as('exam_total') })
+        .from(visitExams)
+        .groupBy(visitExams.idVisita)
+        .as('sq_exams_dash')
+
+      const sqWorkshops = db
+        .select({ idVisita: visitWorkshops.idVisita, total: sum(visitWorkshops.precio).as('ws_total') })
+        .from(visitWorkshops)
+        .groupBy(visitWorkshops.idVisita)
+        .as('sq_workshops_dash')
+
+      return db
+        .select({
+          label: sql<string>`trim(concat(${nurses.nombres}, ' ', ${nurses.apellidoPaterno}))`,
+          visits: count(),
+          totalBase: sql<string>`SUM(${visits.costo} - COALESCE(${sqExams.total}, 0) - COALESCE(${sqWorkshops.total}, 0))`,
+          porcentaje: nurses.porcentajePago,
+        })
+        .from(visits)
+        .innerJoin(nurses, eq(visits.idEnfermera, nurses.id))
+        .leftJoin(sqExams, eq(visits.id, sqExams.idVisita))
+        .leftJoin(sqWorkshops, eq(visits.id, sqWorkshops.idVisita))
+        .where(
+          and(gte(visits.fecha, start), lte(visits.fecha, end), eq(visits.estado, 'realizada')),
+        )
+        .groupBy(nurses.id, nurses.nombres, nurses.apellidoPaterno, nurses.porcentajePago)
+        .orderBy(desc(sql`SUM(${visits.costo} - COALESCE(${sqExams.total}, 0) - COALESCE(${sqWorkshops.total}, 0))`))
+    })(),
   ])
 
   const cobrosPendientes: CobroPendienteRow[] = cobrosPendientesRaw.map((r) => ({
@@ -267,7 +284,7 @@ export async function getDashboardFinanciero(month: number, year: number) {
   const pagosEnfermeras: PagoEnfermeraRow[] = pagosEnfermeraRaw.map((r) => ({
     label: r.label,
     visits: Number(r.visits),
-    monto: Math.round((Number(r.totalCosto ?? 0) * Number(r.porcentaje ?? 67.5)) / 100),
+    monto: calcNursePayment(Number(r.totalBase ?? 0), Number(r.porcentaje ?? 67.5)),
   }))
 
   return {

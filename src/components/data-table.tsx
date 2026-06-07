@@ -12,7 +12,7 @@ import {
 import {
   Plus, PowerOff, Power, Trash2, Pencil,
   ChevronUp, ChevronDown, ChevronsUpDown,
-  ChevronLeft, ChevronRight, X, Loader2,
+  ChevronLeft, ChevronRight, X, Loader2, Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -79,6 +79,7 @@ type Props<T extends { id: number; activo?: boolean }> = {
   createHref?: string
   getEditHref?: (row: T) => string | null
   extraRowActions?: (row: T) => React.ReactNode
+  exportHref?: string   // Si se pasa, se muestra un botón "Descargar Excel" que apunta a este endpoint con los filtros aplicados como query string
 }
 
 // ─── Helpers (module-level, pure) ─────────────────────────────────────────────
@@ -109,6 +110,25 @@ function toOurSort(s: SortingState): SearchParams['sort'] {
   return s[0] ? { key: s[0].id, dir: s[0].desc ? 'desc' : 'asc' } : null
 }
 
+function buildExportQuery(
+  filters: Record<string, string | boolean>,
+  sort: SearchParams['sort'],
+): string {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) {
+    if (typeof value === 'boolean') {
+      if (value) params.set(key, 'true')
+    } else if (value !== '') {
+      params.set(key, value)
+    }
+  }
+  if (sort) {
+    params.set('sortKey', sort.key)
+    params.set('sortDir', sort.dir)
+  }
+  return params.toString()
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function DataTable<T extends { id: number; activo?: boolean }>({
@@ -126,6 +146,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
   createHref,
   getEditHref,
   extraRowActions,
+  exportHref,
 }: Props<T>) {
   const [data, setData] = useState(initialData)
   const [draft, setDraft] = useState(() => initFilters(filterDefs))
@@ -264,6 +285,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
       sorting,
       pagination: { pageIndex: page - 1, pageSize },
     },
+    enableSortingRemoval: false,
     onSortingChange: handleSortingChange,
     onPaginationChange: () => {},   // handled manually
   })
@@ -395,29 +417,45 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
         <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
           {data.total} {data.total === 1 ? entityLabel : `${entityLabel}s`}
         </p>
-        {createHref ? (
-          <Link
-            href={createHref}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium hover:opacity-80 transition-opacity"
-            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-          >
-            <Plus className="h-4 w-4" />
-            {createLabel ?? `Nuevo/a ${entityLabel}`}
-          </Link>
-        ) : (
-          <button
-            onClick={() => {
-              setFormDraft({})
-              setModal({ type: 'create' })
-            }}
-            disabled={isPending}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
-            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-          >
-            <Plus className="h-4 w-4" />
-            {createLabel ?? `Nuevo/a ${entityLabel}`}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {exportHref && (
+            <a
+              href={(() => {
+                const qs = buildExportQuery(applied, toOurSort(sorting))
+                return qs ? `${exportHref}?${qs}` : exportHref
+              })()}
+              title="Descargar Excel con los registros filtrados"
+              className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium hover:opacity-80 transition-opacity"
+              style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+            >
+              <Download className="h-4 w-4" />
+              Descargar Excel
+            </a>
+          )}
+          {createHref ? (
+            <Link
+              href={createHref}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+            >
+              <Plus className="h-4 w-4" />
+              {createLabel ?? `Nuevo/a ${entityLabel}`}
+            </Link>
+          ) : onCreate ? (
+            <button
+              onClick={() => {
+                setFormDraft({})
+                setModal({ type: 'create' })
+              }}
+              disabled={isPending}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+            >
+              <Plus className="h-4 w-4" />
+              {createLabel ?? `Nuevo/a ${entityLabel}`}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {/* Table */}
@@ -510,7 +548,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                               </Link>
                             )
                           }
-                          if (!getEditHref) {
+                          if (!getEditHref && onUpdate) {
                             return (
                               <button
                                 onClick={() => {
