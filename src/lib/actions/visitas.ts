@@ -66,8 +66,8 @@ export type VisitaDetalle = {
   pagado: boolean
   metodoPago: string | null
   fechaPago: string | null
-  resultadosEnviados: boolean
-  fechaEnvioResultados: string | null
+  resultadosEnviadosCount: number
+  resultadosTotalCount: number
   costoTraslado: number
   cobraVisita: boolean
   keyOrdenMedica: string | null
@@ -96,7 +96,8 @@ export type VisitaRow = {
   enfermera: string | null
   laboratorio: string | null
   pagado: boolean
-  resultadosEnviados: boolean
+  resultadosEnviadosCount: number
+  resultadosTotalCount: number
   keyOrdenMedica: string | null
 }
 
@@ -127,7 +128,7 @@ function buildVisitasWhere(filters: SearchParams['filters']): SQL | undefined {
   if (fechaInicio) conditions.push(gte(visits.fecha, fechaInicio))
   if (fechaFin) conditions.push(lte(visits.fecha, fechaFin))
   if (pendientePago) conditions.push(and(eq(visits.pagado, false), eq(visits.estado, 'realizada'))!)
-  if (resultadosPendientes) conditions.push(and(eq(visits.resultadosEnviados, false), eq(visits.estado, 'realizada'))!)
+  if (resultadosPendientes) conditions.push(and(sql`${visits.resultadosEnviadosCount} < ${visits.resultadosTotalCount}`, eq(visits.estado, 'realizada'))!)
 
   return conditions.length ? and(...conditions) : undefined
 }
@@ -152,7 +153,8 @@ const visitaRowSelect = {
   costo: visits.costo,
   idPaciente: visits.idPaciente,
   pagado: visits.pagado,
-  resultadosEnviados: visits.resultadosEnviados,
+  resultadosEnviadosCount: visits.resultadosEnviadosCount,
+  resultadosTotalCount: visits.resultadosTotalCount,
   pacienteNombres: patients.nombres,
   pacienteApellido: patients.apellidoPaterno,
   pacienteApellidoMaterno: patients.apellidoMaterno,
@@ -171,7 +173,8 @@ type VisitaRawRow = {
   costo: number
   idPaciente: number | null
   pagado: boolean
-  resultadosEnviados: boolean
+  resultadosEnviadosCount: number
+  resultadosTotalCount: number
   pacienteNombres: string | null
   pacienteApellido: string | null
   pacienteApellidoMaterno: string | null
@@ -203,7 +206,8 @@ function mapVisitaRow(r: VisitaRawRow): VisitaRow {
     }) || null,
     laboratorio: r.laboratorio ?? null,
     pagado: r.pagado,
-    resultadosEnviados: r.resultadosEnviados,
+    resultadosEnviadosCount: r.resultadosEnviadosCount,
+    resultadosTotalCount: r.resultadosTotalCount,
     keyOrdenMedica: r.keyOrdenMedica ?? null,
   }
 }
@@ -349,8 +353,8 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     pagado: visit.pagado,
     metodoPago: visit.metodoPago ?? null,
     fechaPago: visit.fechaPago ?? null,
-    resultadosEnviados: visit.resultadosEnviados,
-    fechaEnvioResultados: visit.fechaEnvioResultados ?? null,
+    resultadosEnviadosCount: visit.resultadosEnviadosCount,
+    resultadosTotalCount: visit.resultadosTotalCount,
     costoTraslado: visit.costoTraslado,
     cobraVisita: visit.cobraVisita,
     keyOrdenMedica: visit.keyOrdenMedica ?? null,
@@ -423,8 +427,6 @@ const visitaUpdateSchema = z
     pagado: fields.bool,
     metodoPago: fields.nullableStr,
     fechaPago: fields.nullableStr,
-    resultadosEnviados: fields.bool,
-    fechaEnvioResultados: fields.nullableStr,
     costoTraslado: z.coerce.number().int().min(0).default(0),
     keyOrdenMedica: fields.nullableStr,
     ...visitaSharedFields,
@@ -450,7 +452,7 @@ export async function updateVisita(
   const {
     id, fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
     numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago,
-    resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita,
+    costoTraslado, cobraVisita,
     keyOrdenMedica,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
@@ -473,7 +475,7 @@ export async function updateVisita(
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, resultadosEnviados, fechaEnvioResultados, costoTraslado, cobraVisita, keyOrdenMedica, updatedAt: new Date() })
+        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, costoTraslado, cobraVisita, keyOrdenMedica, updatedAt: new Date() })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.
@@ -572,6 +574,11 @@ export async function updateVisita(
       }
 
       await actualizarCostoVisitaPersistida(id, tx)
+
+      await tx
+        .update(visits)
+        .set({ resultadosTotalCount: examIds.length + isapreExamData.length })
+        .where(eq(visits.id, id))
     })
 
     revalidatePath('/visitas')
@@ -637,7 +644,7 @@ export async function createVisita(
           fecha, hora, estado: 'creada', costo: 0,
           idPaciente, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
           numeroAtencion, origenContacto, informacionAdicional,
-          pagado: false, resultadosEnviados: false, costoTraslado: 0,
+          pagado: false, costoTraslado: 0,
           cobraVisita,
         })
         .returning()
@@ -701,6 +708,13 @@ export async function createVisita(
       }
 
       await actualizarCostoVisitaPersistida(id, tx)
+
+      if (examIds.length > 0 || isapreExamData.length > 0) {
+        await tx
+          .update(visits)
+          .set({ resultadosTotalCount: examIds.length + isapreExamData.length })
+          .where(eq(visits.id, id))
+      }
 
       return id
     })

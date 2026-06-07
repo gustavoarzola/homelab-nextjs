@@ -277,6 +277,62 @@ const procedimientosData = [
   { nombre: 'Visita por deposiones y orina', codigo: 'ENF-017', categoria: 'otros', precio: 7000 },
 ]
 
+// ─── Exámenes Imalab-Isapre (grupo especial, precios manuales en visita) ──────
+
+const examenesIsapreData: { codigo: string; nombre: string; precio: number; grupoExamen: string }[] = [
+  { codigo: '301001', nombre: 'HEMOGRAMA COMPLETO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '301002', nombre: 'ACIDO FOLICO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '301003', nombre: 'VHS (VELOCIDAD HEMOSEDIMENTACION)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302005', nombre: 'ACIDO URICO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302006', nombre: 'ALBUMINA', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302007', nombre: 'BILIRRUBINA TOTAL Y DIRECTA', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302008', nombre: 'CALCIO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302009', nombre: 'COLESTEROL TOTAL', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302010', nombre: 'COLESTEROL HDL', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302011', nombre: 'COLESTEROL LDL (CALCULADO)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302012', nombre: 'CREATININA', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302013', nombre: 'FOSFATASA ALCALINA', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302014', nombre: 'FOSFORO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302015', nombre: 'GLUCOSA EN AYUNAS', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302016', nombre: 'GOT / AST (ASPARTATO AMINOTRANSFERASA)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302017', nombre: 'GPT / ALT (ALANINO AMINOTRANSFERASA)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302018', nombre: 'HEMOGLOBINA GLICOSILADA (HBA1C)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302019', nombre: 'LDH (LACTATO DESHIDROGENASA)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302020', nombre: 'MAGNESIO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302021', nombre: 'PERFIL BIOQUIMICO (10 PARAMETROS)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302022', nombre: 'POTASIO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302023', nombre: 'PROTEINAS TOTALES', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302024', nombre: 'SODIO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302025', nombre: 'TRIGLICERIDOS', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302026', nombre: 'UREA', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '302078', nombre: '25 OH VITAMINA D TOTAL', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303001', nombre: 'TSH (HORMONA ESTIMULANTE DE TIROIDES)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303002', nombre: 'T4 LIBRE', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303003', nombre: 'T3 LIBRE', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303004', nombre: 'PSA (ANTIGENO PROSTATICO ESPECIFICO)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303005', nombre: 'PSA LIBRE', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303006', nombre: 'INSULINA BASAL', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303007', nombre: 'CORTISOL', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303008', nombre: 'FERRITINA', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303009', nombre: 'HIERRO SERICO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303010', nombre: 'CAPACIDAD FIJACION HIERRO (TIBC)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303011', nombre: 'B12 (VITAMINA B12 / COBALAMINA)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303012', nombre: 'PROTEINA C REACTIVA (PCR)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '303013', nombre: 'PROTEINA C REACTIVA ULTRASENSIBLE', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '305001', nombre: 'ANA (ANTICUERPOS ANTINUCLEARES)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '305002', nombre: 'FACTOR REUMATOIDE', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '305003', nombre: 'ANCA', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '306001', nombre: 'HEMOCULTIVO (AEROBIO / ANAEROBIO)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '306002', nombre: 'UROCULTIVO', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '306003', nombre: 'CULTIVO SECRECION BRONQUIAL', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '306004', nombre: 'CULTIVO SECRECION HERIDA', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '306169', nombre: 'SEROLOGIA VIH (AC/AG)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '309001', nombre: 'ORINA COMPLETA (SEDIMENTO)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '309002', nombre: 'MICROALBUMINURIA EN ORINA', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '309003', nombre: 'CLEARANCE DE CREATININA (ORINA 24H)', precio: 0, grupoExamen: 'imalab isapre' },
+  { codigo: '310001', nombre: 'PAP (PAPANICOLAOU)', precio: 0, grupoExamen: 'imalab isapre' },
+]
+
 // ─── Exámenes de laboratorio y diagnóstico (desde examenes.csv) ──────────────
 
 const csvPath = join(process.cwd(), 'examenes.csv')
@@ -606,9 +662,12 @@ async function seed() {
       talleres_visitas,
       examenes_visitas,
       procedimientos_visitas,
+      examenes_isapre_visitas,
       cotizacion_talleres,
       cotizacion_procedimientos,
       cotizacion_examenes,
+      examenes_isapre_cotizaciones,
+      cotizacion_recargos,
       cotizaciones,
       visitas,
       precios_visita_enfermeria,
@@ -656,9 +715,13 @@ async function seed() {
   await db.insert(procedures).values(procedimientosData)
 
   // Exámenes
-  console.log(`   Insertando ${examenesDataWithPrices.length} exámenes...`)
+  console.log(`   Insertando ${examenesDataWithPrices.length} exámenes imalab...`)
   const insertedExams = await db.insert(exams).values(examenesDataWithPrices).onConflictDoNothing().returning()
   const examIds = insertedExams.map(e => e.id)
+
+  // Exámenes Isapre
+  console.log(`   Insertando ${examenesIsapreData.length} exámenes imalab isapre...`)
+  await db.insert(exams).values(examenesIsapreData).onConflictDoNothing()
 
   // Orígenes de contacto
   console.log(`   Insertando ${origenesContactoData.length} orígenes de contacto...`)
@@ -943,7 +1006,7 @@ async function seed() {
   console.log(`   ${visitsCount} visitas (ene-abr 2025: 12-22/día lun-sábado, antes 27mar=realizada+enfermera, después=creada+70%enfermera)`)
   console.log(`   ${previsionesData.length} previsiones de salud`)
   console.log(`   ${cadenasData.length} laboratorios`)
-  console.log(`   ${procedimientosData.length} procedimientos · ${examenesDataWithPrices.length} exámenes`)
+  console.log(`   ${procedimientosData.length} procedimientos · ${examenesDataWithPrices.length} exámenes imalab · ${examenesIsapreData.length} exámenes imalab isapre`)
   console.log(`   ${visitPricesData.length} precios de visitas de enfermería (por comuna)`)
   console.log(`   ${residenciasData.length} residencias adulto mayor`)
   console.log(`   ${origenesContactoData.length} orígenes de contacto`)

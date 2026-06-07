@@ -96,17 +96,24 @@ const columns: ColumnDef<VisitaRow>[] = [
     id: 'resultados',
     header: 'Resultados',
     enableSorting: false,
-    cell: ({ row }) => row.original.estado === 'realizada' ? (
-      <span
-        className="rounded-full px-2 py-0.5 text-xs font-medium"
-        style={{
-          backgroundColor: row.original.resultadosEnviados ? 'oklch(0.6 0.118 184.704 / 12%)' : 'oklch(0.7 0.15 60 / 15%)',
-          color: row.original.resultadosEnviados ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.40 0.15 60)',
-        }}
-      >
-        {row.original.resultadosEnviados ? 'Enviados' : 'Pendientes'}
-      </span>
-    ) : null,
+    cell: ({ row }) => {
+      if (row.original.estado !== 'realizada') return null
+      const enviados = row.original.resultadosEnviadosCount
+      const total = row.original.resultadosTotalCount
+      if (total === 0) return null
+      const allSent = enviados >= total
+      return (
+        <span
+          className="rounded-full px-2 py-0.5 text-xs font-medium tabular-nums"
+          style={{
+            backgroundColor: allSent ? 'oklch(0.6 0.118 184.704 / 12%)' : 'oklch(0.7 0.15 60 / 15%)',
+            color: allSent ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.40 0.15 60)',
+          }}
+        >
+          {enviados}/{total}
+        </span>
+      )
+    },
   },
   {
     id: 'archivo',

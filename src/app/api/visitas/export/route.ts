@@ -21,7 +21,7 @@ const columns: ExcelColumn<VisitaRow>[] = [
   { header: 'Laboratorio', accessor: (r) => r.laboratorio,                                                       width: 22 },
   { header: 'Costo',       accessor: (r) => r.costo,                                                             width: 14, format: 'currency-clp' },
   { header: 'Pagado',      accessor: (r) => (r.estado === 'realizada' ? (r.pagado ? 'Sí' : 'No') : null),       width: 10 },
-  { header: 'Resultados',  accessor: (r) => (r.estado === 'realizada' ? (r.resultadosEnviados ? 'Enviados' : 'Pendientes') : null), width: 12 },
+  { header: 'Resultados',  accessor: (r) => (r.estado === 'realizada' && r.resultadosTotalCount > 0 ? `${r.resultadosEnviadosCount}/${r.resultadosTotalCount}` : null), width: 12 },
 ]
 
 export async function GET(request: Request) {
