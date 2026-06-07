@@ -545,3 +545,17 @@ export async function getExamenes(): Promise<ExamenRow[]> {
     .where(eq(exams.activo, true))
     .orderBy(asc(exams.nombre))
 }
+
+// ─── getIsaprePrevisiones ─────────────────────────────────────────────────────
+
+export type IsaprePrevisionRow = { id: number; nombre: string }
+
+export async function getIsaprePrevisiones(): Promise<IsaprePrevisionRow[]> {
+  await requireSession()
+
+  return db
+    .select({ id: healthInsurances.id, nombre: healthInsurances.nombre })
+    .from(healthInsurances)
+    .where(and(eq(healthInsurances.categoria, 'isapre'), eq(healthInsurances.activo, true)))
+    .orderBy(asc(healthInsurances.nombre))
+}

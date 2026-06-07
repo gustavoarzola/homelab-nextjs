@@ -5,6 +5,7 @@ import { db } from '@/db'
 import {
   quotations,
   quotationExams,
+  quotationIsapreExams,
   quotationProcedures,
   quotationWorkshops,
   quotationSurcharges,
@@ -17,6 +18,7 @@ import {
   visits,
   visitProcedures,
   visitExams,
+  visitIsapreExams,
   visitWorkshops,
   visitSurcharges,
   nursingVisitPrices,
@@ -52,6 +54,7 @@ export type CotizacionDetalle = {
   tallerPrices: { idTaller: number; precio: number }[]
   surchargeIds: number[]
   surchargePrices: { idTipoRecargo: number; precio: number }[]
+  isapreExams: { idExamen: number; valorCompleto: number; valorPagar: number; idPrevision: number | null }[]
 }
 
 export type CotizacionRow = {
@@ -72,11 +75,15 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
   const [quotation] = await db.select().from(quotations).where(eq(quotations.id, id))
   if (!quotation) return null
 
-  const [exams_, procs, talleres_, surcharges_] = await Promise.all([
+  const [exams_, isapre_, procs, talleres_, surcharges_] = await Promise.all([
     db
       .select({ idExamen: quotationExams.idExamen, precio: quotationExams.precio })
       .from(quotationExams)
       .where(eq(quotationExams.idCotizacion, id)),
+    db
+      .select({ idExamen: quotationIsapreExams.idExamen, valorCompleto: quotationIsapreExams.valorCompleto, valorPagar: quotationIsapreExams.valorPagar, idPrevision: quotationIsapreExams.idPrevision })
+      .from(quotationIsapreExams)
+      .where(eq(quotationIsapreExams.idCotizacion, id)),
     db
       .select({ idProcedimiento: quotationProcedures.idProcedimiento, precio: quotationProcedures.precio })
       .from(quotationProcedures)
@@ -106,6 +113,7 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     notas: quotation.notas ?? null,
     examIds: exams_.map((e) => e.idExamen),
     examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
+    isapreExams: isapre_.map((e) => ({ idExamen: e.idExamen, valorCompleto: e.valorCompleto, valorPagar: e.valorPagar, idPrevision: e.idPrevision })),
     procedureIds: procs.map((p) => p.idProcedimiento),
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
     tallerIds: talleres_.map((t) => t.idTaller),
@@ -242,6 +250,15 @@ export async function createCotizacion(
     tallerPrecioMap[id] = parseInt(fd.get(`taller_precio_${id}`) as string) || 0
   }
 
+  const isapreExamIds = fd.getAll('isapre_exam_ids').map((v) => Number(v)).filter(Boolean)
+  const isaprePrevisionId = fd.get('isapre_prevision_id') ? Number(fd.get('isapre_prevision_id')) : null
+  const isapreExamData = isapreExamIds.map((examId) => ({
+    idExamen: examId,
+    valorCompleto: Number(fd.get(`isapre_exam_valor_${examId}`)) || 0,
+    valorPagar: Number(fd.get(`isapre_exam_valor_pagar_${examId}`)) || 0,
+    idPrevision: isaprePrevisionId,
+  }))
+
   try {
     // Calculate total
     let total = 0
@@ -267,6 +284,9 @@ export async function createCotizacion(
 
       total += examRows.reduce((sum, e) => sum + e.precio, 0)
     }
+
+    // Add isapre exam copago to total
+    total += isapreExamData.reduce((sum, e) => sum + e.valorPagar, 0)
 
     // Add taller prices (free-form per cotizacion)
     total += Object.values(tallerPrecioMap).reduce((sum, p) => sum + p, 0)
@@ -362,6 +382,28 @@ export async function createCotizacion(
       )
     }
 
+    // Insert isapre exam items
+    if (isapreExamData.length > 0) {
+      const isapreExamCatalog = await db
+        .select({ id: exams.id, nombre: exams.nombre, codigo: exams.codigo })
+        .from(exams)
+        .where(inArray(exams.id, isapreExamData.map((e) => e.idExamen)))
+
+      const catalogMap = new Map(isapreExamCatalog.map((e) => [e.id, e]))
+      await db.insert(quotationIsapreExams).values(
+        isapreExamData.map((e) => ({
+          idCotizacion: cotizacionId,
+          idExamen: e.idExamen,
+          descripcion: catalogMap.get(e.idExamen)?.nombre ?? '',
+          codigo: catalogMap.get(e.idExamen)?.codigo ?? null,
+          valorCompleto: e.valorCompleto,
+          valorPagar: e.valorPagar,
+          idPrevision: e.idPrevision,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
     // Insert taller items
     if (tallerIds.length > 0) {
       const tallerItems = await db
@@ -423,6 +465,15 @@ export async function updateCotizacion(
     tallerPrecioMap[tid] = parseInt(fd.get(`taller_precio_${tid}`) as string) || 0
   }
 
+  const isapreExamIds = fd.getAll('isapre_exam_ids').map((v) => Number(v)).filter(Boolean)
+  const isaprePrevisionId = fd.get('isapre_prevision_id') ? Number(fd.get('isapre_prevision_id')) : null
+  const isapreExamData = isapreExamIds.map((examId) => ({
+    idExamen: examId,
+    valorCompleto: Number(fd.get(`isapre_exam_valor_${examId}`)) || 0,
+    valorPagar: Number(fd.get(`isapre_exam_valor_pagar_${examId}`)) || 0,
+    idPrevision: isaprePrevisionId,
+  }))
+
   try {
     // Calculate total
     let total = 0
@@ -446,6 +497,9 @@ export async function updateCotizacion(
 
       total += examRows.reduce((sum, e) => sum + e.precio, 0)
     }
+
+    // Add isapre exam copago to total
+    total += isapreExamData.reduce((sum, e) => sum + e.valorPagar, 0)
 
     total += Object.values(tallerPrecioMap).reduce((sum, p) => sum + p, 0)
 
@@ -486,6 +540,7 @@ export async function updateCotizacion(
     // Delete existing items
     await db.delete(quotationProcedures).where(eq(quotationProcedures.idCotizacion, id))
     await db.delete(quotationExams).where(eq(quotationExams.idCotizacion, id))
+    await db.delete(quotationIsapreExams).where(eq(quotationIsapreExams.idCotizacion, id))
     await db.delete(quotationWorkshops).where(eq(quotationWorkshops.idCotizacion, id))
     await db.delete(quotationSurcharges).where(eq(quotationSurcharges.idCotizacion, id))
 
@@ -532,6 +587,28 @@ export async function updateCotizacion(
           descripcion: e.nombre,
           codigo: e.codigo,
           precio: e.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Insert isapre exam items
+    if (isapreExamData.length > 0) {
+      const isapreExamCatalog = await db
+        .select({ id: exams.id, nombre: exams.nombre, codigo: exams.codigo })
+        .from(exams)
+        .where(inArray(exams.id, isapreExamData.map((e) => e.idExamen)))
+
+      const catalogMap = new Map(isapreExamCatalog.map((e) => [e.id, e]))
+      await db.insert(quotationIsapreExams).values(
+        isapreExamData.map((e) => ({
+          idCotizacion: id,
+          idExamen: e.idExamen,
+          descripcion: catalogMap.get(e.idExamen)?.nombre ?? '',
+          codigo: catalogMap.get(e.idExamen)?.codigo ?? null,
+          valorCompleto: e.valorCompleto,
+          valorPagar: e.valorPagar,
+          idPrevision: e.idPrevision,
           createdAt: new Date(),
         })),
       )
@@ -680,6 +757,30 @@ export async function convertirCotizacionAVisita(
           idExamen: e.idExamen,
           idVisita: visitId,
           precio: e.precio,
+          createdAt: new Date(),
+        })),
+      )
+    }
+
+    // Copy isapre exams
+    const isapreItems = await db
+      .select({
+        idExamen: quotationIsapreExams.idExamen,
+        valorCompleto: quotationIsapreExams.valorCompleto,
+        valorPagar: quotationIsapreExams.valorPagar,
+        idPrevision: quotationIsapreExams.idPrevision,
+      })
+      .from(quotationIsapreExams)
+      .where(eq(quotationIsapreExams.idCotizacion, idCotizacion))
+
+    if (isapreItems.length > 0) {
+      await db.insert(visitIsapreExams).values(
+        isapreItems.map((e) => ({
+          idExamen: e.idExamen,
+          idVisita: visitId,
+          valorCompleto: e.valorCompleto,
+          valorPagar: e.valorPagar,
+          idPrevision: e.idPrevision,
           createdAt: new Date(),
         })),
       )

@@ -9,7 +9,6 @@ import {
 } from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { SelectCombobox } from '@/components/select-combobox'
-import { ExamLabel } from '@/components/exam-label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FileUpload } from '@/components/file-upload'
 import { TimePicker } from '@/components/time-picker'
@@ -17,11 +16,14 @@ import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
-import { buildExamenOption } from '@/lib/exam-option'
+import { ExamenesPorGrupo, buildInitialGroups, appendExamGroupsToFormData } from '@/components/exam-grupo-block'
+import type { ExamGroup } from '@/components/exam-grupo-block'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { LaboratorioRow } from '@/lib/actions/laboratorios'
-import type { ProcedimientoRow, ExamenRow, TallerRow } from '@/lib/actions/catalogos'
+import type { ProcedimientoRow, ExamenRow, TallerRow, IsaprePrevisionRow } from '@/lib/actions/catalogos'
 import type { VisitaDetalle } from '@/lib/actions/visitas'
+import { EXAM_GRUPO_META } from '@/lib/exam-grupos'
+
 import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
 import { calcularCostoVisitaPreview, type VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
 
@@ -55,6 +57,7 @@ type Props = {
   origenesContacto: { id: number; nombre: string }[]
   tiposRecargos: { id: number; label: string; precio: number }[]
   pricingContext: VisitaFormPricingContext
+  isaprePrevisiones: IsaprePrevisionRow[]
   signedUrlOrdenMedica?: string | null
   onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
 }
@@ -383,6 +386,7 @@ export function VisitaForm({
   origenesContacto,
   tiposRecargos,
   pricingContext,
+  isaprePrevisiones,
   signedUrlOrdenMedica,
   onSubmit,
 }: Props) {
@@ -391,7 +395,14 @@ export function VisitaForm({
   const [activeTab, setActiveTab] = useState<ServiceTab>('procedimientos')
 
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(visita?.procedureIds ?? [])
-  const [selectedExams, setSelectedExams] = useState<number[]>(visita?.examIds ?? [])
+  const [examGroups, setExamGroups] = useState<ExamGroup[]>(() =>
+    buildInitialGroups(
+      visita?.examIds ?? [],
+      visita?.examPrices ?? [],
+      visita?.isapreExams ?? [],
+      examenes,
+    )
+  )
   const [selectedTallers, setSelectedTallers] = useState<number[]>(visita?.tallerIds ?? [])
   const [tallerPriceMap, setTallerPriceMap] = useState<Record<number, string>>(() => {
     const map: Record<number, string> = {}
@@ -449,7 +460,7 @@ export function VisitaForm({
 
     const fd = new FormData(e.currentTarget)
     selectedProcedures.forEach((id) => fd.append('procedure_ids', String(id)))
-    selectedExams.forEach((id) => fd.append('exam_ids', String(id)))
+    appendExamGroupsToFormData(fd, examGroups)
     selectedTallers.forEach((id) => {
       fd.append('taller_ids', String(id))
       fd.set(`taller_precio_${id}`, tallerPriceMap[id] ?? '0')
@@ -472,7 +483,6 @@ export function VisitaForm({
   // Options
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
   const talleresOptions = talleres.map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
-  const examenesOptions = examenes.map(buildExamenOption)
   const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatNombre(e) }))
   const laboratoriosOptions = laboratorios.map((l) => ({ id: l.id, label: l.nombre }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
@@ -490,10 +500,16 @@ export function VisitaForm({
     { id: 2, label: 'Efectivo' },
   ]
 
+  const regularExamIds = examGroups
+    .filter((g) => EXAM_GRUPO_META[g.grupoId].tipo === 'catalogo')
+    .flatMap((g) => g.exams.map((e) => e.id))
+
+  const isapreBlock = examGroups.find((g) => EXAM_GRUPO_META[g.grupoId].tipo === 'isapre')
+
   const costoPreview = useMemo(
     () => calcularCostoVisitaPreview({
       selectedProcedureIds: selectedProcedures,
-      selectedExamIds: selectedExams,
+      selectedExamIds: regularExamIds,
       selectedTallerIds: selectedTallers,
       tallerPriceMap,
       catalogProcedurePrices: procedimientos.map((p) => ({ id: p.id, precio: p.precio })),
@@ -504,8 +520,12 @@ export function VisitaForm({
       surchargeItems: selectedSurcharges.map((id) => ({
         precio: visita?.surchargePrices.find((s) => s.idTipoRecargo === id)?.precio ?? tiposRecargos.find((t) => t.id === id)?.precio ?? 0,
       })),
+      isapreExams: (isapreBlock?.exams ?? []).map((e) => ({
+        valorPagar: e.tipo === 'isapre' ? (Number(e.valorPagar.replace(/[^\d]/g, '')) || 0) : 0,
+      })),
     }),
-    [selectedProcedures, selectedExams, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, selectedSurcharges, tiposRecargos],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedProcedures, examGroups, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, selectedSurcharges, tiposRecargos],
   )
 
   // Compute which tabs have undismissed price warnings (for warning dot)
@@ -520,7 +540,7 @@ export function VisitaForm({
     : false
 
   const hasExamWarning = isEdit && visita && visita.estado !== 'realizada'
-    ? selectedExams.some((id) => {
+    ? regularExamIds.some((id) => {
         if (dismissedExamWarnings.has(id)) return false
         const saved = visita.examPrices.find((e) => e.idExamen === id)
         if (!saved || saved.precio === 0) return false
@@ -529,9 +549,11 @@ export function VisitaForm({
       })
     : false
 
+  const totalExamCount = examGroups.reduce((s, g) => s + g.exams.length, 0)
+
   const tabs: { id: ServiceTab; label: string; count: number; hasWarning: boolean; Icon: typeof Stethoscope }[] = [
     { id: 'procedimientos', label: 'Procedimientos', count: selectedProcedures.length, hasWarning: hasProcWarning, Icon: Stethoscope },
-    { id: 'examenes',       label: 'Exámenes',       count: selectedExams.length,      hasWarning: hasExamWarning, Icon: FlaskConical },
+    { id: 'examenes',       label: 'Exámenes',       count: totalExamCount,            hasWarning: hasExamWarning, Icon: FlaskConical },
     { id: 'talleres',       label: 'Talleres',        count: selectedTallers.length,    hasWarning: false,         Icon: BookOpen },
   ]
 
@@ -878,64 +900,14 @@ export function VisitaForm({
 
             {/* Tab: Exámenes */}
             {activeTab === 'examenes' && (
-              <div>
-                <div className="mb-4">
-                  <SelectCombobox
-                    options={examenesOptions}
-                    selected={selectedExams}
-                    onChange={(ids) => {
-                      setSelectedExams(ids)
-                      setDismissedExamWarnings((prev) => {
-                        const next = new Set(prev)
-                        for (const id of prev) { if (!ids.includes(id)) next.delete(id) }
-                        return next
-                      })
-                    }}
-                    placeholder="Buscar examen…"
-                    disabled={isPending}
-                    showPills={false}
-                  />
-                </div>
-                {selectedExams.length === 0 ? (
-                  <div
-                    className="rounded-lg border border-dashed py-8 text-center text-[13px]"
-                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
-                  >
-                    Sin exámenes seleccionados.
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
-                    {selectedExams.map((id, i) => {
-                      const examen = examenes.find((e) => e.id === id)
-                      if (!examen) return null
-                      const savedEntry = visita?.examPrices.find((e) => e.idExamen === id)
-                      const precio = savedEntry?.precio ?? examen.precio
-                      const priceChanged = savedEntry && savedEntry.precio !== 0 && savedEntry.precio !== examen.precio && !dismissedExamWarnings.has(id)
-                      return (
-                        <div
-                          key={id}
-                          className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
-                          style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)', backgroundColor: 'var(--card)' }}
-                        >
-                          <ExamLabel codigo={examen.codigo} nombre={examen.nombre} grupoExamen={examen.grupoExamen} />
-                          {priceChanged && <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />}
-                          <span className="tabular-nums ml-auto" style={{ color: 'var(--foreground)', minWidth: 80, textAlign: 'right' }}>
-                            {CLP(precio)}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedExams((prev) => prev.filter((x) => x !== id))}
-                            className="rounded p-1 transition-opacity hover:opacity-70"
-                            style={{ color: 'var(--muted-foreground)' }}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-                {isEdit && visita && visita.estado !== 'realizada' && selectedExams.map((examId) => {
+              <div className="space-y-3">
+                <ExamenesPorGrupo
+                  groups={examGroups}
+                  setGroups={setExamGroups}
+                  allExams={examenes}
+                  isaprePrevisiones={isaprePrevisiones}
+                />
+                {isEdit && visita && visita.estado !== 'realizada' && regularExamIds.map((examId) => {
                   if (dismissedExamWarnings.has(examId)) return null
                   const savedEntry = visita.examPrices.find((e) => e.idExamen === examId)
                   if (!savedEntry || savedEntry.precio === 0) return null
@@ -1371,12 +1343,18 @@ export function VisitaForm({
               <SummaryGroup
                 tone="green"
                 label="Exámenes"
-                items={selectedExams.flatMap((id) => {
-                  const e = examenes.find((x) => x.id === id)
-                  if (!e) return []
-                  const saved = visita?.examPrices.find((x) => x.idExamen === id)
-                  return [{ name: e.nombre, price: saved?.precio ?? e.precio }]
-                })}
+                items={[
+                  ...regularExamIds.flatMap((id) => {
+                    const e = examenes.find((x) => x.id === id)
+                    if (!e) return []
+                    const saved = visita?.examPrices.find((x) => x.idExamen === id)
+                    return [{ name: e.nombre, price: saved?.precio ?? e.precio }]
+                  }),
+                  ...(isapreBlock?.exams ?? []).map((e) => ({
+                    name: e.nombre,
+                    price: e.tipo === 'isapre' ? (Number(e.valorPagar.replace(/[^\d]/g, '')) || 0) : 0,
+                  })),
+                ]}
                 subtotal={costoPreview.subtotalExamenes}
               />
               <SummaryGroup

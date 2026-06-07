@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
 import { searchLaboratorios } from '@/lib/actions/laboratorios'
-import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres } from '@/lib/actions/catalogos'
+import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres, getIsaprePrevisiones } from '@/lib/actions/catalogos'
 import { searchOrigenesContacto, createVisita, getVisitaFormPricingContext } from '@/lib/actions/visitas'
 import { VisitaForm } from '@/components/visita-form'
 
@@ -43,7 +43,10 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
 
   if (!detalle) notFound()
 
-  const pricingContext = await getVisitaFormPricingContext(id, examenes.map((e) => e.id))
+  const [pricingContext, isaprePrevisiones] = await Promise.all([
+    getVisitaFormPricingContext(id, examenes.map((e) => e.id)),
+    getIsaprePrevisiones(),
+  ])
 
   const paciente = {
     id: detalle.id,
@@ -72,6 +75,7 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
       talleres={talleres}
       origenesContacto={origenesContacto}
       pricingContext={pricingContext}
+      isaprePrevisiones={isaprePrevisiones}
       tiposRecargos={tiposRecargos}
       onSubmit={createVisita}
     />

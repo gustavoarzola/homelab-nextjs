@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, visitWorkshops, visitSurcharges, workshops, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
+import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, workshops, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams, Result } from '@/components/data-table'
@@ -79,6 +79,7 @@ export type VisitaDetalle = {
   tallerPrices: { idTaller: number; precio: number }[]
   surchargeIds: number[]
   surchargePrices: { idTipoRecargo: number; precio: number }[]
+  isapreExams: { idExamen: number; valorCompleto: number; valorPagar: number; idPrevision: number | null }[]
 }
 
 // ─── Row type ─────────────────────────────────────────────────────────────────
@@ -323,9 +324,10 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
   const [visit] = await db.select().from(visits).where(eq(visits.id, id))
   if (!visit) return null
 
-  const [procs, exams_, talleres_, surcharges_] = await Promise.all([
+  const [procs, exams_, isapre_, talleres_, surcharges_] = await Promise.all([
     db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
     db.select({ idExamen: visitExams.idExamen, precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, id)),
+    db.select({ idExamen: visitIsapreExams.idExamen, valorCompleto: visitIsapreExams.valorCompleto, valorPagar: visitIsapreExams.valorPagar, idPrevision: visitIsapreExams.idPrevision }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id)),
     db.select({ idTaller: visitWorkshops.idTaller, precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, id)),
     db.select({ idTipoRecargo: visitSurcharges.idTipoRecargo, precio: visitSurcharges.precio }).from(visitSurcharges).where(eq(visitSurcharges.idVisita, id)),
   ])
@@ -356,6 +358,7 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
     examIds: exams_.map((e) => e.idExamen),
     examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
+    isapreExams: isapre_.map((e) => ({ idExamen: e.idExamen, valorCompleto: e.valorCompleto, valorPagar: e.valorPagar, idPrevision: e.idPrevision })),
     tallerIds: talleres_.map((t) => t.idTaller),
     tallerPrices: talleres_.map((t) => ({ idTaller: t.idTaller, precio: t.precio })),
     surchargeIds: surcharges_.map((s) => s.idTipoRecargo),
@@ -457,6 +460,15 @@ export async function updateVisita(
     precio: Number(fd.get(`taller_precio_${idTaller}`)) || 0,
   }))
 
+  const isapreExamIds = fd.getAll('isapre_exam_ids').map((v) => Number(v)).filter(Boolean)
+  const isaprePrevisionId = fd.get('isapre_prevision_id') ? Number(fd.get('isapre_prevision_id')) : null
+  const isapreExamData = isapreExamIds.map((examId) => ({
+    idExamen: examId,
+    valorCompleto: Number(fd.get(`isapre_exam_valor_${examId}`)) || 0,
+    valorPagar: Number(fd.get(`isapre_exam_valor_pagar_${examId}`)) || 0,
+    idPrevision: isaprePrevisionId,
+  }))
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -496,6 +508,7 @@ export async function updateVisita(
 
       await tx.delete(visitProcedures).where(eq(visitProcedures.idVisita, id))
       await tx.delete(visitExams).where(eq(visitExams.idVisita, id))
+      await tx.delete(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id))
       await tx.delete(visitWorkshops).where(eq(visitWorkshops.idVisita, id))
       await tx.delete(visitSurcharges).where(eq(visitSurcharges.idVisita, id))
 
@@ -525,6 +538,12 @@ export async function updateVisita(
           precio: storedExamPriceMap.get(idExamen) ?? catalogExamPriceMap.get(idExamen) ?? 0,
         }))
         await tx.insert(visitExams).values(examValues)
+      }
+
+      if (isapreExamData.length > 0) {
+        await tx.insert(visitIsapreExams).values(
+          isapreExamData.map((e) => ({ ...e, idVisita: id })),
+        )
       }
 
       if (tallerPrices.length > 0) {
@@ -601,6 +620,15 @@ export async function createVisita(
     precio: Number(fd.get(`taller_precio_${idTaller}`)) || 0,
   }))
 
+  const isapreExamIds = fd.getAll('isapre_exam_ids').map((v) => Number(v)).filter(Boolean)
+  const isaprePrevisionId = fd.get('isapre_prevision_id') ? Number(fd.get('isapre_prevision_id')) : null
+  const isapreExamData = isapreExamIds.map((examId) => ({
+    idExamen: examId,
+    valorCompleto: Number(fd.get(`isapre_exam_valor_${examId}`)) || 0,
+    valorPagar: Number(fd.get(`isapre_exam_valor_pagar_${examId}`)) || 0,
+    idPrevision: isaprePrevisionId,
+  }))
+
   try {
     const visitId = await db.transaction(async (tx) => {
       const [visit] = await tx
@@ -643,6 +671,12 @@ export async function createVisita(
           precio: examPriceMap.get(idExamen) ?? 0,
         }))
         await tx.insert(visitExams).values(examPriceValues)
+      }
+
+      if (isapreExamData.length > 0) {
+        await tx.insert(visitIsapreExams).values(
+          isapreExamData.map((e) => ({ ...e, idVisita: id })),
+        )
       }
 
       if (tallerPrices.length > 0) {
