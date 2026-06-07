@@ -32,7 +32,7 @@ export default async function EditarVisitaPage({
     searchEnfermeras({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
     searchLaboratorios({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
     searchProcedimientos({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
-    searchExamenes({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
+    searchExamenes({ filters: {}, sort: null, page: 1, pageSize: 5000 }),
     getTalleres(),
     searchOrigenesContacto(),
     searchPrevisiones({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),

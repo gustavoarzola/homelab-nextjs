@@ -25,17 +25,19 @@ const columns: ColumnDef<VisitaRow>[] = [
     id: 'id',
     accessorKey: 'id',
     header: 'ID',
-    enableSorting: true,
+    enableSorting: false,
     cell: ({ row }) => row.original.id,
   },
   {
     id: 'fecha',
+    accessorKey: 'fecha',
     header: 'Fecha',
     enableSorting: true,
     cell: ({ row }) => formatDateTime(row.original.fecha, row.original.hora),
   },
   {
     id: 'paciente',
+    accessorKey: 'paciente',
     header: 'Paciente',
     enableSorting: true,
     cell: ({ row }) => (
@@ -46,6 +48,7 @@ const columns: ColumnDef<VisitaRow>[] = [
   },
   {
     id: 'estado',
+    accessorKey: 'estado',
     header: 'Estado',
     enableSorting: true,
     cell: ({ row }) => (
@@ -68,6 +71,7 @@ const columns: ColumnDef<VisitaRow>[] = [
   },
   {
     id: 'costo',
+    accessorKey: 'costo',
     header: 'Costo',
     enableSorting: true,
     cell: ({ row }) => `$${row.original.costo.toLocaleString('es-CL')}`,
@@ -204,6 +208,7 @@ export function VisitasTable({ initialData, search, onDelete, enfermeras }: Prop
       createHref="/pacientes"
       createLabel="Nueva visita"
       getEditHref={(row) => `/visitas/${row.id}`}
+      exportHref="/api/visitas/export"
     />
   )
 }

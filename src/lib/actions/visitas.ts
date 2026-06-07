@@ -99,14 +99,9 @@ export type VisitaRow = {
   keyOrdenMedica: string | null
 }
 
-// ─── searchVisitas ────────────────────────────────────────────────────────────
+// ─── Visitas query helpers (internal) ─────────────────────────────────────────
 
-export async function searchVisitas(
-  params: SearchParams,
-): Promise<{ rows: VisitaRow[]; total: number }> {
-  await requireSession()
-
-  const { filters, sort, page, pageSize } = params
+function buildVisitasWhere(filters: SearchParams['filters']): SQL | undefined {
   const buscar = (filters.buscar as string | undefined)?.trim()
   const estado = (filters.estado as string | undefined)?.trim()
   const enfermeraId = (filters.enfermera as string | undefined)?.trim()
@@ -133,14 +128,10 @@ export async function searchVisitas(
   if (pendientePago) conditions.push(and(eq(visits.pagado, false), eq(visits.estado, 'realizada'))!)
   if (resultadosPendientes) conditions.push(and(eq(visits.resultadosEnviados, false), eq(visits.estado, 'realizada'))!)
 
-  const where = conditions.length ? and(...conditions) : undefined
+  return conditions.length ? and(...conditions) : undefined
+}
 
-  const [countRow] = await db
-    .select({ total: count() })
-    .from(visits)
-    .leftJoin(patients, eq(visits.idPaciente, patients.id))
-    .where(where)
-
+function buildVisitasOrder(sort: SearchParams['sort']): SQL {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sortCols: Record<string, any> = {
     fecha: visits.fecha,
@@ -149,37 +140,49 @@ export async function searchVisitas(
     costo: visits.costo,
   }
   const sortCol = (sort?.key && sortCols[sort.key]) ?? visits.fecha
-  const order = sort?.dir === 'asc' ? asc(sortCol) : desc(sortCol)
+  return sort?.dir === 'asc' ? asc(sortCol) : desc(sortCol)
+}
 
-  const rawRows = await db
-    .select({
-      id: visits.id,
-      fecha: visits.fecha,
-      hora: visits.hora,
-      estado: visits.estado,
-      costo: visits.costo,
-      idPaciente: visits.idPaciente,
-      pagado: visits.pagado,
-      resultadosEnviados: visits.resultadosEnviados,
-      pacienteNombres: patients.nombres,
-      pacienteApellido: patients.apellidoPaterno,
-      pacienteApellidoMaterno: patients.apellidoMaterno,
-      enfermeraNombres: nurses.nombres,
-      enfermeraApellido: nurses.apellidoPaterno,
-      enfermeraApellidoMaterno: nurses.apellidoMaterno,
-      laboratorio: laboratories.nombre,
-      keyOrdenMedica: visits.keyOrdenMedica,
-    })
-    .from(visits)
-    .leftJoin(patients, eq(visits.idPaciente, patients.id))
-    .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
-    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
-    .where(where)
-    .orderBy(order)
-    .limit(pageSize)
-    .offset((page - 1) * pageSize)
+const visitaRowSelect = {
+  id: visits.id,
+  fecha: visits.fecha,
+  hora: visits.hora,
+  estado: visits.estado,
+  costo: visits.costo,
+  idPaciente: visits.idPaciente,
+  pagado: visits.pagado,
+  resultadosEnviados: visits.resultadosEnviados,
+  pacienteNombres: patients.nombres,
+  pacienteApellido: patients.apellidoPaterno,
+  pacienteApellidoMaterno: patients.apellidoMaterno,
+  enfermeraNombres: nurses.nombres,
+  enfermeraApellido: nurses.apellidoPaterno,
+  enfermeraApellidoMaterno: nurses.apellidoMaterno,
+  laboratorio: laboratories.nombre,
+  keyOrdenMedica: visits.keyOrdenMedica,
+}
 
-  const rows: VisitaRow[] = rawRows.map((r) => ({
+type VisitaRawRow = {
+  id: number
+  fecha: string
+  hora: string | null
+  estado: string
+  costo: number
+  idPaciente: number | null
+  pagado: boolean
+  resultadosEnviados: boolean
+  pacienteNombres: string | null
+  pacienteApellido: string | null
+  pacienteApellidoMaterno: string | null
+  enfermeraNombres: string | null
+  enfermeraApellido: string | null
+  enfermeraApellidoMaterno: string | null
+  laboratorio: string | null
+  keyOrdenMedica: string | null
+}
+
+function mapVisitaRow(r: VisitaRawRow): VisitaRow {
+  return {
     id: r.id,
     activo: r.estado !== 'cancelada',
     fecha: r.fecha,
@@ -201,9 +204,61 @@ export async function searchVisitas(
     pagado: r.pagado,
     resultadosEnviados: r.resultadosEnviados,
     keyOrdenMedica: r.keyOrdenMedica ?? null,
-  }))
+  }
+}
 
-  return { rows, total: Number(countRow?.total ?? 0) }
+// ─── searchVisitas ────────────────────────────────────────────────────────────
+
+export async function searchVisitas(
+  params: SearchParams,
+): Promise<{ rows: VisitaRow[]; total: number }> {
+  await requireSession()
+
+  const { filters, sort, page, pageSize } = params
+  const where = buildVisitasWhere(filters)
+  const order = buildVisitasOrder(sort)
+
+  const [countRow] = await db
+    .select({ total: count() })
+    .from(visits)
+    .leftJoin(patients, eq(visits.idPaciente, patients.id))
+    .where(where)
+
+  const rawRows = await db
+    .select(visitaRowSelect)
+    .from(visits)
+    .leftJoin(patients, eq(visits.idPaciente, patients.id))
+    .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
+    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
+    .where(where)
+    .orderBy(order)
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  return { rows: rawRows.map(mapVisitaRow), total: Number(countRow?.total ?? 0) }
+}
+
+// ─── listVisitasForExport ─────────────────────────────────────────────────────
+
+export async function listVisitasForExport(
+  filters: SearchParams['filters'],
+  sort: SearchParams['sort'],
+): Promise<VisitaRow[]> {
+  await requireSession()
+
+  const where = buildVisitasWhere(filters)
+  const order = buildVisitasOrder(sort)
+
+  const rawRows = await db
+    .select(visitaRowSelect)
+    .from(visits)
+    .leftJoin(patients, eq(visits.idPaciente, patients.id))
+    .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
+    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
+    .where(where)
+    .orderBy(order)
+
+  return rawRows.map(mapVisitaRow)
 }
 
 
