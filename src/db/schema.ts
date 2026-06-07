@@ -509,6 +509,58 @@ export const quotationSurcharges = pgTable(
 )
 
 // ============================================================================
+// 23. ExamenIsapreVisita - Exámenes Imalab-Isapre en una visita (precio manual)
+// ============================================================================
+export const visitIsapreExams = pgTable(
+  'examenes_isapre_visitas',
+  {
+    id: serial('id').primaryKey(),
+    idVisita: integer('id_visita').notNull(),
+    idExamen: integer('id_examen').notNull(),
+    valorCompleto: integer('valor_completo').notNull().default(0),
+    valorPagar: integer('valor_pagar').notNull().default(0),
+    idPrevision: integer('id_prevision'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
+      .onDelete('cascade'),
+    foreignKey({ columns: [table.idExamen], foreignColumns: [exams.id] })
+      .onDelete('restrict'),
+    foreignKey({ columns: [table.idPrevision], foreignColumns: [healthInsurances.id] })
+      .onDelete('set null'),
+    index('examenes_isapre_visitas_id_visita_idx').on(table.idVisita),
+  ]
+)
+
+// ============================================================================
+// 24. ExamenIsapreCotizacion - Exámenes Imalab-Isapre en una cotización
+// ============================================================================
+export const quotationIsapreExams = pgTable(
+  'examenes_isapre_cotizaciones',
+  {
+    id: serial('id').primaryKey(),
+    idCotizacion: integer('id_cotizacion').notNull(),
+    idExamen: integer('id_examen').notNull(),
+    descripcion: varchar('descripcion', { length: 255 }).notNull(),
+    codigo: varchar('codigo', { length: 50 }),
+    valorCompleto: integer('valor_completo').notNull().default(0),
+    valorPagar: integer('valor_pagar').notNull().default(0),
+    idPrevision: integer('id_prevision'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idCotizacion], foreignColumns: [quotations.id] })
+      .onDelete('cascade'),
+    foreignKey({ columns: [table.idExamen], foreignColumns: [exams.id] })
+      .onDelete('restrict'),
+    foreignKey({ columns: [table.idPrevision], foreignColumns: [healthInsurances.id] })
+      .onDelete('set null'),
+    index('examenes_isapre_cotizaciones_id_cotizacion_idx').on(table.idCotizacion),
+  ]
+)
+
+// ============================================================================
 // 22. CotizacionTaller - Talleres en una cotización (precio libre)
 // ============================================================================
 export const quotationWorkshops = pgTable(

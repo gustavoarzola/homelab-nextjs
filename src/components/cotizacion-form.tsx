@@ -18,11 +18,13 @@ import {
 import { SelectCombobox } from '@/components/select-combobox'
 import { ExamLabel } from '@/components/exam-label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { ExamenesPorGrupo, buildInitialGroups, appendExamGroupsToFormData } from '@/components/exam-grupo-block'
+import type { ExamGroup } from '@/components/exam-grupo-block'
 import { formatNombre } from '@/lib/paciente'
 import { COMUNAS_OPTIONS, COMUNAS_RM } from '@/lib/comunas'
-import { buildExamenOption } from '@/lib/exam-option'
+import { EXAM_GRUPO_META } from '@/lib/exam-grupos'
 import type { CotizacionDetalle } from '@/lib/actions/cotizaciones'
-import type { TallerRow } from '@/lib/actions/catalogos'
+import type { TallerRow, IsaprePrevisionRow, ExamenRow } from '@/lib/actions/catalogos'
 
 export type PacienteOption = {
   id: number
@@ -42,22 +44,15 @@ type ProcedimientoOption = {
   precio: number
 }
 
-type ExamenOption = {
-  id: number
-  nombre: string
-  codigo: string
-  grupoExamen: string
-  precio: number
-}
-
 type Props = {
   cotizacion?: CotizacionDetalle
   pacientes: PacienteOption[]
   procedimientos: ProcedimientoOption[]
-  examenes: ExamenOption[]
+  examenes: ExamenRow[]
   talleres: TallerRow[]
   tiposRecargos: { id: number; label: string; precio: number }[]
   preciosVisita: Record<string, number>
+  isaprePrevisiones: IsaprePrevisionRow[]
   onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
   onConvertir?: () => Promise<{ success: true; idVisita: number } | { success: false; error: string }>
 }
@@ -91,6 +86,7 @@ export function CotizacionForm({
   talleres,
   tiposRecargos,
   preciosVisita,
+  isaprePrevisiones,
   onSubmit,
   onConvertir,
 }: Props) {
@@ -117,7 +113,14 @@ export function CotizacionForm({
 
   // Items
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(cotizacion?.procedureIds ?? [])
-  const [selectedExams, setSelectedExams] = useState<number[]>(cotizacion?.examIds ?? [])
+  const [examGroups, setExamGroups] = useState<ExamGroup[]>(() =>
+    buildInitialGroups(
+      cotizacion?.examIds ?? [],
+      cotizacion?.examPrices ?? [],
+      cotizacion?.isapreExams ?? [],
+      examenes,
+    )
+  )
   const [selectedTallers, setSelectedTallers] = useState<number[]>(cotizacion?.tallerIds ?? [])
   const [tallerPriceMap, setTallerPriceMap] = useState<Record<number, string>>(() => {
     const map: Record<number, string> = {}
@@ -144,10 +147,21 @@ export function CotizacionForm({
     selectedProcedures.reduce((sum, id) => sum + (procedimientos.find((p) => p.id === id)?.precio ?? 0), 0),
     [selectedProcedures, procedimientos]
   )
-  const totalExamenes = useMemo(() =>
-    selectedExams.reduce((sum, id) => sum + (examenes.find((e) => e.id === id)?.precio ?? 0), 0),
-    [selectedExams, examenes]
-  )
+  const regularExamIds = examGroups
+    .filter((g) => EXAM_GRUPO_META[g.grupoId].tipo === 'catalogo')
+    .flatMap((g) => g.exams.map((e) => e.id))
+
+  const isapreBlock = examGroups.find((g) => EXAM_GRUPO_META[g.grupoId].tipo === 'isapre')
+
+  const totalExamenes = useMemo(() => {
+    const catalogTotal = regularExamIds.reduce((sum, id) => sum + (examenes.find((e) => e.id === id)?.precio ?? 0), 0)
+    const isapreTotal = (isapreBlock?.exams ?? []).reduce((sum, e) => {
+      if (e.tipo !== 'isapre') return sum
+      return sum + (Number(e.valorPagar.replace(/[^\d]/g, '')) || 0)
+    }, 0)
+    return catalogTotal + isapreTotal
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examGroups, examenes])
   const totalTalleres = useMemo(() =>
     selectedTallers.reduce((sum, id) => sum + (parseInt(tallerPriceMap[id] ?? '0') || 0), 0),
     [selectedTallers, tallerPriceMap]
@@ -181,7 +195,7 @@ export function CotizacionForm({
     fd.set('telefonoDestinatario', telefonoDestinatario)
     fd.set('identificacionDestinatario', identificacionDestinatario)
     selectedProcedures.forEach((id) => fd.append('procedure_ids', String(id)))
-    selectedExams.forEach((id) => fd.append('exam_ids', String(id)))
+    appendExamGroupsToFormData(fd, examGroups)
     selectedTallers.forEach((id) => {
       fd.append('taller_ids', String(id))
       fd.append(`taller_precio_${id}`, tallerPriceMap[id] ?? '0')
@@ -210,11 +224,11 @@ export function CotizacionForm({
   }
 
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
-  const examenesOptions = examenes.map(buildExamenOption)
   const pacientesOptions = pacientes.map((p) => ({ id: p.id, label: formatNombre(p) }))
+  const totalExamCount = examGroups.reduce((s, g) => s + g.exams.length, 0)
   const tabs: { id: ServiceTab; label: string; count: number; Icon: typeof Stethoscope }[] = [
     { id: 'procedimientos', label: 'Procedimientos', count: selectedProcedures.length, Icon: Stethoscope },
-    { id: 'examenes', label: 'Exámenes', count: selectedExams.length, Icon: FlaskConical },
+    { id: 'examenes', label: 'Exámenes', count: totalExamCount, Icon: FlaskConical },
     { id: 'talleres', label: 'Talleres', count: selectedTallers.length, Icon: BookOpen },
   ]
 
@@ -591,16 +605,11 @@ export function CotizacionForm({
               />
             )}
             {activeTab === 'examenes' && (
-              <ServiceTabContent
-                label="examen"
-                options={examenesOptions}
-                selected={selectedExams}
-                onChange={setSelectedExams}
-                items={selectedExams.map((id) => {
-                  const e = examenes.find((x) => x.id === id)!
-                  return { id, nombre: e.nombre, codigo: e.codigo, precio: e.precio }
-                })}
-                disabled={isPending}
+              <ExamenesPorGrupo
+                groups={examGroups}
+                setGroups={setExamGroups}
+                allExams={examenes}
+                isaprePrevisiones={isaprePrevisiones}
               />
             )}
             {activeTab === 'talleres' && (
@@ -785,14 +794,14 @@ export function CotizacionForm({
                     <span className="font-semibold">{pacienteSeleccionado.nombres} {pacienteSeleccionado.apellidoPaterno}</span>
                   </p>
                   <p className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
-                    {comunaNombre} · {selectedProcedures.length + selectedExams.length + selectedTallers.length} servicios
+                    {comunaNombre} · {selectedProcedures.length + totalExamCount + selectedTallers.length} servicios
                   </p>
                 </>
               ) : (
                 <p className="mt-2 text-[13px]" style={{ color: 'var(--muted-foreground)' }}>
-                  {selectedProcedures.length + selectedExams.length + selectedTallers.length === 0
+                  {selectedProcedures.length + totalExamCount + selectedTallers.length === 0
                     ? 'Sin ítems aún'
-                    : `${selectedProcedures.length + selectedExams.length + selectedTallers.length} servicios seleccionados`
+                    : `${selectedProcedures.length + totalExamCount + selectedTallers.length} servicios seleccionados`
                   }
                 </p>
               )}
@@ -815,10 +824,16 @@ export function CotizacionForm({
               <SummaryGroup
                 tone="green"
                 label="Exámenes"
-                items={selectedExams.map((id) => {
-                  const e = examenes.find((x) => x.id === id)!
-                  return { code: e.codigo, nombre: e.nombre, grupoExamen: e.grupoExamen, price: e.precio }
-                })}
+                items={[
+                  ...regularExamIds.map((id) => {
+                    const e = examenes.find((x) => x.id === id)!
+                    return { name: e.nombre, price: e.precio }
+                  }),
+                  ...(isapreBlock?.exams ?? []).map((e) => ({
+                    name: e.nombre,
+                    price: e.tipo === 'isapre' ? (Number(e.valorPagar.replace(/[^\d]/g, '')) || 0) : 0,
+                  })),
+                ]}
                 subtotal={totalExamenes}
               />
               <SummaryGroup

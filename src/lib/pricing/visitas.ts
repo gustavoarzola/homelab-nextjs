@@ -4,6 +4,7 @@ import {
   nursingVisitPrices,
   patients,
   visitExams,
+  visitIsapreExams,
   visitProcedures,
   visitSurcharges,
   visitWorkshops,
@@ -52,9 +53,10 @@ export async function calcularCostoVisitaPersistida(
   idVisita: number,
   conn: PricingDb = db,
 ): Promise<CostoVisitaCalculado> {
-  const [procedimientos, examenes, talleres, recargos, [visitaPaciente]] = await Promise.all([
+  const [procedimientos, examenes, exameneIsapre, talleres, recargos, [visitaPaciente]] = await Promise.all([
     conn.select({ precio: visitProcedures.precio }).from(visitProcedures).where(eq(visitProcedures.idVisita, idVisita)),
     conn.select({ precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, idVisita)),
+    conn.select({ valorPagar: visitIsapreExams.valorPagar }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, idVisita)),
     conn.select({ precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, idVisita)),
     conn.select({ precio: visitSurcharges.precio }).from(visitSurcharges).where(eq(visitSurcharges.idVisita, idVisita)),
     conn
@@ -68,6 +70,7 @@ export async function calcularCostoVisitaPersistida(
 
   const subtotalProcedimientos = procedimientos.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
   const subtotalExamenes = examenes.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
+  const subtotalIsapreExamenes = exameneIsapre.reduce((sum: number, row: { valorPagar: number }) => sum + row.valorPagar, 0)
   const subtotalTalleres = talleres.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
   const subtotalRecargos = recargos.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
   const aplicaVisitaEnfermeria = visitaPaciente?.cobraVisita ?? false
@@ -78,11 +81,11 @@ export async function calcularCostoVisitaPersistida(
 
   return {
     subtotalProcedimientos,
-    subtotalExamenes,
+    subtotalExamenes: subtotalExamenes + subtotalIsapreExamenes,
     subtotalTalleres,
     subtotalRecargos,
     costoVisitaEnfermeria,
-    total: subtotalProcedimientos + subtotalExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos,
+    total: subtotalProcedimientos + subtotalExamenes + subtotalIsapreExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos,
     aplicaVisitaEnfermeria,
     precioVisitaConfigurado: precioVisita !== null,
   }
