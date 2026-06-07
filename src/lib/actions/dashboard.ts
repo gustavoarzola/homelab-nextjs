@@ -219,7 +219,7 @@ export async function getDashboardFinanciero(month: number, year: number) {
           gte(visits.fecha, start),
           lte(visits.fecha, end),
           eq(visits.estado, 'realizada'),
-          eq(visits.resultadosEnviados, false),
+          sql`${visits.resultadosEnviadosCount} < ${visits.resultadosTotalCount}`,
         ),
       )
       .orderBy(desc(visits.fecha))

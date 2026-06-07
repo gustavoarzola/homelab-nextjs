@@ -256,10 +256,10 @@ function GrupoLabBlock({
   const previsionName = isaprePrevisiones.find((p) => p.id === group.idPrevision)?.nombre
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
+    <div className="rounded-xl border border-border">
       {/* Header */}
       <div
-        className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-3"
+        className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-3 rounded-t-xl"
         style={{ backgroundColor: meta.bg }}
       >
         <span className="inline-flex items-center gap-2 text-[13px] font-semibold" style={{ color: meta.color }}>
@@ -299,7 +299,7 @@ function GrupoLabBlock({
       </div>
 
       {/* Body */}
-      <div className="space-y-3 p-3.5 bg-card">
+      <div className="space-y-3 p-3.5 bg-card rounded-b-xl">
         <ExamPicker grupoId={group.grupoId} allExams={allExams} takenIds={takenIds} onPick={addExam} />
 
         {isIsapre && !group.idPrevision && (

@@ -439,8 +439,6 @@ export function VisitaForm({
     visita?.metodoPago === 'transferencia' ? 0 : visita?.metodoPago === 'cheque' ? 1 : visita?.metodoPago === 'efectivo' ? 2 : null
   )
   const [fechaPago, setFechaPago] = useState<string | null>(visita?.fechaPago ?? null)
-  const [resultadosEnviados, setResultadosEnviados] = useState(visita?.resultadosEnviados ?? false)
-  const [fechaEnvioResultados, setFechaEnvioResultados] = useState<string | null>(visita?.fechaEnvioResultados ?? null)
   const [selectedSurcharges, setSelectedSurcharges] = useState<number[]>(visita?.surchargeIds ?? [])
 
   // Orden médica
@@ -468,7 +466,6 @@ export function VisitaForm({
     selectedSurcharges.forEach((id) => fd.append('surcharge_ids', String(id)))
     fd.set('cobraVisita', String(cobraVisita))
     fd.set('pagado', String(pagado))
-    fd.set('resultadosEnviados', String(resultadosEnviados))
 
     startTransition(async () => {
       const result = await onSubmit(fd)
@@ -1172,107 +1169,57 @@ export function VisitaForm({
             />
           </section>
 
-          {/* Pago y resultados (edit only) */}
+          {/* Pago (edit only) */}
           {isEdit && (
             <section
               className="rounded-xl border p-6"
               style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
             >
               <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-                Pago y resultados
+                Pago
               </h2>
-              <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                {/* Pago */}
-                <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
-                  <div className="mb-3 flex items-start gap-3">
-                    <Checkbox
-                      id="pagado"
-                      checked={pagado}
-                      onCheckedChange={(checked) => setPagado(checked === true)}
-                      disabled={isPending}
-                      className="mt-0.5"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <label htmlFor="pagado" className="cursor-pointer text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
-                          Visita pagada
-                        </label>
-                        {pagado && <EstadoBadge estado="realizada" />}
-                      </div>
-                      <p className="mt-0.5 text-[11.5px]" style={{ color: 'var(--muted-foreground)' }}>
-                        {pagado ? `Pago confirmado${fechaPago ? ` · ${fechaPago}` : ''}` : 'Pago pendiente'}
-                      </p>
+              <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
+                <div className="mb-3 flex items-start gap-3">
+                  <Checkbox
+                    id="pagado"
+                    checked={pagado}
+                    onCheckedChange={(checked) => setPagado(checked === true)}
+                    disabled={isPending}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <label htmlFor="pagado" className="cursor-pointer text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
+                        Visita pagada
+                      </label>
+                      {pagado && <EstadoBadge estado="realizada" />}
                     </div>
+                    <p className="mt-0.5 text-[11.5px]" style={{ color: 'var(--muted-foreground)' }}>
+                      {pagado ? `Pago confirmado${fechaPago ? ` · ${fechaPago}` : ''}` : 'Pago pendiente'}
+                    </p>
                   </div>
-                  {pagado && (
-                    <div className="grid grid-cols-2 gap-2 pl-7">
-                      <SelectCombobox
-                        mode="single"
-                        options={metodoPagoOptions}
-                        selected={metodoPago}
-                        onChange={setMetodoPago}
-                        placeholder="Método…"
-                        disabled={isPending}
-                      />
-                      <FormDatePicker
-                        mode="single"
-                        name="fechaPago"
-                        value={fechaPago ?? undefined}
-                        onChange={(v) => setFechaPago(v ?? null)}
-                        disabled={isPending}
-                        weekStartsOn={1}
-                        placeholder="Fecha pago"
-                      />
-                    </div>
-                  )}
                 </div>
-
-                {/* Resultados */}
-                <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
-                  <div className="mb-3 flex items-start gap-3">
-                    <Checkbox
-                      id="resultadosEnviados"
-                      checked={resultadosEnviados}
-                      onCheckedChange={(checked) => setResultadosEnviados(checked === true)}
+                {pagado && (
+                  <div className="grid grid-cols-2 gap-2 pl-7">
+                    <SelectCombobox
+                      mode="single"
+                      options={metodoPagoOptions}
+                      selected={metodoPago}
+                      onChange={setMetodoPago}
+                      placeholder="Método…"
                       disabled={isPending}
-                      className="mt-0.5"
                     />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <label htmlFor="resultadosEnviados" className="cursor-pointer text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
-                          Resultados enviados
-                        </label>
-                        {!resultadosEnviados && (
-                          <span
-                            className="rounded-md px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide"
-                            style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}
-                          >
-                            Pendiente
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-[11.5px]" style={{ color: 'var(--muted-foreground)' }}>
-                        {resultadosEnviados
-                          ? fechaEnvioResultados ? `Enviados el ${fechaEnvioResultados}` : 'Enviados'
-                          : 'Aún no se envían los resultados al paciente.'
-                        }
-                      </p>
-                    </div>
+                    <FormDatePicker
+                      mode="single"
+                      name="fechaPago"
+                      value={fechaPago ?? undefined}
+                      onChange={(v) => setFechaPago(v ?? null)}
+                      disabled={isPending}
+                      weekStartsOn={1}
+                      placeholder="Fecha pago"
+                    />
                   </div>
-                  {resultadosEnviados && (
-                    <div className="pl-7">
-                      <FormDatePicker
-                        mode="single"
-                        name="fechaEnvioResultados"
-                        value={fechaEnvioResultados ?? undefined}
-                        onChange={(v) => setFechaEnvioResultados(v ?? null)}
-                        disabled={isPending}
-                        weekStartsOn={1}
-                        placeholder="Fecha de envío"
-                      />
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </section>
           )}
@@ -1402,6 +1349,32 @@ export function VisitaForm({
             </div>
 
           </div>
+
+          {/* Link a resultados de exámenes */}
+          {isEdit && totalExamCount > 0 && (
+            <div className="mt-2 overflow-hidden rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
+              <Link
+                href={`/visitas/${visita.id}/resultados`}
+                className="flex items-center justify-between gap-2 px-4 py-3 text-[13px] font-medium transition-opacity hover:opacity-70"
+                style={{ color: 'var(--foreground)' }}
+              >
+                <span>Resultados de exámenes</span>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
+                  style={{
+                    backgroundColor: visita.resultadosEnviadosCount > 0 && visita.resultadosEnviadosCount >= totalExamCount
+                      ? 'oklch(0.6 0.118 184.704 / 12%)'
+                      : 'oklch(0.7 0.15 60 / 15%)',
+                    color: visita.resultadosEnviadosCount > 0 && visita.resultadosEnviadosCount >= totalExamCount
+                      ? 'oklch(0.45 0.118 184.704)'
+                      : 'oklch(0.40 0.15 60)',
+                  }}
+                >
+                  {visita.resultadosEnviadosCount}/{totalExamCount}
+                </span>
+              </Link>
+            </div>
+          )}
 
           {isEdit && (
             <p className="mt-3 px-2 text-[11px] space-y-0.5" style={{ color: 'var(--muted-foreground)' }}>

@@ -267,8 +267,8 @@ export const visits = pgTable(
     pagado: boolean('pagado').notNull().default(false),
     metodoPago: varchar('metodo_pago', { length: 30 }),
     fechaPago: date('fecha_pago'),
-    resultadosEnviados: boolean('resultados_enviados').notNull().default(false),
-    fechaEnvioResultados: date('fecha_envio_resultados'),
+    resultadosEnviadosCount: integer('resultados_enviados_count').notNull().default(0),
+    resultadosTotalCount: integer('resultados_total_count').notNull().default(0),
     costoTraslado: integer('costo_traslado').notNull().default(0),
     cobraVisita: boolean('cobra_visita').notNull().default(false),
     keyOrdenMedica: varchar('key_orden_medica', { length: 500 }),
@@ -534,7 +534,29 @@ export const visitIsapreExams = pgTable(
 )
 
 // ============================================================================
-// 24. ExamenIsapreCotizacion - Exámenes Imalab-Isapre en una cotización
+// 24. ExamenVisitaResultado - Seguimiento de envío de resultados por examen
+// ============================================================================
+export const visitExamResults = pgTable(
+  'examenes_visitas_resultados',
+  {
+    id: serial('id').primaryKey(),
+    idVisita: integer('id_visita').notNull(),
+    idExamen: integer('id_examen').notNull(),
+    enviado: boolean('enviado').notNull().default(false),
+    fechaEnvio: date('fecha_envio'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] }).onDelete('cascade'),
+    foreignKey({ columns: [table.idExamen], foreignColumns: [exams.id] }).onDelete('restrict'),
+    uniqueIndex('examenes_visitas_resultados_visita_examen_idx').on(table.idVisita, table.idExamen),
+    index('examenes_visitas_resultados_id_visita_idx').on(table.idVisita),
+  ]
+)
+
+// ============================================================================
+// 25. ExamenIsapreCotizacion - Exámenes Imalab-Isapre en una cotización
 // ============================================================================
 export const quotationIsapreExams = pgTable(
   'examenes_isapre_cotizaciones',
