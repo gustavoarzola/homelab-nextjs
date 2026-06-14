@@ -2,7 +2,7 @@
 
 import { db } from '@/db'
 import {
-  visits, patients, addresses, laboratories,
+  visits, patients, addresses,
   visitProcedures, visitExams, procedures, exams, nurses,
 } from '@/db/schema'
 import { eq, and, inArray, asc } from 'drizzle-orm'
@@ -20,7 +20,6 @@ export type VisitaAsignacion = {
   comuna: string | null
   latitud: string | null
   longitud: string | null
-  laboratorio: string | null
   procedimientos: string[]
   examenes: string[]
 }
@@ -43,12 +42,10 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
       comuna: addresses.areaAdministrativa3,
       latitud: addresses.latitud,
       longitud: addresses.longitud,
-      laboratorio: laboratories.nombre,
     })
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
     .where(and(eq(visits.fecha, fecha), eq(visits.estado, 'creada')))
 
   if (!rawVisitas.length) return []
@@ -93,7 +90,6 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
     comuna: v.comuna ?? null,
     latitud: v.latitud ?? null,
     longitud: v.longitud ?? null,
-    laboratorio: v.laboratorio ?? null,
     procedimientos: procsByVisita.get(v.id) ?? [],
     examenes: examsByVisita.get(v.id) ?? [],
   }))

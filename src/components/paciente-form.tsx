@@ -490,6 +490,27 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
 
             <div className="flex flex-col gap-1.5">
               <label className={labelClass} style={labelStyle}>
+                N° de serie (cédula)
+              </label>
+              <input
+                name="serieDocumento"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="012345678"
+                defaultValue={paciente?.serieDocumento ?? ''}
+                disabled={isPending}
+                onInput={(e) => {
+                  const t = e.currentTarget
+                  t.value = t.value.replace(/\D/g, '')
+                }}
+                className={inputClass}
+                style={inputStyle}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass} style={labelStyle}>
                 Fecha de nacimiento
               </label>
               <BirthDatePicker

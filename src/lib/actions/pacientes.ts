@@ -65,6 +65,7 @@ const pacienteBaseSchema = z
     apellidoMaterno: z.string().trim().optional().transform((v) => v ?? ''),
     tipoIdentificador: z.enum(['rut', 'pasaporte']).optional().transform((v) => v ?? null),
     identificador: fields.nullableStr,
+    serieDocumento: z.string().trim().regex(/^\d*$/, 'El número de serie solo puede contener dígitos').optional().transform((v) => v || null),
     fechaNacimiento: fields.nullableStr,
     correo: fields.nullableStr,
     informacionAdicional: fields.nullableStr,
@@ -95,6 +96,7 @@ export type PacienteDetalle = {
   id: number
   identificador: string | null
   tipoIdentificador: string | null
+  serieDocumento: string | null
   nombres: string
   apellidoPaterno: string | null
   apellidoMaterno: string | null
@@ -212,6 +214,7 @@ export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
       id: patients.id,
       identificador: patients.identificador,
       tipoIdentificador: patients.tipoIdentificador,
+      serieDocumento: patients.serieDocumento,
       nombres: patients.nombres,
       apellidoPaterno: patients.apellidoPaterno,
       apellidoMaterno: patients.apellidoMaterno,
@@ -265,7 +268,7 @@ export async function createPaciente(
 
   const {
     nombres, apellidoPaterno, apellidoMaterno, tipoIdentificador, identificador: rawIdentificador,
-    fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
+    serieDocumento, fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
     idResidenciaAdulto, direccion, direccionFormateada, numero, calle, localidad,
     areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
   } = parsed.data
@@ -305,7 +308,7 @@ export async function createPaciente(
       const [patient] = await tx
         .insert(patients)
         .values({
-          identificador, tipoIdentificador: tipoId, nombres, apellidoPaterno, apellidoMaterno,
+          identificador, tipoIdentificador: tipoId, serieDocumento, nombres, apellidoPaterno, apellidoMaterno,
           fechaNacimiento, correo, informacionAdicional, keyIdentificacion,
           idDireccion, idCompaniaSeguro, idResidenciaAdulto,
         })
@@ -339,7 +342,7 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
 
   const {
     id, nombres, apellidoPaterno, apellidoMaterno, tipoIdentificador, identificador: rawIdentificador,
-    fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
+    serieDocumento, fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
     idResidenciaAdulto, direccion, direccionFormateada, numero, calle, localidad,
     areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
   } = parsed.data
@@ -387,7 +390,7 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
       await tx
         .update(patients)
         .set({
-          identificador, tipoIdentificador: tipoId, nombres, apellidoPaterno, apellidoMaterno,
+          identificador, tipoIdentificador: tipoId, serieDocumento, nombres, apellidoPaterno, apellidoMaterno,
           fechaNacimiento, correo, informacionAdicional, keyIdentificacion,
           idCompaniaSeguro, idResidenciaAdulto, updatedAt: new Date(),
         })

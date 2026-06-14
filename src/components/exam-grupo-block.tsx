@@ -328,12 +328,12 @@ function GrupoLabBlock({
                 {e.tipo === 'isapre' ? (
                   <div className="flex items-center gap-2.5">
                     <MoneyField
-                      label="Valor"
+                      label="Valor examen"
                       value={e.valor}
                       onChange={(v) => patchIsapreExam(e.id, { valor: v })}
                     />
                     <MoneyField
-                      label="A pagar"
+                      label="Valor a pagar"
                       value={e.valorPagar}
                       onChange={(v) => patchIsapreExam(e.id, { valorPagar: v })}
                     />
@@ -399,7 +399,7 @@ function AddGroupMenu({
         {empty ? (
           <>
             <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-foreground">
-              <Plus className="h-3.5 w-3.5" /> Seleccionar grupo-laboratorio
+              <Plus className="h-3.5 w-3.5" /> Seleccionar laboratorio
             </span>
             <span className="text-[12px] text-muted-foreground">
               Elige primero un laboratorio para ver y filtrar sus exámenes.

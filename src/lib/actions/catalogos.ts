@@ -3,7 +3,7 @@
 import { db } from '@/db'
 import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops } from '@/db/schema'
 import { eq, count, and, or, ilike, asc, desc, not, SQL } from 'drizzle-orm'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { z } from 'zod'
 import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
@@ -104,6 +104,7 @@ export async function createProcedimiento(formData: FormData): Promise<Result> {
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.insert(procedures).values({ nombre, codigo, categoria, precio })
     revalidatePath('/procedimientos')
+    revalidateTag('procedimientos', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al crear' }
@@ -124,6 +125,7 @@ export async function updateProcedimiento(formData: FormData): Promise<Result> {
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.update(procedures).set({ nombre, codigo, categoria, precio }).where(eq(procedures.id, id))
     revalidatePath('/procedimientos')
+    revalidateTag('procedimientos', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al actualizar' }
@@ -136,6 +138,7 @@ export async function toggleProcedimiento(id: number, activo: boolean): Promise<
   try {
     await db.update(procedures).set({ activo: !activo }).where(eq(procedures.id, id))
     revalidatePath('/procedimientos')
+    revalidateTag('procedimientos', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al cambiar estado' }
@@ -177,6 +180,7 @@ export async function createExamen(formData: FormData): Promise<Result> {
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.insert(exams).values({ nombre, codigo, grupoExamen, precio })
     revalidatePath('/examenes')
+    revalidateTag('examenes', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al crear' }
@@ -197,6 +201,7 @@ export async function updateExamen(formData: FormData): Promise<Result> {
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.update(exams).set({ nombre, codigo, grupoExamen, precio, updatedAt: new Date() }).where(eq(exams.id, id))
     revalidatePath('/examenes')
+    revalidateTag('examenes', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al actualizar' }
@@ -209,6 +214,7 @@ export async function toggleExamen(id: number, activo: boolean): Promise<Result>
   try {
     await db.update(exams).set({ activo: !activo }).where(eq(exams.id, id))
     revalidatePath('/examenes')
+    revalidateTag('examenes', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al cambiar estado' }
@@ -249,6 +255,7 @@ export async function createPrevision(formData: FormData): Promise<Result> {
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.insert(healthInsurances).values({ nombre, categoria })
     revalidatePath('/previsiones')
+    revalidateTag('previsiones', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al crear' }
@@ -269,6 +276,7 @@ export async function updatePrevision(formData: FormData): Promise<Result> {
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.update(healthInsurances).set({ nombre, categoria }).where(eq(healthInsurances.id, id))
     revalidatePath('/previsiones')
+    revalidateTag('previsiones', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al actualizar' }
@@ -281,6 +289,7 @@ export async function togglePrevision(id: number, activo: boolean): Promise<Resu
   try {
     await db.update(healthInsurances).set({ activo: !activo }).where(eq(healthInsurances.id, id))
     revalidatePath('/previsiones')
+    revalidateTag('previsiones', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al cambiar estado' }
@@ -389,6 +398,7 @@ export async function createTipoRecargo(formData: FormData): Promise<Result> {
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.insert(surchargeTypes).values({ nombre, precio })
     revalidatePath('/tipos-recargos')
+    revalidateTag('tipos-recargos', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al crear' }
@@ -409,6 +419,7 @@ export async function updateTipoRecargo(formData: FormData): Promise<Result> {
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.update(surchargeTypes).set({ nombre, precio, updatedAt: new Date() }).where(eq(surchargeTypes.id, id))
     revalidatePath('/tipos-recargos')
+    revalidateTag('tipos-recargos', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al actualizar' }
@@ -421,22 +432,29 @@ export async function toggleTipoRecargo(id: number, activo: boolean): Promise<Re
   try {
     await db.update(surchargeTypes).set({ activo: !activo }).where(eq(surchargeTypes.id, id))
     revalidatePath('/tipos-recargos')
+    revalidateTag('tipos-recargos', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al cambiar estado' }
   }
 }
 
+const _fetchTiposRecargos = unstable_cache(
+  async () => {
+    const rows = await db
+      .select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre, precio: surchargeTypes.precio })
+      .from(surchargeTypes)
+      .where(eq(surchargeTypes.activo, true))
+      .orderBy(asc(surchargeTypes.nombre))
+    return rows.map((r) => ({ id: r.id, label: r.nombre, precio: r.precio }))
+  },
+  ['tipos-recargos'],
+  { tags: ['tipos-recargos'], revalidate: 86400 },
+)
+
 export async function getTiposRecargosForSelect(): Promise<{ id: number; label: string; precio: number }[]> {
   await requireSession()
-
-  const rows = await db
-    .select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre, precio: surchargeTypes.precio })
-    .from(surchargeTypes)
-    .where(eq(surchargeTypes.activo, true))
-    .orderBy(asc(surchargeTypes.nombre))
-
-  return rows.map((r) => ({ id: r.id, label: r.nombre, precio: r.precio }))
+  return _fetchTiposRecargos()
 }
 
 // ─── Talleres ─────────────────────────────────────────────────────────────────
@@ -474,6 +492,7 @@ export async function createTaller(formData: FormData): Promise<Result> {
     if (existing.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.insert(workshops).values({ nombre, codigo })
     revalidatePath('/talleres')
+    revalidateTag('talleres', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al crear' }
@@ -494,6 +513,7 @@ export async function updateTaller(formData: FormData): Promise<Result> {
     if (duplicated.length > 0) return { success: false, error: 'Este nombre ya existe' }
     await db.update(workshops).set({ nombre, codigo, updatedAt: new Date() }).where(eq(workshops.id, id))
     revalidatePath('/talleres')
+    revalidateTag('talleres', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al actualizar' }
@@ -506,56 +526,66 @@ export async function toggleTaller(id: number, activo: boolean): Promise<Result>
   try {
     await db.update(workshops).set({ activo: !activo }).where(eq(workshops.id, id))
     revalidatePath('/talleres')
+    revalidateTag('talleres', 'days')
     return { success: true }
   } catch {
     return { success: false, error: 'Error al cambiar estado' }
   }
 }
 
+const _fetchTalleres = unstable_cache(
+  () => db.select().from(workshops).where(eq(workshops.activo, true)).orderBy(asc(workshops.nombre)),
+  ['talleres'],
+  { tags: ['talleres'], revalidate: 86400 },
+)
+
 export async function getTalleres(): Promise<TallerRow[]> {
   await requireSession()
-
-  return db
-    .select()
-    .from(workshops)
-    .where(eq(workshops.activo, true))
-    .orderBy(asc(workshops.nombre))
+  return _fetchTalleres()
 }
 
 // ─── getProcedimientos (all active) ────────────────────────────────────────
 
+const _fetchProcedimientos = unstable_cache(
+  () => db.select().from(procedures).where(eq(procedures.activo, true)).orderBy(asc(procedures.nombre)),
+  ['procedimientos'],
+  { tags: ['procedimientos'], revalidate: 86400 },
+)
+
 export async function getProcedimientos(): Promise<ProcedimientoRow[]> {
   await requireSession()
-
-  return db
-    .select()
-    .from(procedures)
-    .where(eq(procedures.activo, true))
-    .orderBy(asc(procedures.nombre))
+  return _fetchProcedimientos()
 }
 
 // ─── getExamenes (all active) ────────────────────────────────────────────────
 
+const _fetchExamenes = unstable_cache(
+  () => db.select().from(exams).where(eq(exams.activo, true)).orderBy(asc(exams.nombre)),
+  ['examenes'],
+  { tags: ['examenes'], revalidate: 86400 },
+)
+
 export async function getExamenes(): Promise<ExamenRow[]> {
   await requireSession()
-
-  return db
-    .select()
-    .from(exams)
-    .where(eq(exams.activo, true))
-    .orderBy(asc(exams.nombre))
+  return _fetchExamenes()
 }
 
 // ─── getIsaprePrevisiones ─────────────────────────────────────────────────────
 
 export type IsaprePrevisionRow = { id: number; nombre: string }
 
+const _fetchIsaprePrevisiones = unstable_cache(
+  () =>
+    db
+      .select({ id: healthInsurances.id, nombre: healthInsurances.nombre })
+      .from(healthInsurances)
+      .where(and(eq(healthInsurances.categoria, 'isapre'), eq(healthInsurances.activo, true)))
+      .orderBy(asc(healthInsurances.nombre)),
+  ['previsiones'],
+  { tags: ['previsiones'], revalidate: 86400 },
+)
+
 export async function getIsaprePrevisiones(): Promise<IsaprePrevisionRow[]> {
   await requireSession()
-
-  return db
-    .select({ id: healthInsurances.id, nombre: healthInsurances.nombre })
-    .from(healthInsurances)
-    .where(and(eq(healthInsurances.categoria, 'isapre'), eq(healthInsurances.activo, true)))
-    .orderBy(asc(healthInsurances.nombre))
+  return _fetchIsaprePrevisiones()
 }

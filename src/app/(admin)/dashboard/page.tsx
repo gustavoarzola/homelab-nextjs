@@ -1,7 +1,6 @@
 import { auth } from '@/auth'
 import { DashboardFilters } from '@/components/dashboard-filters'
 import { DashboardFinanceCard } from '@/components/dashboard-finance-card'
-import { DashboardNursePayCard } from '@/components/dashboard-nurse-pay-card'
 import { DashboardCobrosTable, DashboardResultadosTable } from '@/components/dashboard-pending-table'
 import { DashboardRankingCard } from '@/components/dashboard-ranking-card'
 import { DashboardVisitsChart } from '@/components/dashboard-visits-chart'
@@ -61,12 +60,6 @@ export default async function DashboardPage({ searchParams }: Props) {
 
         <div className="relative z-0 grid grid-cols-1 gap-6 xl:grid-cols-2">
           <DashboardRankingCard
-            title="Visitas por laboratorio"
-            description="Distribución del mes por red de laboratorio"
-            items={dashboard.visitsByLaboratory}
-            icon="laboratory"
-          />
-          <DashboardRankingCard
             title="Visitas por enfermera"
             description="Profesionales con mayor carga durante el período"
             items={dashboard.visitsByNurse}
@@ -80,9 +73,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             Resumen financiero
           </p>
           <DashboardFinanceCard
-            totalFacturado={financiero.totalFacturado}
             cobrosEnPendiente={financiero.cobrosEnPendiente}
-            costoTraslados={financiero.costoTraslados}
           />
         </div>
 
@@ -91,9 +82,6 @@ export default async function DashboardPage({ searchParams }: Props) {
           <DashboardResultadosTable items={financiero.resultadosPendientes} />
         </div>
 
-        <div className="relative z-0">
-          <DashboardNursePayCard items={financiero.pagosEnfermeras} />
-        </div>
       </div>
     </div>
   )

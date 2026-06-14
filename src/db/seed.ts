@@ -5,7 +5,6 @@ import {
   users, nurses, patients, addresses, patientPhones,
   visits, visitExams, visitProcedures, visitWorkshops, visitSurcharges,
   healthInsurances, elderlyResidences,
-  laboratories,
   procedures, exams,
   contactOrigins,
   surchargeTypes,
@@ -220,21 +219,6 @@ const previsionesData = [
   { nombre: 'Capredena (Carabineros de Chile)', categoria: 'particular' },
   // Sin previsión
   { nombre: 'Particular / Sin previsión', categoria: 'particular' },
-]
-
-// ─── Cadenas (redes de clínicas) ──────────────────────────────────────────────
-
-const cadenasData = [
-  { nombre: 'Clínicas Bupa Chile' },
-  { nombre: 'Red UC Christus' },
-  { nombre: 'Clínica Alemana' },
-  { nombre: 'Clínica Las Condes' },
-  { nombre: 'Clínica Indisa' },
-  { nombre: 'Clínica Bicentenario' },
-  { nombre: 'Megasalud' },
-  { nombre: 'Integramédica' },
-  { nombre: 'Hospital del Trabajador (ACHS)' },
-  { nombre: 'Red Salud UC San Carlos' },
 ]
 
 
@@ -554,9 +538,15 @@ function buildPatient(
     ? pick(residenciaIds, i, 2)
     : null
 
+  // Número de serie de cédula: solo para pacientes con RUT, ~80% tienen serie
+  const serieDocumento = (tipoIdentificador === 'rut' && i % 5 !== 0)
+    ? String(100000000 + ((i * 31337 + 99991) % 900000000)).slice(0, 9)
+    : null
+
   return {
     identificador,
     tipoIdentificador,
+    serieDocumento,
     nombres: nombre,
     apellidoPaterno,
     apellidoMaterno,
@@ -675,7 +665,6 @@ async function seed() {
       pacientes,
       direcciones,
       enfermeras,
-      laboratorios,
       companias_seguros,
       residencias_adulto_mayor,
       procedimientos,
@@ -704,11 +693,6 @@ async function seed() {
   console.log(`   Insertando ${residenciasData.length} residencias de adulto mayor...`)
   const insertedResidencias = await db.insert(elderlyResidences).values(residenciasData).returning()
   const residenciaIds = insertedResidencias.map(r => r.id)
-
-  // Cadenas (laboratorios)
-  console.log(`   Insertando ${cadenasData.length} cadenas de clínicas...`)
-  const insertedCadenas = await db.insert(laboratories).values(cadenasData).returning()
-  const cadenaIds = insertedCadenas.map(r => r.id)
 
   // Procedimientos
   console.log(`   Insertando ${procedimientosData.length} procedimientos...`)
@@ -783,12 +767,11 @@ async function seed() {
 
   // Visitas con historial (enero-early abril 2026)
   const allPatients = await db.select({ id: patients.id }).from(patients)
-  const allLaboratories = await db.select({ id: laboratories.id }).from(laboratories)
   const allNurses = await db.select({ id: nurses.id }).from(nurses).where(eq(nurses.activo, true))
 
   let visitsCount = 0
 
-  if (allPatients.length > 0 && allLaboratories.length > 0) {
+  if (allPatients.length > 0) {
     const visitRows: Array<{
       fecha: string
       hora: string
@@ -797,7 +780,6 @@ async function seed() {
       cobraVisita: boolean
       idPaciente: number
       idEnfermera: number | null
-      idLaboratorio: number
       numeroBoleta: string
       tipoDocumento: string
       numeroAtencion: number | null
@@ -853,7 +835,6 @@ async function seed() {
       const { date, state, assignNurse } = visitDates[idx]!
       const fecha = date.toISOString().split('T')[0]!
       const patientId = allPatients[idx % allPatients.length]!.id
-      const labId = allLaboratories[idx % allLaboratories.length]!.id
       const nurseId = assignNurse && allNurses.length > 0 ? allNurses[idx % allNurses.length]!.id : null
       const hour = Math.floor(Math.random() * 24).toString().padStart(2, '0')
       const minute = Math.floor(Math.random() * 60).toString().padStart(2, '0')
@@ -880,7 +861,6 @@ async function seed() {
         cobraVisita: items.cobraVisita,
         idPaciente: patientId,
         idEnfermera: nurseId,
-        idLaboratorio: labId,
         numeroBoleta,
         tipoDocumento,
         numeroAtencion,
@@ -918,6 +898,16 @@ async function seed() {
       console.log(`   Insertando ${allExamRows.length} exámenes de visitas...`)
       for (let offset = 0; offset < allExamRows.length; offset += ITEM_BATCH) {
         await db.insert(visitExams).values(allExamRows.slice(offset, offset + ITEM_BATCH))
+      }
+
+      // Actualizar resultadosTotalCount en cada visita según sus exámenes reales
+      const examCountByVisit = new Map<number, number>()
+      for (const { idVisita } of allExamRows) {
+        examCountByVisit.set(idVisita, (examCountByVisit.get(idVisita) ?? 0) + 1)
+      }
+      console.log(`   Actualizando resultadosTotalCount en ${examCountByVisit.size} visitas...`)
+      for (const [idVisita, total] of examCountByVisit) {
+        await db.update(visits).set({ resultadosTotalCount: total }).where(eq(visits.id, idVisita))
       }
     }
     if (allProcRows.length > 0) {
@@ -1005,7 +995,6 @@ async function seed() {
   console.log(`   ${residenciaCount} pacientes en residencia adulto mayor`)
   console.log(`   ${visitsCount} visitas (ene-abr 2025: 12-22/día lun-sábado, antes 27mar=realizada+enfermera, después=creada+70%enfermera)`)
   console.log(`   ${previsionesData.length} previsiones de salud`)
-  console.log(`   ${cadenasData.length} laboratorios`)
   console.log(`   ${procedimientosData.length} procedimientos · ${examenesDataWithPrices.length} exámenes imalab · ${examenesIsapreData.length} exámenes imalab isapre`)
   console.log(`   ${visitPricesData.length} precios de visitas de enfermería (por comuna)`)
   console.log(`   ${residenciasData.length} residencias adulto mayor`)

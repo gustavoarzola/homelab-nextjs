@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
-import { searchLaboratorios } from '@/lib/actions/laboratorios'
 import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres, getIsaprePrevisiones } from '@/lib/actions/catalogos'
 import { searchOrigenesContacto, createVisita, getVisitaFormPricingContext } from '@/lib/actions/visitas'
 import { VisitaForm } from '@/components/visita-form'
@@ -20,7 +19,6 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
   const [
     detalle,
     { rows: enfermeras },
-    { rows: laboratorios },
     { rows: procedimientos },
     { rows: examenes },
     talleres,
@@ -31,7 +29,6 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
   ] = await Promise.all([
     getPaciente(id),
     searchEnfermeras({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
-    searchLaboratorios({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
     searchProcedimientos({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
     searchExamenes({ filters: {}, sort: null, page: 1, pageSize: 5000 }),
     getTalleres(),
@@ -69,7 +66,6 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
     <VisitaForm
       paciente={paciente}
       enfermeras={enfermeras}
-      laboratorios={laboratorios}
       procedimientos={procedimientos}
       examenes={examenes}
       talleres={talleres}

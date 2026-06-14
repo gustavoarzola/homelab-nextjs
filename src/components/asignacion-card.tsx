@@ -1,7 +1,7 @@
 'use client'
 
 import { useDraggable } from '@dnd-kit/core'
-import { Clock, MapPin, Building2 } from 'lucide-react'
+import { Clock, MapPin } from 'lucide-react'
 import type { VisitaAsignacion } from '@/lib/actions/asignacion'
 
 type Props = {
@@ -44,12 +44,6 @@ export function AsignacionCard({ visita, overlay = false }: Props) {
           <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
             <MapPin className="h-3 w-3" />
             {visita.comuna}
-          </span>
-        )}
-        {visita.laboratorio && (
-          <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-            <Building2 className="h-3 w-3" />
-            {visita.laboratorio}
           </span>
         )}
       </div>

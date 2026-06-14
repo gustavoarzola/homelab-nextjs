@@ -92,7 +92,6 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
     { label: 'Fecha', value: esc(formatDateLong(data.fecha)) },
     data.hora ? { label: 'Hora', value: esc(data.hora.slice(0, 5)) } : null,
     data.enfermera ? { label: 'Enfermera', value: esc(data.enfermera) } : null,
-    data.laboratorio ? { label: 'Laboratorio', value: esc(data.laboratorio), small: true } : null,
     { label: 'N° de referencia', value: `<span style="font-family:monospace;font-size:12px;">${esc(visitaRef)}</span>` },
   ]
     .filter(Boolean)
@@ -100,7 +99,7 @@ function buildCotizacionHTML(data: CotizacionVisita): string {
       (f) =>
         `<div style="margin-bottom:8px;">
           <span style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:1px;">${f!.label}</span>
-          <span style="font-size:${f!.small ? 12 : 13}px;color:#1e2835;font-weight:500;">${f!.value}</span>
+          <span style="font-size:13px;color:#1e2835;font-weight:500;">${f!.value}</span>
         </div>`,
     )
     .join('')

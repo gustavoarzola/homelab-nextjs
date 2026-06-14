@@ -2,9 +2,10 @@
 
 import { z } from 'zod'
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, workshops, patients, nurses, laboratories, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
+import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, workshops, patients, nurses, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { getTiposRecargosForSelect } from './catalogos'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
@@ -32,19 +33,7 @@ export async function getEnfermeras(): Promise<{ id: number; nombre: string }[]>
 // ─── getTiposRecargos ──────────────────────────────────────────────────────────
 
 export async function getTiposRecargos(): Promise<{ id: number; label: string; precio: number }[]> {
-  await requireSession()
-
-  const rows = await db
-    .select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre, precio: surchargeTypes.precio })
-    .from(surchargeTypes)
-    .where(eq(surchargeTypes.activo, true))
-    .orderBy(asc(surchargeTypes.nombre))
-
-  return rows.map((r) => ({
-    id: r.id,
-    label: r.nombre,
-    precio: r.precio,
-  }))
+  return getTiposRecargosForSelect()
 }
 
 // ─── Detail type ──────────────────────────────────────────────────────────────
@@ -57,7 +46,6 @@ export type VisitaDetalle = {
   costo: number
   idPaciente: number | null
   idEnfermera: number | null
-  idLaboratorio: number | null
   numeroBoleta: string
   tipoDocumento: string
   numeroAtencion: number | null
@@ -94,7 +82,6 @@ export type VisitaRow = {
   idPaciente: number | null
   paciente: string | null
   enfermera: string | null
-  laboratorio: string | null
   pagado: boolean
   resultadosEnviadosCount: number
   resultadosTotalCount: number
@@ -161,7 +148,6 @@ const visitaRowSelect = {
   enfermeraNombres: nurses.nombres,
   enfermeraApellido: nurses.apellidoPaterno,
   enfermeraApellidoMaterno: nurses.apellidoMaterno,
-  laboratorio: laboratories.nombre,
   keyOrdenMedica: visits.keyOrdenMedica,
 }
 
@@ -181,7 +167,6 @@ type VisitaRawRow = {
   enfermeraNombres: string | null
   enfermeraApellido: string | null
   enfermeraApellidoMaterno: string | null
-  laboratorio: string | null
   keyOrdenMedica: string | null
 }
 
@@ -204,7 +189,6 @@ function mapVisitaRow(r: VisitaRawRow): VisitaRow {
       apellidoPaterno: r.enfermeraApellido,
       apellidoMaterno: r.enfermeraApellidoMaterno,
     }) || null,
-    laboratorio: r.laboratorio ?? null,
     pagado: r.pagado,
     resultadosEnviadosCount: r.resultadosEnviadosCount,
     resultadosTotalCount: r.resultadosTotalCount,
@@ -234,7 +218,6 @@ export async function searchVisitas(
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
-    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
     .where(where)
     .orderBy(order)
     .limit(pageSize)
@@ -259,7 +242,6 @@ export async function listVisitasForExport(
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
-    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
     .where(where)
     .orderBy(order)
 
@@ -344,7 +326,6 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     costo: visit.costo,
     idPaciente: visit.idPaciente ?? null,
     idEnfermera: visit.idEnfermera ?? null,
-    idLaboratorio: visit.idLaboratorio ?? null,
     numeroBoleta: visit.numeroBoleta ?? '',
     tipoDocumento: visit.tipoDocumento ?? '',
     numeroAtencion: visit.numeroAtencion ?? null,
@@ -402,7 +383,6 @@ const visitaSharedFields = {
   fecha: fields.fechaRequerida,
   hora: fields.nullableStr,
   idEnfermera: fields.nullableId,
-  idLaboratorio: fields.nullableId,
   numeroBoleta: z.string().trim().max(20, 'N° boleta máximo 20 caracteres').optional().default(''),
   tipoDocumento: z.enum(['boleta', 'factura', '']).optional().default(''),
   numeroAtencion: z.string().trim().optional().transform((v) => (v ? Number(v) || null : null)),
@@ -450,7 +430,7 @@ export async function updateVisita(
   if (!parsed.success) return parsed
 
   const {
-    id, fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
+    id, fecha, hora, estado, idEnfermera, numeroBoleta, tipoDocumento,
     numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago,
     costoTraslado, cobraVisita,
     keyOrdenMedica,
@@ -475,7 +455,7 @@ export async function updateVisita(
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, costoTraslado, cobraVisita, keyOrdenMedica, updatedAt: new Date() })
+        .set({ fecha, hora, estado, idEnfermera, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, costoTraslado, cobraVisita, keyOrdenMedica, updatedAt: new Date() })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.
@@ -617,7 +597,7 @@ export async function createVisita(
   if (!parsed.success) return parsed
 
   const {
-    idPaciente, fecha, hora, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
+    idPaciente, fecha, hora, idEnfermera, numeroBoleta, tipoDocumento,
     numeroAtencion, origenContacto, informacionAdicional, cobraVisita,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
@@ -642,7 +622,7 @@ export async function createVisita(
         .insert(visits)
         .values({
           fecha, hora, estado: 'creada', costo: 0,
-          idPaciente, idEnfermera, idLaboratorio, numeroBoleta, tipoDocumento,
+          idPaciente, idEnfermera, numeroBoleta, tipoDocumento,
           numeroAtencion, origenContacto, informacionAdicional,
           pagado: false, costoTraslado: 0,
           cobraVisita,

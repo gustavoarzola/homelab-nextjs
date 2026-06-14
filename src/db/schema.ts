@@ -92,6 +92,7 @@ export const patients = pgTable(
     id: serial('id').primaryKey(),
     identificador: varchar('identificador', { length: 200 }).unique(),
     tipoIdentificador: varchar('tipo_identificador', { length: 20 }),
+    serieDocumento: varchar('serie_documento', { length: 20 }),
     nombres: varchar('nombres', { length: 200 }).notNull(),
     apellidoPaterno: varchar('apellido_paterno', { length: 200 }).default(''),
     apellidoMaterno: varchar('apellido_materno', { length: 200 }).default(''),
@@ -174,20 +175,6 @@ export const exams = pgTable(
 )
 
 // ============================================================================
-// 9. Laboratorio - Redes de laboratorios
-// ============================================================================
-export const laboratories = pgTable(
-  'laboratorios',
-  {
-    id: serial('id').primaryKey(),
-    nombre: varchar('nombre', { length: 200 }).notNull(),
-    activo: boolean('activo').notNull().default(true),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  }
-)
-
-// ============================================================================
 // 11. CompaniaSeguro - Compañías de seguros (prev. de salud)
 // ============================================================================
 export const healthInsurances = pgTable(
@@ -258,7 +245,6 @@ export const visits = pgTable(
     costo: integer('costo').notNull().default(0),
     idPaciente: integer('id_paciente'),
     idEnfermera: integer('id_enfermera'),
-    idLaboratorio: integer('id_laboratorio'),
     numeroBoleta: varchar('numero_boleta', { length: 20 }).default(''),
     tipoDocumento: varchar('tipo_documento', { length: 20 }).default(''),
     numeroAtencion: integer('numero_atencion'),
@@ -279,8 +265,6 @@ export const visits = pgTable(
     foreignKey({ columns: [table.idPaciente], foreignColumns: [patients.id] })
       .onDelete('cascade'),
     foreignKey({ columns: [table.idEnfermera], foreignColumns: [nurses.id] })
-      .onDelete('restrict'),
-    foreignKey({ columns: [table.idLaboratorio], foreignColumns: [laboratories.id] })
       .onDelete('restrict'),
     index('visitas_fecha_idx').on(table.fecha),
     index('visitas_estado_idx').on(table.estado),

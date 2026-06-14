@@ -19,11 +19,11 @@ import { formatRut } from '@/lib/rut'
 import { ExamenesPorGrupo, buildInitialGroups, appendExamGroupsToFormData } from '@/components/exam-grupo-block'
 import type { ExamGroup } from '@/components/exam-grupo-block'
 import type { NurseRow } from '@/lib/actions/enfermeras'
-import type { LaboratorioRow } from '@/lib/actions/laboratorios'
 import type { ProcedimientoRow, ExamenRow, TallerRow, IsaprePrevisionRow } from '@/lib/actions/catalogos'
 import type { VisitaDetalle } from '@/lib/actions/visitas'
 import { EXAM_GRUPO_META } from '@/lib/exam-grupos'
 
+import { toast } from 'sonner'
 import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
 import { calcularCostoVisitaPreview, type VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
 
@@ -50,7 +50,6 @@ type Props = {
   paciente: PacienteData
   visita?: VisitaDetalle
   enfermeras: NurseRow[]
-  laboratorios: LaboratorioRow[]
   procedimientos: ProcedimientoRow[]
   examenes: ExamenRow[]
   talleres: TallerRow[]
@@ -379,7 +378,6 @@ export function VisitaForm({
   paciente,
   visita,
   enfermeras,
-  laboratorios,
   procedimientos,
   examenes,
   talleres,
@@ -412,7 +410,6 @@ export function VisitaForm({
   const [dismissedPriceWarnings, setDismissedPriceWarnings] = useState<Set<number>>(new Set())
   const [dismissedExamWarnings, setDismissedExamWarnings] = useState<Set<number>>(new Set())
   const [selectedEnfermeraId, setSelectedEnfermeraId] = useState<number | null>(visita?.idEnfermera ?? null)
-  const [selectedLaboratorioId, setSelectedLaboratorioId] = useState<number | null>(visita?.idLaboratorio ?? null)
   const [selectedOrigenContactoId, setSelectedOrigenContactoId] = useState<number | null>(
     visita?.origenContacto ? origenesContacto.find((o) => o.nombre === visita.origenContacto)?.id ?? null : null
   )
@@ -432,6 +429,7 @@ export function VisitaForm({
   const [selectedHora, setSelectedHora] = useState<string | null>(visita?.hora?.slice(0, 5) ?? null)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const errorRef = useRef<HTMLDivElement>(null)
 
   const [cobraVisita, setCobraVisita] = useState(visita?.cobraVisita ?? false)
   const [pagado, setPagado] = useState(visita?.pagado ?? false)
@@ -472,7 +470,10 @@ export function VisitaForm({
       if (result.success) {
         router.push('/visitas')
       } else {
-        setError(result.error ?? 'Error desconocido')
+        const msg = result.error ?? 'Error desconocido'
+        setError(msg)
+        toast.error(msg)
+        setTimeout(() => errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
       }
     })
   }
@@ -481,7 +482,6 @@ export function VisitaForm({
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
   const talleresOptions = talleres.map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
   const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatNombre(e) }))
-  const laboratoriosOptions = laboratorios.map((l) => ({ id: l.id, label: l.nombre }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
   const tipoDocumentoOptions = [{ id: 0, label: 'Boleta' }, { id: 1, label: 'Factura' }]
   const estadoOptions = [
@@ -617,6 +617,7 @@ export function VisitaForm({
       {/* ── Error banner ── */}
       {error && (
         <div
+          ref={errorRef}
           className="mx-8 mt-4 flex items-center gap-2 rounded-lg px-4 py-3 text-[13px]"
           style={{ backgroundColor: 'var(--destructive)', color: 'white' }}
         >
@@ -636,7 +637,6 @@ export function VisitaForm({
         {isEdit && <input type="hidden" name="id" value={visita.id} />}
         <input type="hidden" name="estado" value={estadoActual} />
         <input type="hidden" name="idEnfermera" value={selectedEnfermeraId ?? ''} />
-        <input type="hidden" name="idLaboratorio" value={selectedLaboratorioId ?? ''} />
         <input type="hidden" name="origenContacto" value={selectedOrigenContactoId !== null ? origenesContacto.find((o) => o.id === selectedOrigenContactoId)?.nombre ?? '' : ''} />
         <input type="hidden" name="tipoDocumento" value={selectedTipoDocumentoId === 0 ? 'boleta' : selectedTipoDocumentoId === 1 ? 'factura' : ''} />
         <input type="hidden" name="hora" value={selectedHora ?? ''} />
@@ -700,19 +700,6 @@ export function VisitaForm({
                 />
               </div>
 
-              {/* Laboratorio */}
-              <div className="col-span-2 flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Laboratorio</label>
-                <SelectCombobox
-                  mode="single"
-                  options={laboratoriosOptions}
-                  selected={selectedLaboratorioId}
-                  onChange={setSelectedLaboratorioId}
-                  placeholder="Buscar laboratorio…"
-                  disabled={isPending}
-                />
-              </div>
-
               {/* Estado (edit only) */}
               {isEdit && (
                 <div className="col-span-2 flex flex-col gap-1.5">
@@ -743,6 +730,19 @@ export function VisitaForm({
                   />
                 </div>
               )}
+
+              {/* Origen de contacto */}
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Origen de contacto</label>
+                <SelectCombobox
+                  mode="single"
+                  options={origenesContactoOptions}
+                  selected={selectedOrigenContactoId}
+                  onChange={setSelectedOrigenContactoId}
+                  placeholder="Buscar origen…"
+                  disabled={isPending}
+                />
+              </div>
             </div>
           </section>
 
@@ -1131,17 +1131,6 @@ export function VisitaForm({
                   disabled={isPending}
                   className="w-full rounded-lg px-3 py-2 text-[13px] outline-none disabled:opacity-50"
                   style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                />
-              </div>
-              <div className="col-span-1 flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Origen de contacto</label>
-                <SelectCombobox
-                  mode="single"
-                  options={origenesContactoOptions}
-                  selected={selectedOrigenContactoId}
-                  onChange={setSelectedOrigenContactoId}
-                  placeholder="Buscar origen…"
-                  disabled={isPending}
                 />
               </div>
             </div>

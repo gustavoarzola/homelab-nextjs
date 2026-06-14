@@ -2,7 +2,7 @@
 
 import { db } from '@/db'
 import {
-  visits, patients, addresses, laboratories, nurses,
+  visits, patients, addresses, nurses,
   visitProcedures, visitExams, procedures, exams,
   healthInsurances, patientPhones,
   visitWorkshops, workshops, visitSurcharges, elderlyResidences, surchargeTypes,
@@ -40,7 +40,6 @@ export type VisitaConDetalles = {
     areaAdministrativa1: string | null
     areaAdministrativa2: string | null
   }
-  laboratorio: string | null
   procedimientos: string[]
   exámenes: string[]
   talleres: string[]
@@ -140,7 +139,6 @@ async function getVisitasConDetalles(
       comuna: addresses.areaAdministrativa3,
       areaAdministrativa1: addresses.areaAdministrativa1,
       areaAdministrativa2: addresses.areaAdministrativa2,
-      laboratorio: laboratories.nombre,
       previsión: healthInsurances.nombre,
       residenciaAdultoMayor: elderlyResidences.nombre,
       idPaciente: patients.id,
@@ -148,7 +146,6 @@ async function getVisitasConDetalles(
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .leftJoin(laboratories, eq(visits.idLaboratorio, laboratories.id))
     .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
     .leftJoin(elderlyResidences, eq(patients.idResidenciaAdulto, elderlyResidences.id))
     .where(and(eq(visits.fecha, fecha), inArray(visits.idEnfermera, nurseIds)))
@@ -254,7 +251,6 @@ async function getVisitasConDetalles(
       areaAdministrativa1: v.areaAdministrativa1 || null,
       areaAdministrativa2: v.areaAdministrativa2 || null,
     },
-    laboratorio: v.laboratorio || null,
     procedimientos: procsByVisita.get(v.visitaId) ?? [],
     exámenes: examsByVisita.get(v.visitaId) ?? [],
     talleres: workshopsByVisita.get(v.visitaId) ?? [],
@@ -437,9 +433,8 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
       case 10: return v.procedimientos.join(', ') || '—'
       case 11: return v.exámenes.join(', ') || '—'
       case 12: return v.talleres.join(', ') || '—'
-      case 13: return v.laboratorio ?? '—'
-      case 14: return v.paciente.informacionAdicional || '—'
-      case 15: return v.informacionAdicional || '—'
+      case 13: return v.paciente.informacionAdicional || '—'
+      case 14: return v.informacionAdicional || '—'
       default: return '—'
     }
   }
@@ -458,7 +453,6 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
     'Procedimiento(s)',
     'Examen(es)',
     'Taller(es)',
-    'Laboratorio',
     'Notas paciente',
     'Informacion adicional',
   ]

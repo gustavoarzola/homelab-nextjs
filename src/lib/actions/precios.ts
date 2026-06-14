@@ -11,7 +11,6 @@ import {
   healthInsurances,
   visits,
   nurses,
-  laboratories,
   visitProcedures,
   visitExams,
   visitWorkshops,
@@ -319,7 +318,6 @@ export type CotizacionVisita = {
     comuna: string | null
   }
   enfermera: string | null
-  laboratorio: string | null
   items: ItemCotizacion[]
   subtotalExamenes: number
   subtotalTalleres: number
@@ -341,7 +339,6 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       hora: visits.hora,
       idPaciente: visits.idPaciente,
       idEnfermera: visits.idEnfermera,
-      idLaboratorio: visits.idLaboratorio,
     })
     .from(visits)
     .where(eq(visits.id, idVisita))
@@ -349,7 +346,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
   if (!visitRow) return null
 
   // Datos en paralelo
-  const [pacienteRow, enfermeraRow, laboratorioRow, procRows, examRows, tallerRows, surchargesRows] = await Promise.all([
+  const [pacienteRow, enfermeraRow, procRows, examRows, tallerRows, surchargesRows] = await Promise.all([
     visitRow.idPaciente
       ? db
           .select({
@@ -378,14 +375,6 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
           .select({ nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno, apellidoMaterno: nurses.apellidoMaterno })
           .from(nurses)
           .where(eq(nurses.id, visitRow.idEnfermera))
-          .then((r) => r[0] ?? null)
-      : Promise.resolve(null),
-
-    visitRow.idLaboratorio
-      ? db
-          .select({ nombre: laboratories.nombre })
-          .from(laboratories)
-          .where(eq(laboratories.id, visitRow.idLaboratorio))
           .then((r) => r[0] ?? null)
       : Promise.resolve(null),
 
@@ -442,8 +431,6 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     })
   }
 
-  const laboratorioLabel = laboratorioRow?.nombre ?? null
-
   return {
     id: visitRow.id,
     fecha: visitRow.fecha,
@@ -470,7 +457,6 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
           apellidoMaterno: enfermeraRow.apellidoMaterno,
         })
       : null,
-    laboratorio: laboratorioLabel,
     items,
     subtotalExamenes: costoCalculado.subtotalExamenes,
     subtotalTalleres: costoCalculado.subtotalTalleres,

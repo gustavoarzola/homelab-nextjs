@@ -43,6 +43,20 @@
       "when": 1749254400000,
       "tag": "0005_resultados_examenes",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781386582261,
+      "tag": "0006_strange_bastion",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1749859200000,
+      "tag": "0007_remove_laboratorios",
+      "breakpoints": true
     }
   ]
 }

@@ -3,10 +3,9 @@
 import { and, asc, count, desc, eq, gte, lte, sql, sum } from 'drizzle-orm'
 
 import { db } from '@/db'
-import { laboratories, nurses, patients, visitExams, visitWorkshops, visits } from '@/db/schema'
+import { nurses, patients, visits } from '@/db/schema'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
-import { calcNursePayment, calcNursePaymentBase } from '@/lib/pricing/nurse-payment'
 
 const MONTHS = [
   'enero',
@@ -71,17 +70,7 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
     chartData[0] ?? { day: 1, label: '', visits: 0, date: start },
   )
 
-  const [visitsByLaboratoryRaw, visitsByNurseRaw] = await Promise.all([
-    db
-      .select({
-        label: sql<string>`coalesce(${laboratories.nombre}, 'None')`,
-        total: count(),
-      })
-      .from(visits)
-      .leftJoin(laboratories, sql`${visits.idLaboratorio} = ${laboratories.id}`)
-      .where(and(gte(visits.fecha, start), lte(visits.fecha, end)))
-      .groupBy(sql`coalesce(${laboratories.nombre}, 'None')`)
-      .orderBy(desc(count()), asc(sql`coalesce(${laboratories.nombre}, 'None')`)),
+  const [visitsByNurseRaw] = await Promise.all([
     db
       .select({
         label: sql<string>`trim(concat(${nurses.nombres}, ' ', ${nurses.apellidoPaterno}))`,
@@ -95,11 +84,6 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
       .limit(6),
   ])
 
-  const visitsByLaboratory: RankingItem[] = visitsByLaboratoryRaw.map((item) => ({
-    label: item.label,
-    visits: Number(item.total),
-  }))
-
   const visitsByNurse: RankingItem[] = visitsByNurseRaw.map((item) => ({
     label: item.label,
     visits: Number(item.total),
@@ -112,7 +96,6 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
     peakLabel: peakDay.label,
     averageVisits: chartData.length ? totalVisits / chartData.length : 0,
     monthLabel: MONTHS[month - 1] ?? '',
-    visitsByLaboratory,
     visitsByNurse,
     year,
     month,
@@ -134,31 +117,12 @@ export type ResultadoPendienteRow = {
   paciente: string | null
 }
 
-export type PagoEnfermeraRow = {
-  label: string
-  visits: number
-  monto: number
-}
-
 export async function getDashboardFinanciero(month: number, year: number) {
   await requireSession()
 
   const { start, end } = getMonthRange(year, month)
 
-  const [
-    facturadoRow,
-    cobrosRaw,
-    trasladosRow,
-    cobrosPendientesRaw,
-    resultadosPendientesRaw,
-    pagosEnfermeraRaw,
-  ] = await Promise.all([
-    // Total facturado (visitas realizadas)
-    db
-      .select({ total: sum(visits.costo) })
-      .from(visits)
-      .where(and(gte(visits.fecha, start), lte(visits.fecha, end), eq(visits.estado, 'realizada'))),
-
+  const [cobrosRaw, cobrosPendientesRaw, resultadosPendientesRaw] = await Promise.all([
     // Cobros pendientes (realizadas + no pagadas)
     db
       .select({ total: sum(visits.costo) })
@@ -170,14 +134,6 @@ export async function getDashboardFinanciero(month: number, year: number) {
           eq(visits.estado, 'realizada'),
           eq(visits.pagado, false),
         ),
-      ),
-
-    // Costo traslados (no_realizada)
-    db
-      .select({ total: sum(visits.costoTraslado) })
-      .from(visits)
-      .where(
-        and(gte(visits.fecha, start), lte(visits.fecha, end), eq(visits.estado, 'no_realizada')),
       ),
 
     // Lista cobros pendientes
@@ -224,38 +180,6 @@ export async function getDashboardFinanciero(month: number, year: number) {
       )
       .orderBy(desc(visits.fecha))
       .limit(20),
-
-    // Pagos estimados a enfermeras (base = costo total − exámenes − talleres)
-    (() => {
-      const sqExams = db
-        .select({ idVisita: visitExams.idVisita, total: sum(visitExams.precio).as('exam_total') })
-        .from(visitExams)
-        .groupBy(visitExams.idVisita)
-        .as('sq_exams_dash')
-
-      const sqWorkshops = db
-        .select({ idVisita: visitWorkshops.idVisita, total: sum(visitWorkshops.precio).as('ws_total') })
-        .from(visitWorkshops)
-        .groupBy(visitWorkshops.idVisita)
-        .as('sq_workshops_dash')
-
-      return db
-        .select({
-          label: sql<string>`trim(concat(${nurses.nombres}, ' ', ${nurses.apellidoPaterno}))`,
-          visits: count(),
-          totalBase: sql<string>`SUM(${visits.costo} - COALESCE(${sqExams.total}, 0) - COALESCE(${sqWorkshops.total}, 0))`,
-          porcentaje: nurses.porcentajePago,
-        })
-        .from(visits)
-        .innerJoin(nurses, eq(visits.idEnfermera, nurses.id))
-        .leftJoin(sqExams, eq(visits.id, sqExams.idVisita))
-        .leftJoin(sqWorkshops, eq(visits.id, sqWorkshops.idVisita))
-        .where(
-          and(gte(visits.fecha, start), lte(visits.fecha, end), eq(visits.estado, 'realizada')),
-        )
-        .groupBy(nurses.id, nurses.nombres, nurses.apellidoPaterno, nurses.porcentajePago)
-        .orderBy(desc(sql`SUM(${visits.costo} - COALESCE(${sqExams.total}, 0) - COALESCE(${sqWorkshops.total}, 0))`))
-    })(),
   ])
 
   const cobrosPendientes: CobroPendienteRow[] = cobrosPendientesRaw.map((r) => ({
@@ -281,18 +205,9 @@ export async function getDashboardFinanciero(month: number, year: number) {
       }) || null,
   }))
 
-  const pagosEnfermeras: PagoEnfermeraRow[] = pagosEnfermeraRaw.map((r) => ({
-    label: r.label,
-    visits: Number(r.visits),
-    monto: calcNursePayment(Number(r.totalBase ?? 0), Number(r.porcentaje ?? 67.5)),
-  }))
-
   return {
-    totalFacturado: Number(facturadoRow[0]?.total ?? 0),
     cobrosEnPendiente: Number(cobrosRaw[0]?.total ?? 0),
-    costoTraslados: Number(trasladosRow[0]?.total ?? 0),
     cobrosPendientes,
     resultadosPendientes,
-    pagosEnfermeras,
   }
 }

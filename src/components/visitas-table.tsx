@@ -97,7 +97,6 @@ const columns: ColumnDef<VisitaRow>[] = [
     header: 'Resultados',
     enableSorting: false,
     cell: ({ row }) => {
-      if (row.original.estado !== 'realizada') return null
       const enviados = row.original.resultadosEnviadosCount
       const total = row.original.resultadosTotalCount
       if (total === 0) return null
