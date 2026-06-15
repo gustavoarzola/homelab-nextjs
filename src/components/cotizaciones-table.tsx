@@ -4,20 +4,7 @@ import { DataTable, type ColumnDef, type FilterDef, type SearchParams } from './
 import type { CotizacionRow } from '@/lib/actions/cotizaciones'
 import { formatDate } from '@/lib/format'
 import { Printer, Stethoscope } from 'lucide-react'
-
-const ESTADO_LABELS: Record<string, string> = {
-  creada:    'Creada',
-  enviada:   'Enviada',
-  aceptada:  'Aceptada',
-  rechazada: 'Rechazada',
-}
-
-const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
-  creada:    { bg: 'oklch(0.93 0 0)',              color: 'oklch(0.45 0 0)'      },
-  enviada:   { bg: 'oklch(0.88 0.07 250 / 60%)',  color: 'oklch(0.45 0.1 250)' },
-  aceptada:  { bg: 'oklch(0.88 0.1 145 / 60%)',   color: 'oklch(0.4 0.13 145)' },
-  rechazada: { bg: 'oklch(0.95 0.025 25)',         color: 'oklch(0.5 0.18 25)'  },
-}
+import { ESTADO_COTIZACION_STYLES } from '@/lib/estado-colors'
 
 const columns: ColumnDef<CotizacionRow>[] = [
   {
@@ -59,13 +46,13 @@ const columns: ColumnDef<CotizacionRow>[] = [
     header: 'Estado',
     enableSorting: true,
     cell: ({ row }) => {
-      const style = ESTADO_STYLES[row.original.estado] ?? { bg: 'oklch(0.65 0.08 250 / 15%)', color: 'oklch(0.45 0.08 250)' }
+      const cfg = ESTADO_COTIZACION_STYLES[row.original.estado] ?? ESTADO_COTIZACION_STYLES.creada!
       return (
         <span
           className="inline-block rounded-full px-2 py-0.5 text-xs font-medium"
-          style={{ backgroundColor: style.bg, color: style.color }}
+          style={{ backgroundColor: cfg.bg, color: cfg.color }}
         >
-          {ESTADO_LABELS[row.original.estado] ?? row.original.estado}
+          {cfg.label}
         </span>
       )
     },

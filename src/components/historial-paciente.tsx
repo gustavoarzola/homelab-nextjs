@@ -14,37 +14,14 @@ import {
 } from 'lucide-react'
 import type { HistorialPaciente as HistorialPacienteType } from '@/lib/actions/pacientes'
 import { formatNombre } from '@/lib/paciente'
+import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
 
 type Props = {
   data: HistorialPacienteType
 }
 
-const ESTADO_COLORS: Record<string, { border: string; badge: string; badgeText: string; opacity?: string }> = {
-  creada: {
-    border: 'var(--border)',
-    badge: 'oklch(0.92 0 0 / 60%)',
-    badgeText: 'var(--muted-foreground)',
-  },
-  confirmada: {
-    border: 'oklch(0.6 0.15 240)',
-    badge: 'oklch(0.6 0.15 240 / 15%)',
-    badgeText: 'oklch(0.45 0.15 240)',
-  },
-  realizada: {
-    border: 'oklch(0.55 0.15 150)',
-    badge: 'oklch(0.55 0.15 150 / 15%)',
-    badgeText: 'oklch(0.4 0.15 150)',
-  },
-  cancelada: {
-    border: 'var(--destructive)',
-    badge: 'oklch(0.55 0.2 25 / 15%)',
-    badgeText: 'var(--destructive)',
-    opacity: '0.6',
-  },
-}
-
 function getEstadoStyle(estado: string) {
-  return (ESTADO_COLORS[estado] ?? ESTADO_COLORS.creada)!
+  return ESTADO_VISITA_STYLES[estado] ?? ESTADO_VISITA_STYLES.creada!
 }
 
 function formatFecha(fecha: string): string {
@@ -265,8 +242,8 @@ export function HistorialPaciente({ data }: Props) {
                   style={{
                     background: 'var(--card)',
                     border: '1px solid var(--border)',
-                    borderLeft: `4px solid ${style?.border ?? 'var(--border)'}`,
-                    opacity: style?.opacity ?? '1',
+                    borderLeft: `4px solid ${style.border}`,
+                    opacity: style.opacity ?? '1',
                   }}
                 >
                   {/* Card header */}
@@ -286,7 +263,7 @@ export function HistorialPaciente({ data }: Props) {
                     </div>
                     <span
                       className="rounded-full px-2.5 py-0.5 text-xs font-medium capitalize"
-                      style={{ background: style?.badge, color: style?.badgeText }}
+                      style={{ background: style.bg, color: style.color }}
                     >
                       {visita.estado}
                     </span>

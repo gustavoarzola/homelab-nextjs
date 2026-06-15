@@ -4,19 +4,7 @@ import { Paperclip } from 'lucide-react'
 import { DataTable, type ColumnDef, type FilterDef, type SearchParams, type Result } from './data-table'
 import { formatDateTime } from '@/lib/format'
 import type { VisitaRow } from '@/lib/actions/visitas'
-
-// ─── Estado badge ─────────────────────────────────────────────────────────────
-
-const ESTADO_STYLES: Record<string, React.CSSProperties> = {
-  creada:       { backgroundColor: 'oklch(0.7 0.1 250 / 15%)',         color: 'oklch(0.35 0.1 250)' },
-  confirmada:   { backgroundColor: 'oklch(0.7 0.15 60 / 15%)',         color: 'oklch(0.40 0.15 60)' },
-  realizada:    { backgroundColor: 'oklch(0.6 0.118 184.704 / 12%)',   color: 'oklch(0.45 0.118 184.704)' },
-  cancelada:    { backgroundColor: 'var(--muted)',                     color: 'var(--muted-foreground)' },
-  no_realizada: { backgroundColor: 'oklch(0.65 0.15 30 / 15%)',        color: 'oklch(0.45 0.15 30)' },
-}
-const ESTADO_LABELS: Record<string, string> = {
-  creada: 'Creada', confirmada: 'Confirmada', realizada: 'Realizada', cancelada: 'Cancelada', no_realizada: 'No realizada',
-}
+import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
@@ -54,9 +42,9 @@ const columns: ColumnDef<VisitaRow>[] = [
     cell: ({ row }) => (
       <span
         className="rounded-full px-2 py-0.5 text-xs font-medium"
-        style={ESTADO_STYLES[row.original.estado] ?? {}}
+        style={(() => { const s = ESTADO_VISITA_STYLES[row.original.estado]; return s ? { backgroundColor: s.bg, color: s.color } : {} })()}
       >
-        {ESTADO_LABELS[row.original.estado] ?? row.original.estado}
+        {ESTADO_VISITA_STYLES[row.original.estado]?.label ?? row.original.estado}
       </span>
     ),
   },
