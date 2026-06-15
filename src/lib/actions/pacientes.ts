@@ -18,9 +18,11 @@ import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'dr
 import { revalidatePath } from 'next/cache'
 import { validateRut, validatePasaporte } from '@/lib/rut'
 import { formatNombre } from '@/lib/paciente'
-import type { SearchParams, Result } from '@/components/data-table'
+import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+// requireSession is kept for deletePaciente (needs session.user.role)
 import { parseFormData, fields } from '@/lib/validation'
+import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,8 +129,7 @@ export type PacienteDetalle = {
 export async function searchPacientes(
   params: SearchParams,
 ): Promise<{ rows: PacienteRow[]; total: number }> {
-  await requireSession()
-
+  return withQuery(async () => {
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const idPrevision = (filters.idPrevision as string | undefined)?.trim()
@@ -202,13 +203,13 @@ export async function searchPacientes(
   }))
 
   return { rows, total: Number(countRow?.total ?? 0) }
+  })
 }
 
 // ─── getPaciente ──────────────────────────────────────────────────────────────
 
 export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
-  await requireSession()
-
+  return withQuery(async () => {
   const [row] = await db
     .select({
       id: patients.id,
@@ -254,46 +255,45 @@ export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
     keyIdentificacion: row.keyIdentificacion ?? null,
     telefonos: phoneRows,
   }
+  })
 }
 
 // ─── createPaciente ───────────────────────────────────────────────────────────
 
 export async function createPaciente(
   formData: FormData,
-): Promise<{ success: true; id: number } | { success: false; error: string }> {
-  await requireSession()
+): Promise<ActionResult<{ id: number }>> {
+  return withAction('Error al crear el paciente', async () => {
+    const parsed = parseFormData(pacienteCreateSchema, formData)
+    if (!parsed.success) throw new ActionError(parsed.error)
 
-  const parsed = parseFormData(pacienteCreateSchema, formData)
-  if (!parsed.success) return parsed
+    const {
+      nombres, apellidoPaterno, apellidoMaterno, tipoIdentificador, identificador: rawIdentificador,
+      serieDocumento, fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
+      idResidenciaAdulto, direccion, direccionFormateada, numero, calle, localidad,
+      areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
+    } = parsed.data
 
-  const {
-    nombres, apellidoPaterno, apellidoMaterno, tipoIdentificador, identificador: rawIdentificador,
-    serieDocumento, fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
-    idResidenciaAdulto, direccion, direccionFormateada, numero, calle, localidad,
-    areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
-  } = parsed.data
+    const idResult = resolveIdentificador(rawIdentificador, tipoIdentificador)
+    if (idResult && 'error' in idResult) throw new ActionError(idResult.error)
 
-  const idResult = resolveIdentificador(rawIdentificador, tipoIdentificador)
-  if (idResult && 'error' in idResult) return { success: false, error: idResult.error }
+    if (idResult) {
+      const existing = await db.select().from(patients).where(eq(patients.identificador, idResult.identificador))
+      if (existing.length > 0) throw new ActionError('Este identificador ya está registrado')
+    }
 
-  if (idResult) {
-    const existing = await db.select().from(patients).where(eq(patients.identificador, idResult.identificador))
-    if (existing.length > 0) return { success: false, error: 'Este identificador ya está registrado' }
-  }
+    const identificador = idResult?.identificador ?? null
+    const tipoId = idResult?.tipoId ?? null
 
-  const identificador = idResult?.identificador ?? null
-  const tipoId = idResult?.tipoId ?? null
+    const phones: { telefono: string; descripcion: string | null }[] = []
+    for (let i = 0; i < 20; i++) {
+      const tel = (formData.get(`phone_${i}`) as string)?.trim()
+      if (!tel) break
+      const desc = (formData.get(`phone_desc_${i}`) as string)?.trim() || null
+      phones.push({ telefono: tel, descripcion: desc })
+    }
 
-  const phones: { telefono: string; descripcion: string | null }[] = []
-  for (let i = 0; i < 20; i++) {
-    const tel = (formData.get(`phone_${i}`) as string)?.trim()
-    if (!tel) break
-    const desc = (formData.get(`phone_desc_${i}`) as string)?.trim() || null
-    phones.push({ telefono: tel, descripcion: desc })
-  }
-
-  try {
-    const result = await db.transaction(async (tx) => {
+    const id = await db.transaction(async (tx) => {
       const [addr] = await tx
         .insert(addresses)
         .values({
@@ -324,21 +324,16 @@ export async function createPaciente(
     })
 
     revalidatePath('/pacientes')
-    return { success: true, id: result }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : ''
-    if (msg.includes('identificador')) return { success: false, error: 'Este identificador ya está registrado' }
-    return { success: false, error: 'Error al crear el paciente' }
-  }
+    return { id }
+  })
 }
 
 // ─── updatePaciente ───────────────────────────────────────────────────────────
 
-export async function updatePaciente(formData: FormData): Promise<Result> {
-  await requireSession()
-
+export async function updatePaciente(formData: FormData): Promise<ActionResult> {
+  return withAction('Error al actualizar el paciente', async () => {
   const parsed = parseFormData(pacienteUpdateSchema, formData)
-  if (!parsed.success) return parsed
+  if (!parsed.success) throw new ActionError(parsed.error)
 
   const {
     id, nombres, apellidoPaterno, apellidoMaterno, tipoIdentificador, identificador: rawIdentificador,
@@ -348,14 +343,14 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
   } = parsed.data
 
   const idResult = resolveIdentificador(rawIdentificador, tipoIdentificador)
-  if (idResult && 'error' in idResult) return { success: false, error: idResult.error }
+  if (idResult && 'error' in idResult) throw new ActionError(idResult.error)
 
   if (idResult) {
     const duplicated = await db
       .select()
       .from(patients)
       .where(and(eq(patients.identificador, idResult.identificador), not(eq(patients.id, id))))
-    if (duplicated.length > 0) return { success: false, error: 'Este identificador ya está registrado' }
+    if (duplicated.length > 0) throw new ActionError('Este identificador ya está registrado')
   }
 
   const identificador = idResult?.identificador ?? null
@@ -369,47 +364,41 @@ export async function updatePaciente(formData: FormData): Promise<Result> {
     phones.push({ telefono: tel, descripcion: desc })
   }
 
-  try {
-    await db.transaction(async (tx) => {
-      const [existingPatient] = await tx
-        .select({ idDireccion: patients.idDireccion })
-        .from(patients)
-        .where(eq(patients.id, id))
+  await db.transaction(async (tx) => {
+    const [existingPatient] = await tx
+      .select({ idDireccion: patients.idDireccion })
+      .from(patients)
+      .where(eq(patients.id, id))
 
-      if (!existingPatient) throw new Error('Paciente no encontrado')
+    if (!existingPatient) throw new ActionError('Paciente no encontrado')
 
-      await tx
-        .update(addresses)
-        .set({
-          direccion, direccionFormateada, numero, calle, localidad,
-          areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais,
-          latitud: latitud ?? undefined, longitud: longitud ?? undefined,
-        })
-        .where(eq(addresses.id, existingPatient.idDireccion))
+    await tx
+      .update(addresses)
+      .set({
+        direccion, direccionFormateada, numero, calle, localidad,
+        areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais,
+        latitud: latitud ?? undefined, longitud: longitud ?? undefined,
+      })
+      .where(eq(addresses.id, existingPatient.idDireccion))
 
-      await tx
-        .update(patients)
-        .set({
-          identificador, tipoIdentificador: tipoId, serieDocumento, nombres, apellidoPaterno, apellidoMaterno,
-          fechaNacimiento, correo, informacionAdicional, keyIdentificacion,
-          idCompaniaSeguro, idResidenciaAdulto, updatedAt: new Date(),
-        })
-        .where(eq(patients.id, id))
+    await tx
+      .update(patients)
+      .set({
+        identificador, tipoIdentificador: tipoId, serieDocumento, nombres, apellidoPaterno, apellidoMaterno,
+        fechaNacimiento, correo, informacionAdicional, keyIdentificacion,
+        idCompaniaSeguro, idResidenciaAdulto, updatedAt: new Date(),
+      })
+      .where(eq(patients.id, id))
 
-      await tx.delete(patientPhones).where(eq(patientPhones.idPaciente, id))
+    await tx.delete(patientPhones).where(eq(patientPhones.idPaciente, id))
 
-      if (phones.length > 0) {
-        await tx.insert(patientPhones).values(phones.map((p) => ({ ...p, idPaciente: id })))
-      }
-    })
+    if (phones.length > 0) {
+      await tx.insert(patientPhones).values(phones.map((p) => ({ ...p, idPaciente: id })))
+    }
+  })
 
-    revalidatePath('/pacientes')
-    return { success: true }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : ''
-    if (msg.includes('identificador')) return { success: false, error: 'Este identificador ya está registrado' }
-    return { success: false, error: 'Error al actualizar el paciente' }
-  }
+  revalidatePath('/pacientes')
+  })
 }
 
 // ─── getHistorialPaciente ─────────────────────────────────────────────────────
@@ -443,8 +432,7 @@ export type HistorialPaciente = {
 }
 
 export async function getHistorialPaciente(id: number): Promise<HistorialPaciente | null> {
-  await requireSession()
-
+  return withQuery(async () => {
   const [pacienteRow] = await db
     .select({
       id: patients.id,
@@ -545,15 +533,16 @@ export async function getHistorialPaciente(id: number): Promise<HistorialPacient
   }))
 
   return { paciente: pacienteRow, visitas }
+  })
 }
 
 // ─── deletePaciente ───────────────────────────────────────────────────────────
 
-export async function deletePaciente(id: number): Promise<Result> {
-  const session = await requireSession()
-  const userRole = session.user.role ?? 'usuario'
+export async function deletePaciente(id: number): Promise<ActionResult> {
+  return withAction('Error al eliminar el paciente', async () => {
+    const session = await requireSession()
+    const userRole = session.user.role ?? 'usuario'
 
-  try {
     const [countRow] = await db
       .select({ total: count() })
       .from(visits)
@@ -561,10 +550,9 @@ export async function deletePaciente(id: number): Promise<Result> {
     const total = Number(countRow?.total ?? 0)
 
     if (total > 0 && userRole !== 'admin') {
-      return {
-        success: false,
-        error: `No se puede eliminar: tiene ${total} visita${total === 1 ? '' : 's'} registrada${total === 1 ? '' : 's'}`,
-      }
+      throw new ActionError(
+        `No se puede eliminar: tiene ${total} visita${total === 1 ? '' : 's'} registrada${total === 1 ? '' : 's'}`,
+      )
     }
 
     const [existingPatient] = await db
@@ -572,7 +560,7 @@ export async function deletePaciente(id: number): Promise<Result> {
       .from(patients)
       .where(eq(patients.id, id))
 
-    if (!existingPatient) return { success: false, error: 'Paciente no encontrado' }
+    if (!existingPatient) throw new ActionError('Paciente no encontrado')
 
     await db.transaction(async (tx) => {
       await tx.delete(patients).where(eq(patients.id, id))
@@ -580,18 +568,13 @@ export async function deletePaciente(id: number): Promise<Result> {
     })
 
     revalidatePath('/pacientes')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al eliminar el paciente' }
-  }
+  })
 }
 
 // ─── getPacientes (all for select dropdowns) ────────────────────────────────
 
 export async function getPacientes(): Promise<{ id: number; nombres: string; apellidoPaterno: string | null; apellidoMaterno?: string | null; comuna: string | null }[]> {
-  await requireSession()
-
-  return db
+  return withQuery(() => db
     .select({
       id: patients.id,
       nombres: patients.nombres,
@@ -601,5 +584,5 @@ export async function getPacientes(): Promise<{ id: number; nombres: string; ape
     })
     .from(patients)
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .orderBy(asc(patients.apellidoPaterno), asc(patients.nombres))
+    .orderBy(asc(patients.apellidoPaterno), asc(patients.nombres)))
 }

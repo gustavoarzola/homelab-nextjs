@@ -7,8 +7,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { validateRut } from '@/lib/rut'
 import type { SearchParams } from '@/components/data-table'
-import { requireSession } from '@/lib/auth-guard'
-import { parseFormData, fields } from '@/lib/validation'
+import { fields } from '@/lib/validation'
+import { withQuery, withAction, withFormAction, ActionError, type ActionResult } from '@/lib/with-action'
 
 const enfermeraSchema = z.object({
   nombres: z.string().trim().min(1, 'Nombres requeridos'),
@@ -52,113 +52,80 @@ export type NurseRow = {
 export async function searchEnfermeras(
   params: SearchParams,
 ): Promise<{ rows: NurseRow[]; total: number }> {
-  await requireSession()
+  return withQuery(async () => {
+    const { filters, sort, page, pageSize } = params
+    const nombre = (filters.nombre as string | undefined)?.trim()
+    const mostrarInactivas = filters.mostrarInactivas as boolean | undefined
 
-  const { filters, sort, page, pageSize } = params
-  const nombre = (filters.nombre as string | undefined)?.trim()
-  const mostrarInactivas = filters.mostrarInactivas as boolean | undefined
+    const conditions: SQL[] = []
+    if (nombre) {
+      conditions.push(
+        or(
+          ilike(nurses.nombres, `%${nombre}%`),
+          ilike(nurses.apellidoPaterno, `%${nombre}%`),
+          ilike(nurses.apellidoMaterno, `%${nombre}%`),
+        )!,
+      )
+    }
+    if (!mostrarInactivas) conditions.push(eq(nurses.activo, true))
 
-  const conditions: SQL[] = []
-  if (nombre) {
-    conditions.push(
-      or(
-        ilike(nurses.nombres, `%${nombre}%`),
-        ilike(nurses.apellidoPaterno, `%${nombre}%`),
-        ilike(nurses.apellidoMaterno, `%${nombre}%`),
-      )!,
-    )
-  }
-  if (!mostrarInactivas) conditions.push(eq(nurses.activo, true))
+    const where = conditions.length ? and(...conditions) : undefined
 
-  const where = conditions.length ? and(...conditions) : undefined
-
-  const [countRow] = await db.select({ total: count() }).from(nurses).where(where)
-  const total = countRow?.total ?? 0
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sortCols: Record<string, any> = {
-    apellidoPaterno: nurses.apellidoPaterno,
-    nombres: nurses.nombres,
-    rut: nurses.rut,
-    correo: nurses.correo,
-    telefono: nurses.telefono,
-  }
-  const sortCol = (sort?.key && sortCols[sort.key]) ?? nurses.apellidoPaterno
-  const primaryOrder = sort?.dir === 'desc' ? desc(sortCol) : asc(sortCol)
-
-  const rows = await db
-    .select()
-    .from(nurses)
-    .where(where)
-    .orderBy(primaryOrder, asc(nurses.apellidoPaterno), asc(nurses.nombres))
-    .limit(pageSize)
-    .offset((page - 1) * pageSize)
-
-  return { rows, total: Number(countRow?.total ?? 0) }
-}
-
-type Result = { success: boolean; error?: string }
-
-export async function createEnfermera(formData: FormData): Promise<Result> {
-  await requireSession()
-
-  const parsed = parseFormData(enfermeraSchema, formData)
-  if (!parsed.success) return parsed
-
-  try {
-    await db.insert(nurses).values(parsed.data)
-    revalidatePath('/enfermeras')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al crear la enfermera' }
-  }
-}
-
-export async function updateEnfermera(formData: FormData): Promise<Result> {
-  await requireSession()
-
-  const parsed = parseFormData(enfermeraUpdateSchema, formData)
-  if (!parsed.success) return parsed
-  const { id, ...data } = parsed.data
-
-  try {
-    await db.update(nurses).set(data).where(eq(nurses.id, id))
-    revalidatePath('/enfermeras')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al actualizar' }
-  }
-}
-
-export async function toggleEnfermera(id: number, activo: boolean): Promise<Result> {
-  await requireSession()
-
-  try {
-    await db.update(nurses).set({ activo: !activo }).where(eq(nurses.id, id))
-    revalidatePath('/enfermeras')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al cambiar estado' }
-  }
-}
-
-export async function deleteEnfermera(id: number): Promise<Result> {
-  await requireSession()
-
-  try {
-    const [countRow] = await db
-      .select({ total: count() })
-      .from(visits)
-      .where(eq(visits.idEnfermera, id))
+    const [countRow] = await db.select({ total: count() }).from(nurses).where(where)
     const total = countRow?.total ?? 0
 
-    if (total > 0)
-      return { success: false, error: `No se puede eliminar: tiene ${total} visita${total === 1 ? '' : 's'} asignada${total === 1 ? '' : 's'}` }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sortCols: Record<string, any> = {
+      apellidoPaterno: nurses.apellidoPaterno,
+      nombres: nurses.nombres,
+      rut: nurses.rut,
+      correo: nurses.correo,
+      telefono: nurses.telefono,
+    }
+    const sortCol = (sort?.key && sortCols[sort.key]) ?? nurses.apellidoPaterno
+    const primaryOrder = sort?.dir === 'desc' ? desc(sortCol) : asc(sortCol)
 
+    const rows = await db
+      .select()
+      .from(nurses)
+      .where(where)
+      .orderBy(primaryOrder, asc(nurses.apellidoPaterno), asc(nurses.nombres))
+      .limit(pageSize)
+      .offset((page - 1) * pageSize)
+
+    return { rows, total: Number(countRow?.total ?? 0) }
+  })
+}
+
+export async function createEnfermera(formData: FormData): Promise<ActionResult> {
+  return withFormAction(enfermeraSchema, formData, 'Error al crear la enfermera', async (data) => {
+    await db.insert(nurses).values(data)
+    revalidatePath('/enfermeras')
+  })
+}
+
+export async function updateEnfermera(formData: FormData): Promise<ActionResult> {
+  return withFormAction(enfermeraUpdateSchema, formData, 'Error al actualizar', async ({ id, ...data }) => {
+    await db.update(nurses).set(data).where(eq(nurses.id, id))
+    revalidatePath('/enfermeras')
+  })
+}
+
+export async function toggleEnfermera(id: number, activo: boolean): Promise<ActionResult> {
+  return withAction('Error al cambiar estado', async () => {
+    await db.update(nurses).set({ activo: !activo }).where(eq(nurses.id, id))
+    revalidatePath('/enfermeras')
+  })
+}
+
+export async function deleteEnfermera(id: number): Promise<ActionResult> {
+  return withAction('Error al eliminar', async () => {
+    const [countRow] = await db.select({ total: count() }).from(visits).where(eq(visits.idEnfermera, id))
+    const total = Number(countRow?.total ?? 0)
+    if (total > 0) throw new ActionError(
+      `No se puede eliminar: tiene ${total} visita${total === 1 ? '' : 's'} asignada${total === 1 ? '' : 's'}`,
+    )
     await db.delete(nurses).where(eq(nurses.id, id))
     revalidatePath('/enfermeras')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al eliminar' }
-  }
+  })
 }

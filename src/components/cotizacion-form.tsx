@@ -54,7 +54,7 @@ type Props = {
   tiposRecargos: { id: number; label: string; precio: number }[]
   preciosVisita: Record<string, number>
   isaprePrevisiones: IsaprePrevisionRow[]
-  onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
+  onSubmit: (fd: FormData) => Promise<{ success: true; data: { id: number } } | { success: false; error: string }>
 }
 
 const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
@@ -213,7 +213,7 @@ export function CotizacionForm({
           toast.success('Cambios guardados')
         } else {
           toast.success('Cotización creada')
-          router.push(`/cotizaciones/${result.id}`)
+          router.push(`/cotizaciones/${result.data.id}`)
         }
       } else {
         const msg = result.error ?? 'Error desconocido'

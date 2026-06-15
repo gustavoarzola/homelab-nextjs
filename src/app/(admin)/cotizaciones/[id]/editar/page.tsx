@@ -31,7 +31,7 @@ export default async function CotizacionEditarPage({ params }: { params: Promise
       getIsaprePrevisiones(),
     ])
 
-  async function handleSubmit(fd: FormData): Promise<{ success: true; id: number } | { success: false; error: string }> {
+  async function handleSubmit(fd: FormData): Promise<{ success: true; data: { id: number } } | { success: false; error: string }> {
     'use server'
     const result = await updateCotizacion(fd)
     if (result.success) {

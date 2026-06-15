@@ -6,8 +6,8 @@ import { eq, asc, and, not, ilike } from 'drizzle-orm'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { z } from 'zod'
 import type { SearchParams } from '@/components/data-table'
-import { requireSession } from '@/lib/auth-guard'
 import { fields } from '@/lib/validation'
+import { withQuery } from '@/lib/with-action'
 import {
   catalogSearch,
   catalogCreate,
@@ -122,13 +122,14 @@ const tallerCfg: CatalogConfig = {
 // ─── getPrevisionCategorias ───────────────────────────────────────────────────
 
 export async function getPrevisionCategorias(): Promise<string[]> {
-  await requireSession()
-  const rows = await db
-    .selectDistinct({ categoria: healthInsurances.categoria })
-    .from(healthInsurances)
-    .where(and(eq(healthInsurances.activo, true), not(eq(healthInsurances.categoria, ''))))
-    .orderBy(asc(healthInsurances.categoria))
-  return rows.map((r) => r.categoria?.trim()).filter((c): c is string => Boolean(c))
+  return withQuery(async () => {
+    const rows = await db
+      .selectDistinct({ categoria: healthInsurances.categoria })
+      .from(healthInsurances)
+      .where(and(eq(healthInsurances.activo, true), not(eq(healthInsurances.categoria, ''))))
+      .orderBy(asc(healthInsurances.categoria))
+    return rows.map((r) => r.categoria?.trim()).filter((c): c is string => Boolean(c))
+  })
 }
 
 // ─── Procedimientos ───────────────────────────────────────────────────────────
@@ -189,8 +190,7 @@ const _fetchTiposRecargos = unstable_cache(
   { tags: ['tipos-recargos'], revalidate: 86400 },
 )
 export async function getTiposRecargosForSelect(): Promise<{ id: number; label: string; precio: number }[]> {
-  await requireSession()
-  return _fetchTiposRecargos()
+  return withQuery(() => _fetchTiposRecargos())
 }
 
 // ─── Talleres ─────────────────────────────────────────────────────────────────
@@ -208,8 +208,7 @@ const _fetchTalleres = unstable_cache(
   { tags: ['talleres'], revalidate: 86400 },
 )
 export async function getTalleres(): Promise<TallerRow[]> {
-  await requireSession()
-  return _fetchTalleres()
+  return withQuery(() => _fetchTalleres())
 }
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -220,8 +219,7 @@ const _fetchProcedimientos = unstable_cache(
   { tags: ['procedimientos'], revalidate: 86400 },
 )
 export async function getProcedimientos(): Promise<ProcedimientoRow[]> {
-  await requireSession()
-  return _fetchProcedimientos()
+  return withQuery(() => _fetchProcedimientos())
 }
 
 const _fetchExamenes = unstable_cache(
@@ -230,8 +228,7 @@ const _fetchExamenes = unstable_cache(
   { tags: ['examenes'], revalidate: 86400 },
 )
 export async function getExamenes(): Promise<ExamenRow[]> {
-  await requireSession()
-  return _fetchExamenes()
+  return withQuery(() => _fetchExamenes())
 }
 
 export type IsaprePrevisionRow = { id: number; nombre: string }
@@ -247,6 +244,5 @@ const _fetchIsaprePrevisiones = unstable_cache(
   { tags: ['previsiones'], revalidate: 86400 },
 )
 export async function getIsaprePrevisiones(): Promise<IsaprePrevisionRow[]> {
-  await requireSession()
-  return _fetchIsaprePrevisiones()
+  return withQuery(() => _fetchIsaprePrevisiones())
 }

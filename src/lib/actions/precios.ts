@@ -2,6 +2,7 @@
 
 import { z } from 'zod'
 import { parseFormData, fields } from '@/lib/validation'
+import { withQuery, withFormAction, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 import { db } from '@/db'
 import {
   nursingVisitPrices,
@@ -21,9 +22,8 @@ import {
 } from '@/db/schema'
 import { eq, and, or, isNull, ne, asc, desc, count, ilike, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
-import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
-import type { SearchParams, Result } from '@/components/data-table'
+import type { SearchParams } from '@/components/data-table'
 import { calcularCostoVisitaPersistida } from '@/lib/pricing/visitas'
 
 // ─── Row types ────────────────────────────────────────────────────────────────
@@ -80,8 +80,7 @@ const precioVisitaUpdateSchema = z.object({
 export async function searchPreciosExamenes(
   params: SearchParams,
 ): Promise<{ rows: PrecioExamenRow[]; total: number }> {
-  await requireSession()
-
+  return withQuery(async () => {
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
@@ -130,53 +129,28 @@ export async function searchPreciosExamenes(
     })),
     total: Number(countRow?.total ?? 0),
   }
+  })
 }
 
-export async function createPrecioExamen(fd: FormData): Promise<Result> {
-  await requireSession()
-
-  const parsed = parseFormData(precioExamenCreateSchema, fd)
-  if (!parsed.success) return parsed
-  const { idExamen, precio } = parsed.data
-
-  try {
+export async function createPrecioExamen(fd: FormData): Promise<ActionResult> {
+  return withFormAction(precioExamenCreateSchema, fd, 'Error al actualizar precio', async ({ idExamen, precio }) => {
     await db.update(exams).set({ precio }).where(eq(exams.id, idExamen))
     revalidatePath('/examenes')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al actualizar precio' }
-  }
+  })
 }
 
-export async function updatePrecioExamen(fd: FormData): Promise<Result> {
-  await requireSession()
-
-  const parsed = parseFormData(precioExamenUpdateSchema, fd)
-  if (!parsed.success) return parsed
-  const { id, precio } = parsed.data
-
-  try {
-    await db
-      .update(exams)
-      .set({ precio, updatedAt: new Date() })
-      .where(eq(exams.id, id))
+export async function updatePrecioExamen(fd: FormData): Promise<ActionResult> {
+  return withFormAction(precioExamenUpdateSchema, fd, 'Error al actualizar precio', async ({ id, precio }) => {
+    await db.update(exams).set({ precio, updatedAt: new Date() }).where(eq(exams.id, id))
     revalidatePath('/examenes')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al actualizar precio' }
-  }
+  })
 }
 
-export async function togglePrecioExamen(id: number, activo: boolean): Promise<Result> {
-  await requireSession()
-
-  try {
+export async function togglePrecioExamen(id: number, activo: boolean): Promise<ActionResult> {
+  return withAction('Error al cambiar estado', async () => {
     await db.update(exams).set({ activo: !activo }).where(eq(exams.id, id))
     revalidatePath('/examenes')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al cambiar estado' }
-  }
+  })
 }
 
 // ─── searchPreciosVisita ──────────────────────────────────────────────────────
@@ -184,8 +158,7 @@ export async function togglePrecioExamen(id: number, activo: boolean): Promise<R
 export async function searchPreciosVisita(
   params: SearchParams,
 ): Promise<{ rows: PrecioVisitaRow[]; total: number }> {
-  await requireSession()
-
+  return withQuery(async () => {
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
@@ -213,86 +186,44 @@ export async function searchPreciosVisita(
     .offset((page - 1) * pageSize)
 
   return { rows, total: Number(countRow?.total ?? 0) }
+  })
 }
 
-export async function createPrecioVisita(fd: FormData): Promise<Result> {
-  await requireSession()
-
-  const parsed = parseFormData(precioVisitaCreateSchema, fd)
-  if (!parsed.success) return parsed
-  const { comuna, precio } = parsed.data
-
-  const duplicateCondition = comuna
-    ? eq(nursingVisitPrices.comuna, comuna)
-    : isNull(nursingVisitPrices.comuna)
-
-  const [existing] = await db
-    .select({ id: nursingVisitPrices.id })
-    .from(nursingVisitPrices)
-    .where(duplicateCondition)
-    .limit(1)
-
-  if (existing) {
-    const label = comuna ? `la comuna "${comuna}"` : 'el precio base'
-    return { success: false, error: `Ya existe un precio para ${label}` }
-  }
-
-  try {
+export async function createPrecioVisita(fd: FormData): Promise<ActionResult> {
+  return withFormAction(precioVisitaCreateSchema, fd, 'Error al crear precio', async ({ comuna, precio }) => {
+    const duplicateCondition = comuna
+      ? eq(nursingVisitPrices.comuna, comuna)
+      : isNull(nursingVisitPrices.comuna)
+    const [existing] = await db.select({ id: nursingVisitPrices.id }).from(nursingVisitPrices).where(duplicateCondition).limit(1)
+    if (existing) {
+      const label = comuna ? `la comuna "${comuna}"` : 'el precio base'
+      throw new ActionError(`Ya existe un precio para ${label}`)
+    }
     await db.insert(nursingVisitPrices).values({ comuna, precio })
     revalidatePath('/precios/visitas')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al crear precio' }
-  }
+  })
 }
 
-export async function updatePrecioVisita(fd: FormData): Promise<Result> {
-  await requireSession()
-
-  const parsed = parseFormData(precioVisitaUpdateSchema, fd)
-  if (!parsed.success) return parsed
-  const { id, comuna, precio } = parsed.data
-
-  const duplicateCondition = comuna
-    ? and(eq(nursingVisitPrices.comuna, comuna), ne(nursingVisitPrices.id, id))
-    : and(isNull(nursingVisitPrices.comuna), ne(nursingVisitPrices.id, id))
-
-  const [duplicate] = await db
-    .select({ id: nursingVisitPrices.id })
-    .from(nursingVisitPrices)
-    .where(duplicateCondition)
-    .limit(1)
-
-  if (duplicate) {
-    const label = comuna ? `la comuna "${comuna}"` : 'el precio base'
-    return { success: false, error: `Ya existe otro precio para ${label}` }
-  }
-
-  try {
-    await db
-      .update(nursingVisitPrices)
-      .set({ comuna, precio, updatedAt: new Date() })
-      .where(eq(nursingVisitPrices.id, id))
+export async function updatePrecioVisita(fd: FormData): Promise<ActionResult> {
+  return withFormAction(precioVisitaUpdateSchema, fd, 'Error al actualizar precio', async ({ id, comuna, precio }) => {
+    const duplicateCondition = comuna
+      ? and(eq(nursingVisitPrices.comuna, comuna), ne(nursingVisitPrices.id, id))
+      : and(isNull(nursingVisitPrices.comuna), ne(nursingVisitPrices.id, id))
+    const [duplicate] = await db.select({ id: nursingVisitPrices.id }).from(nursingVisitPrices).where(duplicateCondition).limit(1)
+    if (duplicate) {
+      const label = comuna ? `la comuna "${comuna}"` : 'el precio base'
+      throw new ActionError(`Ya existe otro precio para ${label}`)
+    }
+    await db.update(nursingVisitPrices).set({ comuna, precio, updatedAt: new Date() }).where(eq(nursingVisitPrices.id, id))
     revalidatePath('/precios/visitas')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al actualizar precio' }
-  }
+  })
 }
 
-export async function togglePrecioVisita(id: number, activo: boolean): Promise<Result> {
-  await requireSession()
-
-  try {
-    await db
-      .update(nursingVisitPrices)
-      .set({ activo: !activo })
-      .where(eq(nursingVisitPrices.id, id))
+export async function togglePrecioVisita(id: number, activo: boolean): Promise<ActionResult> {
+  return withAction('Error al cambiar estado', async () => {
+    await db.update(nursingVisitPrices).set({ activo: !activo }).where(eq(nursingVisitPrices.id, id))
     revalidatePath('/precios/visitas')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al cambiar estado' }
-  }
+  })
 }
 
 // ─── getCotizacionVisita ──────────────────────────────────────────────────────
@@ -329,8 +260,7 @@ export type CotizacionVisita = {
 }
 
 export async function getCotizacionVisita(idVisita: number): Promise<CotizacionVisita | null> {
-  await requireSession()
-
+  return withQuery(async () => {
   // Visita base
   const [visitRow] = await db
     .select({
@@ -466,13 +396,13 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     total: costoCalculado.total,
     tipoPrevision,
   }
+  })
 }
 
 // ─── getExamenesForSelect ─────────────────────────────────────────────────────
 
 export async function getExamenesForSelect(): Promise<{ id: number; label: string }[]> {
-  await requireSession()
-
+  return withQuery(async () => {
   const rows = await db
     .select({ id: exams.id, nombre: exams.nombre, codigo: exams.codigo })
     .from(exams)
@@ -480,4 +410,5 @@ export async function getExamenesForSelect(): Promise<{ id: number; label: strin
     .orderBy(asc(exams.nombre))
 
   return rows.map((r) => ({ id: r.id, label: `${r.nombre} (${r.codigo})` }))
+  })
 }

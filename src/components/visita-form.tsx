@@ -59,7 +59,7 @@ type Props = {
   pricingContext: VisitaFormPricingContext
   isaprePrevisiones: IsaprePrevisionRow[]
   signedUrlOrdenMedica?: string | null
-  onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
+  onSubmit: (fd: FormData) => Promise<{ success: boolean; error?: string }>
 }
 
 type ServiceTab = 'procedimientos' | 'examenes' | 'talleres'
