@@ -341,7 +341,7 @@ export const quotations = pgTable(
   'cotizaciones',
   {
     id: serial('id').primaryKey(),
-    estado: varchar('estado', { length: 20 }).notNull().default('borrador'), // borrador, enviada, aceptada, convertida
+    estado: varchar('estado', { length: 20 }).notNull().default('creada'), // creada, enviada, aceptada, rechazada
     idPaciente: integer('id_paciente'),
     nombreDestinatario: varchar('nombre_destinatario', { length: 255 }),
     emailDestinatario: varchar('email_destinatario', { length: 255 }),
@@ -352,6 +352,8 @@ export const quotations = pgTable(
     total: integer('total').default(0),
     idVisita: integer('id_visita'),
     notas: text('notas'),
+    motivoRechazo: text('motivo_rechazo'),
+    fechaEnvio: timestamp('fecha_envio'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

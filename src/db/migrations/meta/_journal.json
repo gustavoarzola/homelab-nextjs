@@ -57,6 +57,13 @@
       "when": 1749859200000,
       "tag": "0007_remove_laboratorios",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781411475739,
+      "tag": "0008_cotizacion_lifecycle",
+      "breakpoints": true
     }
   ]
 }

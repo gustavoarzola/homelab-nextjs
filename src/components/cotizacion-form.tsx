@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Loader2,
@@ -25,6 +25,7 @@ import { COMUNAS_OPTIONS, COMUNAS_RM } from '@/lib/comunas'
 import { EXAM_GRUPO_META } from '@/lib/exam-grupos'
 import type { CotizacionDetalle } from '@/lib/actions/cotizaciones'
 import type { TallerRow, IsaprePrevisionRow, ExamenRow } from '@/lib/actions/catalogos'
+import { toast } from 'sonner'
 
 export type PacienteOption = {
   id: number
@@ -54,7 +55,6 @@ type Props = {
   preciosVisita: Record<string, number>
   isaprePrevisiones: IsaprePrevisionRow[]
   onSubmit: (fd: FormData) => Promise<{ success: true; id: number } | { success: false; error: string }>
-  onConvertir?: () => Promise<{ success: true; idVisita: number } | { success: false; error: string }>
 }
 
 const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
@@ -88,12 +88,15 @@ export function CotizacionForm({
   preciosVisita,
   isaprePrevisiones,
   onSubmit,
-  onConvertir,
 }: Props) {
   const router = useRouter()
   const isEdit = !!cotizacion
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const errorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [error])
   const [activeTab, setActiveTab] = useState<ServiceTab>('procedimientos')
 
   // Destinatario
@@ -181,7 +184,9 @@ export function CotizacionForm({
     setError(null)
 
     if (!comunaNombre) {
-      setError('Debe seleccionar una comuna')
+      const msg = 'Debe seleccionar una comuna'
+      setError(msg)
+      toast.error(msg)
       return
     }
 
@@ -204,21 +209,16 @@ export function CotizacionForm({
     startTransition(async () => {
       const result = await onSubmit(fd)
       if (result.success) {
-        if (!isEdit) {
+        if (isEdit) {
+          toast.success('Cambios guardados')
+        } else {
+          toast.success('Cotización creada')
           router.push(`/cotizaciones/${result.id}`)
         }
       } else {
-        setError(result.error ?? 'Error desconocido')
-      }
-    })
-  }
-
-  const handleConvertir = () => {
-    if (!onConvertir) return
-    startTransition(async () => {
-      const result = await onConvertir()
-      if (!result.success) {
-        setError(result.error ?? 'Error al convertir')
+        const msg = result.error ?? 'Error desconocido'
+        setError(msg)
+        toast.error(msg)
       }
     })
   }
@@ -257,7 +257,7 @@ export function CotizacionForm({
               className="rounded-md px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide"
               style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
             >
-              {cotizacion?.estado ?? 'borrador'}
+              {cotizacion?.estado ?? 'creada'}
             </span>
           )}
         </div>
@@ -286,30 +286,6 @@ export function CotizacionForm({
             </a>
           )}
 
-          {isEdit && cotizacion?.estado === 'borrador' && !cotizacion?.idVisita && (
-            <button
-              type="button"
-              onClick={handleConvertir}
-              disabled={isPending || !cotizacion?.idPaciente}
-              title={!cotizacion?.idPaciente ? 'Requiere un paciente para convertir' : undefined}
-              className="flex items-center gap-1.5 rounded-lg border px-3.5 text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-              style={{ height: 36, color: 'var(--foreground)', borderColor: 'var(--border)' }}
-            >
-              {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Crear visita
-            </button>
-          )}
-
-          {isEdit && cotizacion?.idVisita && (
-            <a
-              href={`/visitas/${cotizacion.idVisita}`}
-              className="flex items-center gap-1.5 rounded-lg border px-3.5 text-[13px] font-medium transition-opacity hover:opacity-80"
-              style={{ height: 36, color: 'oklch(0.45 0.13 145)', borderColor: 'oklch(0.7 0.13 145 / 40%)' }}
-            >
-              Ver visita #{cotizacion.idVisita}
-            </a>
-          )}
-
           <button
             type="submit"
             form="cotizacion-form"
@@ -326,6 +302,7 @@ export function CotizacionForm({
       {/* ── Error banner ── */}
       {error && (
         <div
+          ref={errorRef}
           className="mx-8 mt-4 flex items-center gap-2 rounded-lg px-4 py-3 text-sm"
           style={{ backgroundColor: 'var(--destructive)', color: 'white' }}
         >

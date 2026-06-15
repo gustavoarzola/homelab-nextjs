@@ -46,6 +46,8 @@ export type CotizacionDetalle = {
   total: number
   idVisita: number | null
   notas: string | null
+  motivoRechazo: string | null
+  fechaEnvio: Date | null
   examIds: number[]
   examPrices: { idExamen: number; precio: number }[]
   procedureIds: number[]
@@ -55,6 +57,32 @@ export type CotizacionDetalle = {
   surchargeIds: number[]
   surchargePrices: { idTipoRecargo: number; precio: number }[]
   isapreExams: { idExamen: number; valorCompleto: number; valorPagar: number; idPrevision: number | null }[]
+}
+
+export type CotizacionVista = {
+  id: number
+  estado: string
+  idPaciente: number | null
+  pacienteNombre: string | null
+  nombreDestinatario: string | null
+  emailDestinatario: string | null
+  telefonoDestinatario: string | null
+  identificacionDestinatario: string | null
+  comuna: string | null
+  cobraVisita: boolean
+  precioVisita: number
+  total: number
+  idVisita: number | null
+  notas: string | null
+  motivoRechazo: string | null
+  fechaEnvio: Date | null
+  createdAt: Date
+  updatedAt: Date
+  procedimientos: { id: number; nombre: string; codigo: string | null; precio: number }[]
+  examenes: { id: number; nombre: string; codigo: string | null; precio: number }[]
+  isapreExams: { id: number; nombre: string; codigo: string | null; valorCompleto: number; valorPagar: number; idPrevision: number | null }[]
+  talleres: { id: number; nombre: string; codigo: string | null; precio: number }[]
+  surcharges: { id: number; tipoNombre: string; precio: number }[]
 }
 
 export type CotizacionRow = {
@@ -111,6 +139,8 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     total: quotation.total ?? 0,
     idVisita: quotation.idVisita ?? null,
     notas: quotation.notas ?? null,
+    motivoRechazo: quotation.motivoRechazo ?? null,
+    fechaEnvio: quotation.fechaEnvio ?? null,
     examIds: exams_.map((e) => e.idExamen),
     examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
     isapreExams: isapre_.map((e) => ({ idExamen: e.idExamen, valorCompleto: e.valorCompleto, valorPagar: e.valorPagar, idPrevision: e.idPrevision })),
@@ -120,6 +150,124 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     tallerPrices: talleres_.map((t) => ({ idTaller: t.idTaller, precio: t.precio })),
     surchargeIds: surcharges_.map((s) => s.idTipoRecargo),
     surchargePrices: surcharges_.map((s) => ({ idTipoRecargo: s.idTipoRecargo, precio: s.precio })),
+  }
+}
+
+// ─── getCotizacionVista ───────────────────────────────────────────────────
+
+export async function getCotizacionVista(id: number): Promise<CotizacionVista | null> {
+  await requireSession()
+
+  const [quotation] = await db
+    .select({
+      id: quotations.id,
+      estado: quotations.estado,
+      idPaciente: quotations.idPaciente,
+      nombreDestinatario: quotations.nombreDestinatario,
+      emailDestinatario: quotations.emailDestinatario,
+      telefonoDestinatario: quotations.telefonoDestinatario,
+      identificacionDestinatario: quotations.identificacionDestinatario,
+      comuna: quotations.comuna,
+      cobraVisita: quotations.cobraVisita,
+      total: quotations.total,
+      idVisita: quotations.idVisita,
+      notas: quotations.notas,
+      motivoRechazo: quotations.motivoRechazo,
+      fechaEnvio: quotations.fechaEnvio,
+      createdAt: quotations.createdAt,
+      updatedAt: quotations.updatedAt,
+      pacienteNombres: patients.nombres,
+      pacienteApellido: patients.apellidoPaterno,
+      pacienteApellidoMaterno: patients.apellidoMaterno,
+    })
+    .from(quotations)
+    .leftJoin(patients, eq(quotations.idPaciente, patients.id))
+    .where(eq(quotations.id, id))
+
+  if (!quotation) return null
+
+  const [procs, exams_, isapre_, talleres_, surcharges_] = await Promise.all([
+    db
+      .select({
+        id: quotationProcedures.idProcedimiento,
+        nombre: quotationProcedures.descripcion,
+        codigo: quotationProcedures.codigo,
+        precio: quotationProcedures.precio,
+      })
+      .from(quotationProcedures)
+      .where(eq(quotationProcedures.idCotizacion, id)),
+    db
+      .select({
+        id: quotationExams.idExamen,
+        nombre: quotationExams.descripcion,
+        codigo: quotationExams.codigo,
+        precio: quotationExams.precio,
+      })
+      .from(quotationExams)
+      .where(eq(quotationExams.idCotizacion, id)),
+    db
+      .select({
+        id: quotationIsapreExams.idExamen,
+        nombre: quotationIsapreExams.descripcion,
+        codigo: quotationIsapreExams.codigo,
+        valorCompleto: quotationIsapreExams.valorCompleto,
+        valorPagar: quotationIsapreExams.valorPagar,
+        idPrevision: quotationIsapreExams.idPrevision,
+      })
+      .from(quotationIsapreExams)
+      .where(eq(quotationIsapreExams.idCotizacion, id)),
+    db
+      .select({
+        id: quotationWorkshops.idTaller,
+        nombre: quotationWorkshops.descripcion,
+        codigo: quotationWorkshops.codigo,
+        precio: quotationWorkshops.precio,
+      })
+      .from(quotationWorkshops)
+      .where(eq(quotationWorkshops.idCotizacion, id)),
+    db
+      .select({
+        id: quotationSurcharges.idTipoRecargo,
+        tipoNombre: surchargeTypes.nombre,
+        precio: quotationSurcharges.precio,
+      })
+      .from(quotationSurcharges)
+      .innerJoin(surchargeTypes, eq(quotationSurcharges.idTipoRecargo, surchargeTypes.id))
+      .where(eq(quotationSurcharges.idCotizacion, id)),
+  ])
+
+  const precioVisita = quotation.cobraVisita && quotation.comuna
+    ? (await getPrecioVisitaEnfermeria(db, quotation.comuna)) ?? 0
+    : 0
+
+  const pacienteNombre = quotation.pacienteNombres
+    ? formatNombre({ nombres: quotation.pacienteNombres, apellidoPaterno: quotation.pacienteApellido, apellidoMaterno: quotation.pacienteApellidoMaterno })
+    : null
+
+  return {
+    id: quotation.id,
+    estado: quotation.estado,
+    idPaciente: quotation.idPaciente ?? null,
+    pacienteNombre,
+    nombreDestinatario: quotation.nombreDestinatario ?? null,
+    emailDestinatario: quotation.emailDestinatario ?? null,
+    telefonoDestinatario: quotation.telefonoDestinatario ?? null,
+    identificacionDestinatario: quotation.identificacionDestinatario ?? null,
+    comuna: quotation.comuna ?? null,
+    cobraVisita: quotation.cobraVisita,
+    precioVisita,
+    total: quotation.total ?? 0,
+    idVisita: quotation.idVisita ?? null,
+    notas: quotation.notas ?? null,
+    motivoRechazo: quotation.motivoRechazo ?? null,
+    fechaEnvio: quotation.fechaEnvio ?? null,
+    createdAt: quotation.createdAt,
+    updatedAt: quotation.updatedAt,
+    procedimientos: procs,
+    examenes: exams_,
+    isapreExams: isapre_,
+    talleres: talleres_,
+    surcharges: surcharges_,
   }
 }
 
@@ -313,7 +461,7 @@ export async function createCotizacion(
     const inserted = await db
       .insert(quotations)
       .values({
-        estado: 'borrador',
+        estado: 'creada',
         idPaciente,
         nombreDestinatario,
         emailDestinatario,
@@ -452,6 +600,12 @@ export async function updateCotizacion(
 
   const parsed = parseFormDataWithArrays(cotizacionUpdateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids', 'surcharge_ids'])
   if (!parsed.success) return parsed
+
+  const { id: parsedId } = parsed.data
+  const [existing] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, parsedId))
+  if (existing?.estado !== 'creada') {
+    return { success: false, error: 'Solo se pueden editar cotizaciones en estado creada' }
+  }
 
   const {
     id, idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
@@ -663,8 +817,8 @@ export async function deleteCotizacion(id: number): Promise<Result> {
     // Only allow deleting draft quotations
     const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, id))
 
-    if (quotation?.estado !== 'borrador') {
-      return { success: false, error: 'Solo se pueden eliminar cotizaciones en borrador' }
+    if (quotation?.estado !== 'creada') {
+      return { success: false, error: 'Solo se pueden eliminar cotizaciones en estado creada' }
     }
 
     await db.delete(quotations).where(eq(quotations.id, id))
@@ -824,7 +978,7 @@ export async function convertirCotizacionAVisita(
     await db
       .update(quotations)
       .set({
-        estado: 'convertida',
+        estado: 'aceptada',
         idVisita: visitId,
         updatedAt: new Date(),
       })
@@ -836,6 +990,82 @@ export async function convertirCotizacionAVisita(
   } catch (error) {
     console.error('Error converting cotizacion to visit:', error)
     return { success: false, error: 'Error al convertir cotización a visita' }
+  }
+}
+
+// ─── marcarEnviada ────────────────────────────────────────────────────────
+
+export async function marcarEnviada(
+  id: number,
+): Promise<{ success: true } | { success: false; error: string }> {
+  await requireSession()
+
+  try {
+    const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, id))
+    if (!quotation) return { success: false, error: 'Cotización no encontrada' }
+    if (quotation.estado !== 'creada') {
+      return { success: false, error: 'Solo se puede marcar como enviada una cotización en estado creada' }
+    }
+
+    await db
+      .update(quotations)
+      .set({ estado: 'enviada', fechaEnvio: new Date(), updatedAt: new Date() })
+      .where(eq(quotations.id, id))
+
+    revalidatePath('/cotizaciones')
+    revalidatePath(`/cotizaciones/${id}`)
+    return { success: true }
+  } catch (error) {
+    console.error('Error marking cotizacion as sent:', error)
+    return { success: false, error: 'Error al marcar cotización como enviada' }
+  }
+}
+
+// ─── aceptarCotizacion ────────────────────────────────────────────────────
+
+export async function aceptarCotizacion(
+  idCotizacion: number,
+  idPatient?: number,
+): Promise<{ success: true; idVisita: number } | { success: false; error: string }> {
+  await requireSession()
+
+  const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, idCotizacion))
+  if (!quotation) return { success: false, error: 'Cotización no encontrada' }
+  if (quotation.estado !== 'enviada') {
+    return { success: false, error: 'Solo se puede aceptar una cotización en estado enviada' }
+  }
+
+  return convertirCotizacionAVisita(idCotizacion, idPatient)
+}
+
+// ─── rechazarCotizacion ───────────────────────────────────────────────────
+
+export async function rechazarCotizacion(
+  id: number,
+  motivo: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  await requireSession()
+
+  if (!motivo.trim()) return { success: false, error: 'El motivo de rechazo es requerido' }
+
+  try {
+    const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, id))
+    if (!quotation) return { success: false, error: 'Cotización no encontrada' }
+    if (quotation.estado !== 'enviada') {
+      return { success: false, error: 'Solo se puede rechazar una cotización en estado enviada' }
+    }
+
+    await db
+      .update(quotations)
+      .set({ estado: 'rechazada', motivoRechazo: motivo.trim(), updatedAt: new Date() })
+      .where(eq(quotations.id, id))
+
+    revalidatePath('/cotizaciones')
+    revalidatePath(`/cotizaciones/${id}`)
+    return { success: true }
+  } catch (error) {
+    console.error('Error rejecting cotizacion:', error)
+    return { success: false, error: 'Error al rechazar cotización' }
   }
 }
 
