@@ -303,7 +303,7 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
       const result = paciente ? await updatePaciente(fd) : await createPaciente(fd)
       if (result.success) {
         if (!paciente) {
-          setCreatedId((result as { success: true; id: number }).id)
+          setCreatedId((result as { success: true; data: { id: number } }).data.id)
         } else {
           setCreatedId(paciente.id)
         }

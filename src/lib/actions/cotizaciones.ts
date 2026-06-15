@@ -25,11 +25,12 @@ import {
 } from '@/db/schema'
 import { eq, and, or, ilike, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
-import type { SearchParams, Result } from '@/components/data-table'
+import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 import { getPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
 import { parseFormDataWithArrays, fields } from '@/lib/validation'
+import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -98,8 +99,7 @@ export type CotizacionRow = {
 // ─── getCotizacion ────────────────────────────────────────────────────────
 
 export async function getCotizacion(id: number): Promise<CotizacionDetalle | null> {
-  await requireSession()
-
+  return withQuery(async () => {
   const [quotation] = await db.select().from(quotations).where(eq(quotations.id, id))
   if (!quotation) return null
 
@@ -151,13 +151,13 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     surchargeIds: surcharges_.map((s) => s.idTipoRecargo),
     surchargePrices: surcharges_.map((s) => ({ idTipoRecargo: s.idTipoRecargo, precio: s.precio })),
   }
+  })
 }
 
 // ─── getCotizacionVista ───────────────────────────────────────────────────
 
 export async function getCotizacionVista(id: number): Promise<CotizacionVista | null> {
-  await requireSession()
-
+  return withQuery(async () => {
   const [quotation] = await db
     .select({
       id: quotations.id,
@@ -269,6 +269,7 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
     talleres: talleres_,
     surcharges: surcharges_,
   }
+  })
 }
 
 // ─── searchCotizaciones ───────────────────────────────────────────────────
@@ -276,8 +277,7 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
 export async function searchCotizaciones(
   params: SearchParams,
 ): Promise<{ rows: CotizacionRow[]; total: number }> {
-  await requireSession()
-
+  return withQuery(async () => {
   const { filters, sort, page, pageSize } = params
   const buscar = (filters.buscar as string | undefined)?.trim()
   const estado = (filters.estado as string | undefined)?.trim()
@@ -344,6 +344,7 @@ export async function searchCotizaciones(
     })),
     total: countResult,
   }
+  })
 }
 
 // ─── Schemas ──────────────────────────────────────────────────────────────
@@ -380,11 +381,10 @@ const cotizacionUpdateSchema = cotizacionInputSchema.extend({ id: fields.id })
 
 export async function createCotizacion(
   fd: FormData,
-): Promise<{ success: true; id: number } | { success: false; error: string }> {
-  await requireSession()
-
+): Promise<ActionResult<{ id: number }>> {
+  return withAction('Error al crear cotización', async () => {
   const parsed = parseFormDataWithArrays(cotizacionCreateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids', 'surcharge_ids'])
-  if (!parsed.success) return parsed
+  if (!parsed.success) throw new ActionError(parsed.error)
 
   const {
     idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
@@ -407,14 +407,13 @@ export async function createCotizacion(
     idPrevision: isaprePrevisionId,
   }))
 
-  try {
-    // Calculate total
-    let total = 0
+  // Calculate total
+  let total = 0
 
-    // Get procedure prices
-    if (procedureIds.length > 0) {
-      const procs = await db
-        .select({ precio: procedures.precio })
+  // Get procedure prices
+  if (procedureIds.length > 0) {
+    const procs = await db
+      .select({ precio: procedures.precio })
         .from(procedures)
         .where(inArray(procedures.id, procedureIds))
         .catch(() => [])
@@ -477,7 +476,7 @@ export async function createCotizacion(
       .returning()
 
     if (!inserted || !Array.isArray(inserted) || inserted.length === 0) {
-      return { success: false, error: 'Error al crear la cotización' }
+      throw new ActionError('Error al crear la cotización')
     }
 
     const cotizacionId = inserted[0]!.id
@@ -584,27 +583,23 @@ export async function createCotizacion(
     }
 
     revalidatePath('/cotizaciones')
-    return { success: true, id: cotizacionId }
-  } catch (error) {
-    console.error('Error creating cotizacion:', error)
-    return { success: false, error: 'Error al crear cotización' }
-  }
+    return { id: cotizacionId }
+  })
 }
 
 // ─── updateCotizacion ──────────────────────────────────────────────────────
 
 export async function updateCotizacion(
   fd: FormData,
-): Promise<{ success: true; id: number } | { success: false; error: string }> {
-  await requireSession()
-
+): Promise<ActionResult<{ id: number }>> {
+  return withAction('Error al actualizar cotización', async () => {
   const parsed = parseFormDataWithArrays(cotizacionUpdateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids', 'surcharge_ids'])
-  if (!parsed.success) return parsed
+  if (!parsed.success) throw new ActionError(parsed.error)
 
   const { id: parsedId } = parsed.data
   const [existing] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, parsedId))
   if (existing?.estado !== 'creada') {
-    return { success: false, error: 'Solo se pueden editar cotizaciones en estado creada' }
+    throw new ActionError('Solo se pueden editar cotizaciones en estado creada')
   }
 
   const {
@@ -628,9 +623,8 @@ export async function updateCotizacion(
     idPrevision: isaprePrevisionId,
   }))
 
-  try {
-    // Calculate total
-    let total = 0
+  // Calculate total
+  let total = 0
 
     if (procedureIds.length > 0) {
       const procs = await db
@@ -801,33 +795,21 @@ export async function updateCotizacion(
 
     revalidatePath('/cotizaciones')
     revalidatePath(`/cotizaciones/${id}`)
-    return { success: true, id }
-  } catch (error) {
-    console.error('Error updating cotizacion:', error)
-    return { success: false, error: 'Error al actualizar cotización' }
-  }
+    return { id }
+  })
 }
 
 // ─── deleteCotizacion ──────────────────────────────────────────────────────
 
-export async function deleteCotizacion(id: number): Promise<Result> {
-  await requireSession()
-
-  try {
-    // Only allow deleting draft quotations
+export async function deleteCotizacion(id: number): Promise<ActionResult> {
+  return withAction('Error al eliminar cotización', async () => {
     const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, id))
-
     if (quotation?.estado !== 'creada') {
-      return { success: false, error: 'Solo se pueden eliminar cotizaciones en estado creada' }
+      throw new ActionError('Solo se pueden eliminar cotizaciones en estado creada')
     }
-
     await db.delete(quotations).where(eq(quotations.id, id))
     revalidatePath('/cotizaciones')
-    return { success: true }
-  } catch (error) {
-    console.error('Error deleting cotizacion:', error)
-    return { success: false, error: 'Error al eliminar cotización' }
-  }
+  })
 }
 
 // ─── convertirCotizacionAVisita ────────────────────────────────────────────
@@ -835,15 +817,11 @@ export async function deleteCotizacion(id: number): Promise<Result> {
 export async function convertirCotizacionAVisita(
   idCotizacion: number,
   idPatient?: number,
-): Promise<{ success: true; idVisita: number } | { success: false; error: string }> {
-  await requireSession()
-
-  try {
+): Promise<ActionResult<{ idVisita: number }>> {
+  return withAction('Error al convertir cotización a visita', async () => {
     const [quotation] = await db.select().from(quotations).where(eq(quotations.id, idCotizacion))
 
-    if (!quotation) {
-      return { success: false, error: 'Cotización no encontrada' }
-    }
+    if (!quotation) throw new ActionError('Cotización no encontrada')
 
     // Determine patient ID
     let finalIdPaciente = quotation.idPaciente
@@ -851,9 +829,7 @@ export async function convertirCotizacionAVisita(
       finalIdPaciente = idPatient
     }
 
-    if (!finalIdPaciente) {
-      return { success: false, error: 'Se requiere un paciente para convertir a visita' }
-    }
+    if (!finalIdPaciente) throw new ActionError('Se requiere un paciente para convertir a visita')
 
     // Create visit
     const hoy = new Date().toISOString().split('T')[0] || '2026-01-01'
@@ -871,7 +847,7 @@ export async function convertirCotizacionAVisita(
       .returning()
 
     if (!insertedVisits || insertedVisits.length === 0) {
-      return { success: false, error: 'Error al crear la visita' }
+      throw new ActionError('Error al crear la visita')
     }
 
     const visitId = insertedVisits[0]!.id
@@ -986,39 +962,21 @@ export async function convertirCotizacionAVisita(
 
     revalidatePath('/cotizaciones')
     revalidatePath('/visitas')
-    return { success: true, idVisita: visitId }
-  } catch (error) {
-    console.error('Error converting cotizacion to visit:', error)
-    return { success: false, error: 'Error al convertir cotización a visita' }
-  }
+    return { idVisita: visitId }
+  })
 }
 
 // ─── marcarEnviada ────────────────────────────────────────────────────────
 
-export async function marcarEnviada(
-  id: number,
-): Promise<{ success: true } | { success: false; error: string }> {
-  await requireSession()
-
-  try {
+export async function marcarEnviada(id: number): Promise<ActionResult> {
+  return withAction('Error al marcar cotización como enviada', async () => {
     const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, id))
-    if (!quotation) return { success: false, error: 'Cotización no encontrada' }
-    if (quotation.estado !== 'creada') {
-      return { success: false, error: 'Solo se puede marcar como enviada una cotización en estado creada' }
-    }
-
-    await db
-      .update(quotations)
-      .set({ estado: 'enviada', fechaEnvio: new Date(), updatedAt: new Date() })
-      .where(eq(quotations.id, id))
-
+    if (!quotation) throw new ActionError('Cotización no encontrada')
+    if (quotation.estado !== 'creada') throw new ActionError('Solo se puede marcar como enviada una cotización en estado creada')
+    await db.update(quotations).set({ estado: 'enviada', fechaEnvio: new Date(), updatedAt: new Date() }).where(eq(quotations.id, id))
     revalidatePath('/cotizaciones')
     revalidatePath(`/cotizaciones/${id}`)
-    return { success: true }
-  } catch (error) {
-    console.error('Error marking cotizacion as sent:', error)
-    return { success: false, error: 'Error al marcar cotización como enviada' }
-  }
+  })
 }
 
 // ─── aceptarCotizacion ────────────────────────────────────────────────────
@@ -1026,66 +984,44 @@ export async function marcarEnviada(
 export async function aceptarCotizacion(
   idCotizacion: number,
   idPatient?: number,
-): Promise<{ success: true; idVisita: number } | { success: false; error: string }> {
-  await requireSession()
-
-  const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, idCotizacion))
-  if (!quotation) return { success: false, error: 'Cotización no encontrada' }
-  if (quotation.estado !== 'enviada') {
-    return { success: false, error: 'Solo se puede aceptar una cotización en estado enviada' }
-  }
-
-  return convertirCotizacionAVisita(idCotizacion, idPatient)
+): Promise<ActionResult<{ idVisita: number }>> {
+  return withAction('Error al aceptar cotización', async () => {
+    const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, idCotizacion))
+    if (!quotation) throw new ActionError('Cotización no encontrada')
+    if (quotation.estado !== 'enviada') throw new ActionError('Solo se puede aceptar una cotización en estado enviada')
+    const result = await convertirCotizacionAVisita(idCotizacion, idPatient)
+    if (!result.success) throw new ActionError(result.error ?? 'Error al convertir cotización')
+    return { idVisita: result.data.idVisita }
+  })
 }
 
 // ─── rechazarCotizacion ───────────────────────────────────────────────────
 
-export async function rechazarCotizacion(
-  id: number,
-  motivo: string,
-): Promise<{ success: true } | { success: false; error: string }> {
-  await requireSession()
-
-  if (!motivo.trim()) return { success: false, error: 'El motivo de rechazo es requerido' }
-
-  try {
+export async function rechazarCotizacion(id: number, motivo: string): Promise<ActionResult> {
+  return withAction('Error al rechazar cotización', async () => {
+    if (!motivo.trim()) throw new ActionError('El motivo de rechazo es requerido')
     const [quotation] = await db.select({ estado: quotations.estado }).from(quotations).where(eq(quotations.id, id))
-    if (!quotation) return { success: false, error: 'Cotización no encontrada' }
-    if (quotation.estado !== 'enviada') {
-      return { success: false, error: 'Solo se puede rechazar una cotización en estado enviada' }
-    }
-
-    await db
-      .update(quotations)
-      .set({ estado: 'rechazada', motivoRechazo: motivo.trim(), updatedAt: new Date() })
-      .where(eq(quotations.id, id))
-
+    if (!quotation) throw new ActionError('Cotización no encontrada')
+    if (quotation.estado !== 'enviada') throw new ActionError('Solo se puede rechazar una cotización en estado enviada')
+    await db.update(quotations).set({ estado: 'rechazada', motivoRechazo: motivo.trim(), updatedAt: new Date() }).where(eq(quotations.id, id))
     revalidatePath('/cotizaciones')
     revalidatePath(`/cotizaciones/${id}`)
-    return { success: true }
-  } catch (error) {
-    console.error('Error rejecting cotizacion:', error)
-    return { success: false, error: 'Error al rechazar cotización' }
-  }
+  })
 }
 
 // ─── getPreciosVisita ─────────────────────────────────────────────────────
 
 export async function getPreciosVisita(): Promise<Record<string, number>> {
-  await requireSession()
-
-  const rows = await db
-    .select({ comuna: nursingVisitPrices.comuna, precio: nursingVisitPrices.precio })
-    .from(nursingVisitPrices)
-    .where(eq(nursingVisitPrices.activo, true))
-
-  const map: Record<string, number> = {}
-  for (const row of rows) {
-    if (row.comuna === null) {
-      map['__base__'] = row.precio
-    } else {
-      map[row.comuna] = row.precio
+  return withQuery(async () => {
+    const rows = await db
+      .select({ comuna: nursingVisitPrices.comuna, precio: nursingVisitPrices.precio })
+      .from(nursingVisitPrices)
+      .where(eq(nursingVisitPrices.activo, true))
+    const map: Record<string, number> = {}
+    for (const row of rows) {
+      if (row.comuna === null) map['__base__'] = row.precio
+      else map[row.comuna] = row.precio
     }
-  }
-  return map
+    return map
+  })
 }

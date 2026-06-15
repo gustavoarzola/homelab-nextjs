@@ -33,7 +33,9 @@ export default async function CotizacionPage({ params }: { params: Promise<{ id:
 
   async function handleAceptar(idPaciente?: number): Promise<{ success: boolean; idVisita?: number; error?: string }> {
     'use server'
-    return aceptarCotizacion(id, idPaciente)
+    const result = await aceptarCotizacion(id, idPaciente)
+    if (!result.success) return result
+    return { success: true, idVisita: result.data.idVisita }
   }
 
   async function handleRechazar(motivo: string): Promise<{ success: boolean; error?: string }> {

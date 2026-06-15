@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache'
 import { getTiposRecargosForSelect } from './catalogos'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 import { formatNombre } from '@/lib/paciente'
 import { actualizarCostoVisitaPersistida } from '@/lib/pricing/visitas'
 import type { VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
@@ -16,18 +17,14 @@ import { parseFormDataWithArrays, fields } from '@/lib/validation'
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
 export async function getEnfermeras(): Promise<{ id: number; nombre: string }[]> {
-  await requireSession()
-
-  const rows = await db
-    .select({ id: nurses.id, nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno })
-    .from(nurses)
-    .where(eq(nurses.activo, true))
-    .orderBy(asc(nurses.apellidoPaterno))
-
-  return rows.map((r) => ({
-    id: r.id,
-    nombre: formatNombre(r),
-  }))
+  return withQuery(async () => {
+    const rows = await db
+      .select({ id: nurses.id, nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno })
+      .from(nurses)
+      .where(eq(nurses.activo, true))
+      .orderBy(asc(nurses.apellidoPaterno))
+    return rows.map((r) => ({ id: r.id, nombre: formatNombre(r) }))
+  })
 }
 
 // ─── getTiposRecargos ──────────────────────────────────────────────────────────
@@ -201,8 +198,7 @@ function mapVisitaRow(r: VisitaRawRow): VisitaRow {
 export async function searchVisitas(
   params: SearchParams,
 ): Promise<{ rows: VisitaRow[]; total: number }> {
-  await requireSession()
-
+  return withQuery(async () => {
   const { filters, sort, page, pageSize } = params
   const where = buildVisitasWhere(filters)
   const order = buildVisitasOrder(sort)
@@ -224,6 +220,7 @@ export async function searchVisitas(
     .offset((page - 1) * pageSize)
 
   return { rows: rawRows.map(mapVisitaRow), total: Number(countRow?.total ?? 0) }
+  })
 }
 
 // ─── listVisitasForExport ─────────────────────────────────────────────────────
@@ -232,20 +229,18 @@ export async function listVisitasForExport(
   filters: SearchParams['filters'],
   sort: SearchParams['sort'],
 ): Promise<VisitaRow[]> {
-  await requireSession()
-
-  const where = buildVisitasWhere(filters)
-  const order = buildVisitasOrder(sort)
-
-  const rawRows = await db
-    .select(visitaRowSelect)
-    .from(visits)
-    .leftJoin(patients, eq(visits.idPaciente, patients.id))
-    .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
-    .where(where)
-    .orderBy(order)
-
-  return rawRows.map(mapVisitaRow)
+  return withQuery(async () => {
+    const where = buildVisitasWhere(filters)
+    const order = buildVisitasOrder(sort)
+    const rawRows = await db
+      .select(visitaRowSelect)
+      .from(visits)
+      .leftJoin(patients, eq(visits.idPaciente, patients.id))
+      .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
+      .where(where)
+      .orderBy(order)
+    return rawRows.map(mapVisitaRow)
+  })
 }
 
 
@@ -255,8 +250,7 @@ export async function getVisitaFormPricingContext(
   idPaciente: number,
   examIds: number[],
 ): Promise<VisitaFormPricingContext> {
-  await requireSession()
-
+  return withQuery(async () => {
   const uniqueExamIds = [...new Set(examIds.filter(Boolean))]
 
   // Fetch exam prices and patient's commune in parallel
@@ -300,13 +294,13 @@ export async function getVisitaFormPricingContext(
     })),
     nursingVisitPrice,
   }
+  })
 }
 
 // ─── getVisita ────────────────────────────────────────────────────────────────
 
 export async function getVisita(id: number): Promise<VisitaDetalle | null> {
-  await requireSession()
-
+  return withQuery(async () => {
   const [visit] = await db.select().from(visits).where(eq(visits.id, id))
   if (!visit) return null
 
@@ -349,32 +343,28 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     surchargeIds: surcharges_.map((s) => s.idTipoRecargo),
     surchargePrices: surcharges_.map((s) => ({ idTipoRecargo: s.idTipoRecargo, precio: s.precio })),
   }
+  })
 }
 
 // ─── deleteVisita ─────────────────────────────────────────────────────────────
 
-export async function deleteVisita(id: number): Promise<Result> {
-  await requireSession()
-
-  try {
+export async function deleteVisita(id: number): Promise<ActionResult> {
+  return withAction('Error al eliminar la visita', async () => {
     await db.delete(visits).where(eq(visits.id, id))
     revalidatePath('/visitas')
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al eliminar la visita' }
-  }
+  })
 }
 
 // ─── searchOrigenesContacto ───────────────────────────────────────────────────
 
 export async function searchOrigenesContacto(): Promise<{ id: number; nombre: string }[]> {
-  await requireSession()
-
-  return db
-    .select({ id: contactOrigins.id, nombre: contactOrigins.nombre })
-    .from(contactOrigins)
-    .where(eq(contactOrigins.activo, true))
-    .orderBy(asc(contactOrigins.nombre))
+  return withQuery(() =>
+    db
+      .select({ id: contactOrigins.id, nombre: contactOrigins.nombre })
+      .from(contactOrigins)
+      .where(eq(contactOrigins.activo, true))
+      .orderBy(asc(contactOrigins.nombre)),
+  )
 }
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -590,11 +580,10 @@ export async function updateVisita(
 
 export async function createVisita(
   fd: FormData,
-): Promise<{ success: true; id: number } | { success: false; error: string }> {
-  await requireSession()
-
+): Promise<ActionResult<{ id: number }>> {
+  return withAction('Error al crear la visita', async () => {
   const parsed = parseFormDataWithArrays(visitaCreateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids', 'surcharge_ids'])
-  if (!parsed.success) return parsed
+  if (!parsed.success) throw new ActionError(parsed.error)
 
   const {
     idPaciente, fecha, hora, idEnfermera, numeroBoleta, tipoDocumento,
@@ -616,13 +605,12 @@ export async function createVisita(
     idPrevision: isaprePrevisionId,
   }))
 
-  try {
-    const visitId = await db.transaction(async (tx) => {
-      const [visit] = await tx
-        .insert(visits)
-        .values({
-          fecha, hora, estado: 'creada', costo: 0,
-          idPaciente, idEnfermera, numeroBoleta, tipoDocumento,
+  const visitId = await db.transaction(async (tx) => {
+    const [visit] = await tx
+      .insert(visits)
+      .values({
+        fecha, hora, estado: 'creada', costo: 0,
+        idPaciente, idEnfermera, numeroBoleta, tipoDocumento,
           numeroAtencion, origenContacto, informacionAdicional,
           pagado: false, costoTraslado: 0,
           cobraVisita,
@@ -699,11 +687,9 @@ export async function createVisita(
       return id
     })
 
-    revalidatePath('/visitas')
-    return { success: true, id: visitId }
-  } catch {
-    return { success: false, error: 'Error al crear la visita' }
-  }
+  revalidatePath('/visitas')
+  return { id: visitId }
+  })
 }
 
 // ─── actualizarPrecioExamenVisita ─────────────────────────────────────────────
@@ -711,13 +697,10 @@ export async function createVisita(
 export async function actualizarPrecioExamenVisita(
   idVisita: number,
   idExamen: number,
-): Promise<Result> {
-  await requireSession()
-
-  try {
+): Promise<ActionResult> {
+  return withAction('Error al actualizar precio', async () => {
     const [exam] = await db.select({ precio: exams.precio }).from(exams).where(eq(exams.id, idExamen))
-    if (!exam) return { success: false, error: 'Examen no encontrado' }
-
+    if (!exam) throw new ActionError('Examen no encontrado')
     await db.transaction(async (tx) => {
       await tx
         .update(visitExams)
@@ -725,12 +708,8 @@ export async function actualizarPrecioExamenVisita(
         .where(and(eq(visitExams.idVisita, idVisita), eq(visitExams.idExamen, idExamen)))
       await actualizarCostoVisitaPersistida(idVisita, tx)
     })
-
     revalidatePath(`/visitas/${idVisita}`)
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al actualizar precio' }
-  }
+  })
 }
 
 // ─── actualizarPrecioProcedimientoVisita ──────────────────────────────────────
@@ -738,16 +717,13 @@ export async function actualizarPrecioExamenVisita(
 export async function actualizarPrecioProcedimientoVisita(
   idVisita: number,
   idProcedimiento: number,
-): Promise<Result> {
-  await requireSession()
-
-  try {
+): Promise<ActionResult> {
+  return withAction('Error al actualizar precio', async () => {
     const [proc] = await db
       .select({ precio: procedures.precio })
       .from(procedures)
       .where(eq(procedures.id, idProcedimiento))
-    if (!proc) return { success: false, error: 'Procedimiento no encontrado' }
-
+    if (!proc) throw new ActionError('Procedimiento no encontrado')
     await db.transaction(async (tx) => {
       await tx
         .update(visitProcedures)
@@ -755,10 +731,6 @@ export async function actualizarPrecioProcedimientoVisita(
         .where(and(eq(visitProcedures.idVisita, idVisita), eq(visitProcedures.idProcedimiento, idProcedimiento)))
       await actualizarCostoVisitaPersistida(idVisita, tx)
     })
-
     revalidatePath(`/visitas/${idVisita}`)
-    return { success: true }
-  } catch {
-    return { success: false, error: 'Error al actualizar precio' }
-  }
+  })
 }
