@@ -6,17 +6,17 @@ import { formatDate } from '@/lib/format'
 import { Printer, Stethoscope } from 'lucide-react'
 
 const ESTADO_LABELS: Record<string, string> = {
-  borrador: 'Borrador',
-  enviada: 'Enviada',
-  aceptada: 'Aceptada',
-  convertida: 'Convertida',
+  creada:    'Creada',
+  enviada:   'Enviada',
+  aceptada:  'Aceptada',
+  rechazada: 'Rechazada',
 }
 
 const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
-  borrador:   { bg: 'oklch(0.65 0.08 250 / 15%)', color: 'oklch(0.45 0.08 250)' },
-  enviada:    { bg: 'oklch(0.75 0.12 60 / 15%)',  color: 'oklch(0.50 0.12 60)' },
-  aceptada:   { bg: 'oklch(0.7 0.13 145 / 15%)', color: 'oklch(0.45 0.13 145)' },
-  convertida: { bg: 'oklch(0.65 0.1 290 / 15%)',  color: 'oklch(0.40 0.1 290)' },
+  creada:    { bg: 'oklch(0.93 0 0)',              color: 'oklch(0.45 0 0)'      },
+  enviada:   { bg: 'oklch(0.88 0.07 250 / 60%)',  color: 'oklch(0.45 0.1 250)' },
+  aceptada:  { bg: 'oklch(0.88 0.1 145 / 60%)',   color: 'oklch(0.4 0.13 145)' },
+  rechazada: { bg: 'oklch(0.95 0.025 25)',         color: 'oklch(0.5 0.18 25)'  },
 }
 
 const columns: ColumnDef<CotizacionRow>[] = [
@@ -87,10 +87,10 @@ const columns: ColumnDef<CotizacionRow>[] = [
 
 const ESTADO_OPTIONS = [
   { value: '', label: 'Todos los estados' },
-  { value: 'borrador', label: 'Borrador' },
+  { value: 'creada', label: 'Creada' },
   { value: 'enviada', label: 'Enviada' },
   { value: 'aceptada', label: 'Aceptada' },
-  { value: 'convertida', label: 'Convertida' },
+  { value: 'rechazada', label: 'Rechazada' },
 ]
 
 const filters: FilterDef[] = [
@@ -112,7 +112,7 @@ export function CotizacionesTable({ initialData, search }: Props) {
       formFields={[]}
       search={search}
       createHref="/cotizaciones/nueva"
-      getEditHref={(row) => row.estado === 'convertida' ? null : `/cotizaciones/${row.id}`}
+      getEditHref={(row) => `/cotizaciones/${row.id}`}
       entityLabel="cotización"
       createLabel="Nueva cotización"
       extraRowActions={(row) => (

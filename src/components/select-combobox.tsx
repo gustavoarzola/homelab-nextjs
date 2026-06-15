@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Check, ChevronDown } from 'lucide-react'
 
 type Option = { id: number; label: string; code?: string; tag?: { label: string; bg: string; color: string } }
@@ -31,15 +32,50 @@ function isMulti(p: Props): p is MultiProps {
   return p.mode !== 'single'
 }
 
+type DropdownPos = { top?: number; bottom?: number; left: number; width: number }
+
 export function SelectCombobox(props: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [pos, setPos] = useState<DropdownPos>({ top: 0, left: 0, width: 0 })
+  const [mounted, setMounted] = useState(false)
+
   const containerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setMounted(true) }, [])
+
+  const updatePos = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const spaceBelow = window.innerHeight - rect.bottom
+    const dropdownH = 220
+    if (spaceBelow >= dropdownH || spaceBelow >= rect.top) {
+      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    } else {
+      setPos({ bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    updatePos()
+    window.addEventListener('scroll', updatePos, true)
+    window.addEventListener('resize', updatePos)
+    return () => {
+      window.removeEventListener('scroll', updatePos, true)
+      window.removeEventListener('resize', updatePos)
+    }
+  }, [open, updatePos])
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const inContainer = containerRef.current?.contains(target)
+      const inDropdown = dropdownRef.current?.contains(target)
+      if (!inContainer && !inDropdown) {
         setOpen(false)
         setQuery('')
       }
@@ -49,7 +85,7 @@ export function SelectCombobox(props: Props) {
   }, [])
 
   const normalize = (s: string) =>
-    s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
   const filtered = query.trim()
     ? props.options.filter((o) =>
@@ -105,8 +141,84 @@ export function SelectCombobox(props: Props) {
     setOpen(true)
   }
 
+  const dropdownStyle: React.CSSProperties = {
+    position: 'fixed',
+    left: pos.left,
+    width: pos.width,
+    zIndex: 9999,
+    ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+  }
+
+  const dropdown = open && mounted ? createPortal(
+    <div
+      ref={dropdownRef}
+      style={{
+        ...dropdownStyle,
+        backgroundColor: 'var(--card)',
+        borderColor: 'var(--border)',
+        color: 'var(--foreground)',
+      }}
+      className="overflow-hidden rounded-lg border shadow-xl"
+    >
+      {filtered.length === 0 ? (
+        <div className="px-3 py-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+          Sin resultados
+        </div>
+      ) : (
+        <ul className="max-h-52 overflow-y-auto">
+          {filtered.map((o) => {
+            const isSelected = isMulti(props)
+              ? props.selected.includes(o.id)
+              : o.id === props.selected
+            return (
+              <li
+                key={o.id}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  if (isMulti(props)) {
+                    handleSelectMulti(o.id)
+                  } else {
+                    handleSelectSingle(o.id)
+                  }
+                }}
+                className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:opacity-80"
+                style={{
+                  backgroundColor: isSelected ? 'var(--accent)' : undefined,
+                  color: isSelected ? 'var(--accent-foreground)' : 'var(--foreground)',
+                }}
+              >
+                <Check
+                  className="h-3.5 w-3.5 shrink-0"
+                  style={{ opacity: isSelected ? 1 : 0 }}
+                />
+                {o.code && (
+                  <span
+                    className="shrink-0 flex items-center justify-center rounded px-1.5 py-0.5 font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
+                    style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', width: '10ch' }}
+                  >
+                    {o.code}
+                  </span>
+                )}
+                {o.tag && (
+                  <span
+                    className="shrink-0 flex items-center justify-center rounded px-1.5 py-0.5 font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
+                    style={{ backgroundColor: o.tag.bg, color: o.tag.color, width: '17ch' }}
+                  >
+                    {o.tag.label}
+                  </span>
+                )}
+                {o.label}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>,
+    document.body
+  ) : null
+
   return (
-    <div ref={containerRef} className={`relative w-full${open ? ' z-[120]' : ''}`}>
+    <div ref={containerRef} className="relative w-full">
       {/* Pills (multi mode only) */}
       {isMulti(props) && showPills && selectedOptions.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -132,6 +244,7 @@ export function SelectCombobox(props: Props) {
 
       {/* Input */}
       <div
+        ref={triggerRef}
         className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm relative"
         style={{
           backgroundColor: 'var(--background)',
@@ -170,7 +283,7 @@ export function SelectCombobox(props: Props) {
         <button
           type="button"
           onClick={(e) => {
-            if (isSingleMode && isClearable) {
+            if (isSingleMode && isClearable && selectedOptions.length > 0) {
               e.stopPropagation()
               props.onChange(null)
               return
@@ -187,7 +300,7 @@ export function SelectCombobox(props: Props) {
           }}
           disabled={props.disabled || (isSingleMode && isClearable && selectedOptions.length === 0)}
           className="absolute right-3 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded hover:opacity-70 disabled:opacity-30 disabled:cursor-default"
-          style={isSingleMode && selectedOptions.length > 0 ? { color: 'var(--muted-foreground)' } : { color: 'var(--muted-foreground)' }}
+          style={{ color: 'var(--muted-foreground)' }}
         >
           {isSingleMode && isClearable && selectedOptions.length > 0 ? (
             <X className="h-4 w-4" />
@@ -200,70 +313,7 @@ export function SelectCombobox(props: Props) {
         </button>
       </div>
 
-      {/* Dropdown */}
-      {open && (
-        <div
-          className="absolute z-[130] mt-1 w-full overflow-hidden rounded-lg border shadow-xl"
-          style={{
-            backgroundColor: 'oklch(1 0 0 / 1)',
-            borderColor: 'var(--border)',
-            color: 'var(--foreground)',
-          }}
-        >
-          {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-              Sin resultados
-            </div>
-          ) : (
-            <ul className="max-h-52 overflow-y-auto">
-              {filtered.map((o) => {
-                const isSelected = isMulti(props)
-                  ? props.selected.includes(o.id)
-                  : o.id === props.selected
-                return (
-                  <li
-                    key={o.id}
-                    onClick={() => {
-                      if (isMulti(props)) {
-                        handleSelectMulti(o.id)
-                      } else {
-                        handleSelectSingle(o.id)
-                      }
-                    }}
-                    className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:opacity-80"
-                    style={{
-                      backgroundColor: isSelected ? 'var(--accent)' : undefined,
-                      color: isSelected ? 'var(--accent-foreground)' : 'var(--foreground)',
-                    }}
-                  >
-                    <Check
-                      className="h-3.5 w-3.5 shrink-0"
-                      style={{ opacity: isSelected ? 1 : 0 }}
-                    />
-                    {o.code && (
-                      <span
-                        className="shrink-0 flex items-center justify-center rounded px-1.5 py-0.5 font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
-                        style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', width: '10ch' }}
-                      >
-                        {o.code}
-                      </span>
-                    )}
-                    {o.tag && (
-                      <span
-                        className="shrink-0 flex items-center justify-center rounded px-1.5 py-0.5 font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
-                        style={{ backgroundColor: o.tag.bg, color: o.tag.color, width: '17ch' }}
-                      >
-                        {o.tag.label}
-                      </span>
-                    )}
-                    {o.label}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-      )}
+      {dropdown}
     </div>
   )
 }
