@@ -5,7 +5,12 @@ import { procedures, exams, healthInsurances, elderlyResidences } from '@/db/sch
 import { eq, inArray } from 'drizzle-orm'
 import { P, fd } from './helpers'
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  unstable_cache: (fn: any) => fn,
+}))
 
 import {
   createProcedimiento,
