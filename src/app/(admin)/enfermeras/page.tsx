@@ -16,7 +16,7 @@ export default async function EnfermerasPage() {
   })
 
   return (
-    <div className="p-8">
+    <>
       <div className="mb-6">
         <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>Enfermeras</h1>
         <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Gestión del equipo de enfermería</p>
@@ -30,6 +30,6 @@ export default async function EnfermerasPage() {
         onToggle={toggleEnfermera}
         onDelete={deleteEnfermera}
       />
-    </div>
+    </>
   )
 }

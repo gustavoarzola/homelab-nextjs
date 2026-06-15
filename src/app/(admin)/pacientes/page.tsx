@@ -14,7 +14,7 @@ export default async function PacientesPage() {
   }
 
   return (
-    <div className="p-8">
+    <>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
           Pacientes
@@ -29,6 +29,6 @@ export default async function PacientesPage() {
         search={searchPacientes}
         onDelete={handleDelete}
       />
-    </div>
+    </>
   )
 }

@@ -29,7 +29,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   ])
 
   return (
-    <div className="min-h-full bg-[radial-gradient(circle_at_top_left,rgba(44,95,158,0.08),transparent_28%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] p-6 xl:p-8">
+    <div className="min-h-full -m-8 bg-[radial-gradient(circle_at_top_left,rgba(44,95,158,0.08),transparent_28%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] p-6 xl:p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <div className="relative z-20 flex flex-col gap-4 rounded-[28px] border border-black/5 bg-white/90 p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.34)] backdrop-blur-sm xl:flex-row xl:items-end xl:justify-between">
           <div>

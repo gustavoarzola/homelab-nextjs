@@ -8,7 +8,7 @@ export default async function VisitasPage() {
   ])
 
   return (
-    <div className="p-8">
+    <>
       <div className="mb-6">
         <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>Visitas</h1>
         <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
@@ -21,6 +21,6 @@ export default async function VisitasPage() {
         onDelete={deleteVisita}
         enfermeras={enfermeras}
       />
-    </div>
+    </>
   )
 }

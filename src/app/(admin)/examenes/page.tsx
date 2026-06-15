@@ -5,7 +5,7 @@ export default async function ExamenesPage() {
   const initialData = await searchExamenes({ filters: {}, sort: null, page: 1, pageSize: 10 })
 
   return (
-    <div className="p-8">
+    <>
       <div className="mb-6">
         <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>Exámenes</h1>
         <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Catálogo de exámenes médicos</p>
@@ -17,6 +17,6 @@ export default async function ExamenesPage() {
         onUpdate={updateExamen}
         onToggle={toggleExamen}
       />
-    </div>
+    </>
   )
 }

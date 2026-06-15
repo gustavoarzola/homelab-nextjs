@@ -38,7 +38,7 @@ export default async function PagoEnfermeraDetallePage({ params, searchParams }:
   const monthLabel = MONTH_LABELS[month - 1]
 
   return (
-    <div className="p-8">
+    <>
       {/* Volver */}
       <Link
         href={backHref}
@@ -226,6 +226,6 @@ export default async function PagoEnfermeraDetallePage({ params, searchParams }:
           )}
         </table>
       </div>
-    </div>
+    </>
   )
 }
