@@ -68,8 +68,8 @@ export function DashboardRankingCard({
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-black/[0.05]">
                   <div
-                    className="h-full rounded-full bg-[linear-gradient(90deg,#2c5f9e,#6da5d9)]"
-                    style={{ width }}
+                    className="h-full rounded-full"
+                    style={{ background: 'linear-gradient(90deg, var(--brand-primary), var(--brand-primary-light))', width }}
                   />
                 </div>
               </div>

@@ -15,6 +15,7 @@ import {
 import { SelectCombobox } from '@/components/select-combobox'
 import { toast } from 'sonner'
 import type { CotizacionVista } from '@/lib/actions/cotizaciones'
+import { ESTADO_COTIZACION_STYLES } from '@/lib/estado-colors'
 
 const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
 
@@ -41,12 +42,7 @@ function getInitials(nombre: string): string {
 
 type EstadoKey = 'creada' | 'enviada' | 'aceptada' | 'rechazada'
 
-const ESTADO_CFG: Record<EstadoKey, { label: string; bg: string; color: string; step: number }> = {
-  creada:    { label: 'Creada',    bg: 'oklch(0.93 0 0)',           color: 'oklch(0.45 0 0)',        step: 0 },
-  enviada:   { label: 'Enviada',   bg: 'oklch(0.88 0.07 250 / 60%)', color: 'oklch(0.45 0.1 250)',   step: 1 },
-  aceptada:  { label: 'Aceptada',  bg: 'oklch(0.88 0.1 145 / 60%)', color: 'oklch(0.4 0.13 145)',   step: 2 },
-  rechazada: { label: 'Rechazada', bg: 'oklch(0.95 0.025 25)',       color: 'oklch(0.5 0.18 25)',    step: 2 },
-}
+const ESTADO_CFG = ESTADO_COTIZACION_STYLES as Record<EstadoKey, { label: string; bg: string; color: string; step: number }>
 
 function EstadoBadge({ estado, size = 'sm' }: { estado: string; size?: 'sm' | 'lg' }) {
   const cfg = ESTADO_CFG[estado as EstadoKey] ?? ESTADO_CFG.creada

@@ -22,6 +22,7 @@ import type { NurseRow } from '@/lib/actions/enfermeras'
 import type { ProcedimientoRow, ExamenRow, TallerRow, IsaprePrevisionRow } from '@/lib/actions/catalogos'
 import type { VisitaDetalle } from '@/lib/actions/visitas'
 import { EXAM_GRUPO_META } from '@/lib/exam-grupos'
+import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
 
 import { toast } from 'sonner'
 import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
@@ -67,22 +68,14 @@ const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
 
 // ─── Estado badge ──────────────────────────────────────────────────────────────
 
-const estadoConfig = {
-  creada:       { bg: 'var(--muted)',                 fg: 'var(--muted-foreground)', label: 'Creada' },
-  confirmada:   { bg: 'oklch(0.97 0.025 240)',        fg: 'oklch(0.45 0.12 240)',   label: 'Confirmada' },
-  realizada:    { bg: 'oklch(0.97 0.025 145)',        fg: 'oklch(0.45 0.13 145)',   label: 'Realizada' },
-  cancelada:    { bg: 'oklch(0.95 0.025 25)',         fg: 'oklch(0.5 0.18 25)',     label: 'Cancelada' },
-  no_realizada: { bg: 'oklch(0.97 0.04 70)',          fg: 'oklch(0.5 0.13 70)',     label: 'No realizada' },
-} as const
-
 function EstadoBadge({ estado, size = 'sm' }: { estado: string; size?: 'sm' | 'lg' }) {
-  const cfg = estadoConfig[estado as keyof typeof estadoConfig] ?? estadoConfig.creada
+  const cfg = ESTADO_VISITA_STYLES[estado] ?? ESTADO_VISITA_STYLES.creada!
   return (
     <span
       className="rounded-md font-medium uppercase tracking-wide"
       style={{
         backgroundColor: cfg.bg,
-        color: cfg.fg,
+        color: cfg.color,
         fontSize: size === 'lg' ? 11 : 10.5,
         padding: size === 'lg' ? '4px 10px' : '2px 8px',
         letterSpacing: '0.06em',

@@ -13,7 +13,7 @@ export function ExamLabel({
 }) {
   const grupo = grupoExamen as ExamGrupo
   const groupLabel = EXAM_GRUPO_LABELS[grupo] ?? grupoExamen
-  const colors = EXAM_GRUPO_COLORS[grupo] ?? { bg: '#f3f4f6', color: '#374151' }
+  const colors = EXAM_GRUPO_COLORS[grupo] ?? { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
 
   return (
     <div className="flex items-center gap-2">

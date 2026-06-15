@@ -45,7 +45,7 @@ type Props = {
 const chartConfig = {
   visits: {
     label: 'Visitas',
-    color: '#2c5f9e',
+    color: 'var(--brand-primary)',
   },
 } satisfies ChartConfig
 
@@ -133,14 +133,14 @@ export function DashboardVisitsChart({
               strokeWidth={2.5}
               dot={{
                 r: 4.5,
-                fill: '#f8fafc',
+                fill: 'var(--background)',
                 stroke: 'var(--color-visits)',
                 strokeWidth: 2,
               }}
               activeDot={{
                 r: 6,
                 fill: 'var(--color-visits)',
-                stroke: '#f8fafc',
+                stroke: 'var(--background)',
                 strokeWidth: 2,
               }}
             />
