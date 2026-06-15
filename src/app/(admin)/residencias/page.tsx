@@ -5,7 +5,7 @@ export default async function ResidenciasPage() {
   const initialData = await searchResidencias({ filters: {}, sort: null, page: 1, pageSize: 10 })
 
   return (
-    <div className="p-8">
+    <>
       <div className="mb-6">
         <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>Residencias de Adulto Mayor</h1>
         <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Establecimientos de residencia para adultos mayores</p>
@@ -17,6 +17,6 @@ export default async function ResidenciasPage() {
         onUpdate={updateResidencia}
         onToggle={toggleResidencia}
       />
-    </div>
+    </>
   )
 }

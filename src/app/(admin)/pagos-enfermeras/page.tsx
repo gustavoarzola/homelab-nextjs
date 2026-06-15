@@ -25,7 +25,7 @@ export default async function PagosEnfermerasPage({ searchParams }: Props) {
   ])
 
   return (
-    <div className="p-8">
+    <>
       <div className="mb-6">
         <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
           Pagos a enfermeras
@@ -41,6 +41,6 @@ export default async function PagosEnfermerasPage({ searchParams }: Props) {
         enfermeraId={enfermeraId ?? ''}
         enfermeras={enfermeras}
       />
-    </div>
+    </>
   )
 }

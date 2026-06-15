@@ -41,7 +41,7 @@ export default async function CotizacionEditarPage({ params }: { params: Promise
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="-m-8 flex flex-col">
       <div className="px-8 pt-6 pb-0">
         <Link
           href={`/cotizaciones/${id}`}

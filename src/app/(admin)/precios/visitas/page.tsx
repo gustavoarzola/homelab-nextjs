@@ -10,7 +10,7 @@ export default async function PreciosVisitasPage() {
   const initialData = await searchPreciosVisita({ filters: {}, sort: null, page: 1, pageSize: 100 })
 
   return (
-    <div className="p-8">
+    <>
       <div className="mb-6">
         <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
           Precios de visita de enfermería
@@ -26,6 +26,6 @@ export default async function PreciosVisitasPage() {
         onToggle={togglePrecioVisita}
         search={searchPreciosVisita}
       />
-    </div>
+    </>
   )
 }
