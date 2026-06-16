@@ -142,11 +142,12 @@ function getFilters(enfermeras: { id: number; nombre: string }[]): FilterDef[] {
       type: 'select-single',
       options: [
         { value: '', label: '— Todos —' },
-        { value: 'creada',       label: 'Creada' },
+        { value: 'programada',   label: 'Programada' },
         { value: 'confirmada',   label: 'Confirmada' },
         { value: 'realizada',    label: 'Realizada' },
-        { value: 'cancelada',    label: 'Cancelada' },
+        { value: 'completada',   label: 'Completada' },
         { value: 'no_realizada', label: 'No realizada' },
+        { value: 'cancelada',    label: 'Cancelada' },
       ],
     },
     {

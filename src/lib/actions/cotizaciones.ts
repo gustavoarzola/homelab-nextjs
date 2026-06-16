@@ -460,7 +460,7 @@ export async function createCotizacion(
     const inserted = await db
       .insert(quotations)
       .values({
-        estado: 'creada',
+        estado: 'programada',
         idPaciente,
         nombreDestinatario,
         emailDestinatario,
@@ -837,7 +837,7 @@ export async function convertirCotizacionAVisita(
       .insert(visits)
       .values({
         fecha: hoy,
-        estado: 'creada',
+        estado: 'programada',
         costo: quotation.total ?? 0,
         idPaciente: finalIdPaciente,
         cobraVisita: quotation.cobraVisita,
