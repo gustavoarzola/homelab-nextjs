@@ -4,9 +4,10 @@ import { buildExcel, type ExcelColumn } from '@/lib/excel/build-excel'
 import { parseDateLocal } from '@/lib/format'
 
 const ESTADO_LABELS: Record<string, string> = {
-  creada: 'Creada',
+  programada: 'Programada',
   confirmada: 'Confirmada',
   realizada: 'Realizada',
+  completada: 'Completada',
   cancelada: 'Cancelada',
   no_realizada: 'No realizada',
 }
@@ -19,8 +20,6 @@ const columns: ExcelColumn<VisitaRow>[] = [
   { header: 'Estado',      accessor: (r) => ESTADO_LABELS[r.estado] ?? r.estado,                                width: 14 },
   { header: 'Enfermera',   accessor: (r) => r.enfermera,                                                         width: 28 },
   { header: 'Costo',       accessor: (r) => r.costo,                                                             width: 14, format: 'currency-clp' },
-  { header: 'Pagado',      accessor: (r) => (r.estado === 'realizada' ? (r.pagado ? 'Sí' : 'No') : null),       width: 10 },
-  { header: 'Resultados',  accessor: (r) => (r.estado === 'realizada' && r.resultadosTotalCount > 0 ? `${r.resultadosEnviadosCount}/${r.resultadosTotalCount}` : null), width: 12 },
 ]
 
 export async function GET(request: Request) {
@@ -34,8 +33,6 @@ export async function GET(request: Request) {
     enfermera: searchParams.get('enfermera') ?? '',
     fechaInicio: searchParams.get('fechaInicio') ?? '',
     fechaFin: searchParams.get('fechaFin') ?? '',
-    pendientePago: searchParams.get('pendientePago') === 'true',
-    resultadosPendientes: searchParams.get('resultadosPendientes') === 'true',
   }
 
   const sortKey = searchParams.get('sortKey')

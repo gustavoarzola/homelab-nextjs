@@ -1,6 +1,5 @@
 'use client'
 
-import { Paperclip } from 'lucide-react'
 import { DataTable, type ColumnDef, type FilterDef, type SearchParams, type Result } from './data-table'
 import { formatDateTime } from '@/lib/format'
 import type { VisitaRow } from '@/lib/actions/visitas'
@@ -65,61 +64,6 @@ const columns: ColumnDef<VisitaRow>[] = [
     cell: ({ row }) => `$${row.original.costo.toLocaleString('es-CL')}`,
   },
   {
-    id: 'pagado',
-    header: 'Pago',
-    enableSorting: false,
-    cell: ({ row }) => row.original.estado === 'realizada' ? (
-      <span
-        className="rounded-full px-2 py-0.5 text-xs font-medium"
-        style={{
-          backgroundColor: row.original.pagado ? 'oklch(0.6 0.118 184.704 / 12%)' : 'oklch(0.65 0.15 30 / 15%)',
-          color: row.original.pagado ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.45 0.15 30)',
-        }}
-      >
-        {row.original.pagado ? 'Pagado' : 'Pendiente'}
-      </span>
-    ) : null,
-  },
-  {
-    id: 'resultados',
-    header: 'Resultados',
-    enableSorting: false,
-    cell: ({ row }) => {
-      const enviados = row.original.resultadosEnviadosCount
-      const total = row.original.resultadosTotalCount
-      if (total === 0) return null
-      const allSent = enviados >= total
-      return (
-        <span
-          className="rounded-full px-2 py-0.5 text-xs font-medium tabular-nums"
-          style={{
-            backgroundColor: allSent ? 'oklch(0.6 0.118 184.704 / 12%)' : 'oklch(0.7 0.15 60 / 15%)',
-            color: allSent ? 'oklch(0.45 0.118 184.704)' : 'oklch(0.40 0.15 60)',
-          }}
-        >
-          {enviados}/{total}
-        </span>
-      )
-    },
-  },
-  {
-    id: 'archivo',
-    header: 'Archivo',
-    enableSorting: false,
-    cell: ({ row }) => row.original.keyOrdenMedica ? (
-      <a
-        href={`/api/r2-file?key=${encodeURIComponent(row.original.keyOrdenMedica)}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Ver archivo adjunto"
-        className="rounded p-1.5 hover:opacity-80 transition-opacity inline-flex"
-        style={{ color: 'var(--muted-foreground)' }}
-      >
-        <Paperclip className="h-3.5 w-3.5" />
-      </a>
-    ) : null,
-  },
-  {
     id: 'actions',
     header: '',
     enableSorting: false,
@@ -165,16 +109,6 @@ function getFilters(enfermeras: { id: number; nombre: string }[]): FilterDef[] {
       type: 'date-range',
       keyFrom: 'fechaInicio',
       keyTo: 'fechaFin',
-    },
-    {
-      key: 'pendientePago',
-      label: 'Pago pendiente',
-      type: 'checkbox',
-    },
-    {
-      key: 'resultadosPendientes',
-      label: 'Resultados pendientes',
-      type: 'checkbox',
     },
   ]
 }

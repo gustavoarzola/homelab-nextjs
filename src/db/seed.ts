@@ -3,7 +3,7 @@ import { join } from 'path'
 import { db } from './index'
 import {
   users, nurses, patients, addresses, patientPhones,
-  visits, visitExams, visitProcedures, visitWorkshops, visitSurcharges,
+  visits, visitExams, visitProcedures, visitWorkshops, visitSurcharges, visitExamResults,
   healthInsurances, elderlyResidences,
   procedures, exams,
   contactOrigins,
@@ -772,10 +772,12 @@ async function seed() {
   let visitsCount = 0
 
   if (allPatients.length > 0) {
+    type SeedVisitState = 'programada' | 'confirmada' | 'realizada' | 'completada' | 'no_realizada' | 'cancelada'
+
     const visitRows: Array<{
       fecha: string
       hora: string
-      estado: string
+      estado: SeedVisitState
       costo: number
       cobraVisita: boolean
       idPaciente: number
@@ -785,13 +787,20 @@ async function seed() {
       numeroAtencion: number | null
       origenContacto: string
       informacionAdicional: string
+      pagado: boolean
+      metodoPago: string | null
+      fechaPago: string | null
+      costoTraslado: number
+      conceptoNoRealizada: string | null
+      motivoCancelacion: string | null
     }> = []
 
     // Items por visita (indexados igual que visitRows)
     const visitItemsByIndex: Array<ReturnType<typeof buildVisitItems>> = []
+    const completedVisitIndexes = new Set<number>()
 
     // Generate 12-22 visits per day (Mon-Sat) for Jan 1 2025 - Apr 15 2025
-    const visitDates: { date: Date; state: 'realizada' | 'creada'; assignNurse: boolean }[] = []
+    const visitDates: { date: Date; state: SeedVisitState; assignNurse: boolean }[] = []
 
     const chileDateParts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Santiago',
@@ -818,10 +827,22 @@ async function seed() {
       const randomCount = Math.floor(Math.random() * 11) + 12 // 12-22 visits
 
       for (let i = 0; i < randomCount; i++) {
-        const assignNurse = isRealizada ? true : Math.random() > 0.3 // 70% have nurse after Mar 27
+        const state: SeedVisitState = isRealizada
+          ? i % 25 === 0 ? 'cancelada'
+            : i % 16 === 0 ? 'no_realizada'
+            : i % 7 === 0 ? 'realizada'
+            : 'completada'
+          : i % 20 === 0 ? 'cancelada'
+            : i % 3 === 0 ? 'confirmada'
+            : 'programada'
+        const assignNurse = ['confirmada', 'realizada', 'completada', 'no_realizada'].includes(state)
+          ? true
+          : state === 'programada'
+            ? Math.random() > 0.3
+            : Math.random() > 0.5
         visitDates.push({
           date: new Date(d),
-          state: isRealizada ? 'realizada' : 'creada',
+          state,
           assignNurse,
         })
       }
@@ -843,14 +864,34 @@ async function seed() {
       let numeroBoleta = ''
       let tipoDocumento = ''
       let numeroAtencion: number | null = null
-      if (state === 'realizada') {
+      let pagado = false
+      let metodoPago: string | null = null
+      let fechaPago: string | null = null
+      let costoTraslado = 0
+      let conceptoNoRealizada: string | null = null
+      let motivoCancelacion: string | null = null
+
+      if (state === 'realizada' || state === 'completada') {
         realizadaCounter++
         numeroAtencion = realizadaCounter
         tipoDocumento = realizadaCounter % 3 === 0 ? 'factura' : 'boleta'
         numeroBoleta = String(realizadaCounter).padStart(7, '0')
       }
+      if (state === 'completada') {
+        pagado = true
+        metodoPago = pick(['Efectivo', 'Transferencia', 'Débito', 'Crédito'], idx, 5)
+        fechaPago = fecha
+      }
+      if (state === 'no_realizada') {
+        costoTraslado = 12000 + (idx % 5) * 3000
+        conceptoNoRealizada = pick(['Traslado', 'Visita fallida', 'Paciente ausente'], idx, 8)
+      }
+      if (state === 'cancelada') {
+        motivoCancelacion = pick(['Reagendada por paciente', 'Paciente cancela', 'Sin disponibilidad horaria'], idx, 11)
+      }
 
       const items = buildVisitItems(idx, allProcsCat, allExamsCat, allWorkshopsCat, allSurchargesCat)
+      if (state === 'completada') completedVisitIndexes.add(idx)
       visitItemsByIndex.push(items)
 
       visitRows.push({
@@ -866,6 +907,12 @@ async function seed() {
         numeroAtencion,
         origenContacto: 'Sistema',
         informacionAdicional: '',
+        pagado,
+        metodoPago,
+        fechaPago,
+        costoTraslado,
+        conceptoNoRealizada,
+        motivoCancelacion,
       })
     }
 
@@ -908,6 +955,31 @@ async function seed() {
       console.log(`   Actualizando resultadosTotalCount en ${examCountByVisit.size} visitas...`)
       for (const [idVisita, total] of examCountByVisit) {
         await db.update(visits).set({ resultadosTotalCount: total }).where(eq(visits.id, idVisita))
+      }
+
+      const completedResults: { idVisita: number; idExamen: number; enviado: boolean; fechaEnvio: string }[] = []
+      for (let i = 0; i < insertedVisitIds.length; i++) {
+        if (!completedVisitIndexes.has(i)) continue
+        const visitId = insertedVisitIds[i]!
+        const fechaEnvio = visitRows[i]!.fechaPago ?? visitRows[i]!.fecha
+        for (const examItem of visitItemsByIndex[i]!.examItems) {
+          completedResults.push({ idVisita: visitId, idExamen: examItem.idExamen, enviado: true, fechaEnvio })
+        }
+      }
+      if (completedResults.length > 0) {
+        console.log(`   Insertando ${completedResults.length} resultados de exámenes enviados...`)
+        for (let offset = 0; offset < completedResults.length; offset += ITEM_BATCH) {
+          await db.insert(visitExamResults).values(completedResults.slice(offset, offset + ITEM_BATCH))
+        }
+
+        const sentCountByVisit = new Map<number, number>()
+        for (const { idVisita } of completedResults) {
+          sentCountByVisit.set(idVisita, (sentCountByVisit.get(idVisita) ?? 0) + 1)
+        }
+        console.log(`   Actualizando resultadosEnviadosCount en ${sentCountByVisit.size} visitas completadas...`)
+        for (const [idVisita, total] of sentCountByVisit) {
+          await db.update(visits).set({ resultadosEnviadosCount: total }).where(eq(visits.id, idVisita))
+        }
       }
     }
     if (allProcRows.length > 0) {
@@ -960,7 +1032,7 @@ async function seed() {
         visitRows.push({
           fecha,
           hora: `${hour}:${minute}:${second}`,
-          estado: 'creada',
+          estado: 'programada',
           costo: Math.floor(Math.random() * 100000) + 20000,
           idPaciente: patientId,
           idEnfermera: null,
@@ -993,7 +1065,7 @@ async function seed() {
   console.log(`   ${TOTAL_PATIENTS} pacientes → ${rutCount} con RUT · ${passportCount} con pasaporte`)
   console.log(`   Previsión → FONASA: ${fonasaCount} · Isapre: ${isapreCount} · Otros: ${otrosCount}`)
   console.log(`   ${residenciaCount} pacientes en residencia adulto mayor`)
-  console.log(`   ${visitsCount} visitas (ene-abr 2025: 12-22/día lun-sábado, antes 27mar=realizada+enfermera, después=creada+70%enfermera)`)
+  console.log(`   ${visitsCount} visitas (ene-abr 2026: programadas, confirmadas, realizadas, completadas, no realizadas y canceladas)`)
   console.log(`   ${previsionesData.length} previsiones de salud`)
   console.log(`   ${procedimientosData.length} procedimientos · ${examenesDataWithPrices.length} exámenes imalab · ${examenesIsapreData.length} exámenes imalab isapre`)
   console.log(`   ${visitPricesData.length} precios de visitas de enfermería (por comuna)`)
