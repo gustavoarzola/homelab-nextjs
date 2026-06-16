@@ -120,10 +120,6 @@ export type VisitaRow = {
   idPaciente: number | null
   paciente: string | null
   enfermera: string | null
-  pagado: boolean
-  resultadosEnviadosCount: number
-  resultadosTotalCount: number
-  keyOrdenMedica: string | null
 }
 
 // ─── Visitas query helpers (internal) ─────────────────────────────────────────
@@ -134,8 +130,6 @@ function buildVisitasWhere(filters: SearchParams['filters']): SQL | undefined {
   const enfermeraId = (filters.enfermera as string | undefined)?.trim()
   const fechaInicio = (filters.fechaInicio as string | undefined)?.trim()
   const fechaFin = (filters.fechaFin as string | undefined)?.trim()
-  const pendientePago = filters.pendientePago as boolean | undefined
-  const resultadosPendientes = filters.resultadosPendientes as boolean | undefined
 
   const conditions: SQL[] = []
   if (buscar) {
@@ -152,8 +146,6 @@ function buildVisitasWhere(filters: SearchParams['filters']): SQL | undefined {
   if (enfermeraId) conditions.push(eq(visits.idEnfermera, Number(enfermeraId)))
   if (fechaInicio) conditions.push(gte(visits.fecha, fechaInicio))
   if (fechaFin) conditions.push(lte(visits.fecha, fechaFin))
-  if (pendientePago) conditions.push(and(eq(visits.pagado, false), or(eq(visits.estado, 'realizada'), eq(visits.estado, 'completada')))!)
-  if (resultadosPendientes) conditions.push(and(sql`${visits.resultadosEnviadosCount} < ${visits.resultadosTotalCount}`, or(eq(visits.estado, 'realizada'), eq(visits.estado, 'completada')))!)
 
   return conditions.length ? and(...conditions) : undefined
 }
@@ -177,16 +169,12 @@ const visitaRowSelect = {
   estado: visits.estado,
   costo: visits.costo,
   idPaciente: visits.idPaciente,
-  pagado: visits.pagado,
-  resultadosEnviadosCount: visits.resultadosEnviadosCount,
-  resultadosTotalCount: visits.resultadosTotalCount,
   pacienteNombres: patients.nombres,
   pacienteApellido: patients.apellidoPaterno,
   pacienteApellidoMaterno: patients.apellidoMaterno,
   enfermeraNombres: nurses.nombres,
   enfermeraApellido: nurses.apellidoPaterno,
   enfermeraApellidoMaterno: nurses.apellidoMaterno,
-  keyOrdenMedica: visits.keyOrdenMedica,
 }
 
 type VisitaRawRow = {
@@ -196,16 +184,12 @@ type VisitaRawRow = {
   estado: string
   costo: number
   idPaciente: number | null
-  pagado: boolean
-  resultadosEnviadosCount: number
-  resultadosTotalCount: number
   pacienteNombres: string | null
   pacienteApellido: string | null
   pacienteApellidoMaterno: string | null
   enfermeraNombres: string | null
   enfermeraApellido: string | null
   enfermeraApellidoMaterno: string | null
-  keyOrdenMedica: string | null
 }
 
 function mapVisitaRow(r: VisitaRawRow): VisitaRow {
@@ -227,10 +211,6 @@ function mapVisitaRow(r: VisitaRawRow): VisitaRow {
       apellidoPaterno: r.enfermeraApellido,
       apellidoMaterno: r.enfermeraApellidoMaterno,
     }) || null,
-    pagado: r.pagado,
-    resultadosEnviadosCount: r.resultadosEnviadosCount,
-    resultadosTotalCount: r.resultadosTotalCount,
-    keyOrdenMedica: r.keyOrdenMedica ?? null,
   }
 }
 
@@ -889,9 +869,10 @@ export async function confirmarVisita(id: number): Promise<ActionResult> {
 export async function marcarRealizada(id: number): Promise<ActionResult> {
   return withAction('Error al marcar como realizada', async () => {
     await requireSession()
-    const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
+    const [visit] = await db.select({ estado: visits.estado, idEnfermera: visits.idEnfermera }).from(visits).where(eq(visits.id, id))
     if (!visit) throw new ActionError('Visita no encontrada')
     if (visit.estado !== 'confirmada') throw new ActionError('Solo se puede marcar como realizada una visita confirmada')
+    if (visit.idEnfermera === null) throw new ActionError('Para marcar esta visita como realizada, primero asigna una enfermera')
     await db.update(visits).set({ estado: 'realizada', updatedAt: new Date() }).where(eq(visits.id, id))
     revalidatePath('/visitas')
     revalidatePath(`/visitas/${id}`)
@@ -950,10 +931,41 @@ export async function completarVisita(id: number, data: CompletarVisitaData): Pr
     if (!visit) throw new ActionError('Visita no encontrada')
     if (visit.estado !== 'realizada') throw new ActionError('Solo se puede completar una visita realizada')
     if (!data.tipoDocumento || !data.numeroBoleta.trim()) throw new ActionError('Tipo de documento y N° boleta/factura son requeridos')
-    if (data.pagado && (!data.metodoPago || !data.fechaPago)) throw new ActionError('Método y fecha de pago son requeridos cuando el pago está marcado')
+    if (!data.pagado) throw new ActionError('La visita debe estar marcada como pagada para completarla')
+    if (!data.metodoPago) throw new ActionError('Método de pago requerido para completar la visita')
+    if (!data.fechaPago) throw new ActionError('Fecha de pago requerida para completar la visita')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data.fechaPago)) throw new ActionError('Formato de fecha de pago inválido')
+
+    const submittedExams = new Map<number, string>()
+    for (const ex of data.examenes) {
+      if (!ex.idExamen) throw new ActionError('Examen inválido en el envío de resultados')
+      if (!ex.fechaEnvio) throw new ActionError('Fecha de envío requerida para todos los exámenes')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ex.fechaEnvio)) throw new ActionError('Formato de fecha de envío inválido')
+      submittedExams.set(ex.idExamen, ex.fechaEnvio)
+    }
+
+    const [stdExams, isapreExams] = await Promise.all([
+      db.select({ idExamen: visitExams.idExamen }).from(visitExams).where(eq(visitExams.idVisita, id)),
+      db.select({ idExamen: visitIsapreExams.idExamen }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id)),
+    ])
+    const expectedExamIds = [...new Set([...stdExams, ...isapreExams].map((ex) => ex.idExamen))]
+
+    for (const idExamen of submittedExams.keys()) {
+      if (!expectedExamIds.includes(idExamen)) throw new ActionError('Uno de los exámenes enviados no pertenece a esta visita')
+    }
+
+    const missingExamIds = expectedExamIds.filter((idExamen) => !submittedExams.has(idExamen))
+    if (missingExamIds.length > 0) {
+      throw new ActionError(`Falta registrar el envío de ${missingExamIds.length} examen${missingExamIds.length === 1 ? '' : 'es'}`)
+    }
+
+    const examenesCompletos = expectedExamIds.map((idExamen) => ({
+      idExamen,
+      fechaEnvio: submittedExams.get(idExamen)!,
+    }))
 
     await db.transaction(async (tx) => {
-      for (const ex of data.examenes) {
+      for (const ex of examenesCompletos) {
         await tx
           .insert(visitExamResults)
           .values({ idVisita: id, idExamen: ex.idExamen, enviado: true, fechaEnvio: ex.fechaEnvio, updatedAt: new Date() })
@@ -975,7 +987,7 @@ export async function completarVisita(id: number, data: CompletarVisitaData): Pr
         pagado: data.pagado,
         metodoPago: data.pagado ? (data.metodoPago ?? null) : null,
         fechaPago: data.pagado ? (data.fechaPago ?? null) : null,
-        resultadosEnviadosCount: data.examenes.length,
+        resultadosEnviadosCount: examenesCompletos.length,
         resultadosTotalCount: total,
         updatedAt: new Date(),
       }).where(eq(visits.id, id))

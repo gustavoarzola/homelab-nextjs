@@ -10,6 +10,8 @@ import {
 import { VisitaLifecycleView } from '@/components/visita-lifecycle-view'
 import type { CompletarVisitaData } from '@/lib/actions/visitas'
 
+export const dynamic = 'force-dynamic'
+
 export default async function VisitaPage({
   params,
 }: {

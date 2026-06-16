@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
 import type { VisitaLifecycleDetalle, CompletarVisitaData } from '@/lib/actions/visitas'
 import { formatDate } from '@/lib/format'
+import { FormDatePicker } from '@/components/form-date-picker'
 
 const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
 
@@ -152,7 +153,7 @@ function SvcGroup({
 }: {
   label: string
   dot: string
-  items: { id: number; nombre: string; codigo?: string | null; precio: number }[]
+  items: { id: number; nombre: string; codigo?: string | null; precio: number; meta?: string | null }[]
 }) {
   if (!items.length) return null
   return (
@@ -178,7 +179,14 @@ function SvcGroup({
                 {it.codigo}
               </span>
             )}
-            <span className="flex-1" style={{ color: 'var(--foreground)' }}>{it.nombre}</span>
+            <span className="flex-1 min-w-0" style={{ color: 'var(--foreground)' }}>
+              <span className="block truncate">{it.nombre}</span>
+              {it.meta && (
+                <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                  {it.meta}
+                </span>
+              )}
+            </span>
             <span className="tabular-nums shrink-0" style={{ color: 'var(--muted-foreground)' }}>{CLP(it.precio)}</span>
           </div>
         ))}
@@ -201,6 +209,8 @@ function MetaCell({ label, value, tint }: { label: string; value: string; tint?:
 function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
   const nombre = v.pacienteNombre ?? 'Sin paciente'
   const initials = v.pacienteNombre ? getInitials(v.pacienteNombre) : '?'
+  const isCompleted = v.estado === 'completada'
+  const examResultsById = new Map(v.examenResultados.map((r) => [r.idExamen, r]))
   const totalServicios =
     v.procedimientos.reduce((s, x) => s + x.precio, 0) +
     v.examenes.reduce((s, x) => s + x.precio, 0) +
@@ -249,6 +259,26 @@ function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
         </div>
       </div>
 
+      {/* Cierre */}
+      {isCompleted && (
+        <div className="rounded-xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Check className="w-4 h-4 shrink-0" style={{ color: 'oklch(0.38 0.13 145)' }} />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>Cierre</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <MetaCell label="Documento" value={`${v.tipoDocumento === 'factura' ? 'Factura' : 'Boleta'} N° ${v.numeroBoleta || '—'}`} />
+            {v.numeroAtencion && <MetaCell label="N° atención" value={String(v.numeroAtencion)} />}
+            <MetaCell label="Pago" value={v.pagado ? 'Pagado' : 'No registrado'} tint={v.pagado} />
+            {v.metodoPago && <MetaCell label="Método" value={v.metodoPago} />}
+            {v.fechaPago && <MetaCell label="Fecha pago" value={formatDate(v.fechaPago)} />}
+            {v.resultadosTotalCount > 0 && (
+              <MetaCell label="Exámenes enviados" value={`${v.resultadosEnviadosCount} de ${v.resultadosTotalCount}`} />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Servicios */}
       <div className="rounded-xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
         <div className="flex items-center justify-between mb-3">
@@ -261,8 +291,31 @@ function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
         </div>
         <div className="flex flex-col gap-4">
           <SvcGroup label="Procedimientos" dot="oklch(0.45 0.1 250)" items={v.procedimientos} />
-          <SvcGroup label="Exámenes" dot="oklch(0.4 0.13 145)" items={v.examenes} />
-          <SvcGroup label="Exámenes Isapre" dot="oklch(0.45 0.13 290)" items={v.isapreExams.map((e) => ({ id: e.id, nombre: e.nombre, codigo: e.codigo, precio: e.valorPagar }))} />
+          <SvcGroup
+            label="Exámenes"
+            dot="oklch(0.4 0.13 145)"
+            items={v.examenes.map((e) => {
+              const result = examResultsById.get(e.id)
+              return {
+                ...e,
+                meta: isCompleted && result?.enviado && result.fechaEnvio ? `Enviado el ${formatDate(result.fechaEnvio)}` : null,
+              }
+            })}
+          />
+          <SvcGroup
+            label="Exámenes Isapre"
+            dot="oklch(0.45 0.13 290)"
+            items={v.isapreExams.map((e) => {
+              const result = examResultsById.get(e.id)
+              return {
+                id: e.id,
+                nombre: e.nombre,
+                codigo: e.codigo,
+                precio: e.valorPagar,
+                meta: isCompleted && result?.enviado && result.fechaEnvio ? `Enviado el ${formatDate(result.fechaEnvio)}` : null,
+              }
+            })}
+          />
           <SvcGroup label="Talleres" dot="oklch(0.5 0.12 60)" items={v.talleres} />
           {v.cobraVisita && (
             <div className="flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px]" style={{ background: 'var(--muted)' }}>
@@ -423,10 +476,12 @@ function PanelProgramada({
 // ─── Panel: confirmada ────────────────────────────────────────────────────────
 
 function PanelConfirmada({
+  hasAssignedNurse,
   onMarcarRealizada,
   onMarcarNoRealizada,
   onCancelar,
 }: {
+  hasAssignedNurse: boolean
   onMarcarRealizada: () => Promise<{ success: boolean; error?: string }>
   onMarcarNoRealizada: (costo: number, concepto: string) => Promise<{ success: boolean; error?: string }>
   onCancelar: (motivo: string) => Promise<{ success: boolean; error?: string }>
@@ -478,12 +533,23 @@ function PanelConfirmada({
       <button
         type="button"
         onClick={handleRealizada}
-        disabled={isPending}
+        disabled={isPending || !hasAssignedNurse}
         className="w-full h-10 rounded-lg text-[13px] font-medium flex items-center justify-center gap-2 transition-opacity disabled:opacity-60"
         style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
       >
         {isPending ? 'Procesando…' : 'Marcar como realizada'}
       </button>
+      {!hasAssignedNurse && (
+        <div
+          className="flex items-start gap-2.5 rounded-lg p-3"
+          style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
+        >
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: 'oklch(0.5 0.18 25)' }} />
+          <p className="text-[12.5px] leading-snug" style={{ color: 'var(--muted-foreground)' }}>
+            Para marcar esta visita como realizada, primero asigna una enfermera.
+          </p>
+        </div>
+      )}
 
       {/* No realizada accordion */}
       <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${action === 'no_realizada' ? 'var(--state-visita-no-realizada-border)' : 'var(--border)'}` }}>
@@ -614,6 +680,23 @@ function CompletionSection({
 
 // ─── Panel: realizada ───────────────────────────────────���─────────────────────
 
+type CompletionSectionId = 'facturacion' | 'pago' | 'examenes'
+
+type CompletionError = {
+  section: CompletionSectionId
+  message: string
+  field?: 'boleta' | 'pagado' | 'metodo' | 'fechaPago'
+  examIds?: number[]
+}
+
+function InlineError({ children }: { children: string }) {
+  return (
+    <p className="text-[11.5px] leading-snug" style={{ color: 'oklch(0.5 0.18 25)' }}>
+      {children}
+    </p>
+  )
+}
+
 function PanelRealizada({
   visita,
   onCompletar,
@@ -622,7 +705,7 @@ function PanelRealizada({
   onCompletar: (data: CompletarVisitaData) => Promise<{ success: boolean; error?: string }>
 }) {
   const router = useRouter()
-  const [openSec, setOpenSec] = useState<'facturacion' | 'pago' | 'examenes' | null>('facturacion')
+  const [openSec, setOpenSec] = useState<CompletionSectionId | null>('facturacion')
   const [tipoDoc, setTipoDoc] = useState<'boleta' | 'factura'>(
     (visita.tipoDocumento as 'boleta' | 'factura') || 'boleta'
   )
@@ -638,6 +721,7 @@ function PanelRealizada({
     })
   )
   const [isPending, startTransition] = useTransition()
+  const [completionError, setCompletionError] = useState<CompletionError | null>(null)
 
   const facturacionDone = !!(tipoDoc && boleta.trim())
   const pagoDone = !!(pagado && metodo && fechaPago)
@@ -650,10 +734,69 @@ function PanelRealizada({
   function toggle(sec: typeof openSec) { setOpenSec(openSec === sec ? null : sec) }
 
   function updateExamen(idExamen: number, patch: Partial<{ enviado: boolean; fecha: string }>) {
+    setCompletionError(null)
     setExamenes((prev) => prev.map((e) => e.idExamen === idExamen ? { ...e, ...patch } : e))
   }
 
+  function validateCompletion(): CompletionError | null {
+    if (!tipoDoc || !boleta.trim()) {
+      return {
+        section: 'facturacion',
+        field: 'boleta',
+        message: `Ingresa el N° de ${tipoDoc === 'factura' ? 'factura' : 'boleta'} antes de completar la visita.`,
+      }
+    }
+    if (!pagado) {
+      return {
+        section: 'pago',
+        field: 'pagado',
+        message: 'Marca la visita como pagada para completar este paso.',
+      }
+    }
+    if (!metodo) {
+      return {
+        section: 'pago',
+        field: 'metodo',
+        message: 'Selecciona el método de pago antes de completar la visita.',
+      }
+    }
+    if (!fechaPago) {
+      return {
+        section: 'pago',
+        field: 'fechaPago',
+        message: 'Selecciona la fecha de pago antes de completar la visita.',
+      }
+    }
+
+    const incompleteExams = examenes.filter((e) => !e.enviado || !e.fecha)
+    if (incompleteExams.length > 0) {
+      const missingDates = incompleteExams.filter((e) => e.enviado && !e.fecha).length
+      const notSent = incompleteExams.length - missingDates
+      const parts = [
+        notSent ? `${notSent} sin marcar como enviado${notSent > 1 ? 's' : ''}` : null,
+        missingDates ? `${missingDates} sin fecha de envío` : null,
+      ].filter(Boolean)
+
+      return {
+        section: 'examenes',
+        examIds: incompleteExams.map((e) => e.idExamen),
+        message: `Completa el envío de exámenes: ${parts.join(' y ')}.`,
+      }
+    }
+
+    return null
+  }
+
   function handleCompletar() {
+    const validationError = validateCompletion()
+    if (validationError) {
+      setCompletionError(validationError)
+      setOpenSec(validationError.section)
+      toast.error(validationError.message)
+      return
+    }
+
+    setCompletionError(null)
     startTransition(async () => {
       const result = await onCompletar({
         tipoDocumento: tipoDoc,
@@ -668,7 +811,8 @@ function PanelRealizada({
         toast.success('Visita completada')
         router.refresh()
       } else {
-        toast.error(result.error ?? 'Error al completar visita')
+        const message = result.error ?? 'Error al completar visita'
+        toast.error(message)
       }
     })
   }
@@ -711,8 +855,9 @@ function PanelRealizada({
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>N° de {tipoDoc} <span style={{ color: 'oklch(0.5 0.18 25)' }}>*</span></label>
-          <input value={boleta} onChange={(e) => setBoleta(e.target.value)} placeholder="Ej: 001234"
-            className="h-9 rounded-lg px-3 text-[13px] outline-none" style={{ background: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }} />
+          <input value={boleta} onChange={(e) => { setCompletionError(null); setBoleta(e.target.value) }} placeholder="Ej: 001234"
+            className="h-9 rounded-lg px-3 text-[13px] outline-none" style={{ background: 'var(--background)', border: `1px solid ${completionError?.field === 'boleta' ? 'oklch(0.65 0.2 25)' : 'var(--input)'}`, color: 'var(--foreground)' }} />
+          {completionError?.field === 'boleta' && <InlineError>{completionError.message}</InlineError>}
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>
@@ -730,34 +875,41 @@ function PanelRealizada({
 
       {/* 2: Pago */}
       <CompletionSection num={2} title="Pago" done={pagoDone} open={openSec === 'pago'} onToggle={() => toggle('pago')} summary={pagoSummary}>
-        <button type="button" onClick={() => setPagado(!pagado)}
+        <button type="button" onClick={() => { setCompletionError(null); setPagado(!pagado) }}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
-          style={{ background: pagado ? 'oklch(0.95 0.04 145)' : 'var(--muted)', border: `1px solid ${pagado ? 'oklch(0.7 0.14 145 / 30%)' : 'var(--border)'}` }}>
+          style={{ background: pagado ? 'oklch(0.95 0.04 145)' : 'var(--muted)', border: `1px solid ${completionError?.field === 'pagado' ? 'oklch(0.65 0.2 25)' : pagado ? 'oklch(0.7 0.14 145 / 30%)' : 'var(--border)'}` }}>
           <div className="w-5 h-5 rounded shrink-0 flex items-center justify-center" style={{ background: pagado ? 'oklch(0.4 0.13 145)' : 'var(--background)', border: pagado ? 'none' : '1.5px solid var(--border)' }}>
             {pagado && <Check className="w-[11px] h-[11px] text-white" strokeWidth={3.5} />}
           </div>
           <span className="text-[13px] font-medium" style={{ color: pagado ? 'oklch(0.38 0.13 145)' : 'var(--foreground)' }}>Marcar como pagada</span>
         </button>
+        {completionError?.field === 'pagado' && <InlineError>{completionError.message}</InlineError>}
         {pagado && (
           <>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>Método de pago <span style={{ color: 'oklch(0.5 0.18 25)' }}>*</span></label>
               <div className="flex flex-wrap gap-2">
                 {['Efectivo', 'Transferencia', 'Débito', 'Crédito'].map((opt) => (
-                  <button key={opt} type="button" onClick={() => setMetodo(opt)}
+                  <button key={opt} type="button" onClick={() => { setCompletionError(null); setMetodo(opt) }}
                     className="h-8 px-3 rounded-lg text-[12.5px] transition-all"
-                    style={{ background: metodo === opt ? 'var(--foreground)' : 'var(--card)', color: metodo === opt ? 'var(--background)' : 'var(--foreground)', border: `1px solid ${metodo === opt ? 'var(--foreground)' : 'var(--border)'}` }}>
+                    style={{ background: metodo === opt ? 'var(--foreground)' : 'var(--card)', color: metodo === opt ? 'var(--background)' : 'var(--foreground)', border: `1px solid ${completionError?.field === 'metodo' && !metodo ? 'oklch(0.65 0.2 25)' : metodo === opt ? 'var(--foreground)' : 'var(--border)'}` }}>
                     {opt}
                   </button>
                 ))}
               </div>
+              {completionError?.field === 'metodo' && <InlineError>{completionError.message}</InlineError>}
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>Fecha de pago <span style={{ color: 'oklch(0.5 0.18 25)' }}>*</span></label>
-              <div className="flex items-center h-9 rounded-lg px-3" style={{ background: 'var(--background)', border: '1px solid var(--input)' }}>
-                <input type="date" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)}
-                  className="flex-1 bg-transparent border-none outline-none text-[13px]" style={{ color: 'var(--foreground)' }} />
-              </div>
+              <FormDatePicker
+                mode="single"
+                value={fechaPago || undefined}
+                onChange={(value) => { setCompletionError(null); setFechaPago(value ?? '') }}
+                weekStartsOn={1}
+                placeholder="Seleccionar fecha"
+                className={completionError?.field === 'fechaPago' ? 'border-[oklch(0.65_0.2_25)]' : undefined}
+              />
+              {completionError?.field === 'fechaPago' && <InlineError>{completionError.message}</InlineError>}
             </div>
           </>
         )}
@@ -781,8 +933,9 @@ function PanelRealizada({
           {allExamsWithMeta.map((ex) => {
             const st = examenes.find((e) => e.idExamen === ex.id)!
             const rowDone = st.enviado && st.fecha
+            const rowError = completionError?.examIds?.includes(ex.id) && !rowDone
             return (
-              <div key={ex.id} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${rowDone ? 'oklch(0.7 0.14 145 / 35%)' : 'var(--border)'}` }}>
+              <div key={ex.id} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${rowError ? 'oklch(0.65 0.2 25)' : rowDone ? 'oklch(0.7 0.14 145 / 35%)' : 'var(--border)'}` }}>
                 <button type="button" onClick={() => updateExamen(ex.id, { enviado: !st.enviado, fecha: st.enviado ? '' : st.fecha })}
                   className="w-full flex items-center gap-3 px-3.5 py-3 text-left transition-all"
                   style={{ background: st.enviado ? 'oklch(0.95 0.04 145)' : 'var(--card)', border: 'none', cursor: 'pointer' }}>
@@ -797,20 +950,26 @@ function PanelRealizada({
                     </div>
                   </div>
                   {st.enviado && !st.fecha && <span className="text-[11px] px-2 py-0.5 rounded shrink-0" style={{ background: 'oklch(0.95 0.1 60)', color: 'oklch(0.45 0.15 60)' }}>Falta fecha</span>}
+                  {rowError && !st.enviado && <span className="text-[11px] px-2 py-0.5 rounded shrink-0" style={{ background: 'oklch(0.97 0.04 25)', color: 'oklch(0.5 0.18 25)' }}>Falta enviar</span>}
                   {rowDone && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: 'oklch(0.4 0.13 145)' }} />}
                 </button>
                 {st.enviado && (
                   <div className="px-3.5 pb-3 pt-2" style={{ borderTop: '1px solid oklch(0.7 0.14 145 / 15%)', paddingLeft: 50 }}>
                     <label className="text-[12px] font-medium block mb-1" style={{ color: 'var(--muted-foreground)' }}>Fecha de envío <span style={{ color: 'oklch(0.5 0.18 25)' }}>*</span></label>
-                    <div className="flex items-center h-8 rounded-lg px-3" style={{ background: 'var(--background)', border: '1px solid var(--input)' }}>
-                      <input type="date" value={st.fecha} onChange={(e) => updateExamen(ex.id, { fecha: e.target.value })}
-                        className="flex-1 bg-transparent border-none outline-none text-[13px]" style={{ color: 'var(--foreground)' }} />
-                    </div>
+                    <FormDatePicker
+                      mode="single"
+                      value={st.fecha || undefined}
+                      onChange={(value) => updateExamen(ex.id, { fecha: value ?? '' })}
+                      weekStartsOn={1}
+                      placeholder="Fecha envío"
+                      className={`h-8 text-[13px] ${rowError && !st.fecha ? 'border-[oklch(0.65_0.2_25)]' : ''}`}
+                    />
                   </div>
                 )}
               </div>
             )
           })}
+          {completionError?.section === 'examenes' && <InlineError>{completionError.message}</InlineError>}
         </CompletionSection>
       )}
 
@@ -818,7 +977,8 @@ function PanelRealizada({
       <button
         type="button"
         onClick={handleCompletar}
-        disabled={!allDone || isPending}
+        disabled={isPending}
+        aria-disabled={!allDone || isPending}
         className="w-full h-12 rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all mt-2 disabled:opacity-35"
         style={{ background: allDone ? 'var(--primary)' : 'var(--muted)', color: allDone ? 'var(--primary-foreground)' : 'var(--muted-foreground)', border: 'none' }}
       >
@@ -945,6 +1105,7 @@ export function VisitaLifecycleView({
   onCompletar,
 }: Props) {
   const isEditable = EDITABLE_STATES.includes(visita.estado)
+  const isCompleted = visita.estado === 'completada'
   const visitCode = `V-${String(visita.id).padStart(5, '0')}`
 
   return (
@@ -983,39 +1144,39 @@ export function VisitaLifecycleView({
       </div>
 
       {/* Body */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-0 max-w-[1200px] mx-auto w-full">
+      <div className={`flex-1 grid grid-cols-1 ${isCompleted ? '' : 'lg:grid-cols-[1fr_360px]'} gap-0 max-w-[1200px] mx-auto w-full`}>
         {/* Left: summary */}
         <div className="p-6 overflow-y-auto">
           <VisitaSummary v={visita} />
         </div>
 
         {/* Right: action rail */}
-        <div
-          className="lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto shrink-0"
-          style={{ background: 'var(--card)', borderLeft: '1px solid var(--border)' }}
-        >
-          <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.07em]" style={{ color: 'var(--muted-foreground)' }}>
-              {visita.estado === 'completada' ? 'Resumen de cierre' :
-               visita.estado === 'cancelada' ? 'Visita cancelada' :
-               visita.estado === 'no_realizada' ? 'No realizada' :
-               'Acción'}
-            </p>
-          </div>
+        {!isCompleted && (
+          <div
+            className="lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto shrink-0"
+            style={{ background: 'var(--card)', borderLeft: '1px solid var(--border)' }}
+          >
+            <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.07em]" style={{ color: 'var(--muted-foreground)' }}>
+                {visita.estado === 'cancelada' ? 'Visita cancelada' :
+                 visita.estado === 'no_realizada' ? 'No realizada' :
+                 'Acción'}
+              </p>
+            </div>
 
-          {visita.estado === 'programada' && (
-            <PanelProgramada onConfirmar={onConfirmar} onCancelar={onCancelar} />
-          )}
-          {visita.estado === 'confirmada' && (
-            <PanelConfirmada onMarcarRealizada={onMarcarRealizada} onMarcarNoRealizada={onMarcarNoRealizada} onCancelar={onCancelar} />
-          )}
-          {visita.estado === 'realizada' && (
-            <PanelRealizada visita={visita} onCompletar={onCompletar} />
-          )}
-          {visita.estado === 'completada' && <PanelCompletada v={visita} />}
-          {visita.estado === 'no_realizada' && <PanelNoRealizada v={visita} />}
-          {visita.estado === 'cancelada' && <PanelCancelada v={visita} />}
-        </div>
+            {visita.estado === 'programada' && (
+              <PanelProgramada onConfirmar={onConfirmar} onCancelar={onCancelar} />
+            )}
+            {visita.estado === 'confirmada' && (
+              <PanelConfirmada hasAssignedNurse={visita.idEnfermera !== null} onMarcarRealizada={onMarcarRealizada} onMarcarNoRealizada={onMarcarNoRealizada} onCancelar={onCancelar} />
+            )}
+            {visita.estado === 'realizada' && (
+              <PanelRealizada visita={visita} onCompletar={onCompletar} />
+            )}
+            {visita.estado === 'no_realizada' && <PanelNoRealizada v={visita} />}
+            {visita.estado === 'cancelada' && <PanelCancelada v={visita} />}
+          </div>
+        )}
       </div>
     </div>
   )
