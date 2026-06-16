@@ -406,18 +406,6 @@ export function VisitaForm({
   const [selectedOrigenContactoId, setSelectedOrigenContactoId] = useState<number | null>(
     visita?.origenContacto ? origenesContacto.find((o) => o.nombre === visita.origenContacto)?.id ?? null : null
   )
-  const [selectedTipoDocumentoId, setSelectedTipoDocumentoId] = useState<number | null>(
-    visita?.tipoDocumento ? (visita.tipoDocumento === 'boleta' ? 0 : 1) : null
-  )
-  const [selectedEstadoId, setSelectedEstadoId] = useState<number | null>(
-    visita?.estado
-      ? visita.estado === 'creada' ? 0
-      : visita.estado === 'confirmada' ? 1
-      : visita.estado === 'realizada' ? 2
-      : visita.estado === 'no_realizada' ? 4
-      : 3
-      : null
-  )
   const [selectedFecha, setSelectedFecha] = useState<string | null>(visita?.fecha ?? null)
   const [selectedHora, setSelectedHora] = useState<string | null>(visita?.hora?.slice(0, 5) ?? null)
   const [isPending, startTransition] = useTransition()
@@ -425,22 +413,10 @@ export function VisitaForm({
   const errorRef = useRef<HTMLDivElement>(null)
 
   const [cobraVisita, setCobraVisita] = useState(visita?.cobraVisita ?? false)
-  const [pagado, setPagado] = useState(visita?.pagado ?? false)
-  const [metodoPago, setMetodoPago] = useState<number | null>(
-    visita?.metodoPago === 'transferencia' ? 0 : visita?.metodoPago === 'cheque' ? 1 : visita?.metodoPago === 'efectivo' ? 2 : null
-  )
-  const [fechaPago, setFechaPago] = useState<string | null>(visita?.fechaPago ?? null)
   const [selectedSurcharges, setSelectedSurcharges] = useState<number[]>(visita?.surchargeIds ?? [])
 
   // Orden médica
   const [keyOrdenMedica, setKeyOrdenMedica] = useState<string | null>(visita?.keyOrdenMedica ?? null)
-
-  const estadoActual = selectedEstadoId === 0 ? 'creada'
-    : selectedEstadoId === 1 ? 'confirmada'
-    : selectedEstadoId === 2 ? 'realizada'
-    : selectedEstadoId === 4 ? 'no_realizada'
-    : selectedEstadoId === 3 ? 'cancelada'
-    : ''
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -456,7 +432,6 @@ export function VisitaForm({
     })
     selectedSurcharges.forEach((id) => fd.append('surcharge_ids', String(id)))
     fd.set('cobraVisita', String(cobraVisita))
-    fd.set('pagado', String(pagado))
 
     startTransition(async () => {
       const result = await onSubmit(fd)
@@ -476,20 +451,6 @@ export function VisitaForm({
   const talleresOptions = talleres.map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
   const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatNombre(e) }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
-  const tipoDocumentoOptions = [{ id: 0, label: 'Boleta' }, { id: 1, label: 'Factura' }]
-  const estadoOptions = [
-    { id: 0, label: 'Creada' },
-    { id: 1, label: 'Confirmada' },
-    { id: 2, label: 'Realizada' },
-    { id: 3, label: 'Cancelada' },
-    { id: 4, label: 'No realizada' },
-  ]
-  const metodoPagoOptions = [
-    { id: 0, label: 'Transferencia' },
-    { id: 1, label: 'Cheque' },
-    { id: 2, label: 'Efectivo' },
-  ]
-
   const regularExamIds = examGroups
     .filter((g) => EXAM_GRUPO_META[g.grupoId].tipo === 'catalogo')
     .flatMap((g) => g.exams.map((e) => e.id))
@@ -571,7 +532,7 @@ export function VisitaForm({
           <h1 className="text-[16px] font-semibold" style={{ color: 'var(--foreground)' }}>
             {isEdit ? `Visita #${visita.id}` : 'Nueva visita'}
           </h1>
-          {isEdit && estadoActual && <EstadoBadge estado={estadoActual} size="lg" />}
+          {isEdit && visita.estado && <EstadoBadge estado={visita.estado} size="lg" />}
         </div>
 
         <div className="flex items-center gap-2">
@@ -628,14 +589,9 @@ export function VisitaForm({
       >
         <input type="hidden" name="idPaciente" value={paciente.id} />
         {isEdit && <input type="hidden" name="id" value={visita.id} />}
-        <input type="hidden" name="estado" value={estadoActual} />
         <input type="hidden" name="idEnfermera" value={selectedEnfermeraId ?? ''} />
         <input type="hidden" name="origenContacto" value={selectedOrigenContactoId !== null ? origenesContacto.find((o) => o.id === selectedOrigenContactoId)?.nombre ?? '' : ''} />
-        <input type="hidden" name="tipoDocumento" value={selectedTipoDocumentoId === 0 ? 'boleta' : selectedTipoDocumentoId === 1 ? 'factura' : ''} />
         <input type="hidden" name="hora" value={selectedHora ?? ''} />
-        {pagado && (
-          <input type="hidden" name="metodoPago" value={metodoPago === 0 ? 'transferencia' : metodoPago === 1 ? 'cheque' : metodoPago === 2 ? 'efectivo' : ''} />
-        )}
         {/* ── LEFT column ── */}
         <div className="flex flex-col gap-5">
 
@@ -692,37 +648,6 @@ export function VisitaForm({
                   disabled={isPending}
                 />
               </div>
-
-              {/* Estado (edit only) */}
-              {isEdit && (
-                <div className="col-span-2 flex flex-col gap-1.5">
-                  <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Estado</label>
-                  <SelectCombobox
-                    mode="single"
-                    options={estadoOptions}
-                    selected={selectedEstadoId}
-                    onChange={setSelectedEstadoId}
-                    placeholder="Seleccionar estado…"
-                    disabled={isPending}
-                  />
-                </div>
-              )}
-
-              {/* Costo traslado (no_realizada only) */}
-              {estadoActual === 'no_realizada' && (
-                <div className="col-span-2 flex flex-col gap-1.5">
-                  <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Costo traslado</label>
-                  <input
-                    name="costoTraslado"
-                    type="number"
-                    min="0"
-                    defaultValue={visita?.costoTraslado ?? 7000}
-                    disabled={isPending}
-                    className="w-full rounded-lg px-3 py-2 text-[13px] outline-none disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                  />
-                </div>
-              )}
 
               {/* Origen de contacto */}
               <div className="col-span-2 flex flex-col gap-1.5">
@@ -1084,51 +1009,6 @@ export function VisitaForm({
             </div>
           </section>
 
-          {/* Facturación */}
-          <section
-            className="rounded-xl border p-6"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-          >
-            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-              Facturación
-            </h2>
-            <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
-              <div className="col-span-1 flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Tipo de documento</label>
-                <SelectCombobox
-                  mode="single"
-                  options={tipoDocumentoOptions}
-                  selected={selectedTipoDocumentoId}
-                  onChange={setSelectedTipoDocumentoId}
-                  placeholder="Seleccionar…"
-                  disabled={isPending}
-                />
-              </div>
-              <div className="col-span-1 flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>N° boleta / factura</label>
-                <input
-                  name="numeroBoleta"
-                  type="text"
-                  defaultValue={visita?.numeroBoleta ?? ''}
-                  disabled={isPending}
-                  className="w-full rounded-lg px-3 py-2 text-[13px] outline-none disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                />
-              </div>
-              <div className="col-span-1 flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>N° atención</label>
-                <input
-                  name="numeroAtencion"
-                  type="number"
-                  defaultValue={visita?.numeroAtencion ?? ''}
-                  disabled={isPending}
-                  className="w-full rounded-lg px-3 py-2 text-[13px] outline-none disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                />
-              </div>
-            </div>
-          </section>
-
           {/* ── Orden médica ── */}
           <section
             className="rounded-xl border p-6"
@@ -1150,61 +1030,6 @@ export function VisitaForm({
               disabled={isPending}
             />
           </section>
-
-          {/* Pago (edit only) */}
-          {isEdit && (
-            <section
-              className="rounded-xl border p-6"
-              style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-            >
-              <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-                Pago
-              </h2>
-              <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
-                <div className="mb-3 flex items-start gap-3">
-                  <Checkbox
-                    id="pagado"
-                    checked={pagado}
-                    onCheckedChange={(checked) => setPagado(checked === true)}
-                    disabled={isPending}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <label htmlFor="pagado" className="cursor-pointer text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
-                        Visita pagada
-                      </label>
-                      {pagado && <EstadoBadge estado="realizada" />}
-                    </div>
-                    <p className="mt-0.5 text-[11.5px]" style={{ color: 'var(--muted-foreground)' }}>
-                      {pagado ? `Pago confirmado${fechaPago ? ` · ${fechaPago}` : ''}` : 'Pago pendiente'}
-                    </p>
-                  </div>
-                </div>
-                {pagado && (
-                  <div className="grid grid-cols-2 gap-2 pl-7">
-                    <SelectCombobox
-                      mode="single"
-                      options={metodoPagoOptions}
-                      selected={metodoPago}
-                      onChange={setMetodoPago}
-                      placeholder="Método…"
-                      disabled={isPending}
-                    />
-                    <FormDatePicker
-                      mode="single"
-                      name="fechaPago"
-                      value={fechaPago ?? undefined}
-                      onChange={(v) => setFechaPago(v ?? null)}
-                      disabled={isPending}
-                      weekStartsOn={1}
-                      placeholder="Fecha pago"
-                    />
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
 
           {/* Información adicional */}
           <section
@@ -1239,17 +1064,12 @@ export function VisitaForm({
                 <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
                   Estado de la visita
                 </h3>
-                {estadoActual && <EstadoBadge estado={estadoActual} />}
+                {isEdit && visita?.estado && <EstadoBadge estado={visita.estado} />}
               </div>
               <div className="space-y-1.5 text-[12.5px]">
                 <RailRow label="Fecha" value={selectedFecha ? formatDate(selectedFecha) : '—'} />
                 <RailRow label="Hora"  value={selectedHora ?? '—'} />
                 <RailRow label="Enfermera" value={enfermeraLabel} />
-                <RailRow
-                  label="Pago"
-                  value={pagado ? `Pagada${metodoPago === 0 ? ' · Transferencia' : metodoPago === 1 ? ' · Cheque' : metodoPago === 2 ? ' · Efectivo' : ''}` : 'Pendiente'}
-                  tone={pagado ? 'green' : 'muted'}
-                />
               </div>
             </div>
 

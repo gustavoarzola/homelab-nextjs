@@ -1,81 +1,60 @@
 import { notFound } from 'next/navigation'
-import { getVisita, updateVisita, searchOrigenesContacto, getVisitaFormPricingContext } from '@/lib/actions/visitas'
-import { getPaciente } from '@/lib/actions/pacientes'
-import { searchEnfermeras } from '@/lib/actions/enfermeras'
-import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres, getIsaprePrevisiones } from '@/lib/actions/catalogos'
-import { VisitaForm } from '@/components/visita-form'
-import { getSignedUrl } from '@/lib/r2'
+import {
+  getVisitaLifecycle,
+  confirmarVisita,
+  marcarRealizada,
+  marcarNoRealizada,
+  cancelarVisita,
+  completarVisita,
+} from '@/lib/actions/visitas'
+import { VisitaLifecycleView } from '@/components/visita-lifecycle-view'
+import type { CompletarVisitaData } from '@/lib/actions/visitas'
 
-export default async function EditarVisitaPage({
+export default async function VisitaPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const visita = await getVisita(Number(id))
-  if (!visita || !visita.idPaciente) notFound()
+  const idVisita = Number(id)
+  if (!idVisita) notFound()
 
-  const [
-    detalle,
-    { rows: enfermeras },
-    { rows: procedimientos },
-    { rows: examenes },
-    talleres,
-    origenesContacto,
-    { rows: previsiones },
-    { rows: residencias },
-    tiposRecargos,
-  ] = await Promise.all([
-    getPaciente(visita.idPaciente),
-    searchEnfermeras({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
-    searchProcedimientos({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
-    searchExamenes({ filters: {}, sort: null, page: 1, pageSize: 5000 }),
-    getTalleres(),
-    searchOrigenesContacto(),
-    searchPrevisiones({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
-    searchResidencias({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
-    getTiposRecargosForSelect(),
-  ])
+  const visita = await getVisitaLifecycle(idVisita)
+  if (!visita) notFound()
 
-  if (!detalle) notFound()
+  async function handleConfirmar() {
+    'use server'
+    return confirmarVisita(idVisita)
+  }
 
-  const [pricingContext, signedUrlOrdenMedica, isaprePrevisiones] = await Promise.all([
-    getVisitaFormPricingContext(visita.idPaciente, examenes.map((e) => e.id)),
-    visita.keyOrdenMedica ? getSignedUrl(visita.keyOrdenMedica) : Promise.resolve(null),
-    getIsaprePrevisiones(),
-  ])
+  async function handleMarcarRealizada() {
+    'use server'
+    return marcarRealizada(idVisita)
+  }
 
-  const paciente = {
-    id: detalle.id,
-    nombres: detalle.nombres,
-    apellidoPaterno: detalle.apellidoPaterno,
-    apellidoMaterno: detalle.apellidoMaterno,
-    identificador: detalle.identificador,
-    tipoIdentificador: detalle.tipoIdentificador,
-    fechaNacimiento: detalle.fechaNacimiento,
-    telefonos: detalle.telefonos.map((t) => ({ telefono: t.telefono, descripcion: t.descripcion })),
-    prevision: previsiones.find((p) => p.id === detalle.idCompaniaSeguro)?.nombre ?? null,
-    residencia: residencias.find((r) => r.id === detalle.idResidenciaAdulto)?.nombre ?? null,
-    direccionFormateada: detalle.direccionFormateada,
-    direccion: detalle.direccion,
-    latitud: detalle.latitud,
-    longitud: detalle.longitud,
+  async function handleMarcarNoRealizada(costo: number, concepto: string) {
+    'use server'
+    return marcarNoRealizada(idVisita, costo, concepto)
+  }
+
+  async function handleCancelar(motivo: string) {
+    'use server'
+    return cancelarVisita(idVisita, motivo)
+  }
+
+  async function handleCompletar(data: CompletarVisitaData) {
+    'use server'
+    return completarVisita(idVisita, data)
   }
 
   return (
-    <VisitaForm
-      paciente={paciente}
+    <VisitaLifecycleView
       visita={visita}
-      enfermeras={enfermeras}
-      procedimientos={procedimientos}
-      examenes={examenes}
-      talleres={talleres}
-      origenesContacto={origenesContacto}
-      pricingContext={pricingContext}
-      isaprePrevisiones={isaprePrevisiones}
-      tiposRecargos={tiposRecargos}
-      signedUrlOrdenMedica={signedUrlOrdenMedica}
-      onSubmit={updateVisita}
+      onConfirmar={handleConfirmar}
+      onMarcarRealizada={handleMarcarRealizada}
+      onMarcarNoRealizada={handleMarcarNoRealizada}
+      onCancelar={handleCancelar}
+      onCompletar={handleCompletar}
     />
   )
 }

@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, workshops, patients, nurses, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
+import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
 import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getTiposRecargosForSelect } from './catalogos'
@@ -54,6 +54,8 @@ export type VisitaDetalle = {
   resultadosEnviadosCount: number
   resultadosTotalCount: number
   costoTraslado: number
+  conceptoNoRealizada: string | null
+  motivoCancelacion: string | null
   cobraVisita: boolean
   keyOrdenMedica: string | null
   procedureIds: number[]
@@ -65,6 +67,45 @@ export type VisitaDetalle = {
   surchargeIds: number[]
   surchargePrices: { idTipoRecargo: number; precio: number }[]
   isapreExams: { idExamen: number; valorCompleto: number; valorPagar: number; idPrevision: number | null }[]
+}
+
+// ─── Lifecycle detail type ─────────────────────────────────────────────────────
+
+export type VisitaLifecycleDetalle = {
+  id: number
+  fecha: string
+  hora: string | null
+  estado: string
+  costo: number
+  cobraVisita: boolean
+  informacionAdicional: string
+  origenContacto: string | null
+  idPaciente: number | null
+  pacienteNombre: string | null
+  pacienteIdentificador: string | null
+  pacientePrevision: string | null
+  pacienteTelefonos: string[]
+  pacienteDireccion: string | null
+  idEnfermera: number | null
+  enfermeraNombre: string | null
+  procedimientos: { id: number; nombre: string; codigo: string | null; precio: number }[]
+  examenes: { id: number; nombre: string; codigo: string; grupoExamen: string; precio: number }[]
+  isapreExams: { id: number; nombre: string; codigo: string | null; valorCompleto: number; valorPagar: number }[]
+  talleres: { id: number; nombre: string; precio: number }[]
+  surcharges: { id: number; tipoNombre: string; precio: number }[]
+  precioVisita: number | null
+  tipoDocumento: string
+  numeroBoleta: string
+  numeroAtencion: number | null
+  pagado: boolean
+  metodoPago: string | null
+  fechaPago: string | null
+  examenResultados: { idExamen: number; enviado: boolean; fechaEnvio: string | null }[]
+  resultadosEnviadosCount: number
+  resultadosTotalCount: number
+  costoTraslado: number
+  conceptoNoRealizada: string | null
+  motivoCancelacion: string | null
 }
 
 // ─── Row type ─────────────────────────────────────────────────────────────────
@@ -111,8 +152,8 @@ function buildVisitasWhere(filters: SearchParams['filters']): SQL | undefined {
   if (enfermeraId) conditions.push(eq(visits.idEnfermera, Number(enfermeraId)))
   if (fechaInicio) conditions.push(gte(visits.fecha, fechaInicio))
   if (fechaFin) conditions.push(lte(visits.fecha, fechaFin))
-  if (pendientePago) conditions.push(and(eq(visits.pagado, false), eq(visits.estado, 'realizada'))!)
-  if (resultadosPendientes) conditions.push(and(sql`${visits.resultadosEnviadosCount} < ${visits.resultadosTotalCount}`, eq(visits.estado, 'realizada'))!)
+  if (pendientePago) conditions.push(and(eq(visits.pagado, false), or(eq(visits.estado, 'realizada'), eq(visits.estado, 'completada')))!)
+  if (resultadosPendientes) conditions.push(and(sql`${visits.resultadosEnviadosCount} < ${visits.resultadosTotalCount}`, or(eq(visits.estado, 'realizada'), eq(visits.estado, 'completada')))!)
 
   return conditions.length ? and(...conditions) : undefined
 }
@@ -170,7 +211,7 @@ type VisitaRawRow = {
 function mapVisitaRow(r: VisitaRawRow): VisitaRow {
   return {
     id: r.id,
-    activo: r.estado !== 'cancelada',
+    activo: !['cancelada', 'no_realizada'].includes(r.estado),
     fecha: r.fecha,
     hora: r.hora,
     estado: r.estado,
@@ -331,6 +372,8 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     resultadosEnviadosCount: visit.resultadosEnviadosCount,
     resultadosTotalCount: visit.resultadosTotalCount,
     costoTraslado: visit.costoTraslado,
+    conceptoNoRealizada: visit.conceptoNoRealizada ?? null,
+    motivoCancelacion: visit.motivoCancelacion ?? null,
     cobraVisita: visit.cobraVisita,
     keyOrdenMedica: visit.keyOrdenMedica ?? null,
     procedureIds: procs.map((p) => p.idProcedimiento),
@@ -343,6 +386,123 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     surchargeIds: surcharges_.map((s) => s.idTipoRecargo),
     surchargePrices: surcharges_.map((s) => ({ idTipoRecargo: s.idTipoRecargo, precio: s.precio })),
   }
+  })
+}
+
+// ─── getVisitaLifecycle ───────────────────────────────────────────────────────
+
+export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDetalle | null> {
+  return withQuery(async () => {
+    await requireSession()
+    const [visit] = await db.select().from(visits).where(eq(visits.id, id))
+    if (!visit) return null
+
+    const [procs, exams_, isapre_, talleres_, surcharges_, examResults_] = await Promise.all([
+      db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
+      db.select({ idExamen: visitExams.idExamen, precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, id)),
+      db.select({ idExamen: visitIsapreExams.idExamen, valorCompleto: visitIsapreExams.valorCompleto, valorPagar: visitIsapreExams.valorPagar }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id)),
+      db.select({ idTaller: visitWorkshops.idTaller, precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, id)),
+      db.select({ idTipoRecargo: visitSurcharges.idTipoRecargo, precio: visitSurcharges.precio }).from(visitSurcharges).where(eq(visitSurcharges.idVisita, id)),
+      db.select({ idExamen: visitExamResults.idExamen, enviado: visitExamResults.enviado, fechaEnvio: visitExamResults.fechaEnvio }).from(visitExamResults).where(eq(visitExamResults.idVisita, id)),
+    ])
+
+    // Resolve names for procedures, exams, talleres, surcharges
+    const procIds = procs.map((p) => p.idProcedimiento)
+    const examIds = exams_.map((e) => e.idExamen)
+    const isapreExamIds = isapre_.map((e) => e.idExamen)
+    const tallerIds = talleres_.map((t) => t.idTaller)
+    const surchargeIds = surcharges_.map((s) => s.idTipoRecargo)
+    const allExamIds = [...new Set([...examIds, ...isapreExamIds])]
+
+    const [procMeta, examMeta, tallerMeta, surchargeMeta, patientRow, nurseRow] = await Promise.all([
+      procIds.length > 0 ? db.select({ id: procedures.id, nombre: procedures.nombre, codigo: procedures.codigo }).from(procedures).where(inArray(procedures.id, procIds)) : [],
+      allExamIds.length > 0 ? db.select({ id: exams.id, nombre: exams.nombre, codigo: exams.codigo, grupoExamen: exams.grupoExamen }).from(exams).where(inArray(exams.id, allExamIds)) : [],
+      tallerIds.length > 0 ? db.select({ id: workshops.id, nombre: workshops.nombre }).from(workshops).where(inArray(workshops.id, tallerIds)) : [],
+      surchargeIds.length > 0 ? db.select({ id: surchargeTypes.id, nombre: surchargeTypes.nombre }).from(surchargeTypes).where(inArray(surchargeTypes.id, surchargeIds)) : [],
+      visit.idPaciente
+        ? db.select({
+            nombres: patients.nombres,
+            apellidoPaterno: patients.apellidoPaterno,
+            apellidoMaterno: patients.apellidoMaterno,
+            identificador: patients.identificador,
+            idCompaniaSeguro: patients.idCompaniaSeguro,
+            idDireccion: patients.idDireccion,
+          }).from(patients).where(eq(patients.id, visit.idPaciente)).then((r) => r[0] ?? null)
+        : Promise.resolve(null),
+      visit.idEnfermera
+        ? db.select({ nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno, apellidoMaterno: nurses.apellidoMaterno }).from(nurses).where(eq(nurses.id, visit.idEnfermera)).then((r) => r[0] ?? null)
+        : Promise.resolve(null),
+    ])
+
+    // Fetch patient address, phones, and prevision in parallel if patient exists
+    const [addressRow, telefonosRows, previsionRow] = await Promise.all([
+      patientRow?.idDireccion
+        ? db.select({ areaAdministrativa3: addresses.areaAdministrativa3, calle: addresses.calle, numero: addresses.numero }).from(addresses).where(eq(addresses.id, patientRow.idDireccion)).then((r) => r[0] ?? null)
+        : Promise.resolve(null),
+      visit.idPaciente
+        ? db.select({ telefono: patientPhones.telefono }).from(patientPhones).where(eq(patientPhones.idPaciente, visit.idPaciente))
+        : Promise.resolve([]),
+      patientRow?.idCompaniaSeguro
+        ? db.select({ nombre: healthInsurances.nombre }).from(healthInsurances).where(eq(healthInsurances.id, patientRow.idCompaniaSeguro)).then((r) => r[0] ?? null)
+        : Promise.resolve(null),
+    ])
+
+    // Commune-based nursing visit price
+    let precioVisita: number | null = null
+    if (addressRow?.areaAdministrativa3) {
+      const [comunaRow] = await db.select({ precio: nursingVisitPrices.precio }).from(nursingVisitPrices).where(and(eq(nursingVisitPrices.comuna, addressRow.areaAdministrativa3), eq(nursingVisitPrices.activo, true))).limit(1)
+      if (comunaRow) precioVisita = comunaRow.precio
+    }
+    if (precioVisita === null) {
+      const [baseRow] = await db.select({ precio: nursingVisitPrices.precio }).from(nursingVisitPrices).where(and(isNull(nursingVisitPrices.comuna), eq(nursingVisitPrices.activo, true))).limit(1)
+      precioVisita = baseRow?.precio ?? null
+    }
+
+    const procMetaMap = new Map((procMeta as { id: number; nombre: string; codigo: string | null }[]).map((p) => [p.id, p]))
+    const examMetaMap = new Map((examMeta as { id: number; nombre: string; codigo: string; grupoExamen: string }[]).map((e) => [e.id, e]))
+    const tallerMetaMap = new Map((tallerMeta as { id: number; nombre: string }[]).map((t) => [t.id, t]))
+    const surchargeMetaMap = new Map((surchargeMeta as { id: number; nombre: string }[]).map((s) => [s.id, s]))
+
+    const direccionStr = addressRow
+      ? [addressRow.calle, addressRow.numero, addressRow.areaAdministrativa3].filter(Boolean).join(', ')
+      : null
+
+    return {
+      id: visit.id,
+      fecha: visit.fecha,
+      hora: visit.hora ?? null,
+      estado: visit.estado,
+      costo: visit.costo,
+      cobraVisita: visit.cobraVisita,
+      informacionAdicional: visit.informacionAdicional ?? '',
+      origenContacto: visit.origenContacto ?? null,
+      idPaciente: visit.idPaciente ?? null,
+      pacienteNombre: patientRow ? formatNombre({ nombres: patientRow.nombres, apellidoPaterno: patientRow.apellidoPaterno, apellidoMaterno: patientRow.apellidoMaterno }) || null : null,
+      pacienteIdentificador: patientRow?.identificador ?? null,
+      pacientePrevision: previsionRow?.nombre ?? null,
+      pacienteTelefonos: (telefonosRows as { telefono: string }[]).map((t) => t.telefono),
+      pacienteDireccion: direccionStr,
+      idEnfermera: visit.idEnfermera ?? null,
+      enfermeraNombre: nurseRow ? formatNombre({ nombres: nurseRow.nombres, apellidoPaterno: nurseRow.apellidoPaterno, apellidoMaterno: nurseRow.apellidoMaterno }) || null : null,
+      procedimientos: procs.map((p) => { const m = procMetaMap.get(p.idProcedimiento); return { id: p.idProcedimiento, nombre: m?.nombre ?? '—', codigo: m?.codigo ?? null, precio: p.precio } }),
+      examenes: exams_.map((e) => { const m = examMetaMap.get(e.idExamen); return { id: e.idExamen, nombre: m?.nombre ?? '—', codigo: m?.codigo ?? '', grupoExamen: m?.grupoExamen ?? '', precio: e.precio } }),
+      isapreExams: isapre_.map((e) => { const m = examMetaMap.get(e.idExamen); return { id: e.idExamen, nombre: m?.nombre ?? '—', codigo: m?.codigo ?? null, valorCompleto: e.valorCompleto, valorPagar: e.valorPagar } }),
+      talleres: talleres_.map((t) => { const m = tallerMetaMap.get(t.idTaller); return { id: t.idTaller, nombre: m?.nombre ?? '—', precio: t.precio } }),
+      surcharges: surcharges_.map((s) => { const m = surchargeMetaMap.get(s.idTipoRecargo); return { id: s.idTipoRecargo, tipoNombre: m?.nombre ?? '—', precio: s.precio } }),
+      precioVisita,
+      tipoDocumento: visit.tipoDocumento ?? '',
+      numeroBoleta: visit.numeroBoleta ?? '',
+      numeroAtencion: visit.numeroAtencion ?? null,
+      pagado: visit.pagado,
+      metodoPago: visit.metodoPago ?? null,
+      fechaPago: visit.fechaPago ?? null,
+      examenResultados: examResults_.map((r) => ({ idExamen: r.idExamen, enviado: r.enviado, fechaEnvio: r.fechaEnvio ?? null })),
+      resultadosEnviadosCount: visit.resultadosEnviadosCount,
+      resultadosTotalCount: visit.resultadosTotalCount,
+      costoTraslado: visit.costoTraslado,
+      conceptoNoRealizada: visit.conceptoNoRealizada ?? null,
+      motivoCancelacion: visit.motivoCancelacion ?? null,
+    }
   })
 }
 
@@ -373,9 +533,6 @@ const visitaSharedFields = {
   fecha: fields.fechaRequerida,
   hora: fields.nullableStr,
   idEnfermera: fields.nullableId,
-  numeroBoleta: z.string().trim().max(20, 'N° boleta máximo 20 caracteres').optional().default(''),
-  tipoDocumento: z.enum(['boleta', 'factura', '']).optional().default(''),
-  numeroAtencion: z.string().trim().optional().transform((v) => (v ? Number(v) || null : null)),
   origenContacto: fields.nullableStr,
   informacionAdicional: z.string().trim().optional().default(''),
   cobraVisita: fields.bool,
@@ -390,24 +547,11 @@ const visitaCreateSchema = z.object({
   ...visitaSharedFields,
 })
 
-const visitaUpdateSchema = z
-  .object({
-    id: fields.id,
-    estado: z.enum(['creada', 'asignada', 'realizada', 'cancelada']).optional().default('creada'),
-    pagado: fields.bool,
-    metodoPago: fields.nullableStr,
-    fechaPago: fields.nullableStr,
-    costoTraslado: z.coerce.number().int().min(0).default(0),
-    keyOrdenMedica: fields.nullableStr,
-    ...visitaSharedFields,
-  })
-  .superRefine((data, ctx) => {
-    if (data.estado === 'realizada') {
-      if (!data.numeroBoleta) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['numeroBoleta'], message: 'N° boleta/factura requerido para marcar como realizada' })
-      if (!data.tipoDocumento) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tipoDocumento'], message: 'Tipo de documento requerido para marcar como realizada' })
-      if (!data.numeroAtencion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['numeroAtencion'], message: 'N° atención requerido para marcar como realizada' })
-    }
-  })
+const visitaUpdateSchema = z.object({
+  id: fields.id,
+  keyOrdenMedica: fields.nullableStr,
+  ...visitaSharedFields,
+})
 
 // ─── updateVisita ─────────────────────────────────────────────────────────────
 
@@ -420,12 +564,18 @@ export async function updateVisita(
   if (!parsed.success) return parsed
 
   const {
-    id, fecha, hora, estado, idEnfermera, numeroBoleta, tipoDocumento,
-    numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago,
-    costoTraslado, cobraVisita,
+    id, fecha, hora, idEnfermera,
+    origenContacto, informacionAdicional, cobraVisita,
     keyOrdenMedica,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
+
+  // Guard: cannot edit completed or terminal states
+  const [current] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
+  if (!current) return { success: false, error: 'Visita no encontrada' }
+  if (['completada', 'cancelada', 'no_realizada'].includes(current.estado)) {
+    return { success: false, error: `No se puede editar una visita en estado ${current.estado}` }
+  }
 
   const tallerPrices = tallerIds.map((idTaller) => ({
     idTaller,
@@ -445,7 +595,7 @@ export async function updateVisita(
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, estado, idEnfermera, numeroBoleta, tipoDocumento, numeroAtencion, origenContacto, informacionAdicional, pagado, metodoPago, fechaPago, costoTraslado, cobraVisita, keyOrdenMedica, updatedAt: new Date() })
+        .set({ fecha, hora, idEnfermera, origenContacto, informacionAdicional, cobraVisita, keyOrdenMedica, updatedAt: new Date() })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.
@@ -557,21 +707,6 @@ export async function updateVisita(
   } catch (err) {
     console.error('[updateVisita] error:', err)
     // Drizzle wraps the PG error in err.cause
-    const pgErr = ((err as { cause?: unknown })?.cause ?? err) as { code?: string; constraint_name?: string }
-    const code = pgErr?.code
-    const constraint = pgErr?.constraint_name ?? ''
-    if (code === '23505') {
-      if (constraint.includes('numero_atencion')) {
-        return { success: false, error: 'El N° de atención ya está registrado en otra visita' }
-      }
-      if (constraint.includes('numero_boleta')) {
-        return { success: false, error: 'El N° de boleta/factura ya está registrado en otra visita con el mismo tipo de documento' }
-      }
-      return { success: false, error: 'Ya existe un registro con los mismos datos únicos' }
-    }
-    if (code === '22001') {
-      return { success: false, error: 'El N° de boleta/factura es demasiado largo (máximo 20 caracteres)' }
-    }
     return { success: false, error: 'Error al actualizar la visita' }
   }
 }
@@ -586,8 +721,8 @@ export async function createVisita(
   if (!parsed.success) throw new ActionError(parsed.error)
 
   const {
-    idPaciente, fecha, hora, idEnfermera, numeroBoleta, tipoDocumento,
-    numeroAtencion, origenContacto, informacionAdicional, cobraVisita,
+    idPaciente, fecha, hora, idEnfermera,
+    origenContacto, informacionAdicional, cobraVisita,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
@@ -609,11 +744,11 @@ export async function createVisita(
     const [visit] = await tx
       .insert(visits)
       .values({
-        fecha, hora, estado: 'creada', costo: 0,
-        idPaciente, idEnfermera, numeroBoleta, tipoDocumento,
-          numeroAtencion, origenContacto, informacionAdicional,
-          pagado: false, costoTraslado: 0,
-          cobraVisita,
+        fecha, hora, estado: 'programada', costo: 0,
+        idPaciente, idEnfermera,
+        origenContacto, informacionAdicional,
+        pagado: false, costoTraslado: 0,
+        cobraVisita,
         })
         .returning()
 
@@ -732,5 +867,121 @@ export async function actualizarPrecioProcedimientoVisita(
       await actualizarCostoVisitaPersistida(idVisita, tx)
     })
     revalidatePath(`/visitas/${idVisita}`)
+  })
+}
+
+// ─── confirmarVisita ──────────────────────────────────────────────────────────
+
+export async function confirmarVisita(id: number): Promise<ActionResult> {
+  return withAction('Error al confirmar la visita', async () => {
+    await requireSession()
+    const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
+    if (!visit) throw new ActionError('Visita no encontrada')
+    if (visit.estado !== 'programada') throw new ActionError('Solo se puede confirmar una visita programada')
+    await db.update(visits).set({ estado: 'confirmada', updatedAt: new Date() }).where(eq(visits.id, id))
+    revalidatePath('/visitas')
+    revalidatePath(`/visitas/${id}`)
+  })
+}
+
+// ─── marcarRealizada ──────────────────────────────────────────────────────────
+
+export async function marcarRealizada(id: number): Promise<ActionResult> {
+  return withAction('Error al marcar como realizada', async () => {
+    await requireSession()
+    const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
+    if (!visit) throw new ActionError('Visita no encontrada')
+    if (visit.estado !== 'confirmada') throw new ActionError('Solo se puede marcar como realizada una visita confirmada')
+    await db.update(visits).set({ estado: 'realizada', updatedAt: new Date() }).where(eq(visits.id, id))
+    revalidatePath('/visitas')
+    revalidatePath(`/visitas/${id}`)
+  })
+}
+
+// ─── marcarNoRealizada ────────────────────────────────────────────────────────
+
+export async function marcarNoRealizada(id: number, costo: number, concepto: string): Promise<ActionResult> {
+  return withAction('Error al marcar como no realizada', async () => {
+    await requireSession()
+    const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
+    if (!visit) throw new ActionError('Visita no encontrada')
+    if (visit.estado !== 'confirmada') throw new ActionError('Solo se puede marcar como no realizada una visita confirmada')
+    await db.update(visits)
+      .set({ estado: 'no_realizada', costoTraslado: Math.max(0, Math.round(costo)), conceptoNoRealizada: concepto.trim() || null, updatedAt: new Date() })
+      .where(eq(visits.id, id))
+    revalidatePath('/visitas')
+    revalidatePath(`/visitas/${id}`)
+  })
+}
+
+// ─── cancelarVisita ───────────────────────────────────────────────────────────
+
+export async function cancelarVisita(id: number, motivo: string): Promise<ActionResult> {
+  return withAction('Error al cancelar la visita', async () => {
+    await requireSession()
+    if (!motivo.trim()) throw new ActionError('El motivo de cancelación es requerido')
+    const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
+    if (!visit) throw new ActionError('Visita no encontrada')
+    if (!['programada', 'confirmada'].includes(visit.estado)) throw new ActionError('Solo se puede cancelar una visita programada o confirmada')
+    await db.update(visits)
+      .set({ estado: 'cancelada', motivoCancelacion: motivo.trim(), updatedAt: new Date() })
+      .where(eq(visits.id, id))
+    revalidatePath('/visitas')
+    revalidatePath(`/visitas/${id}`)
+  })
+}
+
+// ─── completarVisita ──────────────────────────────────────────────────────────
+
+export type CompletarVisitaData = {
+  tipoDocumento: 'boleta' | 'factura'
+  numeroBoleta: string
+  numeroAtencion?: number | null
+  pagado: boolean
+  metodoPago?: string | null
+  fechaPago?: string | null
+  examenes: { idExamen: number; fechaEnvio: string }[]
+}
+
+export async function completarVisita(id: number, data: CompletarVisitaData): Promise<ActionResult> {
+  return withAction('Error al completar la visita', async () => {
+    await requireSession()
+    const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
+    if (!visit) throw new ActionError('Visita no encontrada')
+    if (visit.estado !== 'realizada') throw new ActionError('Solo se puede completar una visita realizada')
+    if (!data.tipoDocumento || !data.numeroBoleta.trim()) throw new ActionError('Tipo de documento y N° boleta/factura son requeridos')
+    if (data.pagado && (!data.metodoPago || !data.fechaPago)) throw new ActionError('Método y fecha de pago son requeridos cuando el pago está marcado')
+
+    await db.transaction(async (tx) => {
+      for (const ex of data.examenes) {
+        await tx
+          .insert(visitExamResults)
+          .values({ idVisita: id, idExamen: ex.idExamen, enviado: true, fechaEnvio: ex.fechaEnvio, updatedAt: new Date() })
+          .onConflictDoUpdate({
+            target: [visitExamResults.idVisita, visitExamResults.idExamen],
+            set: { enviado: true, fechaEnvio: ex.fechaEnvio, updatedAt: new Date() },
+          })
+      }
+
+      const [stdCount] = await tx.select({ c: count() }).from(visitExams).where(eq(visitExams.idVisita, id))
+      const [isCount] = await tx.select({ c: count() }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id))
+      const total = Number(stdCount?.c ?? 0) + Number(isCount?.c ?? 0)
+
+      await tx.update(visits).set({
+        estado: 'completada',
+        tipoDocumento: data.tipoDocumento,
+        numeroBoleta: data.numeroBoleta.trim(),
+        numeroAtencion: data.numeroAtencion ?? null,
+        pagado: data.pagado,
+        metodoPago: data.pagado ? (data.metodoPago ?? null) : null,
+        fechaPago: data.pagado ? (data.fechaPago ?? null) : null,
+        resultadosEnviadosCount: data.examenes.length,
+        resultadosTotalCount: total,
+        updatedAt: new Date(),
+      }).where(eq(visits.id, id))
+    })
+
+    revalidatePath('/visitas')
+    revalidatePath(`/visitas/${id}`)
   })
 }

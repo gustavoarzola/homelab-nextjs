@@ -64,6 +64,13 @@
       "when": 1781411475739,
       "tag": "0008_cotizacion_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781625156159,
+      "tag": "0009_burly_vision",
+      "breakpoints": true
     }
   ]
 }
