@@ -60,6 +60,8 @@ export type EnfermeraConVisitas = {
 
 export type Result = { success: boolean; error?: string }
 
+const ESTADO_VISITA_ENVIO_CORREO = 'confirmada'
+
 // ─── getVisitasAsignadasPorEnfermera ──────────────────────────────────────────
 
 export async function getVisitasAsignadasPorEnfermera(
@@ -72,7 +74,7 @@ export async function getVisitasAsignadasPorEnfermera(
     .selectDistinct({ id: nurses.id })
     .from(nurses)
     .innerJoin(visits, eq(nurses.id, visits.idEnfermera))
-    .where(eq(visits.fecha, fecha))
+    .where(and(eq(visits.fecha, fecha), eq(visits.estado, ESTADO_VISITA_ENVIO_CORREO)))
 
   if (!nursesWithVisits.length) return []
 
@@ -148,7 +150,11 @@ async function getVisitasConDetalles(
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
     .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
     .leftJoin(elderlyResidences, eq(patients.idResidenciaAdulto, elderlyResidences.id))
-    .where(and(eq(visits.fecha, fecha), inArray(visits.idEnfermera, nurseIds)))
+    .where(and(
+      eq(visits.fecha, fecha),
+      eq(visits.estado, ESTADO_VISITA_ENVIO_CORREO),
+      inArray(visits.idEnfermera, nurseIds),
+    ))
 
   if (!rawVisitas.length) return []
 
