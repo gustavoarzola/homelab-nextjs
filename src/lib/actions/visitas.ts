@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { db } from '@/db'
 import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
-import { eq, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
+import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getTiposRecargosForSelect } from './catalogos'
 import type { SearchParams, Result } from '@/components/data-table'
@@ -935,6 +935,35 @@ export async function completarVisita(id: number, data: CompletarVisitaData): Pr
     if (!data.metodoPago) throw new ActionError('Método de pago requerido para completar la visita')
     if (!data.fechaPago) throw new ActionError('Fecha de pago requerida para completar la visita')
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data.fechaPago)) throw new ActionError('Formato de fecha de pago inválido')
+    if (data.numeroAtencion !== null && data.numeroAtencion !== undefined && !Number.isFinite(data.numeroAtencion)) {
+      throw new ActionError('N° de atención inválido')
+    }
+
+    const numeroBoleta = data.numeroBoleta.trim()
+    const [duplicateDocument] = await db
+      .select({ id: visits.id })
+      .from(visits)
+      .where(and(
+        eq(visits.numeroBoleta, numeroBoleta),
+        eq(visits.tipoDocumento, data.tipoDocumento),
+        ne(visits.id, id),
+      ))
+      .limit(1)
+    if (duplicateDocument) {
+      const label = data.tipoDocumento === 'factura' ? 'factura' : 'boleta'
+      throw new ActionError(`Ya existe una ${label} con el número ${numeroBoleta}`)
+    }
+
+    if (data.numeroAtencion !== null && data.numeroAtencion !== undefined) {
+      const [duplicateAttention] = await db
+        .select({ id: visits.id })
+        .from(visits)
+        .where(and(eq(visits.numeroAtencion, data.numeroAtencion), ne(visits.id, id)))
+        .limit(1)
+      if (duplicateAttention) {
+        throw new ActionError(`Ya existe una visita con el N° de atención ${data.numeroAtencion}`)
+      }
+    }
 
     const submittedExams = new Map<number, string>()
     for (const ex of data.examenes) {
@@ -982,7 +1011,7 @@ export async function completarVisita(id: number, data: CompletarVisitaData): Pr
       await tx.update(visits).set({
         estado: 'completada',
         tipoDocumento: data.tipoDocumento,
-        numeroBoleta: data.numeroBoleta.trim(),
+        numeroBoleta,
         numeroAtencion: data.numeroAtencion ?? null,
         pagado: data.pagado,
         metodoPago: data.pagado ? (data.metodoPago ?? null) : null,

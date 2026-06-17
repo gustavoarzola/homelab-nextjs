@@ -25,11 +25,18 @@ export function AsignacionCard({ visita, overlay = false }: Props) {
     <div
       ref={setNodeRef}
       style={{ ...style, backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
-      className="rounded-lg p-3 shadow-sm select-none"
+      className="relative rounded-lg p-3 shadow-sm select-none"
       suppressHydrationWarning
       {...(overlay ? {} : { ...listeners, ...attributes })}
     >
-      <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
+      <span
+        className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[11px] font-medium leading-none"
+        style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+      >
+        #{visita.id}
+      </span>
+
+      <p className="pr-14 text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
         {visita.pacienteNombre || '—'}
       </p>
 

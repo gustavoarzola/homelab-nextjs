@@ -59,7 +59,11 @@ type Props = {
   pricingContext: VisitaFormPricingContext
   isaprePrevisiones: IsaprePrevisionRow[]
   signedUrlOrdenMedica?: string | null
-  onSubmit: (fd: FormData) => Promise<{ success: boolean; error?: string }>
+  onSubmit: (fd: FormData) => Promise<
+    | { success: true; id: number }
+    | { success: true; data: { id: number } }
+    | { success: false; error: string }
+  >
 }
 
 type ServiceTab = 'procedimientos' | 'examenes' | 'talleres'
@@ -436,7 +440,9 @@ export function VisitaForm({
     startTransition(async () => {
       const result = await onSubmit(fd)
       if (result.success) {
-        router.push('/visitas')
+        const visitId = 'data' in result ? result.data.id : result.id
+        toast.success(isEdit ? 'Cambios guardados' : 'Visita creada')
+        router.push(`/visitas/${visitId}`)
       } else {
         const msg = result.error ?? 'Error desconocido'
         setError(msg)
@@ -537,7 +543,7 @@ export function VisitaForm({
 
         <div className="flex items-center gap-2">
           <Link
-            href="/visitas"
+            href={isEdit ? `/visitas/${visita.id}` : '/visitas'}
             className="rounded-lg px-3.5 text-[13px] font-medium transition-opacity hover:opacity-80"
             style={{ height: 36, lineHeight: '36px', color: 'var(--muted-foreground)' }}
           >

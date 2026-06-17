@@ -46,13 +46,16 @@ const columns: ColumnDef<CotizacionRow>[] = [
     header: 'Estado',
     enableSorting: true,
     cell: ({ row }) => {
-      const cfg = ESTADO_COTIZACION_STYLES[row.original.estado] ?? ESTADO_COTIZACION_STYLES.creada!
+      const cfg = ESTADO_COTIZACION_STYLES[row.original.estado]
       return (
         <span
           className="inline-block rounded-full px-2 py-0.5 text-xs font-medium"
-          style={{ backgroundColor: cfg.bg, color: cfg.color }}
+          style={{
+            backgroundColor: cfg ? cfg.bg : 'var(--destructive)',
+            color: cfg ? cfg.color : 'white',
+          }}
         >
-          {cfg.label}
+          {cfg ? cfg.label : `Inválido: ${row.original.estado}`}
         </span>
       )
     },

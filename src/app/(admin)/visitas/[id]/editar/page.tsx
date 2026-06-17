@@ -65,6 +65,15 @@ export default async function EditarVisitaPage({
     longitud: detalle.longitud,
   }
 
+  async function handleSubmit(fd: FormData) {
+    'use server'
+    const result = await updateVisita(fd)
+    if (result.success) {
+      redirect(`/visitas/${result.id}`)
+    }
+    return result
+  }
+
   return (
     <VisitaForm
       paciente={paciente}
@@ -78,7 +87,7 @@ export default async function EditarVisitaPage({
       isaprePrevisiones={isaprePrevisiones}
       tiposRecargos={tiposRecargos}
       signedUrlOrdenMedica={signedUrlOrdenMedica}
-      onSubmit={updateVisita}
+      onSubmit={handleSubmit}
     />
   )
 }

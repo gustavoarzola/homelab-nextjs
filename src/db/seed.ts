@@ -4,6 +4,7 @@ import { db } from './index'
 import {
   users, nurses, patients, addresses, patientPhones,
   visits, visitExams, visitProcedures, visitWorkshops, visitSurcharges, visitExamResults,
+  quotations,
   healthInsurances, elderlyResidences,
   procedures, exams,
   contactOrigins,
@@ -790,6 +791,8 @@ async function seed() {
       pagado: boolean
       metodoPago: string | null
       fechaPago: string | null
+      resultadosEnviadosCount: number
+      resultadosTotalCount: number
       costoTraslado: number
       conceptoNoRealizada: string | null
       motivoCancelacion: string | null
@@ -893,6 +896,8 @@ async function seed() {
       const items = buildVisitItems(idx, allProcsCat, allExamsCat, allWorkshopsCat, allSurchargesCat)
       if (state === 'completada') completedVisitIndexes.add(idx)
       visitItemsByIndex.push(items)
+      const resultadosTotalCount = items.examItems.length
+      const resultadosEnviadosCount = state === 'completada' ? resultadosTotalCount : 0
 
       visitRows.push({
         fecha,
@@ -910,6 +915,8 @@ async function seed() {
         pagado,
         metodoPago,
         fechaPago,
+        resultadosEnviadosCount,
+        resultadosTotalCount,
         costoTraslado,
         conceptoNoRealizada,
         motivoCancelacion,
@@ -947,16 +954,6 @@ async function seed() {
         await db.insert(visitExams).values(allExamRows.slice(offset, offset + ITEM_BATCH))
       }
 
-      // Actualizar resultadosTotalCount en cada visita según sus exámenes reales
-      const examCountByVisit = new Map<number, number>()
-      for (const { idVisita } of allExamRows) {
-        examCountByVisit.set(idVisita, (examCountByVisit.get(idVisita) ?? 0) + 1)
-      }
-      console.log(`   Actualizando resultadosTotalCount en ${examCountByVisit.size} visitas...`)
-      for (const [idVisita, total] of examCountByVisit) {
-        await db.update(visits).set({ resultadosTotalCount: total }).where(eq(visits.id, idVisita))
-      }
-
       const completedResults: { idVisita: number; idExamen: number; enviado: boolean; fechaEnvio: string }[] = []
       for (let i = 0; i < insertedVisitIds.length; i++) {
         if (!completedVisitIndexes.has(i)) continue
@@ -970,15 +967,6 @@ async function seed() {
         console.log(`   Insertando ${completedResults.length} resultados de exámenes enviados...`)
         for (let offset = 0; offset < completedResults.length; offset += ITEM_BATCH) {
           await db.insert(visitExamResults).values(completedResults.slice(offset, offset + ITEM_BATCH))
-        }
-
-        const sentCountByVisit = new Map<number, number>()
-        for (const { idVisita } of completedResults) {
-          sentCountByVisit.set(idVisita, (sentCountByVisit.get(idVisita) ?? 0) + 1)
-        }
-        console.log(`   Actualizando resultadosEnviadosCount en ${sentCountByVisit.size} visitas completadas...`)
-        for (const [idVisita, total] of sentCountByVisit) {
-          await db.update(visits).set({ resultadosEnviadosCount: total }).where(eq(visits.id, idVisita))
         }
       }
     }
@@ -1057,6 +1045,14 @@ async function seed() {
   console.log(`   Generando precios de visitas de enfermería...`)
   const visitPricesData = buildNursingVisitPrices()
   await db.insert(nursingVisitPrices).values(visitPricesData)
+
+  const [legacyQuotationStates] = await db
+    .select({ total: sql<number>`count(*)` })
+    .from(quotations)
+    .where(sql`${quotations.estado} IN ('borrador', 'convertida')`)
+  if (Number(legacyQuotationStates?.total ?? 0) > 0) {
+    throw new Error('Seed generó estados legacy de cotización')
+  }
 
   console.log('✅ Seed completado:')
   console.log('   admin@homelab.cl   / admin123  (rol: admin)')

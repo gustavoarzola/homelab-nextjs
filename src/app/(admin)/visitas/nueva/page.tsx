@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
 import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres, getIsaprePrevisiones } from '@/lib/actions/catalogos'
@@ -62,6 +62,15 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
     longitud: detalle.longitud,
   }
 
+  async function handleSubmit(fd: FormData) {
+    'use server'
+    const result = await createVisita(fd)
+    if (result.success) {
+      redirect(`/visitas/${result.data.id}`)
+    }
+    return result
+  }
+
   return (
     <VisitaForm
       paciente={paciente}
@@ -73,7 +82,7 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
       pricingContext={pricingContext}
       isaprePrevisiones={isaprePrevisiones}
       tiposRecargos={tiposRecargos}
-      onSubmit={createVisita}
+      onSubmit={handleSubmit}
     />
   )
 }

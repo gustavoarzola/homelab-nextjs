@@ -411,9 +411,11 @@ function CancelInline({
 // ─── Panel: programada ────────────────────────────────────────────────────────
 
 function PanelProgramada({
+  visitId,
   onConfirmar,
   onCancelar,
 }: {
+  visitId: number
   onConfirmar: () => Promise<{ success: boolean; error?: string }>
   onCancelar: (motivo: string) => Promise<{ success: boolean; error?: string }>
 }) {
@@ -438,6 +440,7 @@ function PanelProgramada({
       const result = await onCancelar(motivo)
       if (result.success) {
         toast.success('Visita cancelada')
+        router.push(`/visitas/${visitId}`)
         router.refresh()
       } else {
         toast.error(result.error ?? 'Error al cancelar visita')
@@ -476,11 +479,13 @@ function PanelProgramada({
 // ─── Panel: confirmada ────────────────────────────────────────────────────────
 
 function PanelConfirmada({
+  visitId,
   hasAssignedNurse,
   onMarcarRealizada,
   onMarcarNoRealizada,
   onCancelar,
 }: {
+  visitId: number
   hasAssignedNurse: boolean
   onMarcarRealizada: () => Promise<{ success: boolean; error?: string }>
   onMarcarNoRealizada: (costo: number, concepto: string) => Promise<{ success: boolean; error?: string }>
@@ -521,6 +526,7 @@ function PanelConfirmada({
       const result = await onCancelar(motivo)
       if (result.success) {
         toast.success('Visita cancelada')
+        router.push(`/visitas/${visitId}`)
         router.refresh()
       } else {
         toast.error(result.error ?? 'Error al cancelar visita')
@@ -685,7 +691,7 @@ type CompletionSectionId = 'facturacion' | 'pago' | 'examenes'
 type CompletionError = {
   section: CompletionSectionId
   message: string
-  field?: 'boleta' | 'pagado' | 'metodo' | 'fechaPago'
+  field?: 'boleta' | 'atencion' | 'pagado' | 'metodo' | 'fechaPago'
   examIds?: number[]
 }
 
@@ -787,6 +793,29 @@ function PanelRealizada({
     return null
   }
 
+  function completionErrorFromServer(message: string): CompletionError {
+    const normalized = message.toLowerCase()
+    if (normalized.includes('atención') || normalized.includes('atencion')) {
+      return { section: 'facturacion', field: 'atencion', message }
+    }
+    if (normalized.includes('boleta') || normalized.includes('factura') || normalized.includes('documento')) {
+      return { section: 'facturacion', field: 'boleta', message }
+    }
+    if (normalized.includes('método') || normalized.includes('metodo')) {
+      return { section: 'pago', field: 'metodo', message }
+    }
+    if (normalized.includes('fecha de pago')) {
+      return { section: 'pago', field: 'fechaPago', message }
+    }
+    if (normalized.includes('pago') || normalized.includes('pagada')) {
+      return { section: 'pago', field: 'pagado', message }
+    }
+    if (normalized.includes('examen')) {
+      return { section: 'examenes', message }
+    }
+    return { section: 'facturacion', message }
+  }
+
   function handleCompletar() {
     const validationError = validateCompletion()
     if (validationError) {
@@ -809,9 +838,13 @@ function PanelRealizada({
       })
       if (result.success) {
         toast.success('Visita completada')
+        router.push(`/visitas/${visita.id}`)
         router.refresh()
       } else {
         const message = result.error ?? 'Error al completar visita'
+        const serverError = completionErrorFromServer(message)
+        setCompletionError(serverError)
+        setOpenSec(serverError.section)
         toast.error(message)
       }
     })
@@ -863,8 +896,9 @@ function PanelRealizada({
           <label className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>
             N° de atención <span className="font-normal" style={{ color: 'var(--muted-foreground)' }}>(opcional)</span>
           </label>
-          <input value={atencion} onChange={(e) => setAtencion(e.target.value)} placeholder="Ej: 98765" type="number"
-            className="h-9 rounded-lg px-3 text-[13px] outline-none" style={{ background: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }} />
+          <input value={atencion} onChange={(e) => { setCompletionError(null); setAtencion(e.target.value) }} placeholder="Ej: 98765" type="number"
+            className="h-9 rounded-lg px-3 text-[13px] outline-none" style={{ background: 'var(--background)', border: `1px solid ${completionError?.field === 'atencion' ? 'oklch(0.65 0.2 25)' : 'var(--input)'}`, color: 'var(--foreground)' }} />
+          {completionError?.field === 'atencion' && <InlineError>{completionError.message}</InlineError>}
         </div>
         {facturacionDone && (
           <button type="button" onClick={() => toggle('pago')} className="w-full h-8 rounded-lg text-[12.5px] font-medium flex items-center justify-center gap-1.5 transition-opacity hover:opacity-90" style={{ background: 'oklch(0.4 0.13 145)', color: 'white', border: 'none' }}>
@@ -1165,10 +1199,10 @@ export function VisitaLifecycleView({
             </div>
 
             {visita.estado === 'programada' && (
-              <PanelProgramada onConfirmar={onConfirmar} onCancelar={onCancelar} />
+              <PanelProgramada visitId={visita.id} onConfirmar={onConfirmar} onCancelar={onCancelar} />
             )}
             {visita.estado === 'confirmada' && (
-              <PanelConfirmada hasAssignedNurse={visita.idEnfermera !== null} onMarcarRealizada={onMarcarRealizada} onMarcarNoRealizada={onMarcarNoRealizada} onCancelar={onCancelar} />
+              <PanelConfirmada visitId={visita.id} hasAssignedNurse={visita.idEnfermera !== null} onMarcarRealizada={onMarcarRealizada} onMarcarNoRealizada={onMarcarNoRealizada} onCancelar={onCancelar} />
             )}
             {visita.estado === 'realizada' && (
               <PanelRealizada visita={visita} onCompletar={onCompletar} />

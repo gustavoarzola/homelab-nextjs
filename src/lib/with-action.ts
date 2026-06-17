@@ -18,6 +18,30 @@ export class ActionError extends Error {
   }
 }
 
+function getErrorProp(err: unknown, prop: string): unknown {
+  return typeof err === 'object' && err !== null && prop in err
+    ? (err as Record<string, unknown>)[prop]
+    : undefined
+}
+
+function getUserFacingError(err: unknown): string | null {
+  if (err instanceof ActionError) return err.message
+  if (getErrorProp(err, 'name') === 'ActionError') {
+    const message = getErrorProp(err, 'message')
+    return typeof message === 'string' && message ? message : null
+  }
+
+  const constraint = getErrorProp(err, 'constraint') ?? getErrorProp(getErrorProp(err, 'cause'), 'constraint')
+  if (constraint === 'visitas_numero_boleta_tipo_doc_idx') {
+    return 'Ya existe una visita con ese número de boleta/factura'
+  }
+  if (constraint === 'visitas_numero_atencion_idx') {
+    return 'Ya existe una visita con ese número de atención'
+  }
+
+  return null
+}
+
 // ─── withQuery ────────────────────────────────────────────────────────────────
 
 // For read functions: requireSession, errors propagate to error boundary.
@@ -41,7 +65,8 @@ export async function withAction<T = void>(
     if (data === undefined) return { success: true } as ActionResult<T>
     return { success: true, data } as ActionResult<T>
   } catch (err) {
-    if (err instanceof ActionError) return { success: false, error: err.message }
+    const userFacingError = getUserFacingError(err)
+    if (userFacingError) return { success: false, error: userFacingError }
     console.error(errorMsg, err)
     return { success: false, error: errorMsg }
   }
@@ -68,7 +93,8 @@ export async function withFormAction<TSchema extends z.ZodType, T = void>(
     if (result === undefined) return { success: true } as ActionResult<T>
     return { success: true, data: result } as ActionResult<T>
   } catch (err) {
-    if (err instanceof ActionError) return { success: false, error: err.message }
+    const userFacingError = getUserFacingError(err)
+    if (userFacingError) return { success: false, error: userFacingError }
     console.error(errorMsg, err)
     return { success: false, error: errorMsg }
   }

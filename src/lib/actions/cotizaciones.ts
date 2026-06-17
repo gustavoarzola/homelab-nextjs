@@ -460,7 +460,7 @@ export async function createCotizacion(
     const inserted = await db
       .insert(quotations)
       .values({
-        estado: 'programada',
+        estado: 'creada',
         idPaciente,
         nombreDestinatario,
         emailDestinatario,

@@ -45,19 +45,20 @@ type EstadoKey = 'creada' | 'enviada' | 'aceptada' | 'rechazada'
 const ESTADO_CFG = ESTADO_COTIZACION_STYLES as Record<EstadoKey, { label: string; bg: string; color: string; step: number }>
 
 function EstadoBadge({ estado, size = 'sm' }: { estado: string; size?: 'sm' | 'lg' }) {
-  const cfg = ESTADO_CFG[estado as EstadoKey] ?? ESTADO_CFG.creada
+  const cfg = ESTADO_CFG[estado as EstadoKey]
+  const isKnown = !!cfg
   return (
     <span
       className="inline-block rounded-md font-medium uppercase tracking-wide"
       style={{
-        background: cfg.bg,
-        color: cfg.color,
+        background: isKnown ? cfg.bg : 'var(--destructive)',
+        color: isKnown ? cfg.color : 'white',
         fontSize: size === 'lg' ? 11 : 10.5,
         padding: size === 'lg' ? '3px 10px' : '2px 8px',
         letterSpacing: '0.06em',
       }}
     >
-      {cfg.label}
+      {isKnown ? cfg.label : `Inválido: ${estado}`}
     </span>
   )
 }

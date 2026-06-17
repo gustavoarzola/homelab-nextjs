@@ -26,6 +26,8 @@ export type VisitaAsignacion = {
 
 export type Result = { success: boolean; error?: string }
 
+const ESTADOS_VISITA_ASIGNABLE = ['programada', 'confirmada']
+
 // ─── getVisitasParaAsignacion ─────────────────────────────────────────────────
 
 export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsignacion[]> {
@@ -46,7 +48,7 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .where(and(eq(visits.fecha, fecha), eq(visits.estado, 'creada')))
+    .where(and(eq(visits.fecha, fecha), inArray(visits.estado, ESTADOS_VISITA_ASIGNABLE)))
 
   if (!rawVisitas.length) return []
 
