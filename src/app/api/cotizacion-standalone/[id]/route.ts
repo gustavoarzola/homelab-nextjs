@@ -2,6 +2,7 @@ import { db } from '@/db'
 import {
   quotations,
   quotationExams,
+  quotationIsapreExams,
   quotationProcedures,
   quotationWorkshops,
   quotationSurcharges,
@@ -29,11 +30,15 @@ export async function GET(
     return new Response('Cotización no encontrada', { status: 404 })
   }
 
-  const [examItems, procItems, tallerItems, patientRow, surchargesRows] = await Promise.all([
+  const [examItems, isapreExamItems, procItems, tallerItems, patientRow, surchargesRows] = await Promise.all([
     db
       .select({ descripcion: quotationExams.descripcion, codigo: quotationExams.codigo, precio: quotationExams.precio })
       .from(quotationExams)
       .where(eq(quotationExams.idCotizacion, cotizacionId)),
+    db
+      .select({ descripcion: quotationIsapreExams.descripcion, codigo: quotationIsapreExams.codigo, precio: quotationIsapreExams.valorPagar })
+      .from(quotationIsapreExams)
+      .where(eq(quotationIsapreExams.idCotizacion, cotizacionId)),
     db
       .select({ descripcion: quotationProcedures.descripcion, codigo: quotationProcedures.codigo, precio: quotationProcedures.precio })
       .from(quotationProcedures)
@@ -57,7 +62,7 @@ export async function GET(
     : 0
 
   const html = buildCotizacionHTML(mapToHTMLData({
-    quotation, examItems, procItems, tallerItems, patient: patientRow, surcharges: surchargesRows, precioVisita,
+    quotation, examItems, isapreExamItems, procItems, tallerItems, patient: patientRow, surcharges: surchargesRows, precioVisita,
   }))
 
   return new Response(html, {
@@ -70,7 +75,7 @@ export async function GET(
 type Item = { descripcion: string; codigo: string | null; precio: number }
 
 function mapToHTMLData({
-  quotation, examItems, procItems, tallerItems, patient, surcharges, precioVisita,
+  quotation, examItems, isapreExamItems, procItems, tallerItems, patient, surcharges, precioVisita,
 }: {
   quotation: {
     id: number
@@ -86,6 +91,7 @@ function mapToHTMLData({
     createdAt: Date
   }
   examItems: Item[]
+  isapreExamItems: Item[]
   procItems: Item[]
   tallerItems: Item[]
   patient: { nombres: string; apellidoPaterno: string | null; apellidoMaterno: string | null; identificador: string | null; tipoIdentificador: string | null } | null
@@ -123,11 +129,12 @@ function mapToHTMLData({
 
   const grupos: CotizacionHTMLData['grupos'] = []
   if (examItems.length > 0) grupos.push({ label: 'Exámenes de laboratorio', items: examItems })
+  if (isapreExamItems.length > 0) grupos.push({ label: 'Exámenes Isapre', items: isapreExamItems })
   if (procItems.length > 0) grupos.push({ label: 'Procedimientos de enfermería', items: procItems })
   if (tallerItems.length > 0) grupos.push({ label: 'Talleres', items: tallerItems })
 
   const subtotales: CotizacionHTMLData['subtotales'] = []
-  const subtotalExamenes = examItems.reduce((s, e) => s + e.precio, 0)
+  const subtotalExamenes = examItems.reduce((s, e) => s + e.precio, 0) + isapreExamItems.reduce((s, e) => s + e.precio, 0)
   const subtotalProcedimientos = procItems.reduce((s, p) => s + p.precio, 0)
   const subtotalTalleres = tallerItems.reduce((s, t) => s + t.precio, 0)
 

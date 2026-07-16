@@ -14,6 +14,7 @@ import {
   nurses,
   visitProcedures,
   visitExams,
+  visitIsapreExams,
   visitWorkshops,
   visitSurcharges,
   procedures,
@@ -276,7 +277,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
   if (!visitRow) return null
 
   // Datos en paralelo
-  const [pacienteRow, enfermeraRow, procRows, examRows, tallerRows, surchargesRows] = await Promise.all([
+  const [pacienteRow, enfermeraRow, procRows, examRows, isapreExamRows, tallerRows, surchargesRows] = await Promise.all([
     visitRow.idPaciente
       ? db
           .select({
@@ -321,6 +322,12 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       .where(eq(visitExams.idVisita, idVisita)),
 
     db
+      .select({ nombre: exams.nombre, codigo: exams.codigo, precio: visitIsapreExams.valorPagar })
+      .from(visitIsapreExams)
+      .innerJoin(exams, eq(visitIsapreExams.idExamen, exams.id))
+      .where(eq(visitIsapreExams.idVisita, idVisita)),
+
+    db
       .select({ nombre: workshops.nombre, codigo: workshops.codigo, precio: visitWorkshops.precio })
       .from(visitWorkshops)
       .innerJoin(workshops, eq(visitWorkshops.idTaller, workshops.id))
@@ -341,6 +348,10 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
   for (const exam of examRows) {
     const precioExamen = exam.precio || null
     items.push({ descripcion: exam.nombre, codigo: exam.codigo, tipo: 'examen', precio: precioExamen })
+  }
+
+  for (const isapreExam of isapreExamRows) {
+    items.push({ descripcion: isapreExam.nombre, codigo: isapreExam.codigo, tipo: 'examen', precio: isapreExam.precio || null })
   }
 
   for (const proc of procRows) {
