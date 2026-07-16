@@ -291,7 +291,7 @@ function QuoteSummary({ cot }: { cot: CotizacionVista }) {
       </div>
 
       {/* Cargos adicionales */}
-      {(cot.cobraVisita || cot.surcharges.length > 0) && (
+      {(cot.cobraVisita || cot.surcharges.length > 0 || cot.montoInsumos > 0) && (
         <div className="rounded-xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-3" style={{ color: 'var(--muted-foreground)' }}>
             Cargos adicionales
@@ -319,6 +319,15 @@ function QuoteSummary({ cot }: { cot: CotizacionVista }) {
                 <span className="tabular-nums font-medium">{CLP(s.precio)}</span>
               </div>
             ))}
+            {cot.montoInsumos > 0 && (
+              <div
+                className="flex items-center justify-between px-3 py-2 rounded-lg text-[13px]"
+                style={{ background: 'var(--muted)' }}
+              >
+                <span style={{ color: 'var(--foreground)' }}>Insumos</span>
+                <span className="tabular-nums font-medium">{CLP(cot.montoInsumos)}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

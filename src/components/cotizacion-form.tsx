@@ -136,6 +136,7 @@ export function CotizacionForm({
   // Cargos adicionales
   const [cobraVisita, setCobraVisita] = useState(cotizacion?.cobraVisita ?? false)
   const [selectedSurcharges, setSelectedSurcharges] = useState<number[]>(cotizacion?.surchargeIds ?? [])
+  const [montoInsumos, setMontoInsumos] = useState(String(cotizacion?.montoInsumos ?? 0))
   const [notas, setNotas] = useState(cotizacion?.notas ?? '')
 
   const showManualFields = !selectedIdPaciente
@@ -177,7 +178,8 @@ export function CotizacionForm({
     }, 0),
     [selectedSurcharges, cotizacion, tiposRecargos]
   )
-  const totalGeneral = totalProcedimientos + totalExamenes + totalTalleres + precioVisita + totalRecargos
+  const montoInsumosNum = parseInt(montoInsumos) || 0
+  const totalGeneral = totalProcedimientos + totalExamenes + totalTalleres + precioVisita + totalRecargos + montoInsumosNum
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -193,6 +195,7 @@ export function CotizacionForm({
     const fd = new FormData(e.currentTarget)
     fd.set('comuna', comunaNombre)
     fd.set('cobraVisita', String(cobraVisita))
+    fd.set('montoInsumos', montoInsumos)
     selectedSurcharges.forEach((id) => fd.append('surcharge_ids', String(id)))
     fd.set('idPaciente', selectedIdPaciente ? String(selectedIdPaciente) : '')
     fd.set('nombreDestinatario', nombreDestinatario)
@@ -717,6 +720,35 @@ export function CotizacionForm({
                   </div>
                 )}
               </div>
+
+              {/* Insumos */}
+              <div
+                className="col-span-2 rounded-lg p-4"
+                style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}
+              >
+                <div className="mb-2.5 flex items-center justify-between">
+                  <label htmlFor="montoInsumosInput" className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
+                    Monto de insumos
+                  </label>
+                </div>
+                <div
+                  className="flex items-center gap-1 rounded border px-2 py-1.5"
+                  style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
+                >
+                  <span className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>$</span>
+                  <input
+                    id="montoInsumosInput"
+                    type="number"
+                    min="0"
+                    value={montoInsumos}
+                    onChange={(e) => setMontoInsumos(e.target.value)}
+                    placeholder="0"
+                    disabled={isPending}
+                    className="w-full bg-transparent text-[13px] tabular-nums outline-none"
+                    style={{ color: 'var(--foreground)' }}
+                  />
+                </div>
+              </div>
             </div>
           </section>
 
@@ -832,8 +864,9 @@ export function CotizacionForm({
                     const precio = cotizacion?.surchargePrices?.find((s) => s.idTipoRecargo === id)?.precio ?? tipo?.precio ?? 0
                     return { name: tipo?.label ?? '', price: precio }
                   }),
+                  ...(montoInsumosNum > 0 ? [{ name: 'Insumos', price: montoInsumosNum }] : []),
                 ]}
-                subtotal={(cobraVisita ? precioVisita : 0) + totalRecargos}
+                subtotal={(cobraVisita ? precioVisita : 0) + totalRecargos + montoInsumosNum}
               />
             </div>
 

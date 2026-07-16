@@ -87,6 +87,7 @@ function mapToHTMLData({
     comuna: string | null
     cobraVisita: boolean
     total: number | null
+    montoInsumos: number
     notas: string | null
     createdAt: Date
   }
@@ -146,6 +147,7 @@ function mapToHTMLData({
   for (const r of surcharges) {
     if (r.precio > 0) subtotales.push({ label: r.label, amount: r.precio })
   }
+  if (quotation.montoInsumos > 0) subtotales.push({ label: 'Insumos', amount: quotation.montoInsumos })
 
   return {
     numeroDoc,

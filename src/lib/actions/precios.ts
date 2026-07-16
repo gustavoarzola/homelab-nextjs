@@ -256,6 +256,7 @@ export type CotizacionVisita = {
   costoVisitaEnfermeria: number
   recargos: { nombre: string; precio: number }[]
   subtotalRecargos: number
+  montoInsumos: number
   total: number
   tipoPrevision: 'fonasa' | 'isapre' | 'particular'
 }
@@ -404,6 +405,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     costoVisitaEnfermeria: costoCalculado.costoVisitaEnfermeria,
     recargos: surchargesRows,
     subtotalRecargos: costoCalculado.subtotalRecargos,
+    montoInsumos: costoCalculado.montoInsumos,
     total: costoCalculado.total,
     tipoPrevision,
   }

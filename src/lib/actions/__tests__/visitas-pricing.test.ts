@@ -140,10 +140,10 @@ async function seedOrUsePrecioBase(precio: number) {
   return seedPrecioVisita(null, precio)
 }
 
-async function seedVisita(idPaciente: number) {
+async function seedVisita(idPaciente: number, montoInsumos = 0) {
   const [visit] = await db
     .insert(visits)
-    .values({ fecha: '2026-05-05', idPaciente, costo: 999999 })
+    .values({ fecha: '2026-05-05', idPaciente, costo: 999999, montoInsumos })
     .returning()
   created.visits.push(visit!.id)
   return visit!
@@ -230,6 +230,19 @@ describe('calcularCostoVisitaPersistida', () => {
     const costo = await calcularCostoVisitaPersistida(visit.id)
 
     expect(costo.total).toBe(0)
+  })
+
+  it('suma el monto de insumos al total', async () => {
+    const comuna = unique('ComunaInsumos')
+    const patient = await seedPaciente(comuna)
+    const exam = await seedExamen()
+    const visit = await seedVisita(patient.id, 4000)
+    await addExam(visit.id, exam.id, 9000)
+
+    const costo = await calcularCostoVisitaPersistida(visit.id)
+
+    expect(costo.montoInsumos).toBe(4000)
+    expect(costo.total).toBe(13000)
   })
 })
 

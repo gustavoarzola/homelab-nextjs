@@ -418,6 +418,7 @@ export function VisitaForm({
 
   const [cobraVisita, setCobraVisita] = useState(visita?.cobraVisita ?? false)
   const [selectedSurcharges, setSelectedSurcharges] = useState<number[]>(visita?.surchargeIds ?? [])
+  const [montoInsumos, setMontoInsumos] = useState(String(visita?.montoInsumos ?? 0))
 
   // Orden médica
   const [keyOrdenMedica, setKeyOrdenMedica] = useState<string | null>(visita?.keyOrdenMedica ?? null)
@@ -436,6 +437,7 @@ export function VisitaForm({
     })
     selectedSurcharges.forEach((id) => fd.append('surcharge_ids', String(id)))
     fd.set('cobraVisita', String(cobraVisita))
+    fd.set('montoInsumos', montoInsumos)
 
     startTransition(async () => {
       const result = await onSubmit(fd)
@@ -480,9 +482,10 @@ export function VisitaForm({
       isapreExams: (isapreBlock?.exams ?? []).map((e) => ({
         valorPagar: e.tipo === 'isapre' ? (Number(e.valorPagar.replace(/[^\d]/g, '')) || 0) : 0,
       })),
+      montoInsumos: parseInt(montoInsumos) || 0,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedProcedures, examGroups, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, selectedSurcharges, tiposRecargos],
+    [selectedProcedures, examGroups, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, selectedSurcharges, tiposRecargos, montoInsumos],
   )
 
   // Compute which tabs have undismissed price warnings (for warning dot)
@@ -1012,6 +1015,32 @@ export function VisitaForm({
                   </div>
                 )}
               </div>
+
+              {/* Insumos */}
+              <div className="col-span-2 rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
+                <div className="mb-2.5 flex items-center justify-between">
+                  <label htmlFor="montoInsumosInput" className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
+                    Monto de insumos
+                  </label>
+                </div>
+                <div
+                  className="flex items-center gap-1 rounded border px-2 py-1.5"
+                  style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
+                >
+                  <span className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>$</span>
+                  <input
+                    id="montoInsumosInput"
+                    type="number"
+                    min="0"
+                    value={montoInsumos}
+                    onChange={(e) => setMontoInsumos(e.target.value)}
+                    placeholder="0"
+                    disabled={isPending}
+                    className="w-full bg-transparent text-[13px] tabular-nums outline-none"
+                    style={{ color: 'var(--foreground)' }}
+                  />
+                </div>
+              </div>
             </div>
           </section>
 
@@ -1131,8 +1160,9 @@ export function VisitaForm({
                     const precio = visita?.surchargePrices.find((s) => s.idTipoRecargo === id)?.precio ?? tipo?.precio ?? 0
                     return { name: tipo?.label ?? '', price: precio }
                   }),
+                  ...(costoPreview.montoInsumos > 0 ? [{ name: 'Insumos', price: costoPreview.montoInsumos }] : []),
                 ]}
-                subtotal={costoPreview.costoVisitaEnfermeria + costoPreview.subtotalRecargos}
+                subtotal={costoPreview.costoVisitaEnfermeria + costoPreview.subtotalRecargos + costoPreview.montoInsumos}
               />
             </div>
 

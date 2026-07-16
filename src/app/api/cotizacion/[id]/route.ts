@@ -93,6 +93,8 @@ function mapToHTMLData(data: CotizacionVisita): CotizacionHTMLData {
   for (const r of data.recargos) {
     if (r.precio > 0) subtotales.push({ label: r.nombre, amount: r.precio })
   }
+  if (data.montoInsumos > 0)
+    subtotales.push({ label: 'Insumos', amount: data.montoInsumos })
 
   return {
     numeroDoc,
