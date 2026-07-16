@@ -15,6 +15,7 @@ export type VisitaPreviewInput = {
   cobraVisita: boolean
   surchargeItems?: { precio: number }[]
   isapreExams?: { valorPagar: number }[]
+  montoInsumos?: number
 }
 
 export type VisitaPreviewCosto = {
@@ -23,6 +24,7 @@ export type VisitaPreviewCosto = {
   subtotalTalleres: number
   subtotalRecargos: number
   costoVisitaEnfermeria: number
+  montoInsumos: number
   total: number
   aplicaVisitaEnfermeria: boolean
   precioVisitaConfigurado: boolean
@@ -63,6 +65,7 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
       : 0
   const subtotalRecargos = (input.surchargeItems ?? []).reduce((sum, r) => sum + r.precio, 0)
   const subtotalIsapreExamenes = (input.isapreExams ?? []).reduce((sum, e) => sum + e.valorPagar, 0)
+  const montoInsumos = input.montoInsumos ?? 0
 
   return {
     subtotalProcedimientos,
@@ -70,7 +73,8 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
     subtotalTalleres,
     subtotalRecargos,
     costoVisitaEnfermeria,
-    total: subtotalProcedimientos + subtotalExamenes + subtotalIsapreExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos,
+    montoInsumos,
+    total: subtotalProcedimientos + subtotalExamenes + subtotalIsapreExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos + montoInsumos,
     aplicaVisitaEnfermeria,
     precioVisitaConfigurado,
   }

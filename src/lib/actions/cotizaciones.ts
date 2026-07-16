@@ -45,6 +45,7 @@ export type CotizacionDetalle = {
   comuna: string | null
   cobraVisita: boolean
   total: number
+  montoInsumos: number
   idVisita: number | null
   notas: string | null
   motivoRechazo: string | null
@@ -73,6 +74,7 @@ export type CotizacionVista = {
   cobraVisita: boolean
   precioVisita: number
   total: number
+  montoInsumos: number
   idVisita: number | null
   notas: string | null
   motivoRechazo: string | null
@@ -137,6 +139,7 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     comuna: quotation.comuna ?? null,
     cobraVisita: quotation.cobraVisita,
     total: quotation.total ?? 0,
+    montoInsumos: quotation.montoInsumos,
     idVisita: quotation.idVisita ?? null,
     notas: quotation.notas ?? null,
     motivoRechazo: quotation.motivoRechazo ?? null,
@@ -170,6 +173,7 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
       comuna: quotations.comuna,
       cobraVisita: quotations.cobraVisita,
       total: quotations.total,
+      montoInsumos: quotations.montoInsumos,
       idVisita: quotations.idVisita,
       notas: quotations.notas,
       motivoRechazo: quotations.motivoRechazo,
@@ -257,6 +261,7 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
     cobraVisita: quotation.cobraVisita,
     precioVisita,
     total: quotation.total ?? 0,
+    montoInsumos: quotation.montoInsumos,
     idVisita: quotation.idVisita ?? null,
     notas: quotation.notas ?? null,
     motivoRechazo: quotation.motivoRechazo ?? null,
@@ -367,6 +372,7 @@ const cotizacionInputSchema = z.object({
   identificacionDestinatario: fields.nullableStr,
   comuna: z.string().trim().min(1, 'Comuna requerida'),
   cobraVisita: fields.bool,
+  montoInsumos: fields.montoInsumos,
   notas: fields.nullableStr,
   procedure_ids: fields.ids,
   exam_ids: fields.ids,
@@ -388,7 +394,7 @@ export async function createCotizacion(
 
   const {
     idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
-    identificacionDestinatario, comuna, cobraVisita,
+    identificacionDestinatario, comuna, cobraVisita, montoInsumos,
     notas,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
@@ -456,6 +462,9 @@ export async function createCotizacion(
       total += surchargeItems.reduce((sum, s) => sum + s.precio, 0)
     }
 
+    // Add monto de insumos to total (excluded from nurse payment calc)
+    total += montoInsumos
+
     // Create quotation
     const inserted = await db
       .insert(quotations)
@@ -469,6 +478,7 @@ export async function createCotizacion(
         comuna,
         cobraVisita,
         total,
+        montoInsumos,
         notas,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -604,7 +614,7 @@ export async function updateCotizacion(
 
   const {
     id, idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
-    identificacionDestinatario, comuna, cobraVisita,
+    identificacionDestinatario, comuna, cobraVisita, montoInsumos,
     notas,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
@@ -668,6 +678,9 @@ export async function updateCotizacion(
       total += surchargeItems.reduce((sum, s) => sum + s.precio, 0)
     }
 
+    // Add monto de insumos to total (excluded from nurse payment calc)
+    total += montoInsumos
+
     // Update quotation
     await db
       .update(quotations)
@@ -680,6 +693,7 @@ export async function updateCotizacion(
         comuna,
         cobraVisita,
         total,
+        montoInsumos,
         notas,
         updatedAt: new Date(),
       })
@@ -839,6 +853,7 @@ export async function convertirCotizacionAVisita(
         fecha: hoy,
         estado: 'programada',
         costo: quotation.total ?? 0,
+        montoInsumos: quotation.montoInsumos ?? 0,
         idPaciente: finalIdPaciente,
         cobraVisita: quotation.cobraVisita,
         createdAt: new Date(),

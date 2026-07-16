@@ -332,6 +332,12 @@ function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
               <span className="tabular-nums">{CLP(s.precio)}</span>
             </div>
           ))}
+          {v.montoInsumos > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px]" style={{ background: 'var(--muted)' }}>
+              <span style={{ color: 'var(--foreground)' }}>Insumos</span>
+              <span className="tabular-nums">{CLP(v.montoInsumos)}</span>
+            </div>
+          )}
           {v.procedimientos.length === 0 && v.examenes.length === 0 && v.isapreExams.length === 0 && v.talleres.length === 0 && !v.cobraVisita && (
             <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Sin servicios registrados.</p>
           )}

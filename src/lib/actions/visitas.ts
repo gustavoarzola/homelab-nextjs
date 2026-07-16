@@ -41,6 +41,7 @@ export type VisitaDetalle = {
   hora: string | null
   estado: string
   costo: number
+  montoInsumos: number
   idPaciente: number | null
   idEnfermera: number | null
   numeroBoleta: string
@@ -77,6 +78,7 @@ export type VisitaLifecycleDetalle = {
   hora: string | null
   estado: string
   costo: number
+  montoInsumos: number
   cobraVisita: boolean
   informacionAdicional: string
   origenContacto: string | null
@@ -339,6 +341,7 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     hora: visit.hora ?? null,
     estado: visit.estado,
     costo: visit.costo,
+    montoInsumos: visit.montoInsumos,
     idPaciente: visit.idPaciente ?? null,
     idEnfermera: visit.idEnfermera ?? null,
     numeroBoleta: visit.numeroBoleta ?? '',
@@ -453,6 +456,7 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
       hora: visit.hora ?? null,
       estado: visit.estado,
       costo: visit.costo,
+      montoInsumos: visit.montoInsumos,
       cobraVisita: visit.cobraVisita,
       informacionAdicional: visit.informacionAdicional ?? '',
       origenContacto: visit.origenContacto ?? null,
@@ -516,6 +520,7 @@ const visitaSharedFields = {
   origenContacto: fields.nullableStr,
   informacionAdicional: z.string().trim().optional().default(''),
   cobraVisita: fields.bool,
+  montoInsumos: fields.montoInsumos,
   procedure_ids: fields.ids,
   exam_ids: fields.ids,
   taller_ids: fields.ids,
@@ -545,7 +550,7 @@ export async function updateVisita(
 
   const {
     id, fecha, hora, idEnfermera,
-    origenContacto, informacionAdicional, cobraVisita,
+    origenContacto, informacionAdicional, cobraVisita, montoInsumos,
     keyOrdenMedica,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
@@ -575,7 +580,7 @@ export async function updateVisita(
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, idEnfermera, origenContacto, informacionAdicional, cobraVisita, keyOrdenMedica, updatedAt: new Date() })
+        .set({ fecha, hora, idEnfermera, origenContacto, informacionAdicional, cobraVisita, montoInsumos, keyOrdenMedica, updatedAt: new Date() })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.
@@ -702,7 +707,7 @@ export async function createVisita(
 
   const {
     idPaciente, fecha, hora, idEnfermera,
-    origenContacto, informacionAdicional, cobraVisita,
+    origenContacto, informacionAdicional, cobraVisita, montoInsumos,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
@@ -728,7 +733,7 @@ export async function createVisita(
         idPaciente, idEnfermera,
         origenContacto, informacionAdicional,
         pagado: false, costoTraslado: 0,
-        cobraVisita,
+        cobraVisita, montoInsumos,
         })
         .returning()
 

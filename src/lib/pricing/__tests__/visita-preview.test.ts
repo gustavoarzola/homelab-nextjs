@@ -100,4 +100,34 @@ describe('calcularCostoVisitaPreview', () => {
     expect(costo.total).toBe(28000)
     expect(costo.subtotalRecargos).toBe(5000)
   })
+
+  it('suma el monto de insumos al total', () => {
+    const costo = calcularCostoVisitaPreview({
+      selectedProcedureIds: [1],
+      selectedExamIds: [10],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
+      catalogProcedurePrices: [{ id: 1, precio: 15000 }],
+      pricingContext,
+      cobraVisita: false,
+      montoInsumos: 3000,
+    })
+
+    expect(costo.total).toBe(26000)
+    expect(costo.montoInsumos).toBe(3000)
+  })
+
+  it('sin monto de insumos, este es cero por defecto', () => {
+    const costo = calcularCostoVisitaPreview({
+      selectedProcedureIds: [],
+      selectedExamIds: [],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
+      catalogProcedurePrices: [],
+      pricingContext,
+      cobraVisita: false,
+    })
+
+    expect(costo.montoInsumos).toBe(0)
+  })
 })

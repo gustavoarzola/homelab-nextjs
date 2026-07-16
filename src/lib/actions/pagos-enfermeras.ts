@@ -82,6 +82,7 @@ export async function searchPagosEnfermerasMensual(
       sumProcs: sql<string>`SUM(COALESCE(${sqProcs.total}, 0))`,
       sumWorkshops: sql<string>`SUM(COALESCE(${sqWorkshops.total}, 0))`,
       sumSurcharges: sql<string>`SUM(COALESCE(${sqSurcharges.total}, 0))`,
+      sumInsumos: sql<string>`SUM(${visits.montoInsumos})`,
       porcentaje: nurses.porcentajePago,
     })
     .from(visits)
@@ -100,9 +101,10 @@ export async function searchPagosEnfermerasMensual(
     const procSum = Number(r.sumProcs)
     const workshopSum = Number(r.sumWorkshops)
     const surchargeSum = Number(r.sumSurcharges)
-    const base = calcNursePaymentBase(costo, examSum, workshopSum)
+    const insumosSum = Number(r.sumInsumos)
+    const base = calcNursePaymentBase(costo, examSum, workshopSum, insumosSum)
     const porcentaje = Number(r.porcentaje ?? 67.5)
-    const montoVisitas = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum)
+    const montoVisitas = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum - insumosSum)
 
     return {
       enfermeraId: r.enfermeraId,
@@ -194,6 +196,7 @@ export async function getPagoEnfermeraDetalle(
         procSum: sql<string>`COALESCE(${sqProcs.total}, 0)`,
         workshopSum: sql<string>`COALESCE(${sqWorkshops.total}, 0)`,
         surchargeSum: sql<string>`COALESCE(${sqSurcharges.total}, 0)`,
+        insumosSum: visits.montoInsumos,
         porcentaje: nurses.porcentajePago,
       })
       .from(visits)
@@ -233,8 +236,9 @@ export async function getPagoEnfermeraDetalle(
     const procSum = Number(r.procSum)
     const workshopSum = Number(r.workshopSum)
     const surchargeSum = Number(r.surchargeSum)
-    const base = calcNursePaymentBase(costo, examSum, workshopSum)
-    const feeVisita = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum)
+    const insumosSum = Number(r.insumosSum)
+    const base = calcNursePaymentBase(costo, examSum, workshopSum, insumosSum)
+    const feeVisita = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum - insumosSum)
 
     return {
       id: r.id,

@@ -18,6 +18,7 @@ export type CostoVisitaCalculado = {
   subtotalTalleres: number
   subtotalRecargos: number
   costoVisitaEnfermeria: number
+  montoInsumos: number
   total: number
   aplicaVisitaEnfermeria: boolean
   precioVisitaConfigurado: boolean
@@ -60,7 +61,7 @@ export async function calcularCostoVisitaPersistida(
     conn.select({ precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, idVisita)),
     conn.select({ precio: visitSurcharges.precio }).from(visitSurcharges).where(eq(visitSurcharges.idVisita, idVisita)),
     conn
-      .select({ comuna: addresses.areaAdministrativa3, cobraVisita: visits.cobraVisita })
+      .select({ comuna: addresses.areaAdministrativa3, cobraVisita: visits.cobraVisita, montoInsumos: visits.montoInsumos })
       .from(visits)
       .leftJoin(patients, eq(visits.idPaciente, patients.id))
       .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
@@ -78,6 +79,7 @@ export async function calcularCostoVisitaPersistida(
     ? await getPrecioVisitaEnfermeria(conn, visitaPaciente?.comuna ?? null)
     : null
   const costoVisitaEnfermeria = precioVisita ?? 0
+  const montoInsumos = visitaPaciente?.montoInsumos ?? 0
 
   return {
     subtotalProcedimientos,
@@ -85,7 +87,8 @@ export async function calcularCostoVisitaPersistida(
     subtotalTalleres,
     subtotalRecargos,
     costoVisitaEnfermeria,
-    total: subtotalProcedimientos + subtotalExamenes + subtotalIsapreExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos,
+    montoInsumos,
+    total: subtotalProcedimientos + subtotalExamenes + subtotalIsapreExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos + montoInsumos,
     aplicaVisitaEnfermeria,
     precioVisitaConfigurado: precioVisita !== null,
   }
