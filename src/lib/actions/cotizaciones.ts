@@ -29,6 +29,7 @@ import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 import { getPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
+import { resolverMontoDescuento } from '@/lib/pricing/descuento'
 import { parseFormDataWithArrays, fields } from '@/lib/validation'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 
@@ -46,6 +47,11 @@ export type CotizacionDetalle = {
   cobraVisita: boolean
   total: number
   montoInsumos: number
+  descuentoTipo: 'monto' | 'porcentaje'
+  descuentoValor: number
+  montoDescuento: number
+  montoVisitaOriginal: number
+  descuentoAfectaPagoEnfermera: boolean
   idVisita: number | null
   notas: string | null
   motivoRechazo: string | null
@@ -75,6 +81,11 @@ export type CotizacionVista = {
   precioVisita: number
   total: number
   montoInsumos: number
+  descuentoTipo: 'monto' | 'porcentaje'
+  descuentoValor: number
+  montoDescuento: number
+  montoVisitaOriginal: number
+  descuentoAfectaPagoEnfermera: boolean
   idVisita: number | null
   notas: string | null
   motivoRechazo: string | null
@@ -140,6 +151,11 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     cobraVisita: quotation.cobraVisita,
     total: quotation.total ?? 0,
     montoInsumos: quotation.montoInsumos,
+    descuentoTipo: quotation.descuentoTipo as 'monto' | 'porcentaje',
+    descuentoValor: quotation.descuentoValor,
+    montoDescuento: quotation.montoDescuento,
+    montoVisitaOriginal: quotation.montoVisitaOriginal,
+    descuentoAfectaPagoEnfermera: quotation.descuentoAfectaPagoEnfermera,
     idVisita: quotation.idVisita ?? null,
     notas: quotation.notas ?? null,
     motivoRechazo: quotation.motivoRechazo ?? null,
@@ -174,6 +190,11 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
       cobraVisita: quotations.cobraVisita,
       total: quotations.total,
       montoInsumos: quotations.montoInsumos,
+      descuentoTipo: quotations.descuentoTipo,
+      descuentoValor: quotations.descuentoValor,
+      montoDescuento: quotations.montoDescuento,
+      montoVisitaOriginal: quotations.montoVisitaOriginal,
+      descuentoAfectaPagoEnfermera: quotations.descuentoAfectaPagoEnfermera,
       idVisita: quotations.idVisita,
       notas: quotations.notas,
       motivoRechazo: quotations.motivoRechazo,
@@ -262,6 +283,11 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
     precioVisita,
     total: quotation.total ?? 0,
     montoInsumos: quotation.montoInsumos,
+    descuentoTipo: quotation.descuentoTipo as 'monto' | 'porcentaje',
+    descuentoValor: quotation.descuentoValor,
+    montoDescuento: quotation.montoDescuento,
+    montoVisitaOriginal: quotation.montoVisitaOriginal,
+    descuentoAfectaPagoEnfermera: quotation.descuentoAfectaPagoEnfermera,
     idVisita: quotation.idVisita ?? null,
     notas: quotation.notas ?? null,
     motivoRechazo: quotation.motivoRechazo ?? null,
@@ -373,6 +399,9 @@ const cotizacionInputSchema = z.object({
   comuna: z.string().trim().min(1, 'Comuna requerida'),
   cobraVisita: fields.bool,
   montoInsumos: fields.montoInsumos,
+  descuentoTipo: fields.descuentoTipo,
+  descuentoValor: fields.descuentoValor,
+  descuentoAfectaPagoEnfermera: fields.bool,
   notas: fields.nullableStr,
   procedure_ids: fields.ids,
   exam_ids: fields.ids,
@@ -395,9 +424,12 @@ export async function createCotizacion(
   const {
     idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
     identificacionDestinatario, comuna, cobraVisita, montoInsumos,
+    descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     notas,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
+
+  const descuentoValorFinal = cobraVisita ? descuentoValor : 0
 
   const tallerPrecioMap: Record<number, number> = {}
   for (const id of tallerIds) {
@@ -446,8 +478,12 @@ export async function createCotizacion(
 
     // Add nursing visit price if requested
     let visitPrice = 0
+    let montoVisitaOriginal = 0
+    let montoDescuento = 0
     if (cobraVisita) {
-      visitPrice = (await getPrecioVisitaEnfermeria(db, comuna)) ?? 0
+      montoVisitaOriginal = (await getPrecioVisitaEnfermeria(db, comuna)) ?? 0
+      montoDescuento = resolverMontoDescuento(montoVisitaOriginal, descuentoTipo, descuentoValorFinal)
+      visitPrice = Math.max(0, montoVisitaOriginal - montoDescuento)
       total += visitPrice
     }
 
@@ -479,6 +515,11 @@ export async function createCotizacion(
         cobraVisita,
         total,
         montoInsumos,
+        descuentoTipo,
+        descuentoValor: descuentoValorFinal,
+        montoDescuento,
+        montoVisitaOriginal,
+        descuentoAfectaPagoEnfermera,
         notas,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -615,9 +656,12 @@ export async function updateCotizacion(
   const {
     id, idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
     identificacionDestinatario, comuna, cobraVisita, montoInsumos,
+    descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     notas,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
+
+  const descuentoValorFinal = cobraVisita ? descuentoValor : 0
 
   const tallerPrecioMap: Record<number, number> = {}
   for (const tid of tallerIds) {
@@ -662,8 +706,12 @@ export async function updateCotizacion(
     total += Object.values(tallerPrecioMap).reduce((sum, p) => sum + p, 0)
 
     let visitPrice = 0
+    let montoVisitaOriginal = 0
+    let montoDescuento = 0
     if (cobraVisita) {
-      visitPrice = (await getPrecioVisitaEnfermeria(db, comuna)) ?? 0
+      montoVisitaOriginal = (await getPrecioVisitaEnfermeria(db, comuna)) ?? 0
+      montoDescuento = resolverMontoDescuento(montoVisitaOriginal, descuentoTipo, descuentoValorFinal)
+      visitPrice = Math.max(0, montoVisitaOriginal - montoDescuento)
       total += visitPrice
     }
 
@@ -694,6 +742,11 @@ export async function updateCotizacion(
         cobraVisita,
         total,
         montoInsumos,
+        descuentoTipo,
+        descuentoValor: descuentoValorFinal,
+        montoDescuento,
+        montoVisitaOriginal,
+        descuentoAfectaPagoEnfermera,
         notas,
         updatedAt: new Date(),
       })
@@ -856,6 +909,11 @@ export async function convertirCotizacionAVisita(
         montoInsumos: quotation.montoInsumos ?? 0,
         idPaciente: finalIdPaciente,
         cobraVisita: quotation.cobraVisita,
+        descuentoTipo: quotation.descuentoTipo,
+        descuentoValor: quotation.descuentoValor,
+        montoDescuento: quotation.montoDescuento ?? 0,
+        montoVisitaOriginal: quotation.montoVisitaOriginal ?? 0,
+        descuentoAfectaPagoEnfermera: quotation.descuentoAfectaPagoEnfermera,
         createdAt: new Date(),
         updatedAt: new Date(),
       })

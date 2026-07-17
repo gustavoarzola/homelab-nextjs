@@ -35,6 +35,8 @@ export const fields = {
   precio: z.coerce.number().int().min(0, 'Precio inválido'),
   precioRequerido: z.coerce.number().int().positive('Precio es requerido'),
   montoInsumos: z.coerce.number().int().min(0, 'Monto de insumos inválido').optional().default(0),
+  descuentoTipo: z.enum(['monto', 'porcentaje']).optional().default('monto'),
+  descuentoValor: z.coerce.number().int().min(0, 'Valor de descuento inválido').optional().default(0),
   fechaRequerida: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD)'),
   bool: z.string().optional().transform((v) => v === 'true'),
   nullableStr: z.string().trim().optional().transform((v) => v || null),

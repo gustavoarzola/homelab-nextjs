@@ -42,6 +42,11 @@ export type VisitaDetalle = {
   estado: string
   costo: number
   montoInsumos: number
+  descuentoTipo: 'monto' | 'porcentaje'
+  descuentoValor: number
+  montoDescuento: number
+  montoVisitaOriginal: number
+  descuentoAfectaPagoEnfermera: boolean
   idPaciente: number | null
   idEnfermera: number | null
   numeroBoleta: string
@@ -80,6 +85,11 @@ export type VisitaLifecycleDetalle = {
   costo: number
   montoInsumos: number
   cobraVisita: boolean
+  descuentoTipo: 'monto' | 'porcentaje'
+  descuentoValor: number
+  montoDescuento: number
+  montoVisitaOriginal: number
+  descuentoAfectaPagoEnfermera: boolean
   informacionAdicional: string
   origenContacto: string | null
   idPaciente: number | null
@@ -342,6 +352,11 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     estado: visit.estado,
     costo: visit.costo,
     montoInsumos: visit.montoInsumos,
+    descuentoTipo: visit.descuentoTipo as 'monto' | 'porcentaje',
+    descuentoValor: visit.descuentoValor,
+    montoDescuento: visit.montoDescuento,
+    montoVisitaOriginal: visit.montoVisitaOriginal,
+    descuentoAfectaPagoEnfermera: visit.descuentoAfectaPagoEnfermera,
     idPaciente: visit.idPaciente ?? null,
     idEnfermera: visit.idEnfermera ?? null,
     numeroBoleta: visit.numeroBoleta ?? '',
@@ -458,6 +473,11 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
       costo: visit.costo,
       montoInsumos: visit.montoInsumos,
       cobraVisita: visit.cobraVisita,
+      descuentoTipo: visit.descuentoTipo as 'monto' | 'porcentaje',
+      descuentoValor: visit.descuentoValor,
+      montoDescuento: visit.montoDescuento,
+      montoVisitaOriginal: visit.montoVisitaOriginal,
+      descuentoAfectaPagoEnfermera: visit.descuentoAfectaPagoEnfermera,
       informacionAdicional: visit.informacionAdicional ?? '',
       origenContacto: visit.origenContacto ?? null,
       idPaciente: visit.idPaciente ?? null,
@@ -521,6 +541,9 @@ const visitaSharedFields = {
   informacionAdicional: z.string().trim().optional().default(''),
   cobraVisita: fields.bool,
   montoInsumos: fields.montoInsumos,
+  descuentoTipo: fields.descuentoTipo,
+  descuentoValor: fields.descuentoValor,
+  descuentoAfectaPagoEnfermera: fields.bool,
   procedure_ids: fields.ids,
   exam_ids: fields.ids,
   taller_ids: fields.ids,
@@ -551,9 +574,12 @@ export async function updateVisita(
   const {
     id, fecha, hora, idEnfermera,
     origenContacto, informacionAdicional, cobraVisita, montoInsumos,
+    descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     keyOrdenMedica,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
+
+  const descuentoValorFinal = cobraVisita ? descuentoValor : 0
 
   // Guard: cannot edit completed or terminal states
   const [current] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
@@ -580,7 +606,11 @@ export async function updateVisita(
     await db.transaction(async (tx) => {
       await tx
         .update(visits)
-        .set({ fecha, hora, idEnfermera, origenContacto, informacionAdicional, cobraVisita, montoInsumos, keyOrdenMedica, updatedAt: new Date() })
+        .set({
+          fecha, hora, idEnfermera, origenContacto, informacionAdicional, cobraVisita, montoInsumos,
+          descuentoTipo, descuentoValor: descuentoValorFinal, descuentoAfectaPagoEnfermera,
+          keyOrdenMedica, updatedAt: new Date(),
+        })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.
@@ -708,8 +738,11 @@ export async function createVisita(
   const {
     idPaciente, fecha, hora, idEnfermera,
     origenContacto, informacionAdicional, cobraVisita, montoInsumos,
+    descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
+
+  const descuentoValorFinal = cobraVisita ? descuentoValor : 0
 
   const tallerPrices = tallerIds.map((idTaller) => ({
     idTaller,
@@ -734,6 +767,7 @@ export async function createVisita(
         origenContacto, informacionAdicional,
         pagado: false, costoTraslado: 0,
         cobraVisita, montoInsumos,
+        descuentoTipo, descuentoValor: descuentoValorFinal, descuentoAfectaPagoEnfermera,
         })
         .returning()
 

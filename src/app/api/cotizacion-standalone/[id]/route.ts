@@ -12,7 +12,6 @@ import {
 import { eq } from 'drizzle-orm'
 import { formatDateLong, todaySantiago } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
-import { getPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
 import { esc, formatCotizacionId, buildCotizacionHTML, type CotizacionHTMLData } from '@/lib/cotizacion-html'
 
 export async function GET(
@@ -57,12 +56,8 @@ export async function GET(
       .where(eq(quotationSurcharges.idCotizacion, cotizacionId)),
   ])
 
-  const precioVisita = quotation.cobraVisita && quotation.comuna
-    ? (await getPrecioVisitaEnfermeria(db, quotation.comuna)) ?? 0
-    : 0
-
   const html = buildCotizacionHTML(mapToHTMLData({
-    quotation, examItems, isapreExamItems, procItems, tallerItems, patient: patientRow, surcharges: surchargesRows, precioVisita,
+    quotation, examItems, isapreExamItems, procItems, tallerItems, patient: patientRow, surcharges: surchargesRows,
   }))
 
   return new Response(html, {
@@ -75,7 +70,7 @@ export async function GET(
 type Item = { descripcion: string; codigo: string | null; precio: number }
 
 function mapToHTMLData({
-  quotation, examItems, isapreExamItems, procItems, tallerItems, patient, surcharges, precioVisita,
+  quotation, examItems, isapreExamItems, procItems, tallerItems, patient, surcharges,
 }: {
   quotation: {
     id: number
@@ -88,6 +83,8 @@ function mapToHTMLData({
     cobraVisita: boolean
     total: number | null
     montoInsumos: number
+    montoDescuento: number
+    montoVisitaOriginal: number
     notas: string | null
     createdAt: Date
   }
@@ -97,7 +94,6 @@ function mapToHTMLData({
   tallerItems: Item[]
   patient: { nombres: string; apellidoPaterno: string | null; apellidoMaterno: string | null; identificador: string | null; tipoIdentificador: string | null } | null
   surcharges: { label: string; precio: number }[]
-  precioVisita: number
 }): CotizacionHTMLData {
   const today = todaySantiago()
   const numeroDoc = formatCotizacionId(quotation.id)
@@ -142,8 +138,10 @@ function mapToHTMLData({
   if (subtotalExamenes > 0) subtotales.push({ label: 'Subtotal exámenes', amount: subtotalExamenes })
   if (subtotalProcedimientos > 0) subtotales.push({ label: 'Subtotal procedimientos', amount: subtotalProcedimientos })
   if (subtotalTalleres > 0) subtotales.push({ label: 'Subtotal talleres', amount: subtotalTalleres })
-  if (quotation.cobraVisita && precioVisita > 0)
-    subtotales.push({ label: `Visita de enfermería${quotation.comuna ? ` (${quotation.comuna})` : ''}`, amount: precioVisita })
+  if (quotation.cobraVisita && quotation.montoVisitaOriginal > 0)
+    subtotales.push({ label: `Visita de enfermería${quotation.comuna ? ` (${quotation.comuna})` : ''}`, amount: quotation.montoVisitaOriginal })
+  if (quotation.montoDescuento > 0)
+    subtotales.push({ label: 'Descuento visita', amount: -quotation.montoDescuento })
   for (const r of surcharges) {
     if (r.precio > 0) subtotales.push({ label: r.label, amount: r.precio })
   }

@@ -323,7 +323,15 @@ function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
                 <Home className="w-[13px] h-[13px]" style={{ color: 'var(--muted-foreground)' }} />
                 Visita de enfermería
               </span>
-              <span className="tabular-nums">{CLP(v.precioVisita ?? 0)}</span>
+              <span className="tabular-nums">
+                {CLP(v.montoDescuento > 0 ? v.montoVisitaOriginal : v.precioVisita ?? 0)}
+              </span>
+            </div>
+          )}
+          {v.montoDescuento > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px]" style={{ background: 'var(--muted)', color: 'oklch(0.55 0.18 25)' }}>
+              <span>Descuento visita</span>
+              <span className="tabular-nums">-{CLP(v.montoDescuento)}</span>
             </div>
           )}
           {v.surcharges.map((s) => (

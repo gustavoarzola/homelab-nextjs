@@ -358,10 +358,10 @@ function SummaryGroup({
         <span className="text-[12px] font-medium tabular-nums">{CLP(subtotal)}</span>
       </div>
       <ul className="space-y-0.5 pl-3.5">
-        {items.filter((i) => i.price > 0).map((item, idx) => (
-          <li key={idx} className="flex items-baseline justify-between gap-2 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+        {items.filter((i) => i.price !== 0).map((item, idx) => (
+          <li key={idx} className="flex items-baseline justify-between gap-2 text-[12px]" style={{ color: item.price < 0 ? 'oklch(0.55 0.18 25)' : 'var(--muted-foreground)' }}>
             <span className="truncate">{item.name}</span>
-            <span className="shrink-0 tabular-nums">{CLP(item.price)}</span>
+            <span className="shrink-0 tabular-nums">{item.price < 0 ? `-${CLP(Math.abs(item.price))}` : CLP(item.price)}</span>
           </li>
         ))}
       </ul>
@@ -419,6 +419,12 @@ export function VisitaForm({
   const [cobraVisita, setCobraVisita] = useState(visita?.cobraVisita ?? false)
   const [selectedSurcharges, setSelectedSurcharges] = useState<number[]>(visita?.surchargeIds ?? [])
   const [montoInsumos, setMontoInsumos] = useState(String(visita?.montoInsumos ?? 0))
+  const [aplicaDescuento, setAplicaDescuento] = useState((visita?.descuentoValor ?? 0) > 0)
+  const [descuentoTipo, setDescuentoTipo] = useState<'monto' | 'porcentaje'>(visita?.descuentoTipo ?? 'monto')
+  const [descuentoValor, setDescuentoValor] = useState(String(visita?.descuentoValor ?? 0))
+  const [descuentoAfectaPagoEnfermera, setDescuentoAfectaPagoEnfermera] = useState(
+    visita?.descuentoAfectaPagoEnfermera ?? false,
+  )
 
   // Orden médica
   const [keyOrdenMedica, setKeyOrdenMedica] = useState<string | null>(visita?.keyOrdenMedica ?? null)
@@ -438,6 +444,9 @@ export function VisitaForm({
     selectedSurcharges.forEach((id) => fd.append('surcharge_ids', String(id)))
     fd.set('cobraVisita', String(cobraVisita))
     fd.set('montoInsumos', montoInsumos)
+    fd.set('descuentoTipo', descuentoTipo)
+    fd.set('descuentoValor', aplicaDescuento ? descuentoValor : '0')
+    fd.set('descuentoAfectaPagoEnfermera', String(descuentoAfectaPagoEnfermera))
 
     startTransition(async () => {
       const result = await onSubmit(fd)
@@ -483,9 +492,11 @@ export function VisitaForm({
         valorPagar: e.tipo === 'isapre' ? (Number(e.valorPagar.replace(/[^\d]/g, '')) || 0) : 0,
       })),
       montoInsumos: parseInt(montoInsumos) || 0,
+      descuentoTipo,
+      descuentoValor: aplicaDescuento ? parseInt(descuentoValor) || 0 : 0,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedProcedures, examGroups, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, selectedSurcharges, tiposRecargos, montoInsumos],
+    [selectedProcedures, examGroups, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, selectedSurcharges, tiposRecargos, montoInsumos, aplicaDescuento, descuentoTipo, descuentoValor],
   )
 
   // Compute which tabs have undismissed price warnings (for warning dot)
@@ -951,8 +962,13 @@ export function VisitaForm({
                       <label htmlFor="cobraVisita" className="cursor-pointer text-[13px] font-medium leading-tight" style={{ color: 'var(--foreground)' }}>
                         Cobrar visita
                       </label>
-                      {cobraVisita && costoPreview.costoVisitaEnfermeria > 0 && (
+                      {cobraVisita && costoPreview.costoVisitaEnfermeriaOriginal > 0 && (
                         <span className="shrink-0 text-[13px] font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
+                          {costoPreview.montoDescuento > 0 && (
+                            <span className="mr-1.5 font-normal line-through" style={{ color: 'var(--muted-foreground)' }}>
+                              {CLP(costoPreview.costoVisitaEnfermeriaOriginal)}
+                            </span>
+                          )}
                           {CLP(costoPreview.costoVisitaEnfermeria)}
                         </span>
                       )}
@@ -965,6 +981,71 @@ export function VisitaForm({
                     </p>
                   </div>
                 </div>
+
+                {cobraVisita && (
+                  <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="aplicaDescuento"
+                        checked={aplicaDescuento}
+                        onCheckedChange={(checked) => setAplicaDescuento(checked === true)}
+                        disabled={isPending}
+                        className="mt-0.5"
+                      />
+                      <label htmlFor="aplicaDescuento" className="cursor-pointer text-[13px] font-medium leading-tight" style={{ color: 'var(--foreground)' }}>
+                        Aplicar descuento
+                      </label>
+                    </div>
+
+                    {aplicaDescuento && (
+                      <div className="mt-3 space-y-3 pl-7">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={descuentoTipo}
+                            onChange={(e) => setDescuentoTipo(e.target.value as 'monto' | 'porcentaje')}
+                            disabled={isPending}
+                            className="rounded border px-2 py-1.5 text-[13px] outline-none"
+                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                          >
+                            <option value="monto">Monto fijo</option>
+                            <option value="porcentaje">Porcentaje</option>
+                          </select>
+                          <div
+                            className="flex flex-1 items-center gap-1 rounded border px-2 py-1.5"
+                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
+                          >
+                            <span className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>
+                              {descuentoTipo === 'porcentaje' ? '%' : '$'}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              max={descuentoTipo === 'porcentaje' ? 100 : undefined}
+                              value={descuentoValor}
+                              onChange={(e) => setDescuentoValor(e.target.value)}
+                              placeholder="0"
+                              disabled={isPending}
+                              className="w-full bg-transparent text-[13px] tabular-nums outline-none"
+                              style={{ color: 'var(--foreground)' }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id="descuentoAfectaPagoEnfermera"
+                            checked={descuentoAfectaPagoEnfermera}
+                            onCheckedChange={(checked) => setDescuentoAfectaPagoEnfermera(checked === true)}
+                            disabled={isPending}
+                            className="mt-0.5"
+                          />
+                          <label htmlFor="descuentoAfectaPagoEnfermera" className="cursor-pointer text-[12px] leading-tight" style={{ color: 'var(--muted-foreground)' }}>
+                            Afecta el pago de la enfermera (si no está marcado, la enfermera cobra sobre el valor original de la visita)
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Recargos */}
@@ -1154,7 +1235,8 @@ export function VisitaForm({
                 tone="amber"
                 label="Adicionales"
                 items={[
-                  ...(cobraVisita ? [{ name: `Visita enfermería`, price: costoPreview.costoVisitaEnfermeria }] : []),
+                  ...(cobraVisita ? [{ name: `Visita enfermería`, price: costoPreview.costoVisitaEnfermeriaOriginal }] : []),
+                  ...(costoPreview.montoDescuento > 0 ? [{ name: 'Descuento visita', price: -costoPreview.montoDescuento }] : []),
                   ...selectedSurcharges.map((id) => {
                     const tipo = tiposRecargos.find((t) => t.id === id)
                     const precio = visita?.surchargePrices.find((s) => s.idTipoRecargo === id)?.precio ?? tipo?.precio ?? 0

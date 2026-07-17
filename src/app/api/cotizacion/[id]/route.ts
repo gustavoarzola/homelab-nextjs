@@ -88,8 +88,10 @@ function mapToHTMLData(data: CotizacionVisita): CotizacionHTMLData {
     subtotales.push({ label: 'Subtotal procedimientos', amount: subtotalProc })
   if (data.subtotalTalleres > 0)
     subtotales.push({ label: 'Subtotal talleres', amount: data.subtotalTalleres })
-  if (data.costoVisitaEnfermeria > 0)
-    subtotales.push({ label: 'Visita de enfermería', amount: data.costoVisitaEnfermeria })
+  if (data.costoVisitaEnfermeriaOriginal > 0)
+    subtotales.push({ label: 'Visita de enfermería', amount: data.costoVisitaEnfermeriaOriginal })
+  if (data.montoDescuento > 0)
+    subtotales.push({ label: 'Descuento visita', amount: -data.montoDescuento })
   for (const r of data.recargos) {
     if (r.precio > 0) subtotales.push({ label: r.nombre, amount: r.precio })
   }
