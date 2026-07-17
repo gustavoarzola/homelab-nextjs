@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import {
   addresses,
-  examPrices,
   exams,
   healthInsurances,
   nursingVisitPrices,
@@ -33,7 +32,6 @@ const created = {
   healthInsurances: [] as number[],
   procedures: [] as number[],
   exams: [] as number[],
-  examPrices: [] as number[],
   nursingVisitPrices: [] as number[],
   visits: [] as number[],
 }
@@ -41,7 +39,6 @@ const created = {
 afterEach(async () => {
   await Promise.all([
     created.visits.length ? db.delete(visits).where(inArray(visits.id, created.visits)) : null,
-    created.examPrices.length ? db.delete(examPrices).where(inArray(examPrices.id, created.examPrices)) : null,
     created.nursingVisitPrices.length
       ? db.delete(nursingVisitPrices).where(inArray(nursingVisitPrices.id, created.nursingVisitPrices))
       : null,
@@ -65,7 +62,6 @@ afterEach(async () => {
   created.healthInsurances = []
   created.procedures = []
   created.exams = []
-  created.examPrices = []
   created.nursingVisitPrices = []
   created.visits = []
 })
@@ -113,15 +109,9 @@ async function seedProcedimiento(precio = 10000) {
 async function seedExamen(precioBase = 5000) {
   const [exam] = await db
     .insert(exams)
-    .values({ nombre: unique('Examen'), codigo: unique('EX') })
+    .values({ nombre: unique('Examen'), codigo: unique('EX'), precio: precioBase })
     .returning()
   created.exams.push(exam!.id)
-
-  const [price] = await db
-    .insert(examPrices)
-    .values({ idExamen: exam!.id, tipoPrevision: 'fonasa', comuna: null, precio: precioBase })
-    .returning()
-  created.examPrices.push(price!.id)
 
   return exam!
 }
@@ -143,10 +133,10 @@ async function seedOrUsePrecioBase(precio: number) {
   return seedPrecioVisita(null, precio)
 }
 
-async function seedVisita(idPaciente: number, montoInsumos = 0) {
+async function seedVisita(idPaciente: number, montoInsumos = 0, cobraVisita = false) {
   const [visit] = await db
     .insert(visits)
-    .values({ fecha: '2026-05-05', idPaciente, costo: 999999, montoInsumos })
+    .values({ fecha: '2026-05-05', idPaciente, costo: 999999, montoInsumos, cobraVisita })
     .returning()
   created.visits.push(visit!.id)
   return visit!
@@ -189,7 +179,7 @@ describe('calcularCostoVisitaPersistida', () => {
     const comuna = unique('ComunaSoloExam')
     const patient = await seedPaciente(comuna)
     const exam = await seedExamen()
-    const visit = await seedVisita(patient.id)
+    const visit = await seedVisita(patient.id, 0, true)
     await seedPrecioVisita(comuna, 42000)
     await addExam(visit.id, exam.id, 9000)
 
@@ -202,7 +192,7 @@ describe('calcularCostoVisitaPersistida', () => {
   it('usa precio base cuando no hay precio por comuna', async () => {
     const patient = await seedPaciente(unique('ComunaSinPrecio'))
     const exam = await seedExamen()
-    const visit = await seedVisita(patient.id)
+    const visit = await seedVisita(patient.id, 0, true)
     const precioBase = await seedOrUsePrecioBase(25000)
     await addExam(visit.id, exam.id, 7000)
 
@@ -257,24 +247,25 @@ describe('createVisita/updateVisita costo calculado', () => {
     await seedPrecioVisita(comuna, 44000)
 
     const result = await createVisita(
-      visitaForm({ idPaciente: patient.id, fecha: '2026-05-05', costo: 999999 }, [], [exam.id]),
+      visitaForm({ idPaciente: patient.id, fecha: '2026-05-05', costo: 999999, cobraVisita: 'true' }, [], [exam.id]),
     )
 
     expect(result.success).toBe(true)
-    created.visits.push(result.id)
+    const createdId = (result as { success: true; data: { id: number } }).data.id
+    created.visits.push(createdId)
 
-    const [visit] = await db.select({ costo: visits.costo }).from(visits).where(eq(visits.id, result.id))
+    const [visit] = await db.select({ costo: visits.costo }).from(visits).where(eq(visits.id, createdId))
     expect(visit!.costo).toBe(50000)
   })
 
   it('updateVisita ignora costo enviado y guarda total calculado', async () => {
     const patient = await seedPaciente(unique('ComunaUpdate'))
     const exam = await seedExamen(11000)
-    const visit = await seedVisita(patient.id)
+    const visit = await seedVisita(patient.id, 0, true)
     const precioBase = await seedOrUsePrecioBase(27000)
 
     const result = await updateVisita(
-      visitaForm({ id: visit.id, idPaciente: patient.id, fecha: '2026-05-06', costo: 999999 }, [], [exam.id]),
+      visitaForm({ id: visit.id, idPaciente: patient.id, fecha: '2026-05-06', costo: 999999, cobraVisita: 'true' }, [], [exam.id]),
     )
 
     expect(result.success).toBe(true)
@@ -285,22 +276,7 @@ describe('createVisita/updateVisita costo calculado', () => {
 })
 
 describe('getVisitaFormPricingContext', () => {
-  it('usa precio de examen por comuna sobre precio base', async () => {
-    const comuna = unique('ComunaCtxExam')
-    const patient = await seedPaciente(comuna)
-    const exam = await seedExamen(5000)
-    const [specific] = await db
-      .insert(examPrices)
-      .values({ idExamen: exam.id, tipoPrevision: 'fonasa', comuna, precio: 9000 })
-      .returning()
-    created.examPrices.push(specific!.id)
-
-    const context = await getVisitaFormPricingContext(patient.id, [exam.id])
-
-    expect(context.examPrices).toEqual([{ idExamen: exam.id, precioActual: 9000 }])
-  })
-
-  it('usa precio base de examen si no hay precio por comuna', async () => {
+  it('usa el precio del examen', async () => {
     const patient = await seedPaciente(unique('ComunaCtxExamBase'))
     const exam = await seedExamen(6500)
 

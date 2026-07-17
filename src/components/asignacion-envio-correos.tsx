@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Mail, Loader2, AlertCircle, Calendar } from 'lucide-react'
-import { getVisitasAsignadasPorEnfermera, sendScheduledVisitsEmail, sendAllScheduledVisitsEmails } from '@/lib/actions/visitas-asignacion-email'
-import type { EnfermeraConVisitas } from '@/lib/actions/visitas-asignacion-email'
+import Link from 'next/link'
+import { Mail, Loader2, AlertCircle, Calendar, ExternalLink } from 'lucide-react'
+import { getVisitasAsignadasPorEnfermera, getVisitasSinAsignarPorFecha, sendScheduledVisitsEmail, sendAllScheduledVisitsEmails } from '@/lib/actions/visitas-asignacion-email'
+import type { EnfermeraConVisitas, VisitaSinAsignar } from '@/lib/actions/visitas-asignacion-email'
 import { formatDateLong } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { FormDatePicker } from '@/components/form-date-picker'
@@ -12,12 +13,14 @@ import { toast } from 'sonner'
 type Props = {
   initialFecha: string
   initialEnfermeras: EnfermeraConVisitas[]
+  initialVisitasSinAsignar: VisitaSinAsignar[]
 }
 
-export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras }: Props) {
+export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initialVisitasSinAsignar }: Props) {
   const [fecha, setFecha] = useState(initialFecha)
   const [fechaBuscada, setFechaBuscada] = useState(initialFecha)
   const [enfermeras, setEnfermeras] = useState(initialEnfermeras)
+  const [visitasSinAsignar, setVisitasSinAsignar] = useState(initialVisitasSinAsignar)
   const [isPending, startTransition] = useTransition()
   const [loading, setLoading] = useState(false)
 
@@ -25,11 +28,15 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras }: Prop
     setLoading(true)
     startTransition(async () => {
       try {
-        const result = await getVisitasAsignadasPorEnfermera(fecha)
+        const [result, sinAsignar] = await Promise.all([
+          getVisitasAsignadasPorEnfermera(fecha),
+          getVisitasSinAsignarPorFecha(fecha),
+        ])
         setEnfermeras(result)
+        setVisitasSinAsignar(sinAsignar)
         setFechaBuscada(fecha)
-        if (result.length === 0) {
-          toast.info('No hay visitas asignadas para esta fecha')
+        if (result.length === 0 && sinAsignar.length === 0) {
+          toast.info('No hay visitas para esta fecha')
         }
       } catch (error) {
         toast.error('Error al buscar visitas')
@@ -120,6 +127,37 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras }: Prop
           </button>
         </div>
       </div>
+
+      {/* Visitas sin asignar */}
+      {visitasSinAsignar.length > 0 && (
+        <div
+          className="rounded-lg border p-4"
+          style={{ backgroundColor: 'var(--card)', borderColor: 'var(--destructive)' }}
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2" style={{ color: 'var(--destructive)' }}>
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <p className="text-sm font-medium">
+                {visitasSinAsignar.length} visita(s) confirmada(s) sin enfermera asignada — no se podrán enviar
+              </p>
+            </div>
+            <Link
+              href="/asignacion"
+              className="flex shrink-0 items-center gap-1 text-xs transition-opacity hover:opacity-70"
+              style={{ color: 'var(--primary)' }}
+            >
+              Ir a asignar <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
+          <ul className="mt-2 space-y-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+            {visitasSinAsignar.map((v) => (
+              <li key={v.id}>
+                {v.hora ? `${v.hora} — ` : ''}{v.pacienteNombre}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Resumen */}
       {enfermeras.length > 0 && (

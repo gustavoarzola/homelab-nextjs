@@ -7,7 +7,7 @@ import {
   healthInsurances, patientPhones,
   visitWorkshops, workshops, visitSurcharges, elderlyResidences, surchargeTypes,
 } from '@/db/schema'
-import { eq, and, inArray, asc } from 'drizzle-orm'
+import { eq, and, inArray, asc, isNull } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { formatDateFull, formatDateLong, formatDate, parseDateLocal } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
@@ -56,6 +56,12 @@ export type EnfermeraConVisitas = {
   apellidoPaterno: string
   correo: string | null
   visitas: VisitaConDetalles[]
+}
+
+export type VisitaSinAsignar = {
+  id: number
+  hora: string | null
+  pacienteNombre: string
 }
 
 export type Result = { success: boolean; error?: string }
@@ -109,6 +115,39 @@ export async function getVisitasAsignadasPorEnfermera(
     apellidoPaterno: nurse.apellidoPaterno,
     correo: nurse.correo,
     visitas: visitasPorEnfermera.get(nurse.id) ?? [],
+  }))
+}
+
+// ─── getVisitasSinAsignarPorFecha ─────────────────────────────────────────────
+
+export async function getVisitasSinAsignarPorFecha(fecha: string): Promise<VisitaSinAsignar[]> {
+  await requireSession()
+
+  const rows = await db
+    .select({
+      id: visits.id,
+      hora: visits.hora,
+      pacienteNombres: patients.nombres,
+      pacienteApellidoPaterno: patients.apellidoPaterno,
+      pacienteApellidoMaterno: patients.apellidoMaterno,
+    })
+    .from(visits)
+    .leftJoin(patients, eq(visits.idPaciente, patients.id))
+    .where(and(
+      eq(visits.fecha, fecha),
+      eq(visits.estado, ESTADO_VISITA_ENVIO_CORREO),
+      isNull(visits.idEnfermera),
+    ))
+    .orderBy(asc(visits.hora))
+
+  return rows.map((v) => ({
+    id: v.id,
+    hora: v.hora,
+    pacienteNombre: formatNombre({
+      nombres: v.pacienteNombres,
+      apellidoPaterno: v.pacienteApellidoPaterno,
+      apellidoMaterno: v.pacienteApellidoMaterno,
+    }),
   }))
 }
 

@@ -161,7 +161,7 @@ describe('createExamen', () => {
     const nombre = `${P}Hemograma`
     const codigo = `${P}HEM-001`
 
-    const result = await createExamen(fd({ nombre, codigo }))
+    const result = await createExamen(fd({ nombre, codigo, grupoExamen: 'imalab' }))
     expect(result.success).toBe(true)
 
     const [row] = await db.select().from(exams).where(eq(exams.nombre, nombre))
@@ -189,7 +189,7 @@ describe('updateExamen', () => {
     const nuevoCodigo = `${P}EX-002`
 
     const result = await updateExamen(
-      fd({ id: exam.id, nombre: nuevoNombre, codigo: nuevoCodigo })
+      fd({ id: exam.id, nombre: nuevoNombre, codigo: nuevoCodigo, grupoExamen: 'imalab' })
     )
     expect(result.success).toBe(true)
 
