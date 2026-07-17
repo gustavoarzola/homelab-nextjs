@@ -45,3 +45,6 @@ Thumbs.db
 
 *.tsbuildinfo
 tsconfig.tsbuildinfo
+.vercel/
+.env.prod
+
