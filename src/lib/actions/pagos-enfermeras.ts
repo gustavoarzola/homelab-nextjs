@@ -83,6 +83,7 @@ export async function searchPagosEnfermerasMensual(
       sumWorkshops: sql<string>`SUM(COALESCE(${sqWorkshops.total}, 0))`,
       sumSurcharges: sql<string>`SUM(COALESCE(${sqSurcharges.total}, 0))`,
       sumInsumos: sql<string>`SUM(${visits.montoInsumos})`,
+      sumDescuentoRevertido: sql<string>`SUM(CASE WHEN ${visits.descuentoAfectaPagoEnfermera} THEN 0 ELSE ${visits.montoDescuento} END)`,
       porcentaje: nurses.porcentajePago,
     })
     .from(visits)
@@ -102,9 +103,10 @@ export async function searchPagosEnfermerasMensual(
     const workshopSum = Number(r.sumWorkshops)
     const surchargeSum = Number(r.sumSurcharges)
     const insumosSum = Number(r.sumInsumos)
-    const base = calcNursePaymentBase(costo, examSum, workshopSum, insumosSum)
+    const descuentoRevertido = Number(r.sumDescuentoRevertido)
+    const base = calcNursePaymentBase(costo, examSum, workshopSum, insumosSum, descuentoRevertido, false)
     const porcentaje = Number(r.porcentaje ?? 67.5)
-    const montoVisitas = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum - insumosSum)
+    const montoVisitas = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum - insumosSum + descuentoRevertido)
 
     return {
       enfermeraId: r.enfermeraId,
@@ -197,6 +199,9 @@ export async function getPagoEnfermeraDetalle(
         workshopSum: sql<string>`COALESCE(${sqWorkshops.total}, 0)`,
         surchargeSum: sql<string>`COALESCE(${sqSurcharges.total}, 0)`,
         insumosSum: visits.montoInsumos,
+        montoDescuento: visits.montoDescuento,
+        montoVisitaOriginal: visits.montoVisitaOriginal,
+        descuentoAfectaPagoEnfermera: visits.descuentoAfectaPagoEnfermera,
         porcentaje: nurses.porcentajePago,
       })
       .from(visits)
@@ -237,8 +242,12 @@ export async function getPagoEnfermeraDetalle(
     const workshopSum = Number(r.workshopSum)
     const surchargeSum = Number(r.surchargeSum)
     const insumosSum = Number(r.insumosSum)
-    const base = calcNursePaymentBase(costo, examSum, workshopSum, insumosSum)
-    const feeVisita = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum - insumosSum)
+    const montoDescuento = Number(r.montoDescuento)
+    const montoVisitaOriginal = Number(r.montoVisitaOriginal)
+    const descuentoAfectaPagoEnfermera = r.descuentoAfectaPagoEnfermera
+    const base = calcNursePaymentBase(costo, examSum, workshopSum, insumosSum, montoDescuento, descuentoAfectaPagoEnfermera)
+    const feeVisitaNeto = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum - insumosSum)
+    const feeVisita = descuentoAfectaPagoEnfermera ? feeVisitaNeto : montoVisitaOriginal
 
     return {
       id: r.id,

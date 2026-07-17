@@ -19,7 +19,10 @@ import { P } from './helpers'
 vi.mock('@/auth', () => ({
   auth: vi.fn(async () => ({ user: { id: 'test-user' } })),
 }))
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  unstable_cache: (fn: any) => fn,
+}))
 
 import { calcularCostoVisitaPersistida } from '@/lib/pricing/visitas'
 import { createVisita, getVisitaFormPricingContext, updateVisita } from '../visitas'

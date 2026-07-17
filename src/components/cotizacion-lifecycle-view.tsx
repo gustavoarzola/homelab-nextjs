@@ -306,7 +306,18 @@ function QuoteSummary({ cot }: { cot: CotizacionVista }) {
                   <Home className="w-[13px] h-[13px]" style={{ color: 'var(--muted-foreground)' }} />
                   Visita de enfermería · <strong>{cot.comuna}</strong>
                 </span>
-                <span className="tabular-nums font-medium">{CLP(cot.precioVisita)}</span>
+                <span className="tabular-nums font-medium">
+                  {CLP(cot.montoDescuento > 0 ? cot.montoVisitaOriginal : cot.precioVisita)}
+                </span>
+              </div>
+            )}
+            {cot.montoDescuento > 0 && (
+              <div
+                className="flex items-center justify-between px-3 py-2 rounded-lg text-[13px]"
+                style={{ background: 'var(--muted)', color: 'oklch(0.55 0.18 25)' }}
+              >
+                <span>Descuento visita</span>
+                <span className="tabular-nums font-medium">-{CLP(cot.montoDescuento)}</span>
               </div>
             )}
             {cot.surcharges.map((s) => (

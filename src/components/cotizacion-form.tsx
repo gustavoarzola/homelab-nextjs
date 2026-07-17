@@ -24,6 +24,7 @@ import { formatNombre } from '@/lib/paciente'
 import { COMUNAS_OPTIONS, COMUNAS_RM } from '@/lib/comunas'
 import { EXAM_GRUPO_META } from '@/lib/exam-grupos'
 import type { CotizacionDetalle } from '@/lib/actions/cotizaciones'
+import { resolverMontoDescuento } from '@/lib/pricing/descuento'
 import type { TallerRow, IsaprePrevisionRow, ExamenRow } from '@/lib/actions/catalogos'
 import { toast } from 'sonner'
 
@@ -138,6 +139,12 @@ export function CotizacionForm({
   const [selectedSurcharges, setSelectedSurcharges] = useState<number[]>(cotizacion?.surchargeIds ?? [])
   const [montoInsumos, setMontoInsumos] = useState(String(cotizacion?.montoInsumos ?? 0))
   const [notas, setNotas] = useState(cotizacion?.notas ?? '')
+  const [aplicaDescuento, setAplicaDescuento] = useState((cotizacion?.descuentoValor ?? 0) > 0)
+  const [descuentoTipo, setDescuentoTipo] = useState<'monto' | 'porcentaje'>(cotizacion?.descuentoTipo ?? 'monto')
+  const [descuentoValor, setDescuentoValor] = useState(String(cotizacion?.descuentoValor ?? 0))
+  const [descuentoAfectaPagoEnfermera, setDescuentoAfectaPagoEnfermera] = useState(
+    cotizacion?.descuentoAfectaPagoEnfermera ?? false,
+  )
 
   const showManualFields = !selectedIdPaciente
 
@@ -146,6 +153,14 @@ export function CotizacionForm({
     if (!comunaNombre) return preciosVisita['__base__'] ?? 0
     return preciosVisita[comunaNombre] ?? preciosVisita['__base__'] ?? 0
   }, [cobraVisita, comunaNombre, preciosVisita])
+
+  const montoDescuento = useMemo(
+    () => cobraVisita && aplicaDescuento
+      ? resolverMontoDescuento(precioVisita, descuentoTipo, parseInt(descuentoValor) || 0)
+      : 0,
+    [cobraVisita, aplicaDescuento, precioVisita, descuentoTipo, descuentoValor],
+  )
+  const precioVisitaNeto = Math.max(0, precioVisita - montoDescuento)
 
   const totalProcedimientos = useMemo(() =>
     selectedProcedures.reduce((sum, id) => sum + (procedimientos.find((p) => p.id === id)?.precio ?? 0), 0),
@@ -179,7 +194,7 @@ export function CotizacionForm({
     [selectedSurcharges, cotizacion, tiposRecargos]
   )
   const montoInsumosNum = parseInt(montoInsumos) || 0
-  const totalGeneral = totalProcedimientos + totalExamenes + totalTalleres + precioVisita + totalRecargos + montoInsumosNum
+  const totalGeneral = totalProcedimientos + totalExamenes + totalTalleres + precioVisitaNeto + totalRecargos + montoInsumosNum
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -196,6 +211,9 @@ export function CotizacionForm({
     fd.set('comuna', comunaNombre)
     fd.set('cobraVisita', String(cobraVisita))
     fd.set('montoInsumos', montoInsumos)
+    fd.set('descuentoTipo', descuentoTipo)
+    fd.set('descuentoValor', aplicaDescuento ? descuentoValor : '0')
+    fd.set('descuentoAfectaPagoEnfermera', String(descuentoAfectaPagoEnfermera))
     selectedSurcharges.forEach((id) => fd.append('surcharge_ids', String(id)))
     fd.set('idPaciente', selectedIdPaciente ? String(selectedIdPaciente) : '')
     fd.set('nombreDestinatario', nombreDestinatario)
@@ -653,7 +671,12 @@ export function CotizacionForm({
                       </label>
                       {cobraVisita && precioVisita > 0 && (
                         <span className="shrink-0 text-[13px] font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
-                          {CLP(precioVisita)}
+                          {montoDescuento > 0 && (
+                            <span className="mr-1.5 font-normal line-through" style={{ color: 'var(--muted-foreground)' }}>
+                              {CLP(precioVisita)}
+                            </span>
+                          )}
+                          {CLP(precioVisitaNeto)}
                         </span>
                       )}
                     </div>
@@ -665,6 +688,71 @@ export function CotizacionForm({
                     </p>
                   </div>
                 </div>
+
+                {cobraVisita && (
+                  <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="aplicaDescuento"
+                        checked={aplicaDescuento}
+                        onCheckedChange={(checked) => setAplicaDescuento(checked === true)}
+                        disabled={isPending}
+                        className="mt-0.5"
+                      />
+                      <label htmlFor="aplicaDescuento" className="cursor-pointer text-[13px] font-medium leading-tight" style={{ color: 'var(--foreground)' }}>
+                        Aplicar descuento
+                      </label>
+                    </div>
+
+                    {aplicaDescuento && (
+                      <div className="mt-3 space-y-3 pl-7">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={descuentoTipo}
+                            onChange={(e) => setDescuentoTipo(e.target.value as 'monto' | 'porcentaje')}
+                            disabled={isPending}
+                            className="rounded border px-2 py-1.5 text-[13px] outline-none"
+                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+                          >
+                            <option value="monto">Monto fijo</option>
+                            <option value="porcentaje">Porcentaje</option>
+                          </select>
+                          <div
+                            className="flex flex-1 items-center gap-1 rounded border px-2 py-1.5"
+                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
+                          >
+                            <span className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>
+                              {descuentoTipo === 'porcentaje' ? '%' : '$'}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              max={descuentoTipo === 'porcentaje' ? 100 : undefined}
+                              value={descuentoValor}
+                              onChange={(e) => setDescuentoValor(e.target.value)}
+                              placeholder="0"
+                              disabled={isPending}
+                              className="w-full bg-transparent text-[13px] tabular-nums outline-none"
+                              style={{ color: 'var(--foreground)' }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id="descuentoAfectaPagoEnfermera"
+                            checked={descuentoAfectaPagoEnfermera}
+                            onCheckedChange={(checked) => setDescuentoAfectaPagoEnfermera(checked === true)}
+                            disabled={isPending}
+                            className="mt-0.5"
+                          />
+                          <label htmlFor="descuentoAfectaPagoEnfermera" className="cursor-pointer text-[12px] leading-tight" style={{ color: 'var(--muted-foreground)' }}>
+                            Afecta el pago de la enfermera (si no está marcado, la enfermera cobra sobre el valor original de la visita)
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Recargos */}
@@ -859,6 +947,7 @@ export function CotizacionForm({
                 label="Adicionales"
                 items={[
                   ...(cobraVisita ? [{ name: `Visita${comunaNombre ? ` · ${comunaNombre}` : ''}`, price: precioVisita }] : []),
+                  ...(montoDescuento > 0 ? [{ name: 'Descuento visita', price: -montoDescuento }] : []),
                   ...selectedSurcharges.map((id) => {
                     const tipo = tiposRecargos.find((t) => t.id === id)
                     const precio = cotizacion?.surchargePrices?.find((s) => s.idTipoRecargo === id)?.precio ?? tipo?.precio ?? 0
@@ -866,7 +955,7 @@ export function CotizacionForm({
                   }),
                   ...(montoInsumosNum > 0 ? [{ name: 'Insumos', price: montoInsumosNum }] : []),
                 ]}
-                subtotal={(cobraVisita ? precioVisita : 0) + totalRecargos + montoInsumosNum}
+                subtotal={(cobraVisita ? precioVisitaNeto : 0) + totalRecargos + montoInsumosNum}
               />
             </div>
 
@@ -1118,18 +1207,18 @@ function SummaryGroup({
         <span className="text-[12px] font-medium tabular-nums">{CLP(subtotal)}</span>
       </div>
       <ul className="space-y-0.5 pl-3.5">
-        {items.filter((i) => i.price > 0).map((item, idx) => (
+        {items.filter((i) => i.price !== 0).map((item, idx) => (
           <li
             key={idx}
             className="flex items-baseline justify-between gap-2 text-[12px]"
-            style={{ color: 'var(--muted-foreground)' }}
+            style={{ color: item.price < 0 ? 'oklch(0.55 0.18 25)' : 'var(--muted-foreground)' }}
           >
             {'code' in item ? (
               <ExamLabel codigo={item.code} nombre={item.nombre} grupoExamen={item.grupoExamen} />
             ) : (
               <span className="truncate">{item.name}</span>
             )}
-            <span className="shrink-0 tabular-nums">{CLP(item.price)}</span>
+            <span className="shrink-0 tabular-nums">{item.price < 0 ? `-${CLP(Math.abs(item.price))}` : CLP(item.price)}</span>
           </li>
         ))}
       </ul>

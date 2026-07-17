@@ -12,12 +12,16 @@ import {
 } from '@/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 
+import { resolverMontoDescuento, type DescuentoTipo } from '@/lib/pricing/descuento'
+
 export type CostoVisitaCalculado = {
   subtotalProcedimientos: number
   subtotalExamenes: number
   subtotalTalleres: number
   subtotalRecargos: number
   costoVisitaEnfermeria: number
+  costoVisitaEnfermeriaOriginal: number
+  montoDescuento: number
   montoInsumos: number
   total: number
   aplicaVisitaEnfermeria: boolean
@@ -61,7 +65,13 @@ export async function calcularCostoVisitaPersistida(
     conn.select({ precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, idVisita)),
     conn.select({ precio: visitSurcharges.precio }).from(visitSurcharges).where(eq(visitSurcharges.idVisita, idVisita)),
     conn
-      .select({ comuna: addresses.areaAdministrativa3, cobraVisita: visits.cobraVisita, montoInsumos: visits.montoInsumos })
+      .select({
+        comuna: addresses.areaAdministrativa3,
+        cobraVisita: visits.cobraVisita,
+        montoInsumos: visits.montoInsumos,
+        descuentoTipo: visits.descuentoTipo,
+        descuentoValor: visits.descuentoValor,
+      })
       .from(visits)
       .leftJoin(patients, eq(visits.idPaciente, patients.id))
       .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
@@ -78,7 +88,13 @@ export async function calcularCostoVisitaPersistida(
   const precioVisita = aplicaVisitaEnfermeria
     ? await getPrecioVisitaEnfermeria(conn, visitaPaciente?.comuna ?? null)
     : null
-  const costoVisitaEnfermeria = precioVisita ?? 0
+  const costoVisitaEnfermeriaOriginal = precioVisita ?? 0
+  const descuentoTipo = (visitaPaciente?.descuentoTipo ?? 'monto') as DescuentoTipo
+  const descuentoValor = visitaPaciente?.descuentoValor ?? 0
+  const montoDescuento = aplicaVisitaEnfermeria
+    ? resolverMontoDescuento(costoVisitaEnfermeriaOriginal, descuentoTipo, descuentoValor)
+    : 0
+  const costoVisitaEnfermeria = Math.max(0, costoVisitaEnfermeriaOriginal - montoDescuento)
   const montoInsumos = visitaPaciente?.montoInsumos ?? 0
 
   return {
@@ -87,6 +103,8 @@ export async function calcularCostoVisitaPersistida(
     subtotalTalleres,
     subtotalRecargos,
     costoVisitaEnfermeria,
+    costoVisitaEnfermeriaOriginal,
+    montoDescuento,
     montoInsumos,
     total: subtotalProcedimientos + subtotalExamenes + subtotalIsapreExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos + montoInsumos,
     aplicaVisitaEnfermeria,
@@ -102,7 +120,12 @@ export async function actualizarCostoVisitaPersistida(
 
   await conn
     .update(visits)
-    .set({ costo: costo.total, updatedAt: new Date() })
+    .set({
+      costo: costo.total,
+      montoDescuento: costo.montoDescuento,
+      montoVisitaOriginal: costo.costoVisitaEnfermeriaOriginal,
+      updatedAt: new Date(),
+    })
     .where(eq(visits.id, idVisita))
 
   return costo

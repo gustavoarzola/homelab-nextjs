@@ -254,6 +254,8 @@ export type CotizacionVisita = {
   subtotalExamenes: number
   subtotalTalleres: number
   costoVisitaEnfermeria: number
+  costoVisitaEnfermeriaOriginal: number
+  montoDescuento: number
   recargos: { nombre: string; precio: number }[]
   subtotalRecargos: number
   montoInsumos: number
@@ -369,7 +371,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       descripcion: 'Visita de enfermería a domicilio',
       codigo: 'VIS-ENF',
       tipo: 'visita',
-      precio: costoCalculado.precioVisitaConfigurado ? costoCalculado.costoVisitaEnfermeria : null,
+      precio: costoCalculado.precioVisitaConfigurado ? costoCalculado.costoVisitaEnfermeriaOriginal : null,
     })
   }
 
@@ -403,6 +405,8 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     subtotalExamenes: costoCalculado.subtotalExamenes,
     subtotalTalleres: costoCalculado.subtotalTalleres,
     costoVisitaEnfermeria: costoCalculado.costoVisitaEnfermeria,
+    costoVisitaEnfermeriaOriginal: costoCalculado.costoVisitaEnfermeriaOriginal,
+    montoDescuento: costoCalculado.montoDescuento,
     recargos: surchargesRows,
     subtotalRecargos: costoCalculado.subtotalRecargos,
     montoInsumos: costoCalculado.montoInsumos,

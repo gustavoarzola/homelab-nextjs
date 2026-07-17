@@ -1,3 +1,5 @@
+import { resolverMontoDescuento, type DescuentoTipo } from '@/lib/pricing/descuento'
+
 export type VisitaFormPricingContext = {
   examPrices: { idExamen: number; precioActual: number }[]
   nursingVisitPrice: number | null
@@ -16,6 +18,8 @@ export type VisitaPreviewInput = {
   surchargeItems?: { precio: number }[]
   isapreExams?: { valorPagar: number }[]
   montoInsumos?: number
+  descuentoTipo?: DescuentoTipo
+  descuentoValor?: number
 }
 
 export type VisitaPreviewCosto = {
@@ -24,6 +28,8 @@ export type VisitaPreviewCosto = {
   subtotalTalleres: number
   subtotalRecargos: number
   costoVisitaEnfermeria: number
+  costoVisitaEnfermeriaOriginal: number
+  montoDescuento: number
   montoInsumos: number
   total: number
   aplicaVisitaEnfermeria: boolean
@@ -59,10 +65,14 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
   )
   const aplicaVisitaEnfermeria = input.cobraVisita
   const precioVisitaConfigurado = input.pricingContext.nursingVisitPrice !== null
-  const costoVisitaEnfermeria =
+  const costoVisitaEnfermeriaOriginal =
     aplicaVisitaEnfermeria && precioVisitaConfigurado
       ? input.pricingContext.nursingVisitPrice!
       : 0
+  const montoDescuento = aplicaVisitaEnfermeria
+    ? resolverMontoDescuento(costoVisitaEnfermeriaOriginal, input.descuentoTipo ?? 'monto', input.descuentoValor ?? 0)
+    : 0
+  const costoVisitaEnfermeria = Math.max(0, costoVisitaEnfermeriaOriginal - montoDescuento)
   const subtotalRecargos = (input.surchargeItems ?? []).reduce((sum, r) => sum + r.precio, 0)
   const subtotalIsapreExamenes = (input.isapreExams ?? []).reduce((sum, e) => sum + e.valorPagar, 0)
   const montoInsumos = input.montoInsumos ?? 0
@@ -73,6 +83,8 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
     subtotalTalleres,
     subtotalRecargos,
     costoVisitaEnfermeria,
+    costoVisitaEnfermeriaOriginal,
+    montoDescuento,
     montoInsumos,
     total: subtotalProcedimientos + subtotalExamenes + subtotalIsapreExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos + montoInsumos,
     aplicaVisitaEnfermeria,
