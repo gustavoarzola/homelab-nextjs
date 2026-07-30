@@ -99,6 +99,9 @@ async function seedVisitaRealizada(opts: {
   costo: number
   montoDescuentoProcedimientos?: number
   descuentoProcedimientosAfectaPagoEnfermera?: boolean
+  montoDescuento?: number
+  montoVisitaOriginal?: number
+  descuentoAfectaPagoEnfermera?: boolean
 }) {
   const [visit] = await db
     .insert(visits)
@@ -110,6 +113,9 @@ async function seedVisitaRealizada(opts: {
       costo: opts.costo,
       montoDescuentoProcedimientos: opts.montoDescuentoProcedimientos ?? 0,
       descuentoProcedimientosAfectaPagoEnfermera: opts.descuentoProcedimientosAfectaPagoEnfermera ?? false,
+      montoDescuento: opts.montoDescuento ?? 0,
+      montoVisitaOriginal: opts.montoVisitaOriginal ?? 0,
+      descuentoAfectaPagoEnfermera: opts.descuentoAfectaPagoEnfermera ?? false,
     })
     .returning()
   created.visits.push(visit!.id)
@@ -169,4 +175,89 @@ describe('pagos-enfermeras con descuento de procedimientos', () => {
     const row = rows.find((r) => r.enfermeraId === nurse.id)!
     expect(row.base).toBe(row.montoVisitas + row.montoProcs + row.montoRecargos)
   })
+})
+
+// ─── Combinado: descuento de visita + descuento de procedimiento a la vez ─────
+//
+// Fixture fijo para las 4 combinaciones de afecta/no-afecta:
+// montoVisitaOriginal=30000, descuento visita (monto)=10000 → feeVisita neto=20000
+// procedimiento: precio=8000, descuento=3000 → subtotal procedimiento neto=5000
+// costo persistido (neto de ambos descuentos) = 20000 + 5000 = 25000
+const COMBINADO_FIXTURE = {
+  montoVisitaOriginal: 30000,
+  montoDescuento: 10000,
+  precioProcedimiento: 8000,
+  montoDescuentoProcedimientos: 3000,
+  costo: 25000, // (30000-10000) + (8000-3000)
+}
+
+describe('pagos-enfermeras con descuento de visita + descuento de procedimiento combinados', () => {
+  it.each([
+    {
+      descuentoAfectaPagoEnfermera: false,
+      descuentoProcedimientosAfectaPagoEnfermera: false,
+      expectedFeeVisita: 30000, // se revierte: enfermera cobra el fee original
+      expectedProcedimientos: 8000, // se revierte: enfermera cobra el procedimiento original
+      expectedBase: 38000,
+    },
+    {
+      descuentoAfectaPagoEnfermera: true,
+      descuentoProcedimientosAfectaPagoEnfermera: false,
+      expectedFeeVisita: 20000, // afecta: enfermera cobra el fee neto de descuento
+      expectedProcedimientos: 8000,
+      expectedBase: 28000,
+    },
+    {
+      descuentoAfectaPagoEnfermera: false,
+      descuentoProcedimientosAfectaPagoEnfermera: true,
+      expectedFeeVisita: 30000,
+      expectedProcedimientos: 5000, // afecta: enfermera cobra el procedimiento neto de descuento
+      expectedBase: 35000,
+    },
+    {
+      descuentoAfectaPagoEnfermera: true,
+      descuentoProcedimientosAfectaPagoEnfermera: true,
+      expectedFeeVisita: 20000,
+      expectedProcedimientos: 5000,
+      expectedBase: 25000,
+    },
+  ])(
+    'afecta visita=$descuentoAfectaPagoEnfermera / afecta procedimiento=$descuentoProcedimientosAfectaPagoEnfermera → base=$expectedBase',
+    async ({
+      descuentoAfectaPagoEnfermera,
+      descuentoProcedimientosAfectaPagoEnfermera,
+      expectedFeeVisita,
+      expectedProcedimientos,
+      expectedBase,
+    }) => {
+      const nurse = await seedNurse()
+      const patient = await seedPaciente()
+      const proc = await seedProcedimiento(COMBINADO_FIXTURE.precioProcedimiento)
+      const visit = await seedVisitaRealizada({
+        idPaciente: patient.id,
+        idEnfermera: nurse.id,
+        costo: COMBINADO_FIXTURE.costo,
+        montoDescuento: COMBINADO_FIXTURE.montoDescuento,
+        montoVisitaOriginal: COMBINADO_FIXTURE.montoVisitaOriginal,
+        descuentoAfectaPagoEnfermera,
+        montoDescuentoProcedimientos: COMBINADO_FIXTURE.montoDescuentoProcedimientos,
+        descuentoProcedimientosAfectaPagoEnfermera,
+      })
+      await addProc(visit.id, proc.id, COMBINADO_FIXTURE.precioProcedimiento)
+
+      const detalle = await getPagoEnfermeraDetalle(nurse.id, 6, 2026)
+      const row = detalle!.rows.find((r) => r.id === visit.id)!
+
+      expect(row.feeVisita).toBe(expectedFeeVisita)
+      expect(row.procedimientos).toBe(expectedProcedimientos)
+      expect(row.base).toBe(expectedBase)
+      expect(row.base).toBe(row.feeVisita + row.procedimientos + row.recargos)
+      expect(row.pagoEstimado).toBe(Math.round((row.base * row.porcentaje) / 100))
+
+      const { rows: resumen } = await searchPagosEnfermerasMensual({ month: 6, year: 2026, enfermeraId: String(nurse.id) })
+      const resumenRow = resumen.find((r) => r.enfermeraId === nurse.id)!
+      expect(resumenRow.base).toBe(resumenRow.montoVisitas + resumenRow.montoProcs + resumenRow.montoRecargos)
+      expect(resumenRow.base).toBe(expectedBase)
+    },
+  )
 })
