@@ -56,6 +56,7 @@ function DropZone({
       )}
       <div
         ref={setNodeRef}
+        data-testid={`dropzone-${id}`}
         className="flex-1 overflow-y-auto rounded-lg p-2 transition-colors"
         style={{
           backgroundColor: isOver ? 'var(--accent)' : 'var(--muted)',

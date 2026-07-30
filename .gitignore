@@ -8,6 +8,7 @@
 
 # next.js
 /.next/
+/.next-e2e/
 /out/
 
 # production
@@ -47,4 +48,10 @@ Thumbs.db
 tsconfig.tsbuildinfo
 .vercel/
 .env.prod
+
+# Playwright
+e2e/.auth/
+/test-results/
+/playwright-report/
+/blob-report/
 

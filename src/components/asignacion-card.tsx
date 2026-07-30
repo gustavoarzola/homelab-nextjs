@@ -24,6 +24,8 @@ export function AsignacionCard({ visita, overlay = false }: Props) {
   return (
     <div
       ref={setNodeRef}
+      data-testid="asignacion-card"
+      data-visita-id={visita.id}
       style={{ ...style, backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
       className="relative rounded-lg p-3 shadow-sm select-none"
       suppressHydrationWarning
