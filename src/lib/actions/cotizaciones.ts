@@ -52,6 +52,8 @@ export type CotizacionDetalle = {
   montoDescuento: number
   montoVisitaOriginal: number
   descuentoAfectaPagoEnfermera: boolean
+  montoDescuentoProcedimientos: number
+  descuentoProcedimientosAfectaPagoEnfermera: boolean
   idVisita: number | null
   notas: string | null
   motivoRechazo: string | null
@@ -59,7 +61,7 @@ export type CotizacionDetalle = {
   examIds: number[]
   examPrices: { idExamen: number; precio: number }[]
   procedureIds: number[]
-  procedurePrices: { idProcedimiento: number; precio: number }[]
+  procedurePrices: { idProcedimiento: number; precio: number; descuento: number }[]
   tallerIds: number[]
   tallerPrices: { idTaller: number; precio: number }[]
   surchargeIds: number[]
@@ -86,13 +88,15 @@ export type CotizacionVista = {
   montoDescuento: number
   montoVisitaOriginal: number
   descuentoAfectaPagoEnfermera: boolean
+  montoDescuentoProcedimientos: number
+  descuentoProcedimientosAfectaPagoEnfermera: boolean
   idVisita: number | null
   notas: string | null
   motivoRechazo: string | null
   fechaEnvio: Date | null
   createdAt: Date
   updatedAt: Date
-  procedimientos: { id: number; nombre: string; codigo: string | null; precio: number }[]
+  procedimientos: { id: number; nombre: string; codigo: string | null; precio: number; descuento: number }[]
   examenes: { id: number; nombre: string; codigo: string | null; precio: number }[]
   isapreExams: { id: number; nombre: string; codigo: string | null; valorCompleto: number; valorPagar: number; idPrevision: number | null }[]
   talleres: { id: number; nombre: string; codigo: string | null; precio: number }[]
@@ -126,7 +130,7 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
       .from(quotationIsapreExams)
       .where(eq(quotationIsapreExams.idCotizacion, id)),
     db
-      .select({ idProcedimiento: quotationProcedures.idProcedimiento, precio: quotationProcedures.precio })
+      .select({ idProcedimiento: quotationProcedures.idProcedimiento, precio: quotationProcedures.precio, descuento: quotationProcedures.descuento })
       .from(quotationProcedures)
       .where(eq(quotationProcedures.idCotizacion, id)),
     db
@@ -156,6 +160,8 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     montoDescuento: quotation.montoDescuento,
     montoVisitaOriginal: quotation.montoVisitaOriginal,
     descuentoAfectaPagoEnfermera: quotation.descuentoAfectaPagoEnfermera,
+    montoDescuentoProcedimientos: quotation.montoDescuentoProcedimientos,
+    descuentoProcedimientosAfectaPagoEnfermera: quotation.descuentoProcedimientosAfectaPagoEnfermera,
     idVisita: quotation.idVisita ?? null,
     notas: quotation.notas ?? null,
     motivoRechazo: quotation.motivoRechazo ?? null,
@@ -164,7 +170,7 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
     isapreExams: isapre_.map((e) => ({ idExamen: e.idExamen, valorCompleto: e.valorCompleto, valorPagar: e.valorPagar, idPrevision: e.idPrevision })),
     procedureIds: procs.map((p) => p.idProcedimiento),
-    procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
+    procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio, descuento: p.descuento })),
     tallerIds: talleres_.map((t) => t.idTaller),
     tallerPrices: talleres_.map((t) => ({ idTaller: t.idTaller, precio: t.precio })),
     surchargeIds: surcharges_.map((s) => s.idTipoRecargo),
@@ -195,6 +201,8 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
       montoDescuento: quotations.montoDescuento,
       montoVisitaOriginal: quotations.montoVisitaOriginal,
       descuentoAfectaPagoEnfermera: quotations.descuentoAfectaPagoEnfermera,
+      montoDescuentoProcedimientos: quotations.montoDescuentoProcedimientos,
+      descuentoProcedimientosAfectaPagoEnfermera: quotations.descuentoProcedimientosAfectaPagoEnfermera,
       idVisita: quotations.idVisita,
       notas: quotations.notas,
       motivoRechazo: quotations.motivoRechazo,
@@ -218,6 +226,7 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
         nombre: quotationProcedures.descripcion,
         codigo: quotationProcedures.codigo,
         precio: quotationProcedures.precio,
+        descuento: quotationProcedures.descuento,
       })
       .from(quotationProcedures)
       .where(eq(quotationProcedures.idCotizacion, id)),
@@ -288,6 +297,8 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
     montoDescuento: quotation.montoDescuento,
     montoVisitaOriginal: quotation.montoVisitaOriginal,
     descuentoAfectaPagoEnfermera: quotation.descuentoAfectaPagoEnfermera,
+    montoDescuentoProcedimientos: quotation.montoDescuentoProcedimientos,
+    descuentoProcedimientosAfectaPagoEnfermera: quotation.descuentoProcedimientosAfectaPagoEnfermera,
     idVisita: quotation.idVisita ?? null,
     notas: quotation.notas ?? null,
     motivoRechazo: quotation.motivoRechazo ?? null,
@@ -402,6 +413,7 @@ const cotizacionInputSchema = z.object({
   descuentoTipo: fields.descuentoTipo,
   descuentoValor: fields.descuentoValor,
   descuentoAfectaPagoEnfermera: fields.bool,
+  descuentoProcedimientosAfectaPagoEnfermera: fields.bool,
   notas: fields.nullableStr,
   procedure_ids: fields.ids,
   exam_ids: fields.ids,
@@ -425,11 +437,17 @@ export async function createCotizacion(
     idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
     identificacionDestinatario, comuna, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
+    descuentoProcedimientosAfectaPagoEnfermera,
     notas,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
   const descuentoValorFinal = cobraVisita ? descuentoValor : 0
+
+  const procedimientoDescuentoMap: Record<number, number> = {}
+  for (const id of procedureIds) {
+    procedimientoDescuentoMap[id] = Math.max(0, parseInt(fd.get(`procedimiento_descuento_${id}`) as string) || 0)
+  }
 
   const tallerPrecioMap: Record<number, number> = {}
   for (const id of tallerIds) {
@@ -449,14 +467,20 @@ export async function createCotizacion(
   let total = 0
 
   // Get procedure prices
+  let montoDescuentoProcedimientos = 0
   if (procedureIds.length > 0) {
     const procs = await db
-      .select({ precio: procedures.precio })
+      .select({ id: procedures.id, precio: procedures.precio })
         .from(procedures)
         .where(inArray(procedures.id, procedureIds))
         .catch(() => [])
 
       total += procs.reduce((sum, p) => sum + p.precio, 0)
+      montoDescuentoProcedimientos = procs.reduce(
+        (sum, p) => sum + Math.min(procedimientoDescuentoMap[p.id] ?? 0, p.precio),
+        0,
+      )
+      total -= montoDescuentoProcedimientos
     }
 
     // Get exam prices
@@ -520,6 +544,8 @@ export async function createCotizacion(
         montoDescuento,
         montoVisitaOriginal,
         descuentoAfectaPagoEnfermera,
+        montoDescuentoProcedimientos,
+        descuentoProcedimientosAfectaPagoEnfermera,
         notas,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -551,6 +577,7 @@ export async function createCotizacion(
           descripcion: p.nombre,
           codigo: p.codigo,
           precio: p.precio,
+          descuento: Math.min(procedimientoDescuentoMap[p.id] ?? 0, p.precio),
           createdAt: new Date(),
         })),
       )
@@ -657,11 +684,17 @@ export async function updateCotizacion(
     id, idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
     identificacionDestinatario, comuna, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
+    descuentoProcedimientosAfectaPagoEnfermera,
     notas,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
   const descuentoValorFinal = cobraVisita ? descuentoValor : 0
+
+  const procedimientoDescuentoMap: Record<number, number> = {}
+  for (const pid of procedureIds) {
+    procedimientoDescuentoMap[pid] = Math.max(0, parseInt(fd.get(`procedimiento_descuento_${pid}`) as string) || 0)
+  }
 
   const tallerPrecioMap: Record<number, number> = {}
   for (const tid of tallerIds) {
@@ -680,14 +713,20 @@ export async function updateCotizacion(
   // Calculate total
   let total = 0
 
+    let montoDescuentoProcedimientos = 0
     if (procedureIds.length > 0) {
       const procs = await db
-        .select({ precio: procedures.precio })
+        .select({ id: procedures.id, precio: procedures.precio })
         .from(procedures)
         .where(inArray(procedures.id, procedureIds))
         .catch(() => [])
 
       total += procs.reduce((sum, p) => sum + p.precio, 0)
+      montoDescuentoProcedimientos = procs.reduce(
+        (sum, p) => sum + Math.min(procedimientoDescuentoMap[p.id] ?? 0, p.precio),
+        0,
+      )
+      total -= montoDescuentoProcedimientos
     }
 
     if (examIds.length > 0) {
@@ -747,6 +786,8 @@ export async function updateCotizacion(
         montoDescuento,
         montoVisitaOriginal,
         descuentoAfectaPagoEnfermera,
+        montoDescuentoProcedimientos,
+        descuentoProcedimientosAfectaPagoEnfermera,
         notas,
         updatedAt: new Date(),
       })
@@ -778,6 +819,7 @@ export async function updateCotizacion(
           descripcion: p.nombre,
           codigo: p.codigo,
           precio: p.precio,
+          descuento: Math.min(procedimientoDescuentoMap[p.id] ?? 0, p.precio),
           createdAt: new Date(),
         })),
       )
@@ -914,6 +956,8 @@ export async function convertirCotizacionAVisita(
         montoDescuento: quotation.montoDescuento ?? 0,
         montoVisitaOriginal: quotation.montoVisitaOriginal ?? 0,
         descuentoAfectaPagoEnfermera: quotation.descuentoAfectaPagoEnfermera,
+        montoDescuentoProcedimientos: quotation.montoDescuentoProcedimientos ?? 0,
+        descuentoProcedimientosAfectaPagoEnfermera: quotation.descuentoProcedimientosAfectaPagoEnfermera,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -930,6 +974,7 @@ export async function convertirCotizacionAVisita(
       .select({
         idProcedimiento: quotationProcedures.idProcedimiento,
         precio: quotationProcedures.precio,
+        descuento: quotationProcedures.descuento,
       })
       .from(quotationProcedures)
       .where(eq(quotationProcedures.idCotizacion, idCotizacion))
@@ -940,6 +985,7 @@ export async function convertirCotizacionAVisita(
           idProcedimiento: p.idProcedimiento,
           idVisita: visitId,
           precio: p.precio,
+          descuento: p.descuento,
           createdAt: new Date(),
         })),
       )

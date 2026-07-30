@@ -12,6 +12,7 @@ export type VisitaPreviewInput = {
   tallerPriceMap: Record<number, string>
   catalogProcedurePrices: { id: number; precio: number }[]
   savedProcedurePrices?: { idProcedimiento: number; precio: number }[]
+  procedureDiscounts?: { idProcedimiento: number; descuento: number }[]
   savedExamPrices?: { idExamen: number; precio: number }[]
   pricingContext: VisitaFormPricingContext
   cobraVisita: boolean
@@ -24,6 +25,8 @@ export type VisitaPreviewInput = {
 
 export type VisitaPreviewCosto = {
   subtotalProcedimientos: number
+  subtotalProcedimientosOriginal: number
+  montoDescuentoProcedimientos: number
   subtotalExamenes: number
   subtotalTalleres: number
   subtotalRecargos: number
@@ -43,6 +46,9 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
   const savedProcedurePriceMap = new Map(
     (input.savedProcedurePrices ?? []).map((p) => [p.idProcedimiento, p.precio]),
   )
+  const procedureDiscountMap = new Map(
+    (input.procedureDiscounts ?? []).map((p) => [p.idProcedimiento, p.descuento]),
+  )
   const savedExamPriceMap = new Map(
     (input.savedExamPrices ?? []).map((e) => [e.idExamen, e.precio]),
   )
@@ -50,11 +56,17 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
     input.pricingContext.examPrices.map((e) => [e.idExamen, e.precioActual]),
   )
 
-  const subtotalProcedimientos = input.selectedProcedureIds.reduce(
+  const subtotalProcedimientosOriginal = input.selectedProcedureIds.reduce(
     (sum, idProcedimiento) =>
       sum + (savedProcedurePriceMap.get(idProcedimiento) ?? catalogProcedurePriceMap.get(idProcedimiento) ?? 0),
     0,
   )
+  const montoDescuentoProcedimientos = input.selectedProcedureIds.reduce((sum, idProcedimiento) => {
+    const precio = savedProcedurePriceMap.get(idProcedimiento) ?? catalogProcedurePriceMap.get(idProcedimiento) ?? 0
+    const descuento = procedureDiscountMap.get(idProcedimiento) ?? 0
+    return sum + Math.min(Math.max(0, descuento), precio)
+  }, 0)
+  const subtotalProcedimientos = subtotalProcedimientosOriginal - montoDescuentoProcedimientos
   const subtotalExamenes = input.selectedExamIds.reduce(
     (sum, idExamen) => sum + (savedExamPriceMap.get(idExamen) ?? currentExamPriceMap.get(idExamen) ?? 0),
     0,
@@ -79,6 +91,8 @@ export function calcularCostoVisitaPreview(input: VisitaPreviewInput): VisitaPre
 
   return {
     subtotalProcedimientos,
+    subtotalProcedimientosOriginal,
+    montoDescuentoProcedimientos,
     subtotalExamenes: subtotalExamenes + subtotalIsapreExamenes,
     subtotalTalleres,
     subtotalRecargos,

@@ -253,6 +253,8 @@ export type CotizacionVisita = {
   items: ItemCotizacion[]
   subtotalExamenes: number
   subtotalTalleres: number
+  subtotalProcedimientosOriginal: number
+  montoDescuentoProcedimientos: number
   costoVisitaEnfermeria: number
   costoVisitaEnfermeriaOriginal: number
   montoDescuento: number
@@ -404,6 +406,8 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
     items,
     subtotalExamenes: costoCalculado.subtotalExamenes,
     subtotalTalleres: costoCalculado.subtotalTalleres,
+    subtotalProcedimientosOriginal: costoCalculado.subtotalProcedimientosOriginal,
+    montoDescuentoProcedimientos: costoCalculado.montoDescuentoProcedimientos,
     costoVisitaEnfermeria: costoCalculado.costoVisitaEnfermeria,
     costoVisitaEnfermeriaOriginal: costoCalculado.costoVisitaEnfermeriaOriginal,
     montoDescuento: costoCalculado.montoDescuento,

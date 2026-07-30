@@ -85,6 +85,7 @@ function mapToHTMLData({
     montoInsumos: number
     montoDescuento: number
     montoVisitaOriginal: number
+    montoDescuentoProcedimientos: number
     notas: string | null
     createdAt: Date
   }
@@ -137,6 +138,8 @@ function mapToHTMLData({
 
   if (subtotalExamenes > 0) subtotales.push({ label: 'Subtotal exámenes', amount: subtotalExamenes })
   if (subtotalProcedimientos > 0) subtotales.push({ label: 'Subtotal procedimientos', amount: subtotalProcedimientos })
+  if (quotation.montoDescuentoProcedimientos > 0)
+    subtotales.push({ label: 'Descuento procedimientos', amount: -quotation.montoDescuentoProcedimientos })
   if (subtotalTalleres > 0) subtotales.push({ label: 'Subtotal talleres', amount: subtotalTalleres })
   if (quotation.cobraVisita && quotation.montoVisitaOriginal > 0)
     subtotales.push({ label: `Visita de enfermería${quotation.comuna ? ` (${quotation.comuna})` : ''}`, amount: quotation.montoVisitaOriginal })

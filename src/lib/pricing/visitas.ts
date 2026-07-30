@@ -16,6 +16,8 @@ import { resolverMontoDescuento, type DescuentoTipo } from '@/lib/pricing/descue
 
 export type CostoVisitaCalculado = {
   subtotalProcedimientos: number
+  subtotalProcedimientosOriginal: number
+  montoDescuentoProcedimientos: number
   subtotalExamenes: number
   subtotalTalleres: number
   subtotalRecargos: number
@@ -59,7 +61,7 @@ export async function calcularCostoVisitaPersistida(
   conn: PricingDb = db,
 ): Promise<CostoVisitaCalculado> {
   const [procedimientos, examenes, exameneIsapre, talleres, recargos, [visitaPaciente]] = await Promise.all([
-    conn.select({ precio: visitProcedures.precio }).from(visitProcedures).where(eq(visitProcedures.idVisita, idVisita)),
+    conn.select({ precio: visitProcedures.precio, descuento: visitProcedures.descuento }).from(visitProcedures).where(eq(visitProcedures.idVisita, idVisita)),
     conn.select({ precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, idVisita)),
     conn.select({ valorPagar: visitIsapreExams.valorPagar }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, idVisita)),
     conn.select({ precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, idVisita)),
@@ -79,7 +81,12 @@ export async function calcularCostoVisitaPersistida(
       .limit(1),
   ])
 
-  const subtotalProcedimientos = procedimientos.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
+  const subtotalProcedimientosOriginal = procedimientos.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
+  const montoDescuentoProcedimientos = procedimientos.reduce(
+    (sum: number, row: { precio: number; descuento: number }) => sum + Math.min(Math.max(0, row.descuento), row.precio),
+    0,
+  )
+  const subtotalProcedimientos = subtotalProcedimientosOriginal - montoDescuentoProcedimientos
   const subtotalExamenes = examenes.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
   const subtotalIsapreExamenes = exameneIsapre.reduce((sum: number, row: { valorPagar: number }) => sum + row.valorPagar, 0)
   const subtotalTalleres = talleres.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
@@ -99,6 +106,8 @@ export async function calcularCostoVisitaPersistida(
 
   return {
     subtotalProcedimientos,
+    subtotalProcedimientosOriginal,
+    montoDescuentoProcedimientos,
     subtotalExamenes: subtotalExamenes + subtotalIsapreExamenes,
     subtotalTalleres,
     subtotalRecargos,
@@ -124,6 +133,7 @@ export async function actualizarCostoVisitaPersistida(
       costo: costo.total,
       montoDescuento: costo.montoDescuento,
       montoVisitaOriginal: costo.costoVisitaEnfermeriaOriginal,
+      montoDescuentoProcedimientos: costo.montoDescuentoProcedimientos,
       updatedAt: new Date(),
     })
     .where(eq(visits.id, idVisita))

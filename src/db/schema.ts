@@ -265,6 +265,8 @@ export const visits = pgTable(
     montoDescuento: integer('monto_descuento').notNull().default(0),
     montoVisitaOriginal: integer('monto_visita_original').notNull().default(0),
     descuentoAfectaPagoEnfermera: boolean('descuento_afecta_pago_enfermera').notNull().default(false),
+    montoDescuentoProcedimientos: integer('monto_descuento_procedimientos').notNull().default(0),
+    descuentoProcedimientosAfectaPagoEnfermera: boolean('descuento_procedimientos_afecta_pago_enfermera').notNull().default(false),
     keyOrdenMedica: varchar('key_orden_medica', { length: 500 }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -291,6 +293,7 @@ export const visitProcedures = pgTable(
     idProcedimiento: integer('id_procedimiento').notNull(),
     idVisita: integer('id_visita').notNull(),
     precio: integer('precio').notNull().default(0),
+    descuento: integer('descuento').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => [
@@ -364,6 +367,8 @@ export const quotations = pgTable(
     montoDescuento: integer('monto_descuento').notNull().default(0),
     montoVisitaOriginal: integer('monto_visita_original').notNull().default(0),
     descuentoAfectaPagoEnfermera: boolean('descuento_afecta_pago_enfermera').notNull().default(false),
+    montoDescuentoProcedimientos: integer('monto_descuento_procedimientos').notNull().default(0),
+    descuentoProcedimientosAfectaPagoEnfermera: boolean('descuento_procedimientos_afecta_pago_enfermera').notNull().default(false),
     idVisita: integer('id_visita'),
     notas: text('notas'),
     motivoRechazo: text('motivo_rechazo'),
@@ -476,6 +481,7 @@ export const quotationProcedures = pgTable(
     descripcion: varchar('descripcion', { length: 255 }).notNull(),
     codigo: varchar('codigo', { length: 50 }),
     precio: integer('precio').notNull().default(0),
+    descuento: integer('descuento').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => [

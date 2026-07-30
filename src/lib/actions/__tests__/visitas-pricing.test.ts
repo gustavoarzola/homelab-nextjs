@@ -142,8 +142,8 @@ async function seedVisita(idPaciente: number, montoInsumos = 0, cobraVisita = fa
   return visit!
 }
 
-async function addProc(idVisita: number, idProcedimiento: number, precio: number) {
-  await db.insert(visitProcedures).values({ idVisita, idProcedimiento, precio })
+async function addProc(idVisita: number, idProcedimiento: number, precio: number, descuento = 0) {
+  await db.insert(visitProcedures).values({ idVisita, idProcedimiento, precio, descuento })
 }
 
 async function addExam(idVisita: number, idExamen: number, precio: number) {
@@ -237,6 +237,37 @@ describe('calcularCostoVisitaPersistida', () => {
     expect(costo.montoInsumos).toBe(4000)
     expect(costo.total).toBe(13000)
   })
+
+  it('aplica descuento de monto sobre un procedimiento', async () => {
+    const comuna = unique('ComunaDescProc')
+    const patient = await seedPaciente(comuna)
+    const proc = await seedProcedimiento()
+    const visit = await seedVisita(patient.id)
+    await addProc(visit.id, proc.id, 14000, 4000)
+
+    const costo = await calcularCostoVisitaPersistida(visit.id)
+
+    expect(costo.subtotalProcedimientosOriginal).toBe(14000)
+    expect(costo.montoDescuentoProcedimientos).toBe(4000)
+    expect(costo.subtotalProcedimientos).toBe(10000)
+    expect(costo.total).toBe(10000)
+  })
+
+  it('suma descuentos de varios procedimientos y capea al precio de cada línea', async () => {
+    const comuna = unique('ComunaDescMultiProc')
+    const patient = await seedPaciente(comuna)
+    const proc1 = await seedProcedimiento()
+    const proc2 = await seedProcedimiento()
+    const visit = await seedVisita(patient.id)
+    await addProc(visit.id, proc1.id, 10000, 3000)
+    await addProc(visit.id, proc2.id, 5000, 999999) // descuento excede el precio, se capea
+
+    const costo = await calcularCostoVisitaPersistida(visit.id)
+
+    expect(costo.subtotalProcedimientosOriginal).toBe(15000)
+    expect(costo.montoDescuentoProcedimientos).toBe(8000) // 3000 + 5000 (capeado)
+    expect(costo.subtotalProcedimientos).toBe(7000)
+  })
 })
 
 describe('createVisita/updateVisita costo calculado', () => {
@@ -272,6 +303,59 @@ describe('createVisita/updateVisita costo calculado', () => {
 
     const [updated] = await db.select({ costo: visits.costo }).from(visits).where(eq(visits.id, visit.id))
     expect(updated!.costo).toBe(11000 + precioBase.precio)
+  })
+
+  it('createVisita guarda el descuento por procedimiento y el agregado en la visita', async () => {
+    const comuna = unique('ComunaCreateDescProc')
+    const patient = await seedPaciente(comuna)
+    const proc = await seedProcedimiento(12000)
+
+    const result = await createVisita(
+      visitaForm({
+        idPaciente: patient.id, fecha: '2026-05-05', costo: 999999,
+        [`procedimiento_descuento_${proc.id}`]: 5000,
+        descuentoProcedimientosAfectaPagoEnfermera: 'true',
+      }, [proc.id]),
+    )
+
+    expect(result.success).toBe(true)
+    const createdId = (result as { success: true; data: { id: number } }).data.id
+    created.visits.push(createdId)
+
+    const [visitRow] = await db
+      .select({
+        costo: visits.costo,
+        montoDescuentoProcedimientos: visits.montoDescuentoProcedimientos,
+        descuentoProcedimientosAfectaPagoEnfermera: visits.descuentoProcedimientosAfectaPagoEnfermera,
+      })
+      .from(visits)
+      .where(eq(visits.id, createdId))
+    expect(visitRow!.costo).toBe(7000)
+    expect(visitRow!.montoDescuentoProcedimientos).toBe(5000)
+    expect(visitRow!.descuentoProcedimientosAfectaPagoEnfermera).toBe(true)
+
+    const [procRow] = await db
+      .select({ descuento: visitProcedures.descuento })
+      .from(visitProcedures)
+      .where(eq(visitProcedures.idVisita, createdId))
+    expect(procRow!.descuento).toBe(5000)
+  })
+
+  it('updateVisita conserva el descuento de procedimiento existente si no se reenvía', async () => {
+    const comuna = unique('ComunaUpdateDescProc')
+    const patient = await seedPaciente(comuna)
+    const proc = await seedProcedimiento(9000)
+    const visit = await seedVisita(patient.id)
+    await addProc(visit.id, proc.id, 9000, 3000)
+
+    const result = await updateVisita(
+      visitaForm({ id: visit.id, idPaciente: patient.id, fecha: '2026-05-06', costo: 999999 }, [proc.id]),
+    )
+
+    expect(result.success).toBe(true)
+
+    const [updated] = await db.select({ montoDescuentoProcedimientos: visits.montoDescuentoProcedimientos }).from(visits).where(eq(visits.id, visit.id))
+    expect(updated!.montoDescuentoProcedimientos).toBe(3000)
   })
 })
 

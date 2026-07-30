@@ -390,6 +390,14 @@ export function VisitaForm({
   const [activeTab, setActiveTab] = useState<ServiceTab>('procedimientos')
 
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(visita?.procedureIds ?? [])
+  const [procedureDiscountMap, setProcedureDiscountMap] = useState<Record<number, string>>(() => {
+    const map: Record<number, string> = {}
+    visita?.procedurePrices.forEach(({ idProcedimiento, descuento }) => { map[idProcedimiento] = String(descuento) })
+    return map
+  })
+  const [descuentoProcedimientosAfectaPagoEnfermera, setDescuentoProcedimientosAfectaPagoEnfermera] = useState(
+    visita?.descuentoProcedimientosAfectaPagoEnfermera ?? false,
+  )
   const [examGroups, setExamGroups] = useState<ExamGroup[]>(() =>
     buildInitialGroups(
       visita?.examIds ?? [],
@@ -435,7 +443,11 @@ export function VisitaForm({
     if (!selectedFecha) { setError('La fecha es obligatoria'); return }
 
     const fd = new FormData(e.currentTarget)
-    selectedProcedures.forEach((id) => fd.append('procedure_ids', String(id)))
+    selectedProcedures.forEach((id) => {
+      fd.append('procedure_ids', String(id))
+      fd.set(`procedimiento_descuento_${id}`, procedureDiscountMap[id] ?? '0')
+    })
+    fd.set('descuentoProcedimientosAfectaPagoEnfermera', String(descuentoProcedimientosAfectaPagoEnfermera))
     appendExamGroupsToFormData(fd, examGroups)
     selectedTallers.forEach((id) => {
       fd.append('taller_ids', String(id))
@@ -482,6 +494,10 @@ export function VisitaForm({
       tallerPriceMap,
       catalogProcedurePrices: procedimientos.map((p) => ({ id: p.id, precio: p.precio })),
       savedProcedurePrices: visita?.procedurePrices,
+      procedureDiscounts: selectedProcedures.map((id) => ({
+        idProcedimiento: id,
+        descuento: parseInt(procedureDiscountMap[id] ?? '0') || 0,
+      })),
       savedExamPrices: visita?.examPrices,
       pricingContext,
       cobraVisita,
@@ -496,7 +512,7 @@ export function VisitaForm({
       descuentoValor: aplicaDescuento ? parseInt(descuentoValor) || 0 : 0,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedProcedures, examGroups, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, selectedSurcharges, tiposRecargos, montoInsumos, aplicaDescuento, descuentoTipo, descuentoValor],
+    [selectedProcedures, examGroups, selectedTallers, tallerPriceMap, procedimientos, visita, pricingContext, cobraVisita, selectedSurcharges, tiposRecargos, montoInsumos, aplicaDescuento, descuentoTipo, descuentoValor, procedureDiscountMap],
   )
 
   // Compute which tabs have undismissed price warnings (for warning dot)
@@ -787,6 +803,7 @@ export function VisitaForm({
                       const savedEntry = visita?.procedurePrices.find((p) => p.idProcedimiento === id)
                       const precio = savedEntry?.precio ?? proc.precio
                       const priceChanged = savedEntry && savedEntry.precio !== proc.precio && !dismissedPriceWarnings.has(id)
+                      const descuento = Math.min(parseInt(procedureDiscountMap[id] ?? '0') || 0, precio)
                       return (
                         <div
                           key={id}
@@ -799,8 +816,30 @@ export function VisitaForm({
                           <span className="flex-1" style={{ color: 'var(--foreground)' }}>{proc.nombre}</span>
                           {priceChanged && <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />}
                           <span className="tabular-nums" style={{ color: 'var(--foreground)', minWidth: 80, textAlign: 'right' }}>
-                            {CLP(precio)}
+                            {descuento > 0 && (
+                              <span className="mr-1.5 font-normal line-through" style={{ color: 'var(--muted-foreground)' }}>
+                                {CLP(precio)}
+                              </span>
+                            )}
+                            {CLP(precio - descuento)}
                           </span>
+                          <div
+                            className="flex shrink-0 items-center gap-1 rounded border px-1.5 py-1"
+                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
+                          >
+                            <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>Desc. $</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max={precio}
+                              value={procedureDiscountMap[id] ?? '0'}
+                              onChange={(e) => setProcedureDiscountMap((prev) => ({ ...prev, [id]: e.target.value }))}
+                              placeholder="0"
+                              disabled={isPending}
+                              className="w-16 bg-transparent text-right text-[12px] tabular-nums outline-none"
+                              style={{ color: 'var(--foreground)' }}
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={() => setSelectedProcedures((prev) => prev.filter((x) => x !== id))}
@@ -812,6 +851,24 @@ export function VisitaForm({
                         </div>
                       )
                     })}
+                  </div>
+                )}
+                {costoPreview.montoDescuentoProcedimientos > 0 && (
+                  <div className="mt-3 flex items-start gap-3 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                    <Checkbox
+                      id="descuentoProcedimientosAfectaPagoEnfermera"
+                      checked={descuentoProcedimientosAfectaPagoEnfermera}
+                      onCheckedChange={(checked) => setDescuentoProcedimientosAfectaPagoEnfermera(checked === true)}
+                      disabled={isPending}
+                      className="mt-0.5"
+                    />
+                    <label
+                      htmlFor="descuentoProcedimientosAfectaPagoEnfermera"
+                      className="cursor-pointer text-[12px] leading-tight"
+                      style={{ color: 'var(--muted-foreground)' }}
+                    >
+                      Descuento de procedimientos afecta el pago de la enfermera (si no está marcado, la enfermera cobra sobre el valor original de los procedimientos)
+                    </label>
                   </div>
                 )}
                 {isEdit && visita && visita.estado !== 'realizada' && selectedProcedures.map((procId) => {
@@ -1197,12 +1254,17 @@ export function VisitaForm({
               <SummaryGroup
                 tone="blue"
                 label="Procedimientos"
-                items={selectedProcedures.flatMap((id) => {
-                  const p = procedimientos.find((x) => x.id === id)
-                  if (!p) return []
-                  const saved = visita?.procedurePrices.find((x) => x.idProcedimiento === id)
-                  return [{ name: p.nombre, price: saved?.precio ?? p.precio }]
-                })}
+                items={[
+                  ...selectedProcedures.flatMap((id) => {
+                    const p = procedimientos.find((x) => x.id === id)
+                    if (!p) return []
+                    const saved = visita?.procedurePrices.find((x) => x.idProcedimiento === id)
+                    return [{ name: p.nombre, price: saved?.precio ?? p.precio }]
+                  }),
+                  ...(costoPreview.montoDescuentoProcedimientos > 0
+                    ? [{ name: 'Descuento procedimientos', price: -costoPreview.montoDescuentoProcedimientos }]
+                    : []),
+                ]}
                 subtotal={costoPreview.subtotalProcedimientos}
               />
               <SummaryGroup
