@@ -15,7 +15,9 @@
     "db:seed": "tsx --env-file=.env.local src/db/seed/index.ts",
     "db:seed:catalogos": "tsx --env-file=.env.local src/db/seed/index.ts --catalogos-only",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:unit": "vitest run src/lib/__tests__ src/lib/pricing/__tests__",
+    "test:integration": "vitest run src/lib/actions/__tests__"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1050.0",
