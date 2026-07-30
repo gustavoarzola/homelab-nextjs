@@ -17,7 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run src/lib/__tests__ src/lib/pricing/__tests__",
-    "test:integration": "vitest run src/lib/actions/__tests__"
+    "test:integration": "vitest run src/lib/actions/__tests__",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1050.0",
