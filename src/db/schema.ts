@@ -149,7 +149,7 @@ export const procedures = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
-    index('procedimientos_codigo_idx').on(table.codigo),
+    uniqueIndex('procedimientos_codigo_idx').on(table.codigo),
   ]
 )
 
@@ -186,7 +186,10 @@ export const healthInsurances = pgTable(
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  }
+  },
+  (table) => [
+    uniqueIndex('companias_seguros_nombre_idx').on(table.nombre),
+  ]
 )
 
 // ============================================================================
@@ -200,7 +203,10 @@ export const elderlyResidences = pgTable(
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  }
+  },
+  (table) => [
+    uniqueIndex('residencias_adulto_mayor_nombre_idx').on(table.nombre),
+  ]
 )
 
 // ============================================================================
@@ -214,7 +220,10 @@ export const contactOrigins = pgTable(
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  }
+  },
+  (table) => [
+    uniqueIndex('origenes_contacto_nombre_idx').on(table.nombre),
+  ]
 )
 
 // ============================================================================
@@ -229,7 +238,10 @@ export const surchargeTypes = pgTable(
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  }
+  },
+  (table) => [
+    uniqueIndex('tipos_recargos_nombre_idx').on(table.nombre),
+  ]
 )
 
 // ============================================================================
@@ -342,6 +354,16 @@ export const nursingVisitPrices = pgTable(
   },
   (table) => [
     index('precios_visita_enfermeria_comuna_idx').on(table.comuna),
+    // Índice único PARCIAL (solo comunas con nombre): permite onConflictDoNothing
+    // idempotente por comuna en el seed. La fila base (comuna = null) NO puede
+    // cubrirse con un uniqueIndex normal porque Postgres trata cada NULL como
+    // distinto; en drizzle-orm 0.45 `.nullsNotDistinct()` solo existe en el
+    // builder de `unique()` (constraint), no en `uniqueIndex()`. Por eso la fila
+    // base se inserta aparte en seedCatalogos() con un chequeo de existencia
+    // (`WHERE comuna IS NULL`) en vez de depender de este índice.
+    uniqueIndex('precios_visita_enfermeria_comuna_key')
+      .on(table.comuna)
+      .where(sql`${table.comuna} IS NOT NULL`),
   ]
 )
 
@@ -423,7 +445,7 @@ export const workshops = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
-    index('talleres_codigo_idx').on(table.codigo),
+    uniqueIndex('talleres_codigo_idx').on(table.codigo),
   ]
 )
 
