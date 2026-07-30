@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['./src/test/setup.ts'],
+    globalSetup: './src/test/global-setup.ts',
     // Run tests in a single worker to avoid DB connection pool exhaustion
     pool: 'forks',
     maxWorkers: 1,
