@@ -203,4 +203,72 @@ describe('calcularCostoVisitaPreview', () => {
     expect(costo.montoDescuento).toBe(0)
     expect(costo.costoVisitaEnfermeria).toBe(0)
   })
+
+  it('aplica descuento de monto sobre un procedimiento individual', () => {
+    const costo = calcularCostoVisitaPreview({
+      selectedProcedureIds: [1],
+      selectedExamIds: [],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
+      catalogProcedurePrices: [{ id: 1, precio: 15000 }],
+      procedureDiscounts: [{ idProcedimiento: 1, descuento: 4000 }],
+      pricingContext,
+      cobraVisita: false,
+    })
+
+    expect(costo.subtotalProcedimientosOriginal).toBe(15000)
+    expect(costo.montoDescuentoProcedimientos).toBe(4000)
+    expect(costo.subtotalProcedimientos).toBe(11000)
+    expect(costo.total).toBe(11000)
+  })
+
+  it('suma descuentos de varios procedimientos y no afecta la visita', () => {
+    const costo = calcularCostoVisitaPreview({
+      selectedProcedureIds: [1, 2],
+      selectedExamIds: [],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
+      catalogProcedurePrices: [{ id: 1, precio: 15000 }, { id: 2, precio: 8000 }],
+      procedureDiscounts: [{ idProcedimiento: 1, descuento: 4000 }, { idProcedimiento: 2, descuento: 2000 }],
+      pricingContext,
+      cobraVisita: true,
+    })
+
+    expect(costo.subtotalProcedimientosOriginal).toBe(23000)
+    expect(costo.montoDescuentoProcedimientos).toBe(6000)
+    expect(costo.subtotalProcedimientos).toBe(17000)
+    expect(costo.costoVisitaEnfermeria).toBe(30000)
+    expect(costo.montoDescuento).toBe(0)
+  })
+
+  it('capea el descuento de procedimiento para que no supere su precio', () => {
+    const costo = calcularCostoVisitaPreview({
+      selectedProcedureIds: [1],
+      selectedExamIds: [],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
+      catalogProcedurePrices: [{ id: 1, precio: 15000 }],
+      procedureDiscounts: [{ idProcedimiento: 1, descuento: 999999 }],
+      pricingContext,
+      cobraVisita: false,
+    })
+
+    expect(costo.montoDescuentoProcedimientos).toBe(15000)
+    expect(costo.subtotalProcedimientos).toBe(0)
+  })
+
+  it('sin descuentos de procedimientos, el monto es cero por defecto', () => {
+    const costo = calcularCostoVisitaPreview({
+      selectedProcedureIds: [1],
+      selectedExamIds: [],
+      selectedTallerIds: [],
+      tallerPriceMap: {},
+      catalogProcedurePrices: [{ id: 1, precio: 15000 }],
+      pricingContext,
+      cobraVisita: false,
+    })
+
+    expect(costo.montoDescuentoProcedimientos).toBe(0)
+    expect(costo.subtotalProcedimientos).toBe(15000)
+  })
 })

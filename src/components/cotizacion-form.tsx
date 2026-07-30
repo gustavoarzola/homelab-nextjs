@@ -117,6 +117,16 @@ export function CotizacionForm({
 
   // Items
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(cotizacion?.procedureIds ?? [])
+  const [procedureDiscountMap, setProcedureDiscountMap] = useState<Record<number, string>>(() => {
+    const map: Record<number, string> = {}
+    for (const p of cotizacion?.procedurePrices ?? []) {
+      map[p.idProcedimiento] = String(p.descuento)
+    }
+    return map
+  })
+  const [descuentoProcedimientosAfectaPagoEnfermera, setDescuentoProcedimientosAfectaPagoEnfermera] = useState(
+    cotizacion?.descuentoProcedimientosAfectaPagoEnfermera ?? false,
+  )
   const [examGroups, setExamGroups] = useState<ExamGroup[]>(() =>
     buildInitialGroups(
       cotizacion?.examIds ?? [],
@@ -162,10 +172,19 @@ export function CotizacionForm({
   )
   const precioVisitaNeto = Math.max(0, precioVisita - montoDescuento)
 
-  const totalProcedimientos = useMemo(() =>
+  const totalProcedimientosOriginal = useMemo(() =>
     selectedProcedures.reduce((sum, id) => sum + (procedimientos.find((p) => p.id === id)?.precio ?? 0), 0),
     [selectedProcedures, procedimientos]
   )
+  const montoDescuentoProcedimientos = useMemo(() =>
+    selectedProcedures.reduce((sum, id) => {
+      const precio = procedimientos.find((p) => p.id === id)?.precio ?? 0
+      const descuento = parseInt(procedureDiscountMap[id] ?? '0') || 0
+      return sum + Math.min(Math.max(0, descuento), precio)
+    }, 0),
+    [selectedProcedures, procedimientos, procedureDiscountMap]
+  )
+  const totalProcedimientos = totalProcedimientosOriginal - montoDescuentoProcedimientos
   const regularExamIds = examGroups
     .filter((g) => EXAM_GRUPO_META[g.grupoId].tipo === 'catalogo')
     .flatMap((g) => g.exams.map((e) => e.id))
@@ -214,13 +233,17 @@ export function CotizacionForm({
     fd.set('descuentoTipo', descuentoTipo)
     fd.set('descuentoValor', aplicaDescuento ? descuentoValor : '0')
     fd.set('descuentoAfectaPagoEnfermera', String(descuentoAfectaPagoEnfermera))
+    fd.set('descuentoProcedimientosAfectaPagoEnfermera', String(descuentoProcedimientosAfectaPagoEnfermera))
     selectedSurcharges.forEach((id) => fd.append('surcharge_ids', String(id)))
     fd.set('idPaciente', selectedIdPaciente ? String(selectedIdPaciente) : '')
     fd.set('nombreDestinatario', nombreDestinatario)
     fd.set('emailDestinatario', emailDestinatario)
     fd.set('telefonoDestinatario', telefonoDestinatario)
     fd.set('identificacionDestinatario', identificacionDestinatario)
-    selectedProcedures.forEach((id) => fd.append('procedure_ids', String(id)))
+    selectedProcedures.forEach((id) => {
+      fd.append('procedure_ids', String(id))
+      fd.set(`procedimiento_descuento_${id}`, procedureDiscountMap[id] ?? '0')
+    })
     appendExamGroupsToFormData(fd, examGroups)
     selectedTallers.forEach((id) => {
       fd.append('taller_ids', String(id))
@@ -590,17 +613,48 @@ export function CotizacionForm({
 
             {/* Tab content */}
             {activeTab === 'procedimientos' && (
-              <ServiceTabContent
-                label="procedimiento"
-                options={procedimientosOptions}
-                selected={selectedProcedures}
-                onChange={setSelectedProcedures}
-                items={selectedProcedures.map((id) => {
-                  const p = procedimientos.find((x) => x.id === id)!
-                  return { id, nombre: p.nombre, codigo: p.codigo, precio: p.precio }
-                })}
-                disabled={isPending}
-              />
+              <>
+                <ServiceTabContent
+                  label="procedimiento"
+                  options={procedimientosOptions}
+                  selected={selectedProcedures}
+                  onChange={(ids) => {
+                    setSelectedProcedures(ids)
+                    setProcedureDiscountMap((prev) => {
+                      const next = { ...prev }
+                      for (const key of Object.keys(next)) {
+                        if (!ids.includes(Number(key))) delete next[Number(key)]
+                      }
+                      return next
+                    })
+                  }}
+                  items={selectedProcedures.map((id) => {
+                    const p = procedimientos.find((x) => x.id === id)!
+                    return { id, nombre: p.nombre, codigo: p.codigo, precio: p.precio }
+                  })}
+                  disabled={isPending}
+                  discountMap={procedureDiscountMap}
+                  onDiscountChange={(id, val) => setProcedureDiscountMap((prev) => ({ ...prev, [id]: val }))}
+                />
+                {montoDescuentoProcedimientos > 0 && (
+                  <div className="mt-3 flex items-start gap-3 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                    <Checkbox
+                      id="descuentoProcedimientosAfectaPagoEnfermera"
+                      checked={descuentoProcedimientosAfectaPagoEnfermera}
+                      onCheckedChange={(checked) => setDescuentoProcedimientosAfectaPagoEnfermera(checked === true)}
+                      disabled={isPending}
+                      className="mt-0.5"
+                    />
+                    <label
+                      htmlFor="descuentoProcedimientosAfectaPagoEnfermera"
+                      className="cursor-pointer text-[12px] leading-tight"
+                      style={{ color: 'var(--muted-foreground)' }}
+                    >
+                      Descuento de procedimientos afecta el pago de la enfermera (si no está marcado, la enfermera cobra sobre el valor original de los procedimientos)
+                    </label>
+                  </div>
+                )}
+              </>
             )}
             {activeTab === 'examenes' && (
               <ExamenesPorGrupo
@@ -912,10 +966,15 @@ export function CotizacionForm({
               <SummaryGroup
                 tone="blue"
                 label="Procedimientos"
-                items={selectedProcedures.map((id) => {
-                  const p = procedimientos.find((x) => x.id === id)!
-                  return { name: p.nombre, price: p.precio }
-                })}
+                items={[
+                  ...selectedProcedures.map((id) => {
+                    const p = procedimientos.find((x) => x.id === id)!
+                    return { name: p.nombre, price: p.precio }
+                  }),
+                  ...(montoDescuentoProcedimientos > 0
+                    ? [{ name: 'Descuento procedimientos', price: -montoDescuentoProcedimientos }]
+                    : []),
+                ]}
                 subtotal={totalProcedimientos}
               />
               <SummaryGroup
@@ -1009,6 +1068,8 @@ function ServiceTabContent({
   onChange,
   items,
   disabled,
+  discountMap,
+  onDiscountChange,
 }: {
   label: string
   options: { id: number; label: string }[]
@@ -1016,6 +1077,8 @@ function ServiceTabContent({
   onChange: (ids: number[]) => void
   items: ServiceItem[]
   disabled: boolean
+  discountMap?: Record<number, string>
+  onDiscountChange?: (id: number, val: string) => void
 }) {
   return (
     <div>
@@ -1040,35 +1103,62 @@ function ServiceTabContent({
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
-          {items.map((item, i) => (
-            <div
-              key={item.id}
-              className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
-              style={{
-                borderTop: i === 0 ? 'none' : '1px solid var(--border)',
-                backgroundColor: 'var(--card)',
-              }}
-            >
-              <span
-                className="rounded px-1.5 py-0.5 font-mono text-[10.5px]"
-                style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+          {items.map((item, i) => {
+            const descuento = discountMap ? Math.min(parseInt(discountMap[item.id] ?? '0') || 0, item.precio) : 0
+            return (
+              <div
+                key={item.id}
+                className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
+                style={{
+                  borderTop: i === 0 ? 'none' : '1px solid var(--border)',
+                  backgroundColor: 'var(--card)',
+                }}
               >
-                {item.codigo}
-              </span>
-              <span className="flex-1" style={{ color: 'var(--foreground)' }}>{item.nombre}</span>
-              <span className="tabular-nums" style={{ color: 'var(--foreground)', minWidth: 80, textAlign: 'right' }}>
-                {CLP(item.precio)}
-              </span>
-              <button
-                type="button"
-                onClick={() => onChange(items.filter((x) => x.id !== item.id).map((x) => x.id))}
-                className="rounded p-1 transition-opacity hover:opacity-70"
-                style={{ color: 'var(--muted-foreground)' }}
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+                <span
+                  className="rounded px-1.5 py-0.5 font-mono text-[10.5px]"
+                  style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+                >
+                  {item.codigo}
+                </span>
+                <span className="flex-1" style={{ color: 'var(--foreground)' }}>{item.nombre}</span>
+                <span className="tabular-nums" style={{ color: 'var(--foreground)', minWidth: 80, textAlign: 'right' }}>
+                  {descuento > 0 && (
+                    <span className="mr-1.5 font-normal line-through" style={{ color: 'var(--muted-foreground)' }}>
+                      {CLP(item.precio)}
+                    </span>
+                  )}
+                  {CLP(item.precio - descuento)}
+                </span>
+                {discountMap && onDiscountChange && (
+                  <div
+                    className="flex shrink-0 items-center gap-1 rounded border px-1.5 py-1"
+                    style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
+                  >
+                    <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>Desc. $</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={item.precio}
+                      value={discountMap[item.id] ?? '0'}
+                      onChange={(e) => onDiscountChange(item.id, e.target.value)}
+                      placeholder="0"
+                      disabled={disabled}
+                      className="w-16 bg-transparent text-right text-[12px] tabular-nums outline-none"
+                      style={{ color: 'var(--foreground)' }}
+                    />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onChange(items.filter((x) => x.id !== item.id).map((x) => x.id))}
+                  className="rounded p-1 transition-opacity hover:opacity-70"
+                  style={{ color: 'var(--muted-foreground)' }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

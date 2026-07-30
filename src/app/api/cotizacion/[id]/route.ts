@@ -83,9 +83,10 @@ function mapToHTMLData(data: CotizacionVisita): CotizacionHTMLData {
   const subtotales: CotizacionHTMLData['subtotales'] = []
   if (examenes.length > 0 && data.subtotalExamenes > 0)
     subtotales.push({ label: 'Subtotal exámenes', amount: data.subtotalExamenes })
-  const subtotalProc = procedimientos.reduce((s, p) => s + (p.precio ?? 0), 0)
-  if (subtotalProc > 0)
-    subtotales.push({ label: 'Subtotal procedimientos', amount: subtotalProc })
+  if (data.subtotalProcedimientosOriginal > 0)
+    subtotales.push({ label: 'Subtotal procedimientos', amount: data.subtotalProcedimientosOriginal })
+  if (data.montoDescuentoProcedimientos > 0)
+    subtotales.push({ label: 'Descuento procedimientos', amount: -data.montoDescuentoProcedimientos })
   if (data.subtotalTalleres > 0)
     subtotales.push({ label: 'Subtotal talleres', amount: data.subtotalTalleres })
   if (data.costoVisitaEnfermeriaOriginal > 0)

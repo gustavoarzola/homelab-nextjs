@@ -47,6 +47,8 @@ export type VisitaDetalle = {
   montoDescuento: number
   montoVisitaOriginal: number
   descuentoAfectaPagoEnfermera: boolean
+  montoDescuentoProcedimientos: number
+  descuentoProcedimientosAfectaPagoEnfermera: boolean
   idPaciente: number | null
   idEnfermera: number | null
   numeroBoleta: string
@@ -65,7 +67,7 @@ export type VisitaDetalle = {
   cobraVisita: boolean
   keyOrdenMedica: string | null
   procedureIds: number[]
-  procedurePrices: { idProcedimiento: number; precio: number }[]
+  procedurePrices: { idProcedimiento: number; precio: number; descuento: number }[]
   examIds: number[]
   examPrices: { idExamen: number; precio: number }[]
   tallerIds: number[]
@@ -90,6 +92,8 @@ export type VisitaLifecycleDetalle = {
   montoDescuento: number
   montoVisitaOriginal: number
   descuentoAfectaPagoEnfermera: boolean
+  montoDescuentoProcedimientos: number
+  descuentoProcedimientosAfectaPagoEnfermera: boolean
   informacionAdicional: string
   origenContacto: string | null
   idPaciente: number | null
@@ -338,7 +342,7 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
   if (!visit) return null
 
   const [procs, exams_, isapre_, talleres_, surcharges_] = await Promise.all([
-    db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
+    db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio, descuento: visitProcedures.descuento }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
     db.select({ idExamen: visitExams.idExamen, precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, id)),
     db.select({ idExamen: visitIsapreExams.idExamen, valorCompleto: visitIsapreExams.valorCompleto, valorPagar: visitIsapreExams.valorPagar, idPrevision: visitIsapreExams.idPrevision }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id)),
     db.select({ idTaller: visitWorkshops.idTaller, precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, id)),
@@ -357,6 +361,8 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     montoDescuento: visit.montoDescuento,
     montoVisitaOriginal: visit.montoVisitaOriginal,
     descuentoAfectaPagoEnfermera: visit.descuentoAfectaPagoEnfermera,
+    montoDescuentoProcedimientos: visit.montoDescuentoProcedimientos,
+    descuentoProcedimientosAfectaPagoEnfermera: visit.descuentoProcedimientosAfectaPagoEnfermera,
     idPaciente: visit.idPaciente ?? null,
     idEnfermera: visit.idEnfermera ?? null,
     numeroBoleta: visit.numeroBoleta ?? '',
@@ -375,7 +381,7 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     cobraVisita: visit.cobraVisita,
     keyOrdenMedica: visit.keyOrdenMedica ?? null,
     procedureIds: procs.map((p) => p.idProcedimiento),
-    procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio })),
+    procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio, descuento: p.descuento })),
     examIds: exams_.map((e) => e.idExamen),
     examPrices: exams_.map((e) => ({ idExamen: e.idExamen, precio: e.precio })),
     isapreExams: isapre_.map((e) => ({ idExamen: e.idExamen, valorCompleto: e.valorCompleto, valorPagar: e.valorPagar, idPrevision: e.idPrevision })),
@@ -478,6 +484,8 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
       montoDescuento: visit.montoDescuento,
       montoVisitaOriginal: visit.montoVisitaOriginal,
       descuentoAfectaPagoEnfermera: visit.descuentoAfectaPagoEnfermera,
+      montoDescuentoProcedimientos: visit.montoDescuentoProcedimientos,
+      descuentoProcedimientosAfectaPagoEnfermera: visit.descuentoProcedimientosAfectaPagoEnfermera,
       informacionAdicional: visit.informacionAdicional ?? '',
       origenContacto: visit.origenContacto ?? null,
       idPaciente: visit.idPaciente ?? null,
@@ -544,6 +552,7 @@ const visitaSharedFields = {
   descuentoTipo: fields.descuentoTipo,
   descuentoValor: fields.descuentoValor,
   descuentoAfectaPagoEnfermera: fields.bool,
+  descuentoProcedimientosAfectaPagoEnfermera: fields.bool,
   procedure_ids: fields.ids,
   exam_ids: fields.ids,
   taller_ids: fields.ids,
@@ -575,6 +584,7 @@ export async function updateVisita(
     id, fecha, hora, idEnfermera,
     origenContacto, informacionAdicional, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
+    descuentoProcedimientosAfectaPagoEnfermera,
     keyOrdenMedica,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
@@ -609,13 +619,14 @@ export async function updateVisita(
         .set({
           fecha, hora, idEnfermera, origenContacto, informacionAdicional, cobraVisita, montoInsumos,
           descuentoTipo, descuentoValor: descuentoValorFinal, descuentoAfectaPagoEnfermera,
+          descuentoProcedimientosAfectaPagoEnfermera,
           keyOrdenMedica, updatedAt: new Date(),
         })
         .where(eq(visits.id, id))
 
       // Preserve stored prices for existing items before deleting.
       const existingProcs = await tx
-        .select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio })
+        .select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio, descuento: visitProcedures.descuento })
         .from(visitProcedures)
         .where(eq(visitProcedures.idVisita, id))
       const existingExams = await tx
@@ -623,6 +634,7 @@ export async function updateVisita(
         .from(visitExams)
         .where(eq(visitExams.idVisita, id))
       const storedPriceMap = new Map(existingProcs.map((p) => [p.idProcedimiento, p.precio]))
+      const storedDiscountMap = new Map(existingProcs.map((p) => [p.idProcedimiento, p.descuento]))
       const storedExamPriceMap = new Map(existingExams.map((e) => [e.idExamen, e.precio]))
 
       // Fetch catalog prices for newly added procedures
@@ -651,11 +663,18 @@ export async function updateVisita(
 
       if (procedureIds.length > 0) {
         await tx.insert(visitProcedures).values(
-          procedureIds.map((idProcedimiento) => ({
-            idProcedimiento,
-            idVisita: id,
-            precio: storedPriceMap.get(idProcedimiento) ?? catalogPriceMap.get(idProcedimiento) ?? 0,
-          })),
+          procedureIds.map((idProcedimiento) => {
+            const descuentoRaw = fd.get(`procedimiento_descuento_${idProcedimiento}`)
+            const descuento = descuentoRaw !== null
+              ? Math.max(0, Number(descuentoRaw) || 0)
+              : (storedDiscountMap.get(idProcedimiento) ?? 0)
+            return {
+              idProcedimiento,
+              idVisita: id,
+              precio: storedPriceMap.get(idProcedimiento) ?? catalogPriceMap.get(idProcedimiento) ?? 0,
+              descuento,
+            }
+          }),
         )
       }
       if (examIds.length > 0) {
@@ -739,6 +758,7 @@ export async function createVisita(
     idPaciente, fecha, hora, idEnfermera,
     origenContacto, informacionAdicional, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
+    descuentoProcedimientosAfectaPagoEnfermera,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
@@ -768,6 +788,7 @@ export async function createVisita(
         pagado: false, costoTraslado: 0,
         cobraVisita, montoInsumos,
         descuentoTipo, descuentoValor: descuentoValorFinal, descuentoAfectaPagoEnfermera,
+        descuentoProcedimientosAfectaPagoEnfermera,
         })
         .returning()
 
@@ -784,6 +805,7 @@ export async function createVisita(
             idProcedimiento,
             idVisita: id,
             precio: priceMap.get(idProcedimiento) ?? 0,
+            descuento: Math.max(0, Number(fd.get(`procedimiento_descuento_${idProcedimiento}`)) || 0),
           })),
         )
       }

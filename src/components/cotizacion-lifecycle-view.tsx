@@ -214,7 +214,8 @@ function QuoteSummary({ cot }: { cot: CotizacionVista }) {
   const initials = displayName !== 'Sin destinatario' ? getInitials(displayName) : '?'
 
   const subtotalServicios =
-    cot.procedimientos.reduce((s, x) => s + x.precio, 0) +
+    cot.procedimientos.reduce((s, x) => s + x.precio, 0) -
+    cot.montoDescuentoProcedimientos +
     cot.examenes.reduce((s, x) => s + x.precio, 0) +
     cot.isapreExams.reduce((s, x) => s + x.valorPagar, 0) +
     cot.talleres.reduce((s, x) => s + x.precio, 0)
@@ -277,6 +278,12 @@ function QuoteSummary({ cot }: { cot: CotizacionVista }) {
         </div>
         <div className="flex flex-col gap-4">
           <SvcGroup label="Procedimientos" dot="oklch(0.45 0.1 250)" items={cot.procedimientos} />
+          {cot.montoDescuentoProcedimientos > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg text-[13px]" style={{ background: 'var(--muted)', color: 'oklch(0.55 0.18 25)' }}>
+              <span>Descuento procedimientos</span>
+              <span className="tabular-nums font-medium">-{CLP(cot.montoDescuentoProcedimientos)}</span>
+            </div>
+          )}
           <SvcGroup label="Exámenes" dot="oklch(0.4 0.13 145)" items={cot.examenes} />
           <SvcGroup
             label="Exámenes Isapre"

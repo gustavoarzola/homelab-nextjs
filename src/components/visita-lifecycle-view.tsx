@@ -212,7 +212,8 @@ function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
   const isCompleted = v.estado === 'completada'
   const examResultsById = new Map(v.examenResultados.map((r) => [r.idExamen, r]))
   const totalServicios =
-    v.procedimientos.reduce((s, x) => s + x.precio, 0) +
+    v.procedimientos.reduce((s, x) => s + x.precio, 0) -
+    v.montoDescuentoProcedimientos +
     v.examenes.reduce((s, x) => s + x.precio, 0) +
     v.isapreExams.reduce((s, x) => s + x.valorPagar, 0) +
     v.talleres.reduce((s, x) => s + x.precio, 0)
@@ -291,6 +292,12 @@ function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
         </div>
         <div className="flex flex-col gap-4">
           <SvcGroup label="Procedimientos" dot="oklch(0.45 0.1 250)" items={v.procedimientos} />
+          {v.montoDescuentoProcedimientos > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px]" style={{ background: 'var(--muted)', color: 'oklch(0.55 0.18 25)' }}>
+              <span>Descuento procedimientos</span>
+              <span className="tabular-nums">-{CLP(v.montoDescuentoProcedimientos)}</span>
+            </div>
+          )}
           <SvcGroup
             label="Exámenes"
             dot="oklch(0.4 0.13 145)"
