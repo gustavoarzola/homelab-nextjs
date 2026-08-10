@@ -6,11 +6,14 @@
 // catálogo real) y SÍ depende de aleatoriedad — pero toda esa aleatoriedad pasa
 // por el PRNG con semilla de `rng.ts`, nunca por `Math.random()`.
 //
-// Regla de oro: el costo de una visita NUNCA se calcula a mano acá. Se insertan
-// los items (procedimientos/exámenes/talleres/recargos/isapre) y luego se llama
-// `actualizarCostoVisitaPersistida()` (la misma función que usa la app) para que
-// `costo`/`montoDescuento`/`montoVisitaOriginal`/`montoDescuentoProcedimientos`
-// se deriven de la lógica real, no de una reimplementación paralela acá.
+// Regla de oro: el costo de una visita NUNCA se reimplementa a mano acá. Se
+// calcula con `computeCostoVisita()` — el mismo núcleo puro que usa
+// `calcularCostoVisitaPersistida()` en la app — a partir de los items recién
+// generados en memoria, y se setea directo en el INSERT de `visitas`
+// (`costo`/`montoDescuento`/`montoVisitaOriginal`/`montoDescuentoProcedimientos`).
+// Antes se insertaba con `costo: 0` y se releía cada visita desde la BD para
+// recalcularla; con miles de visitas eso significaba decenas de miles de
+// queries adicionales (causa de timeouts en el driver serverless de Vercel).
 //
 // Para cotizaciones no existe un equivalente persistido (la app calcula `total`
 // inline en `createCotizacion`/`updateCotizacion`), así que `computeQuotationCost()`
@@ -46,7 +49,7 @@ import {
 } from '../schema'
 import { createRng, type Rng } from './rng'
 import { previsionesData } from './data/previsiones'
-import { getPrecioVisitaEnfermeria, actualizarCostoVisitaPersistida } from '@/lib/pricing/visitas'
+import { getPrecioVisitaEnfermeria, computeCostoVisita } from '@/lib/pricing/visitas'
 import { resolverMontoDescuento, type DescuentoTipo } from '@/lib/pricing/descuento'
 import { todaySantiago, parseDateLocal } from '@/lib/format'
 
@@ -657,6 +660,9 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
       hora: string
       estado: SeedVisitState
       costo: number
+      montoDescuento: number
+      montoVisitaOriginal: number
+      montoDescuentoProcedimientos: number
       cobraVisita: boolean
       montoInsumos: number
       descuentoTipo: DescuentoTipo
@@ -773,11 +779,31 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
       const resultadosTotalCount = items.examItems.length + items.isapreItems.length
       const resultadosEnviadosCount = state === 'completada' ? resultadosTotalCount : 0
 
+      // Costo derivado con la MISMA fórmula pura que usa la app
+      // (`computeCostoVisita`, compartida con `calcularCostoVisitaPersistida`),
+      // calculado en memoria con los items recién generados — evita releer
+      // miles de visitas desde la BD tras insertarlas.
+      const costo = computeCostoVisita({
+        procedimientos: items.procItems,
+        examenes: items.examItems,
+        exameneIsapre: items.isapreItems,
+        talleres: items.workshopItems,
+        recargos: items.surchargeItems,
+        aplicaVisitaEnfermeria: items.cobraVisita,
+        precioVisita: items.cobraVisita ? feeForComuna(addressComunas[patientArrayIdx]!) : null,
+        descuentoTipo: items.descuentoTipo,
+        descuentoValor: items.descuentoValor,
+        montoInsumos: items.montoInsumos,
+      })
+
       visitRows.push({
         fecha,
         hora: `${hour}:${minute}:00`,
         estado: state,
-        costo: 0, // se recalcula con `actualizarCostoVisitaPersistida` tras insertar los items
+        costo: costo.total,
+        montoDescuento: costo.montoDescuento,
+        montoVisitaOriginal: costo.costoVisitaEnfermeriaOriginal,
+        montoDescuentoProcedimientos: costo.montoDescuentoProcedimientos,
         cobraVisita: items.cobraVisita,
         montoInsumos: items.montoInsumos,
         descuentoTipo: items.descuentoTipo,
@@ -875,16 +901,6 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
       for (let offset = 0; offset < allIsapreRows.length; offset += ITEM_BATCH) {
         await db.insert(visitIsapreExams).values(allIsapreRows.slice(offset, offset + ITEM_BATCH))
       }
-    }
-
-    // ─ Regla de oro: costo/montoDescuento/etc. se derivan con la MISMA lógica
-    // que usa la app, nunca reimplementada a mano acá. Se corre con
-    // concurrencia acotada (independiente por visita) solo por performance.
-    console.log(`   Recalculando costo persistido de ${insertedVisitIds.length} visitas...`)
-    const COST_CONCURRENCY = 20
-    for (let offset = 0; offset < insertedVisitIds.length; offset += COST_CONCURRENCY) {
-      const chunk = insertedVisitIds.slice(offset, offset + COST_CONCURRENCY)
-      await Promise.all(chunk.map((id) => actualizarCostoVisitaPersistida(id, db)))
     }
   }
 
