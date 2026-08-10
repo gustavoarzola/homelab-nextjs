@@ -56,6 +56,72 @@ export async function getPrecioVisitaEnfermeria(
   return precioBase?.precio ?? null
 }
 
+/**
+ * Cálculo puro (sin BD) del costo de una visita a partir de sus items y del
+ * precio de visita de enfermería ya resuelto. Es el núcleo compartido por
+ * `calcularCostoVisitaPersistida()` (que lee los items desde la BD) y por el
+ * seed (que ya tiene los items en memoria al construir la visita) — nunca se
+ * reimplementa la fórmula en paralelo.
+ */
+export function computeCostoVisita(inputs: {
+  procedimientos: { precio: number; descuento: number }[]
+  examenes: { precio: number }[]
+  exameneIsapre: { valorPagar: number }[]
+  talleres: { precio: number }[]
+  recargos: { precio: number }[]
+  aplicaVisitaEnfermeria: boolean
+  /** Fee de la comuna (o base) ANTES de aplicar el descuento de la visita. */
+  precioVisita: number | null
+  descuentoTipo: DescuentoTipo
+  descuentoValor: number
+  montoInsumos: number
+}): CostoVisitaCalculado {
+  const {
+    procedimientos,
+    examenes,
+    exameneIsapre,
+    talleres,
+    recargos,
+    aplicaVisitaEnfermeria,
+    precioVisita,
+    descuentoTipo,
+    descuentoValor,
+    montoInsumos,
+  } = inputs
+
+  const subtotalProcedimientosOriginal = procedimientos.reduce((sum, row) => sum + row.precio, 0)
+  const montoDescuentoProcedimientos = procedimientos.reduce(
+    (sum, row) => sum + Math.min(Math.max(0, row.descuento), row.precio),
+    0,
+  )
+  const subtotalProcedimientos = subtotalProcedimientosOriginal - montoDescuentoProcedimientos
+  const subtotalExamenes = examenes.reduce((sum, row) => sum + row.precio, 0)
+  const subtotalIsapreExamenes = exameneIsapre.reduce((sum, row) => sum + row.valorPagar, 0)
+  const subtotalTalleres = talleres.reduce((sum, row) => sum + row.precio, 0)
+  const subtotalRecargos = recargos.reduce((sum, row) => sum + row.precio, 0)
+  const costoVisitaEnfermeriaOriginal = precioVisita ?? 0
+  const montoDescuento = aplicaVisitaEnfermeria
+    ? resolverMontoDescuento(costoVisitaEnfermeriaOriginal, descuentoTipo, descuentoValor)
+    : 0
+  const costoVisitaEnfermeria = Math.max(0, costoVisitaEnfermeriaOriginal - montoDescuento)
+
+  return {
+    subtotalProcedimientos,
+    subtotalProcedimientosOriginal,
+    montoDescuentoProcedimientos,
+    subtotalExamenes: subtotalExamenes + subtotalIsapreExamenes,
+    subtotalTalleres,
+    subtotalRecargos,
+    costoVisitaEnfermeria,
+    costoVisitaEnfermeriaOriginal,
+    montoDescuento,
+    montoInsumos,
+    total: subtotalProcedimientos + subtotalExamenes + subtotalIsapreExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos + montoInsumos,
+    aplicaVisitaEnfermeria,
+    precioVisitaConfigurado: precioVisita !== null,
+  }
+}
+
 export async function calcularCostoVisitaPersistida(
   idVisita: number,
   conn: PricingDb = db,
@@ -81,44 +147,23 @@ export async function calcularCostoVisitaPersistida(
       .limit(1),
   ])
 
-  const subtotalProcedimientosOriginal = procedimientos.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
-  const montoDescuentoProcedimientos = procedimientos.reduce(
-    (sum: number, row: { precio: number; descuento: number }) => sum + Math.min(Math.max(0, row.descuento), row.precio),
-    0,
-  )
-  const subtotalProcedimientos = subtotalProcedimientosOriginal - montoDescuentoProcedimientos
-  const subtotalExamenes = examenes.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
-  const subtotalIsapreExamenes = exameneIsapre.reduce((sum: number, row: { valorPagar: number }) => sum + row.valorPagar, 0)
-  const subtotalTalleres = talleres.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
-  const subtotalRecargos = recargos.reduce((sum: number, row: { precio: number }) => sum + row.precio, 0)
   const aplicaVisitaEnfermeria = visitaPaciente?.cobraVisita ?? false
   const precioVisita = aplicaVisitaEnfermeria
     ? await getPrecioVisitaEnfermeria(conn, visitaPaciente?.comuna ?? null)
     : null
-  const costoVisitaEnfermeriaOriginal = precioVisita ?? 0
-  const descuentoTipo = (visitaPaciente?.descuentoTipo ?? 'monto') as DescuentoTipo
-  const descuentoValor = visitaPaciente?.descuentoValor ?? 0
-  const montoDescuento = aplicaVisitaEnfermeria
-    ? resolverMontoDescuento(costoVisitaEnfermeriaOriginal, descuentoTipo, descuentoValor)
-    : 0
-  const costoVisitaEnfermeria = Math.max(0, costoVisitaEnfermeriaOriginal - montoDescuento)
-  const montoInsumos = visitaPaciente?.montoInsumos ?? 0
 
-  return {
-    subtotalProcedimientos,
-    subtotalProcedimientosOriginal,
-    montoDescuentoProcedimientos,
-    subtotalExamenes: subtotalExamenes + subtotalIsapreExamenes,
-    subtotalTalleres,
-    subtotalRecargos,
-    costoVisitaEnfermeria,
-    costoVisitaEnfermeriaOriginal,
-    montoDescuento,
-    montoInsumos,
-    total: subtotalProcedimientos + subtotalExamenes + subtotalIsapreExamenes + subtotalTalleres + costoVisitaEnfermeria + subtotalRecargos + montoInsumos,
+  return computeCostoVisita({
+    procedimientos,
+    examenes,
+    exameneIsapre,
+    talleres,
+    recargos,
     aplicaVisitaEnfermeria,
-    precioVisitaConfigurado: precioVisita !== null,
-  }
+    precioVisita,
+    descuentoTipo: (visitaPaciente?.descuentoTipo ?? 'monto') as DescuentoTipo,
+    descuentoValor: visitaPaciente?.descuentoValor ?? 0,
+    montoInsumos: visitaPaciente?.montoInsumos ?? 0,
+  })
 }
 
 export async function actualizarCostoVisitaPersistida(
