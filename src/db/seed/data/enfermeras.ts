@@ -67,9 +67,9 @@ export const nurseData = [
   { nombres: 'Loreto', apellidoPaterno: 'Lagos', apellidoMaterno: 'Benavides', rut: '13.334.445-4', telefono: '+56912345044', correo: 'llagos@clinica.cl', activo: false },
   { nombres: 'Nadia Fernanda', apellidoPaterno: 'Ríos', apellidoMaterno: 'Céspedes', rut: '14.445.556-8', telefono: '+56912345045', correo: 'nrios@clinica.cl', activo: false },
   // Sin algunos datos opcionales
-  { nombres: 'Alejandra', apellidoPaterno: 'Orellana', apellidoMaterno: null, rut: null, telefono: '+56912345046', correo: null, activo: true },
+  { nombres: 'Alejandra', apellidoPaterno: 'Orellana', apellidoMaterno: '', rut: null, telefono: '+56912345046', correo: null, activo: true },
   { nombres: 'Beatriz', apellidoPaterno: 'Alvarado', apellidoMaterno: 'Donoso', rut: '15.556.667-1', telefono: null, correo: 'balvarado@clinica.cl', activo: true },
-  { nombres: 'Carmen Gloria', apellidoPaterno: 'Benavides', apellidoMaterno: null, rut: null, telefono: null, correo: null, activo: true },
+  { nombres: 'Carmen Gloria', apellidoPaterno: 'Benavides', apellidoMaterno: '', rut: null, telefono: null, correo: null, activo: true },
   { nombres: 'Diana', apellidoPaterno: 'Céspedes', apellidoMaterno: 'Molina', rut: '16.667.778-5', telefono: '+56912345049', correo: 'dcespedes@clinica.cl', activo: true },
   { nombres: 'Eva Soledad', apellidoPaterno: 'Donoso', apellidoMaterno: 'Arriagada', rut: '17.778.889-9', telefono: '+56912345050', correo: 'edonoso@clinica.cl', activo: true },
 ]
