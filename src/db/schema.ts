@@ -57,6 +57,12 @@ export const nurses = pgTable(
   (table) => [
     index('enfermeras_apellido_paterno_idx').on(table.apellidoPaterno),
     uniqueIndex('enfermeras_correo_idx').on(table.correo),
+    // Sin correo, múltiples NULL no colisionan entre sí en el índice de arriba
+    // (comportamiento estándar de Postgres) — este índice parcial cubre ese
+    // caso usando nombres+apellidos como identidad de respaldo.
+    uniqueIndex('enfermeras_nombre_sin_correo_idx')
+      .on(table.nombres, table.apellidoPaterno, table.apellidoMaterno)
+      .where(sql`${table.correo} IS NULL`),
   ]
 )
 

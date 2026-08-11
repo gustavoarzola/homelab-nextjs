@@ -87,11 +87,11 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
 
   // ─── Enfermeras ──────────────────────────────────────────────────────────
   // No hay clave natural única en `enfermeras` (rut/correo pueden ser null).
-  // El correo, cuando existe, es el mejor candidato de "identidad real"; se
-  // usa como target de conflicto y las filas sin correo (null) simplemente no
-  // colisionan entre sí (múltiples NULL no son iguales en Postgres), por lo
-  // que solo protege contra duplicar el mismo registro dos veces, no entre
-  // enfermeras distintas sin correo. Es aceptable para datos de catálogo real.
+  // El correo, cuando existe, es el candidato de "identidad real" (índice
+  // `enfermeras_correo_idx`). Para las filas sin correo, un índice parcial
+  // adicional (`enfermeras_nombre_sin_correo_idx`) usa nombres+apellidos como
+  // respaldo. Sin `target` explícito, DO NOTHING evalúa el conflicto contra
+  // cualquiera de los dos índices (comportamiento estándar de Postgres).
   console.log(`   Insertando ${nurseData.length} enfermeras...`)
   await conn
     .insert(nurses)
@@ -102,7 +102,7 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
         comunaResidencia: pickByIndex(COMUNAS_RM, i),
       })),
     )
-    .onConflictDoNothing({ target: nurses.correo })
+    .onConflictDoNothing()
 
   // ─── Precios de visita de enfermería por comuna ─────────────────────────
   // DECISIÓN: `comuna` es nullable y la fila base (comuna = null) representa

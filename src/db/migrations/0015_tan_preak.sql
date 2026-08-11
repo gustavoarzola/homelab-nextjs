@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "enfermeras_nombre_sin_correo_idx" ON "enfermeras" USING btree ("nombres","apellido_paterno","apellido_materno") WHERE "enfermeras"."correo" IS NULL;
