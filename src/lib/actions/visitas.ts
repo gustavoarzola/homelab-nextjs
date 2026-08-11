@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, nursingVisitPrices, surchargeTypes } from '@/db/schema'
+import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, elderlyResidences, nursingVisitPrices, surchargeTypes } from '@/db/schema'
 import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getTiposRecargosForSelect } from './catalogos'
@@ -158,8 +158,14 @@ function buildVisitasWhere(filters: SearchParams['filters']): SQL | undefined {
       )!,
     )
   }
-  if (estado) conditions.push(eq(visits.estado, estado))
-  if (enfermeraId) conditions.push(eq(visits.idEnfermera, Number(enfermeraId)))
+  if (estado) {
+    const estados = estado.split(',').map((e) => e.trim()).filter(Boolean)
+    conditions.push(estados.length > 1 ? inArray(visits.estado, estados) : eq(visits.estado, estados[0]!))
+  }
+  if (enfermeraId) {
+    const enfermeraIds = enfermeraId.split(',').map((e) => Number(e.trim())).filter(Boolean)
+    conditions.push(enfermeraIds.length > 1 ? inArray(visits.idEnfermera, enfermeraIds) : eq(visits.idEnfermera, enfermeraIds[0]!))
+  }
   if (fechaInicio) conditions.push(gte(visits.fecha, fechaInicio))
   if (fechaFin) conditions.push(lte(visits.fecha, fechaFin))
 
@@ -280,6 +286,137 @@ export async function listVisitasForExport(
   })
 }
 
+
+// ─── listVisitasForReport ─────────────────────────────────────────────────────
+
+export type VisitaReportRow = {
+  id: number
+  fecha: string
+  paciente: string | null
+  rut: string | null
+  comuna: string | null
+  origenContacto: string | null
+  procedimientos: string   // nombres separados por '\n'
+  examenes: string         // nombres separados por '\n'
+  metodoPago: string | null
+  montoVisita: number
+  montoDescuento: number
+  descuentoAfectaPagoEnfermera: boolean
+  subtotalExamenes: number
+  montoInsumos: number
+  totalBoleta: number
+  hogar: string | null
+  isapre: string | null
+}
+
+/**
+ * Reporte financiero por visita (usado por /reportes). A diferencia de
+ * `listVisitasForExport`, incluye los campos de cobro/previsión que pidió el
+ * cliente y agrega nombres de procedimientos/exámenes en una sola celda
+ * (separados por salto de línea) en vez de traerlos como filas aparte.
+ */
+export async function listVisitasForReport(
+  filters: SearchParams['filters'],
+): Promise<VisitaReportRow[]> {
+  return withQuery(async () => {
+    const where = buildVisitasWhere(filters)
+
+    const baseRows = await db
+      .select({
+        id: visits.id,
+        fecha: visits.fecha,
+        origenContacto: visits.origenContacto,
+        metodoPago: visits.metodoPago,
+        montoVisita: visits.montoVisitaOriginal,
+        montoDescuento: visits.montoDescuento,
+        descuentoAfectaPagoEnfermera: visits.descuentoAfectaPagoEnfermera,
+        montoInsumos: visits.montoInsumos,
+        totalBoleta: visits.costo,
+        pacienteNombres: patients.nombres,
+        pacienteApellidoPaterno: patients.apellidoPaterno,
+        pacienteApellidoMaterno: patients.apellidoMaterno,
+        rut: patients.identificador,
+        comuna: addresses.areaAdministrativa3,
+        hogar: elderlyResidences.nombre,
+        isapre: healthInsurances.nombre,
+      })
+      .from(visits)
+      .leftJoin(patients, eq(visits.idPaciente, patients.id))
+      .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
+      .leftJoin(elderlyResidences, eq(patients.idResidenciaAdulto, elderlyResidences.id))
+      .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
+      .where(where)
+      .orderBy(buildVisitasOrder({ key: 'fecha', dir: 'asc' }))
+
+    if (baseRows.length === 0) return []
+
+    const ids = baseRows.map((r) => r.id)
+
+    const [procRows, examRows, isapreExamRows] = await Promise.all([
+      db
+        .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre })
+        .from(visitProcedures)
+        .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
+        .where(inArray(visitProcedures.idVisita, ids)),
+      db
+        .select({ idVisita: visitExams.idVisita, nombre: exams.nombre, precio: visitExams.precio })
+        .from(visitExams)
+        .innerJoin(exams, eq(visitExams.idExamen, exams.id))
+        .where(inArray(visitExams.idVisita, ids)),
+      db
+        .select({ idVisita: visitIsapreExams.idVisita, nombre: exams.nombre, valorPagar: visitIsapreExams.valorPagar })
+        .from(visitIsapreExams)
+        .innerJoin(exams, eq(visitIsapreExams.idExamen, exams.id))
+        .where(inArray(visitIsapreExams.idVisita, ids)),
+    ])
+
+    const procNamesByVisita = new Map<number, string[]>()
+    for (const p of procRows) {
+      const arr = procNamesByVisita.get(p.idVisita) ?? []
+      arr.push(p.nombre)
+      procNamesByVisita.set(p.idVisita, arr)
+    }
+
+    const examNamesByVisita = new Map<number, string[]>()
+    const examSubtotalByVisita = new Map<number, number>()
+    for (const e of examRows) {
+      const arr = examNamesByVisita.get(e.idVisita) ?? []
+      arr.push(e.nombre)
+      examNamesByVisita.set(e.idVisita, arr)
+      examSubtotalByVisita.set(e.idVisita, (examSubtotalByVisita.get(e.idVisita) ?? 0) + e.precio)
+    }
+    for (const e of isapreExamRows) {
+      const arr = examNamesByVisita.get(e.idVisita) ?? []
+      arr.push(e.nombre)
+      examNamesByVisita.set(e.idVisita, arr)
+      examSubtotalByVisita.set(e.idVisita, (examSubtotalByVisita.get(e.idVisita) ?? 0) + e.valorPagar)
+    }
+
+    return baseRows.map((r) => ({
+      id: r.id,
+      fecha: r.fecha,
+      paciente: formatNombre({
+        nombres: r.pacienteNombres,
+        apellidoPaterno: r.pacienteApellidoPaterno,
+        apellidoMaterno: r.pacienteApellidoMaterno,
+      }) || null,
+      rut: r.rut,
+      comuna: r.comuna,
+      origenContacto: r.origenContacto,
+      procedimientos: (procNamesByVisita.get(r.id) ?? []).join('\n'),
+      examenes: (examNamesByVisita.get(r.id) ?? []).join('\n'),
+      metodoPago: r.metodoPago,
+      montoVisita: r.montoVisita,
+      montoDescuento: r.montoDescuento,
+      descuentoAfectaPagoEnfermera: r.descuentoAfectaPagoEnfermera,
+      subtotalExamenes: examSubtotalByVisita.get(r.id) ?? 0,
+      montoInsumos: r.montoInsumos,
+      totalBoleta: r.totalBoleta,
+      hogar: r.hogar,
+      isapre: r.isapre,
+    }))
+  })
+}
 
 // ─── getVisitaFormPricingContext ─────────────────────────────────────────────
 
