@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "enfermeras_correo_idx" ON "enfermeras" USING btree ("correo");

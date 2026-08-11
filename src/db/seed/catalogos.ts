@@ -102,7 +102,7 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
         comunaResidencia: pickByIndex(COMUNAS_RM, i),
       })),
     )
-    .onConflictDoNothing()
+    .onConflictDoNothing({ target: nurses.correo })
 
   // ─── Precios de visita de enfermería por comuna ─────────────────────────
   // DECISIÓN: `comuna` es nullable y la fila base (comuna = null) representa

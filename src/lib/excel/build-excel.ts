@@ -8,6 +8,8 @@ export type ExcelColumn<T> = {
   accessor: (row: T) => string | number | boolean | Date | null | undefined
   width?: number
   format?: ExcelCellFormat
+  /** Activa "ajustar texto" (wrapText) — usar en columnas con saltos de línea (`\n`) en el valor. */
+  wrap?: boolean
 }
 
 export type BuildExcelOptions<T> = {
@@ -47,12 +49,18 @@ export async function buildExcel<T>(opts: BuildExcelOptions<T>): Promise<BuildEx
   workbook.created = new Date()
   const sheet = workbook.addWorksheet(sanitizeSheetName(sheetName))
 
-  sheet.columns = columns.map((col) => ({
-    header: col.header,
-    key: col.header,
-    width: col.width ?? Math.max(col.header.length + 2, 12),
-    style: col.format ? { numFmt: NUM_FORMATS[col.format] } : undefined,
-  }))
+  sheet.columns = columns.map((col) => {
+    const style = {
+      ...(col.format ? { numFmt: NUM_FORMATS[col.format] } : undefined),
+      ...(col.wrap ? { alignment: { wrapText: true, vertical: 'top' as const } } : undefined),
+    }
+    return {
+      header: col.header,
+      key: col.header,
+      width: col.width ?? Math.max(col.header.length + 2, 12),
+      style: Object.keys(style).length > 0 ? style : undefined,
+    }
+  })
 
   const autoWidth: number[] = columns.map((c) => c.width ?? c.header.length + 2)
 

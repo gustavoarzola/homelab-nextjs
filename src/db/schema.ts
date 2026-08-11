@@ -56,6 +56,7 @@ export const nurses = pgTable(
   },
   (table) => [
     index('enfermeras_apellido_paterno_idx').on(table.apellidoPaterno),
+    uniqueIndex('enfermeras_correo_idx').on(table.correo),
   ]
 )
 

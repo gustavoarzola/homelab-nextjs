@@ -22,6 +22,7 @@ import {
   FileText,
   BookOpen,
   Wallet,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -42,6 +43,7 @@ const navItems = [
   { href: '/residencias', label: 'Residencias', icon: Building2 },
   { href: '/tipos-recargos', label: 'Tipos de Recargos', icon: AlertCircle },
   { href: '/precios/visitas', label: 'Precios visitas', icon: Tag },
+  { href: '/reportes', label: 'Reportes', icon: FileSpreadsheet },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
