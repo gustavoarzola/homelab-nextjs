@@ -104,7 +104,7 @@ export type VisitaLifecycleDetalle = {
   pacienteDireccion: string | null
   idEnfermera: number | null
   enfermeraNombre: string | null
-  procedimientos: { id: number; nombre: string; codigo: string | null; precio: number }[]
+  procedimientos: { id: number; nombre: string; codigo: string | null; precio: number; descuento: number }[]
   examenes: { id: number; nombre: string; codigo: string; grupoExamen: string; precio: number }[]
   isapreExams: { id: number; nombre: string; codigo: string | null; valorCompleto: number; valorPagar: number }[]
   talleres: { id: number; nombre: string; precio: number }[]
@@ -307,7 +307,16 @@ export type VisitaReportRow = {
   totalBoleta: number
   hogar: string | null
   isapre: string | null
+  /** Suma de exámenes regulares con grupoExamen 'imalab' o 'imalab fonasa 3' (subconjunto de subtotalExamenes). */
+  imedFonasa: number
+  /** Suma de valorCompleto de exámenes isapre — solo referencia, no es lo que paga el paciente. */
+  imedIsapreTotal: number
+  /** Suma de valorPagar de exámenes isapre — lo que realmente cobra el paciente por ese laboratorio. */
+  imedIsapreBono: number
 }
+
+// Grupos de examenes.grupoExamen que se pagan por la vía Fonasa/Imalab (ver src/lib/exam-grupos.ts).
+const IMED_FONASA_GRUPOS = ['imalab', 'imalab fonasa 3']
 
 /**
  * Reporte financiero por visita (usado por /reportes). A diferencia de
@@ -359,12 +368,12 @@ export async function listVisitasForReport(
         .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
         .where(inArray(visitProcedures.idVisita, ids)),
       db
-        .select({ idVisita: visitExams.idVisita, nombre: exams.nombre, precio: visitExams.precio })
+        .select({ idVisita: visitExams.idVisita, nombre: exams.nombre, precio: visitExams.precio, grupoExamen: exams.grupoExamen })
         .from(visitExams)
         .innerJoin(exams, eq(visitExams.idExamen, exams.id))
         .where(inArray(visitExams.idVisita, ids)),
       db
-        .select({ idVisita: visitIsapreExams.idVisita, nombre: exams.nombre, valorPagar: visitIsapreExams.valorPagar })
+        .select({ idVisita: visitIsapreExams.idVisita, nombre: exams.nombre, valorPagar: visitIsapreExams.valorPagar, valorCompleto: visitIsapreExams.valorCompleto })
         .from(visitIsapreExams)
         .innerJoin(exams, eq(visitIsapreExams.idExamen, exams.id))
         .where(inArray(visitIsapreExams.idVisita, ids)),
@@ -379,17 +388,24 @@ export async function listVisitasForReport(
 
     const examNamesByVisita = new Map<number, string[]>()
     const examSubtotalByVisita = new Map<number, number>()
+    const imedFonasaByVisita = new Map<number, number>()
+    const imedIsapreTotalByVisita = new Map<number, number>()
+    const imedIsapreBonoByVisita = new Map<number, number>()
     for (const e of examRows) {
       const arr = examNamesByVisita.get(e.idVisita) ?? []
       arr.push(e.nombre)
       examNamesByVisita.set(e.idVisita, arr)
       examSubtotalByVisita.set(e.idVisita, (examSubtotalByVisita.get(e.idVisita) ?? 0) + e.precio)
+      if (IMED_FONASA_GRUPOS.includes(e.grupoExamen)) {
+        imedFonasaByVisita.set(e.idVisita, (imedFonasaByVisita.get(e.idVisita) ?? 0) + e.precio)
+      }
     }
     for (const e of isapreExamRows) {
       const arr = examNamesByVisita.get(e.idVisita) ?? []
       arr.push(e.nombre)
       examNamesByVisita.set(e.idVisita, arr)
-      examSubtotalByVisita.set(e.idVisita, (examSubtotalByVisita.get(e.idVisita) ?? 0) + e.valorPagar)
+      imedIsapreTotalByVisita.set(e.idVisita, (imedIsapreTotalByVisita.get(e.idVisita) ?? 0) + e.valorCompleto)
+      imedIsapreBonoByVisita.set(e.idVisita, (imedIsapreBonoByVisita.get(e.idVisita) ?? 0) + e.valorPagar)
     }
 
     return baseRows.map((r) => ({
@@ -414,6 +430,9 @@ export async function listVisitasForReport(
       totalBoleta: r.totalBoleta,
       hogar: r.hogar,
       isapre: r.isapre,
+      imedFonasa: imedFonasaByVisita.get(r.id) ?? 0,
+      imedIsapreTotal: imedIsapreTotalByVisita.get(r.id) ?? 0,
+      imedIsapreBono: imedIsapreBonoByVisita.get(r.id) ?? 0,
     }))
   })
 }
@@ -539,7 +558,7 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
     if (!visit) return null
 
     const [procs, exams_, isapre_, talleres_, surcharges_, examResults_] = await Promise.all([
-      db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
+      db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio, descuento: visitProcedures.descuento }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
       db.select({ idExamen: visitExams.idExamen, precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, id)),
       db.select({ idExamen: visitIsapreExams.idExamen, valorCompleto: visitIsapreExams.valorCompleto, valorPagar: visitIsapreExams.valorPagar }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id)),
       db.select({ idTaller: visitWorkshops.idTaller, precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, id)),
@@ -633,7 +652,7 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
       pacienteDireccion: direccionStr,
       idEnfermera: visit.idEnfermera ?? null,
       enfermeraNombre: nurseRow ? formatNombre({ nombres: nurseRow.nombres, apellidoPaterno: nurseRow.apellidoPaterno, apellidoMaterno: nurseRow.apellidoMaterno }) || null : null,
-      procedimientos: procs.map((p) => { const m = procMetaMap.get(p.idProcedimiento); return { id: p.idProcedimiento, nombre: m?.nombre ?? '—', codigo: m?.codigo ?? null, precio: p.precio } }),
+      procedimientos: procs.map((p) => { const m = procMetaMap.get(p.idProcedimiento); return { id: p.idProcedimiento, nombre: m?.nombre ?? '—', codigo: m?.codigo ?? null, precio: p.precio, descuento: p.descuento } }),
       examenes: exams_.map((e) => { const m = examMetaMap.get(e.idExamen); return { id: e.idExamen, nombre: m?.nombre ?? '—', codigo: m?.codigo ?? '', grupoExamen: m?.grupoExamen ?? '', precio: e.precio } }),
       isapreExams: isapre_.map((e) => { const m = examMetaMap.get(e.idExamen); return { id: e.idExamen, nombre: m?.nombre ?? '—', codigo: m?.codigo ?? null, valorCompleto: e.valorCompleto, valorPagar: e.valorPagar } }),
       talleres: talleres_.map((t) => { const m = tallerMetaMap.get(t.idTaller); return { id: t.idTaller, nombre: m?.nombre ?? '—', precio: t.precio } }),
@@ -1133,8 +1152,10 @@ export async function completarVisita(id: number, data: CompletarVisitaData): Pr
     if (!data.metodoPago) throw new ActionError('Método de pago requerido para completar la visita')
     if (!data.fechaPago) throw new ActionError('Fecha de pago requerida para completar la visita')
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data.fechaPago)) throw new ActionError('Formato de fecha de pago inválido')
-    if (data.numeroAtencion !== null && data.numeroAtencion !== undefined && !Number.isFinite(data.numeroAtencion)) {
-      throw new ActionError('N° de atención inválido')
+    if (data.numeroAtencion !== null && data.numeroAtencion !== undefined) {
+      if (!Number.isInteger(data.numeroAtencion) || data.numeroAtencion < 1 || data.numeroAtencion > 2147483647) {
+        throw new ActionError('N° de atención inválido')
+      }
     }
 
     const numeroBoleta = data.numeroBoleta.trim()

@@ -10,6 +10,7 @@ export type ReportColumn<T> = ExcelColumn<T> & { key: string }
  * la página `/reportes` (pinta los checkboxes on/off). Mismo orden en ambos.
  */
 export const VISITA_REPORT_COLUMNS: ReportColumn<VisitaReportRow>[] = [
+  { key: 'id', header: 'ID', accessor: (r) => r.id, width: 8, format: 'integer' },
   { key: 'fecha', header: 'Fecha', accessor: (r) => parseDateLocal(r.fecha), width: 12, format: 'date' },
   { key: 'paciente', header: 'Nombre', accessor: (r) => r.paciente, width: 32 },
   { key: 'rut', header: 'RUT', accessor: (r) => r.rut, width: 14 },
@@ -26,4 +27,7 @@ export const VISITA_REPORT_COLUMNS: ReportColumn<VisitaReportRow>[] = [
   { key: 'totalBoleta', header: 'Total Boleta', accessor: (r) => r.totalBoleta, width: 16, format: 'currency-clp' },
   { key: 'hogar', header: 'Hogar', accessor: (r) => r.hogar, width: 20 },
   { key: 'isapre', header: 'Isapre', accessor: (r) => r.isapre, width: 18 },
+  { key: 'imedFonasa', header: 'IMED Fonasa', accessor: (r) => r.imedFonasa, width: 16, format: 'currency-clp' },
+  { key: 'imedIsapreTotal', header: 'IMED Isapre Total', accessor: (r) => r.imedIsapreTotal, width: 18, format: 'currency-clp' },
+  { key: 'imedIsapreBono', header: 'IMED isapre Bono a pagar', accessor: (r) => r.imedIsapreBono, width: 20, format: 'currency-clp' },
 ]
