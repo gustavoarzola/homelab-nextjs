@@ -150,10 +150,12 @@ function SvcGroup({
   label,
   dot,
   items,
+  footer,
 }: {
   label: string
   dot: string
-  items: { id: number; nombre: string; codigo?: string | null; precio: number; meta?: string | null }[]
+  items: { id: number; nombre: string; codigo?: string | null; precio: number; meta?: string | null; detalle?: string | null }[]
+  footer?: React.ReactNode
 }) {
   if (!items.length) return null
   return (
@@ -186,10 +188,23 @@ function SvcGroup({
                   {it.meta}
                 </span>
               )}
+              {it.detalle && (
+                <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                  {it.detalle}
+                </span>
+              )}
             </span>
             <span className="tabular-nums shrink-0" style={{ color: 'var(--muted-foreground)' }}>{CLP(it.precio)}</span>
           </div>
         ))}
+        {footer && (
+          <div
+            className="flex items-center justify-between gap-3 px-3.5 py-2 text-[11px]"
+            style={{ background: 'var(--muted)', borderTop: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -291,7 +306,14 @@ function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
           )}
         </div>
         <div className="flex flex-col gap-4">
-          <SvcGroup label="Procedimientos" dot="oklch(0.45 0.1 250)" items={v.procedimientos} />
+          <SvcGroup
+            label="Procedimientos"
+            dot="oklch(0.45 0.1 250)"
+            items={v.procedimientos.map((p) => ({
+              ...p,
+              detalle: p.descuento > 0 ? `Descuento: -${CLP(p.descuento)}` : null,
+            }))}
+          />
           {v.montoDescuentoProcedimientos > 0 && (
             <div className="flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px]" style={{ background: 'var(--muted)', color: 'oklch(0.55 0.18 25)' }}>
               <span>Descuento procedimientos</span>
@@ -320,8 +342,17 @@ function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
                 codigo: e.codigo,
                 precio: e.valorPagar,
                 meta: isCompleted && result?.enviado && result.fechaEnvio ? `Enviado el ${formatDate(result.fechaEnvio)}` : null,
+                detalle: `Valor total ${CLP(e.valorCompleto)} · Bonifica isapre ${CLP(e.valorCompleto - e.valorPagar)}`,
               }
             })}
+            footer={
+              v.isapreExams.length > 0 ? (
+                <>
+                  <span>Valor total isapre (referencia, no incluido en el total)</span>
+                  <span className="tabular-nums shrink-0">{CLP(v.isapreExams.reduce((s, e) => s + e.valorCompleto, 0))}</span>
+                </>
+              ) : null
+            }
           />
           <SvcGroup label="Talleres" dot="oklch(0.5 0.12 60)" items={v.talleres} />
           {v.cobraVisita && (
@@ -337,7 +368,10 @@ function VisitaSummary({ v }: { v: VisitaLifecycleDetalle }) {
           )}
           {v.montoDescuento > 0 && (
             <div className="flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px]" style={{ background: 'var(--muted)', color: 'oklch(0.55 0.18 25)' }}>
-              <span>Descuento visita</span>
+              <span>
+                Descuento visita{' '}
+                {v.descuentoTipo === 'porcentaje' ? `(${v.descuentoValor}%)` : `(${CLP(v.descuentoValor)})`}
+              </span>
               <span className="tabular-nums">-{CLP(v.montoDescuento)}</span>
             </div>
           )}
@@ -917,7 +951,7 @@ function PanelRealizada({
           <label className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>
             N° de atención <span className="font-normal" style={{ color: 'var(--muted-foreground)' }}>(opcional)</span>
           </label>
-          <input value={atencion} onChange={(e) => { setCompletionError(null); setAtencion(e.target.value) }} placeholder="Ej: 98765" type="number"
+          <input value={atencion} onChange={(e) => { setCompletionError(null); setAtencion(e.target.value) }} placeholder="Ej: 98765" type="number" min="1" max="2147483647"
             className="h-9 rounded-lg px-3 text-[13px] outline-none" style={{ background: 'var(--background)', border: `1px solid ${completionError?.field === 'atencion' ? 'oklch(0.65 0.2 25)' : 'var(--input)'}`, color: 'var(--foreground)' }} />
           {completionError?.field === 'atencion' && <InlineError>{completionError.message}</InlineError>}
         </div>

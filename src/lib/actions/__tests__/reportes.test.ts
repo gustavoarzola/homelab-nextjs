@@ -119,8 +119,16 @@ describe('listVisitasForReport', () => {
     const [procB] = await db.insert(procedures).values({ nombre: 'AAA Inyección', codigo: unique('PROC'), precio: 3000 }).returning()
     created.procedures.push(procA!.id, procB!.id)
 
+    // grupoExamen por defecto ('imalab') → cuenta para IMED Fonasa
     const [exam] = await db.insert(exams).values({ nombre: 'Hemograma', codigo: unique('EX'), precio: 4400 }).returning()
     created.exams.push(exam!.id)
+
+    // grupoExamen 'integramédica' → cuenta para el subtotal general pero NO para IMED Fonasa
+    const [examIntegramedica] = await db
+      .insert(exams)
+      .values({ nombre: 'Perfil hepático', codigo: unique('EX'), precio: 2000, grupoExamen: 'integramédica' })
+      .returning()
+    created.exams.push(examIntegramedica!.id)
 
     const [isapreExam] = await db.insert(exams).values({ nombre: 'Perfil bioquímico', codigo: unique('EX'), precio: 8000 }).returning()
     created.exams.push(isapreExam!.id)
@@ -135,7 +143,7 @@ describe('listVisitasForReport', () => {
           montoInsumos: 1500,
         },
         [procA!.id, procB!.id],
-        [exam!.id],
+        [exam!.id, examIntegramedica!.id],
       ),
     )
     expect(result.success).toBe(true)
@@ -175,11 +183,18 @@ describe('listVisitasForReport', () => {
     // Dos procedimientos, uno por línea (orden alfabético por nombre desde la query)
     expect(row!.procedimientos.split('\n').sort()).toEqual(['AAA Inyección', 'ZZZ Curación'])
 
-    // Examen normal + examen isapre, uno por línea
-    expect(row!.examenes.split('\n').sort()).toEqual(['Hemograma', 'Perfil bioquímico'])
+    // Exámenes regulares + examen isapre, uno por línea
+    expect(row!.examenes.split('\n').sort()).toEqual(['Hemograma', 'Perfil bioquímico', 'Perfil hepático'])
 
-    // Subtotal exámenes = precio examen normal (4400) + valorPagar isapre (6000)
-    expect(row!.subtotalExamenes).toBe(4400 + 6000)
+    // Subtotal exámenes = suma de exámenes regulares (todos los grupos), sin el bono isapre
+    expect(row!.subtotalExamenes).toBe(4400 + 2000)
+
+    // IMED Fonasa = solo exámenes regulares con grupoExamen 'imalab'/'imalab fonasa 3' (excluye integramédica)
+    expect(row!.imedFonasa).toBe(4400)
+
+    // IMED Isapre Total = valorCompleto (referencia); IMED isapre Bono a pagar = valorPagar (lo que se cobra)
+    expect(row!.imedIsapreTotal).toBe(8000)
+    expect(row!.imedIsapreBono).toBe(6000)
 
     // Total boleta = costo persistido de la visita (sin cobrar visita de enfermería)
     const [visitRow] = await db.select({ costo: visits.costo }).from(visits).where(eq(visits.id, id))
