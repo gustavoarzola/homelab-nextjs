@@ -11,6 +11,7 @@ import { requireSession } from '@/lib/auth-guard'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 import { formatNombre } from '@/lib/paciente'
 import { actualizarCostoVisitaPersistida } from '@/lib/pricing/visitas'
+import { calcNursePayment, calcNursePaymentBase } from '@/lib/pricing/nurse-payment'
 import type { VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
 import { parseFormDataWithArrays, fields } from '@/lib/validation'
 
@@ -292,19 +293,31 @@ export async function listVisitasForExport(
 export type VisitaReportRow = {
   id: number
   fecha: string
+  estado: string
   paciente: string | null
   rut: string | null
   comuna: string | null
+  enfermera: string | null
   origenContacto: string | null
   procedimientos: string   // nombres separados por '\n'
+  subtotalProcedimientos: number
   examenes: string         // nombres separados por '\n'
+  talleres: string         // nombres separados por '\n'
+  subtotalTalleres: number
+  recargos: string         // nombres separados por '\n'
+  subtotalRecargos: number
   metodoPago: string | null
   montoVisita: number
   montoDescuento: number
   descuentoAfectaPagoEnfermera: boolean
+  montoDescuentoProcedimientos: number
+  descuentoProcedimientosAfectaPagoEnfermera: boolean
   subtotalExamenes: number
   montoInsumos: number
   totalBoleta: number
+  pagado: boolean
+  fechaPago: string | null
+  pagoEnfermera: number
   hogar: string | null
   isapre: string | null
   /** Suma de exámenes regulares con grupoExamen 'imalab' o 'imalab fonasa 3' (subconjunto de subtotalExamenes). */
@@ -334,13 +347,18 @@ export async function listVisitasForReport(
       .select({
         id: visits.id,
         fecha: visits.fecha,
+        estado: visits.estado,
         origenContacto: visits.origenContacto,
         metodoPago: visits.metodoPago,
         montoVisita: visits.montoVisitaOriginal,
         montoDescuento: visits.montoDescuento,
         descuentoAfectaPagoEnfermera: visits.descuentoAfectaPagoEnfermera,
+        montoDescuentoProcedimientos: visits.montoDescuentoProcedimientos,
+        descuentoProcedimientosAfectaPagoEnfermera: visits.descuentoProcedimientosAfectaPagoEnfermera,
         montoInsumos: visits.montoInsumos,
         totalBoleta: visits.costo,
+        pagado: visits.pagado,
+        fechaPago: visits.fechaPago,
         pacienteNombres: patients.nombres,
         pacienteApellidoPaterno: patients.apellidoPaterno,
         pacienteApellidoMaterno: patients.apellidoMaterno,
@@ -348,12 +366,17 @@ export async function listVisitasForReport(
         comuna: addresses.areaAdministrativa3,
         hogar: elderlyResidences.nombre,
         isapre: healthInsurances.nombre,
+        enfermeraNombres: nurses.nombres,
+        enfermeraApellidoPaterno: nurses.apellidoPaterno,
+        enfermeraApellidoMaterno: nurses.apellidoMaterno,
+        porcentajePago: nurses.porcentajePago,
       })
       .from(visits)
       .leftJoin(patients, eq(visits.idPaciente, patients.id))
       .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
       .leftJoin(elderlyResidences, eq(patients.idResidenciaAdulto, elderlyResidences.id))
       .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
+      .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
       .where(where)
       .orderBy(buildVisitasOrder({ key: 'fecha', dir: 'asc' }))
 
@@ -361,9 +384,9 @@ export async function listVisitasForReport(
 
     const ids = baseRows.map((r) => r.id)
 
-    const [procRows, examRows, isapreExamRows] = await Promise.all([
+    const [procRows, examRows, isapreExamRows, workshopRows, surchargeRows] = await Promise.all([
       db
-        .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre })
+        .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre, precio: visitProcedures.precio })
         .from(visitProcedures)
         .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
         .where(inArray(visitProcedures.idVisita, ids)),
@@ -377,13 +400,43 @@ export async function listVisitasForReport(
         .from(visitIsapreExams)
         .innerJoin(exams, eq(visitIsapreExams.idExamen, exams.id))
         .where(inArray(visitIsapreExams.idVisita, ids)),
+      db
+        .select({ idVisita: visitWorkshops.idVisita, nombre: workshops.nombre, precio: visitWorkshops.precio })
+        .from(visitWorkshops)
+        .innerJoin(workshops, eq(visitWorkshops.idTaller, workshops.id))
+        .where(inArray(visitWorkshops.idVisita, ids)),
+      db
+        .select({ idVisita: visitSurcharges.idVisita, nombre: surchargeTypes.nombre, precio: visitSurcharges.precio })
+        .from(visitSurcharges)
+        .innerJoin(surchargeTypes, eq(visitSurcharges.idTipoRecargo, surchargeTypes.id))
+        .where(inArray(visitSurcharges.idVisita, ids)),
     ])
 
     const procNamesByVisita = new Map<number, string[]>()
+    const procSubtotalByVisita = new Map<number, number>()
     for (const p of procRows) {
       const arr = procNamesByVisita.get(p.idVisita) ?? []
       arr.push(p.nombre)
       procNamesByVisita.set(p.idVisita, arr)
+      procSubtotalByVisita.set(p.idVisita, (procSubtotalByVisita.get(p.idVisita) ?? 0) + p.precio)
+    }
+
+    const workshopNamesByVisita = new Map<number, string[]>()
+    const workshopSubtotalByVisita = new Map<number, number>()
+    for (const w of workshopRows) {
+      const arr = workshopNamesByVisita.get(w.idVisita) ?? []
+      arr.push(w.nombre)
+      workshopNamesByVisita.set(w.idVisita, arr)
+      workshopSubtotalByVisita.set(w.idVisita, (workshopSubtotalByVisita.get(w.idVisita) ?? 0) + w.precio)
+    }
+
+    const surchargeNamesByVisita = new Map<number, string[]>()
+    const surchargeSubtotalByVisita = new Map<number, number>()
+    for (const s of surchargeRows) {
+      const arr = surchargeNamesByVisita.get(s.idVisita) ?? []
+      arr.push(s.nombre)
+      surchargeNamesByVisita.set(s.idVisita, arr)
+      surchargeSubtotalByVisita.set(s.idVisita, (surchargeSubtotalByVisita.get(s.idVisita) ?? 0) + s.precio)
     }
 
     const examNamesByVisita = new Map<number, string[]>()
@@ -408,32 +461,63 @@ export async function listVisitasForReport(
       imedIsapreBonoByVisita.set(e.idVisita, (imedIsapreBonoByVisita.get(e.idVisita) ?? 0) + e.valorPagar)
     }
 
-    return baseRows.map((r) => ({
-      id: r.id,
-      fecha: r.fecha,
-      paciente: formatNombre({
-        nombres: r.pacienteNombres,
-        apellidoPaterno: r.pacienteApellidoPaterno,
-        apellidoMaterno: r.pacienteApellidoMaterno,
-      }) || null,
-      rut: r.rut,
-      comuna: r.comuna,
-      origenContacto: r.origenContacto,
-      procedimientos: (procNamesByVisita.get(r.id) ?? []).join('\n'),
-      examenes: (examNamesByVisita.get(r.id) ?? []).join('\n'),
-      metodoPago: r.metodoPago,
-      montoVisita: r.montoVisita,
-      montoDescuento: r.montoDescuento,
-      descuentoAfectaPagoEnfermera: r.descuentoAfectaPagoEnfermera,
-      subtotalExamenes: examSubtotalByVisita.get(r.id) ?? 0,
-      montoInsumos: r.montoInsumos,
-      totalBoleta: r.totalBoleta,
-      hogar: r.hogar,
-      isapre: r.isapre,
-      imedFonasa: imedFonasaByVisita.get(r.id) ?? 0,
-      imedIsapreTotal: imedIsapreTotalByVisita.get(r.id) ?? 0,
-      imedIsapreBono: imedIsapreBonoByVisita.get(r.id) ?? 0,
-    }))
+    return baseRows.map((r) => {
+      const subtotalExamenes = examSubtotalByVisita.get(r.id) ?? 0
+      const subtotalTalleres = workshopSubtotalByVisita.get(r.id) ?? 0
+
+      // Mismo cálculo que getPagoEnfermeraDetalle (src/lib/actions/pagos-enfermeras.ts):
+      // la base excluye exámenes/talleres/insumos e incluye fee visita + procedimientos + recargos;
+      // si un descuento no afecta el pago de la enfermera, se revierte sumándolo de vuelta.
+      const visitRevert = r.descuentoAfectaPagoEnfermera ? 0 : r.montoDescuento
+      const procRevert = r.descuentoProcedimientosAfectaPagoEnfermera ? 0 : r.montoDescuentoProcedimientos
+      const base = calcNursePaymentBase(r.totalBoleta, subtotalExamenes, subtotalTalleres, r.montoInsumos, visitRevert + procRevert, false)
+      const porcentajePago = Number(r.porcentajePago ?? 67.5)
+
+      return {
+        id: r.id,
+        fecha: r.fecha,
+        estado: r.estado,
+        paciente: formatNombre({
+          nombres: r.pacienteNombres,
+          apellidoPaterno: r.pacienteApellidoPaterno,
+          apellidoMaterno: r.pacienteApellidoMaterno,
+        }) || null,
+        rut: r.rut,
+        comuna: r.comuna,
+        enfermera: r.enfermeraNombres
+          ? formatNombre({
+              nombres: r.enfermeraNombres,
+              apellidoPaterno: r.enfermeraApellidoPaterno,
+              apellidoMaterno: r.enfermeraApellidoMaterno,
+            }) || null
+          : null,
+        origenContacto: r.origenContacto,
+        procedimientos: (procNamesByVisita.get(r.id) ?? []).join('\n'),
+        subtotalProcedimientos: procSubtotalByVisita.get(r.id) ?? 0,
+        examenes: (examNamesByVisita.get(r.id) ?? []).join('\n'),
+        talleres: (workshopNamesByVisita.get(r.id) ?? []).join('\n'),
+        subtotalTalleres,
+        recargos: (surchargeNamesByVisita.get(r.id) ?? []).join('\n'),
+        subtotalRecargos: surchargeSubtotalByVisita.get(r.id) ?? 0,
+        metodoPago: r.metodoPago,
+        montoVisita: r.montoVisita,
+        montoDescuento: r.montoDescuento,
+        descuentoAfectaPagoEnfermera: r.descuentoAfectaPagoEnfermera,
+        montoDescuentoProcedimientos: r.montoDescuentoProcedimientos,
+        descuentoProcedimientosAfectaPagoEnfermera: r.descuentoProcedimientosAfectaPagoEnfermera,
+        subtotalExamenes,
+        montoInsumos: r.montoInsumos,
+        totalBoleta: r.totalBoleta,
+        pagado: r.pagado,
+        fechaPago: r.fechaPago,
+        pagoEnfermera: r.enfermeraNombres ? calcNursePayment(base, porcentajePago) : 0,
+        hogar: r.hogar,
+        isapre: r.isapre,
+        imedFonasa: imedFonasaByVisita.get(r.id) ?? 0,
+        imedIsapreTotal: imedIsapreTotalByVisita.get(r.id) ?? 0,
+        imedIsapreBono: imedIsapreBonoByVisita.get(r.id) ?? 0,
+      }
+    })
   })
 }
 
