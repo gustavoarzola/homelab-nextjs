@@ -9,8 +9,13 @@ import {
   nurses,
   patients,
   procedures,
+  surchargeTypes,
   visitIsapreExams,
+  visitProcedures,
+  visitSurcharges,
+  visitWorkshops,
   visits,
+  workshops,
 } from '@/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { P } from './helpers'
@@ -33,6 +38,8 @@ const created = {
   procedures: [] as number[],
   exams: [] as number[],
   nurses: [] as number[],
+  workshops: [] as number[],
+  surchargeTypes: [] as number[],
   visits: [] as number[],
 }
 
@@ -44,6 +51,10 @@ afterEach(async () => {
     created.exams.length ? db.delete(exams).where(inArray(exams.id, created.exams)) : null,
     created.procedures.length ? db.delete(procedures).where(inArray(procedures.id, created.procedures)) : null,
     created.nurses.length ? db.delete(nurses).where(inArray(nurses.id, created.nurses)) : null,
+    created.workshops.length ? db.delete(workshops).where(inArray(workshops.id, created.workshops)) : null,
+    created.surchargeTypes.length
+      ? db.delete(surchargeTypes).where(inArray(surchargeTypes.id, created.surchargeTypes))
+      : null,
   ])
   await Promise.all([
     created.patients.length ? db.delete(patients).where(inArray(patients.id, created.patients)) : null,
@@ -65,6 +76,8 @@ afterEach(async () => {
   created.procedures = []
   created.exams = []
   created.nurses = []
+  created.workshops = []
+  created.surchargeTypes = []
   created.visits = []
 })
 
@@ -315,5 +328,113 @@ describe('listVisitasForReport', () => {
     expect(ids).toContain(visitaA)
     expect(ids).toContain(visitaB)
     expect(ids).not.toContain(visitaC)
+  })
+
+  it('agrega enfermera, estado, talleres, recargos, facturación y calcula el pago a enfermera', async () => {
+    const comuna = unique('ComunaCompleta')
+
+    const [address] = await db
+      .insert(addresses)
+      .values({ direccion: unique('direccion'), areaAdministrativa3: comuna })
+      .returning()
+    created.addresses.push(address!.id)
+
+    const [patient] = await db
+      .insert(patients)
+      .values({ nombres: unique('Paciente'), apellidoPaterno: 'Completo', idDireccion: address!.id })
+      .returning()
+    created.patients.push(patient!.id)
+
+    const [nurse] = await db
+      .insert(nurses)
+      .values({ nombres: unique('Enf'), apellidoPaterno: 'Reporte', porcentajePago: '70' })
+      .returning()
+    created.nurses.push(nurse!.id)
+
+    const [proc] = await db.insert(procedures).values({ nombre: 'Curación', codigo: unique('PROC'), precio: 10000 }).returning()
+    created.procedures.push(proc!.id)
+
+    const [workshop] = await db.insert(workshops).values({ nombre: 'Taller Movilidad', codigo: unique('TALL') }).returning()
+    created.workshops.push(workshop!.id)
+
+    const [surchargeType] = await db
+      .insert(surchargeTypes)
+      .values({ nombre: unique('Nocturno'), precio: 1500 })
+      .returning()
+    created.surchargeTypes.push(surchargeType!.id)
+
+    const fecha = '2026-07-07'
+    // Costo persistido neto: (10000 procedimiento - 1000 descuento) + 2000 taller + 1500 recargo + 500 insumos = 13000
+    const [visit] = await db
+      .insert(visits)
+      .values({
+        fecha,
+        idPaciente: patient!.id,
+        idEnfermera: nurse!.id,
+        estado: 'realizada',
+        cobraVisita: false,
+        montoInsumos: 500,
+        costo: 13000,
+        montoDescuentoProcedimientos: 1000,
+        descuentoProcedimientosAfectaPagoEnfermera: false,
+        pagado: true,
+        fechaPago: '2026-07-10',
+        metodoPago: 'Transferencia',
+      })
+      .returning()
+    created.visits.push(visit!.id)
+
+    await db.insert(visitProcedures).values({ idVisita: visit!.id, idProcedimiento: proc!.id, precio: 10000, descuento: 1000 })
+    await db.insert(visitWorkshops).values({ idVisita: visit!.id, idTaller: workshop!.id, precio: 2000 })
+    await db.insert(visitSurcharges).values({ idVisita: visit!.id, idTipoRecargo: surchargeType!.id, precio: 1500 })
+
+    const [row] = await listVisitasForReport({ fechaInicio: fecha, fechaFin: fecha, estado: 'realizada' })
+
+    expect(row).toBeDefined()
+    expect(row!.estado).toBe('realizada')
+    expect(row!.enfermera).toContain('Reporte')
+    expect(row!.talleres).toBe('Taller Movilidad')
+    expect(row!.subtotalTalleres).toBe(2000)
+    expect(row!.recargos).toBe(surchargeType!.nombre)
+    expect(row!.subtotalRecargos).toBe(1500)
+    expect(row!.subtotalProcedimientos).toBe(10000)
+    expect(row!.montoDescuentoProcedimientos).toBe(1000)
+    expect(row!.descuentoProcedimientosAfectaPagoEnfermera).toBe(false)
+    expect(row!.pagado).toBe(true)
+    expect(row!.fechaPago).toBe('2026-07-10')
+    expect(row!.totalBoleta).toBe(13000)
+
+    // Mismo cálculo que getPagoEnfermeraDetalle (pagos-enfermeras.ts):
+    // base = costo - examSum(0) - workshopSum(2000) - insumosSum(500) + descuentoProcedimientos revertido (1000, no afecta)
+    // base = 13000 - 0 - 2000 - 500 + 1000 = 11500 → pago = round(11500 * 70 / 100) = 8050
+    expect(row!.pagoEnfermera).toBe(8050)
+  })
+
+  it('sin enfermera asignada, el pago a enfermera es 0', async () => {
+    const comuna = unique('ComunaSinEnfermera')
+    const [address] = await db
+      .insert(addresses)
+      .values({ direccion: unique('direccion'), areaAdministrativa3: comuna })
+      .returning()
+    created.addresses.push(address!.id)
+
+    const [patient] = await db
+      .insert(patients)
+      .values({ nombres: unique('Paciente'), apellidoPaterno: 'SinEnfermera', idDireccion: address!.id })
+      .returning()
+    created.patients.push(patient!.id)
+
+    const fecha = '2026-08-08'
+    const result = await createVisita(
+      visitaForm({ idPaciente: patient!.id, fecha, cobraVisita: 'false' }),
+    )
+    expect(result.success).toBe(true)
+    const id = (result as { success: true; data: { id: number } }).data.id
+    created.visits.push(id)
+
+    const [row] = await listVisitasForReport({ fechaInicio: fecha, fechaFin: fecha })
+    expect(row).toBeDefined()
+    expect(row!.enfermera).toBeNull()
+    expect(row!.pagoEnfermera).toBe(0)
   })
 })
