@@ -54,15 +54,15 @@ export type CotizacionHTMLData = {
 // ─── Builder ──────────────────────────────────────────────────────────────────
 
 function infoField(f: CotizacionInfoField): string {
-  return `<div style="margin-bottom:8px;">
-    <span style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:1px;">${f.label}</span>
-    <span style="font-size:${f.small ? 12 : 13}px;color:#1e2835;font-weight:500;">${f.value}</span>
+  return `<div style="margin-bottom:12px;">
+    <div style="font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#8894a3;">${f.label.toUpperCase()}</div>
+    <div style="font-size:${f.small ? 12.5 : 15}px;font-weight:600;color:#16202b;margin-top:3px;">${f.value}</div>
   </div>`
 }
 
 function groupHeader(label: string): string {
-  return `<tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
-    <td colspan="4" style="padding:7px 14px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;">${label}</td>
+  return `<tr>
+    <td colspan="4" style="padding:12px 0 8px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#a05a1e;border-bottom:1px solid #eef1f4;">${label}</td>
   </tr>`
 }
 
@@ -71,22 +71,24 @@ function itemRow(
   n: number,
 ): string {
   const precioCell = item.noPrice
-    ? `<span style="font-size:11px;color:#94a3b8;">incluido</span>`
+    ? `<span style="font-size:12px;color:#8894a3;">incluido</span>`
     : item.precio !== null
-      ? `<strong>${esc(pesos(item.precio))}</strong>`
-      : `<span style="font-size:11px;color:#94a3b8;">Sin precio configurado</span>`
-  return `<tr style="border-bottom:1px solid #f1f5f9;">
-    <td style="padding:11px 14px;color:#94a3b8;font-size:12px;text-align:right;padding-right:16px;">${n}</td>
-    <td style="padding:11px 14px;color:#1e2835;font-size:13px;">${esc(item.descripcion)}</td>
-    <td style="padding:11px 14px;color:#94a3b8;font-size:11px;font-family:monospace;">${esc(item.codigo)}</td>
-    <td style="padding:11px 14px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;">${precioCell}</td>
+      ? `<strong style="font-size:15px;font-weight:600;color:#16202b;">${esc(pesos(item.precio))}</strong>`
+      : `<span style="font-size:12px;color:#8894a3;">Sin precio configurado</span>`
+  return `<tr style="border-bottom:1px solid #eef1f4;">
+    <td style="padding:12px 0;color:#8894a3;font-weight:600;font-size:13px;">${n}</td>
+    <td style="padding:12px 14px 12px 0;color:#16202b;font-size:15px;">${esc(item.descripcion)}</td>
+    <td style="padding:12px 14px 12px 0;color:#5b6b7c;font-size:13.5px;font-family:'IBM Plex Mono',monospace;">${esc(item.codigo)}</td>
+    <td style="padding:12px 0;text-align:right;font-variant-numeric:tabular-nums;">${precioCell}</td>
   </tr>`
 }
 
-function subtotalRow(label: string, amount: number): string {
-  return `<tr style="background:#f8fafc;border-top:1px solid #e2e8f0;">
-    <td colspan="3" style="padding:10px 14px;font-size:12px;color:#64748b;">${label}</td>
-    <td style="padding:10px 14px;text-align:right;font-weight:600;font-size:13px;color:#1e2835;">${pesos(amount)}</td>
+function subtotalRow(label: string, amount: number, isLast: boolean): string {
+  const border = isLast ? 'border-bottom:1.5px solid #163f63;' : ''
+  const color = amount < 0 ? '#c8631f' : '#16202b'
+  return `<tr>
+    <td colspan="3" style="padding:10px 0;font-size:14px;color:#4b5b6b;${border}">${label}</td>
+    <td style="padding:10px 0;text-align:right;font-weight:600;font-size:14px;color:${color};${border}">${amount < 0 ? '-' : ''}${pesos(Math.abs(amount))}</td>
   </tr>`
 }
 
@@ -103,22 +105,23 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
       idx++
     }
   }
-  for (const sub of data.subtotales) {
-    itemsHTML += subtotalRow(sub.label, sub.amount)
-  }
+  data.subtotales.forEach((sub, i) => {
+    itemsHTML += subtotalRow(sub.label, sub.amount, i === data.subtotales.length - 1)
+  })
 
+  const totalBorder = data.subtotales.length === 0 ? 'border-top:1.5px solid #163f63;' : ''
   const totalCell =
     data.total > 0
-      ? `<span style="font-size:20px;font-weight:700;">${pesos(data.total)}</span>`
-      : `<span style="font-size:13px;font-weight:400;color:#94a3b8;">Sin precios configurados</span>`
+      ? `<span style="font-size:22px;font-weight:600;color:#163f63;font-family:'IBM Plex Mono',monospace;">${pesos(data.total)}</span>`
+      : `<span style="font-size:13px;font-weight:400;color:#8894a3;">Sin precios configurados</span>`
 
-  itemsHTML += `<tr style="background:#1e2835;">
-    <td colspan="3" style="padding:14px;font-size:11px;font-weight:600;letter-spacing:0.5px;color:#ffffff;">Total cotización</td>
-    <td style="padding:14px;text-align:right;color:#ffffff;">${totalCell}</td>
+  itemsHTML += `<tr>
+    <td colspan="3" style="padding:14px 0;font-size:15px;font-weight:700;color:#163f63;${totalBorder}">Total cotización</td>
+    <td style="padding:14px 0;text-align:right;${totalBorder}">${totalCell}</td>
   </tr>`
 
   const notasHTML = data.notas
-    ? `<div class="notes" style="margin-top:32px;">
+    ? `<div class="notes" style="margin-top:28px;">
         <strong>Notas:</strong> ${esc(data.notas)}
       </div>`
     : ''
@@ -133,12 +136,14 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Cotización ${esc(data.numeroDoc)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
       font-size: 13px;
-      color: #1e2835;
+      color: #16202b;
       background: #f0f2f5;
       line-height: 1.5;
     }
@@ -146,19 +151,19 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
       position: sticky;
       top: 0;
       z-index: 50;
-      background: #1e2835;
+      background: #163f63;
       padding: 10px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .print-bar p { font-size: 12px; color: #94a3b8; }
+    .print-bar p { font-size: 12px; color: #b7c4d4; }
     .print-bar button {
       display: flex;
       align-items: center;
       gap: 6px;
       background: #ffffff;
-      color: #1e2835;
+      color: #163f63;
       border: none;
       border-radius: 8px;
       padding: 8px 16px;
@@ -175,30 +180,29 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      gap: 38px;
     }
     .notes {
-      background: #fffbeb;
-      border: 1px solid #fde68a;
+      background: #fdf6ee;
+      border: 1px solid #f0d9c0;
       border-radius: 8px;
       padding: 14px 18px;
-      font-size: 11px;
-      color: #92400e;
+      font-size: 11.5px;
+      color: #8a4a1d;
       line-height: 1.6;
     }
     .disclaimer {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 14px 18px;
-      font-size: 11px;
-      color: #64748b;
-      line-height: 1.6;
+      border-top: 1px solid #e1e7ed;
+      padding-top: 18px;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: #5b6b7c;
+      font-style: italic;
     }
     @media print {
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { background: #ffffff; }
-      .page { margin: 0; padding: 1.5cm 2cm; box-shadow: none; max-width: none; }
+      .page { margin: 0; padding: 1.4cm 1.65cm; box-shadow: none; max-width: none; }
       .print-bar { display: none; }
       @page { margin: 0; }
     }
@@ -222,40 +226,44 @@ ${autoPrintScript}
   </div>
 
   <div class="page">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e2835;">
-      <tr>
-        <td style="padding:28px 40px;">
-          <p style="margin:0 0 3px;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">Homelab</p>
-          <p style="margin:0;font-size:11px;color:#94a3b8;letter-spacing:0.5px;">Atención de Enfermería a Domicilio</p>
-        </td>
-        <td style="padding:28px 40px;text-align:right;">
-          <span style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:2px;">Cotización</span>
-          <span style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:0.5px;">${esc(data.numeroDoc)}</span>
-          <p style="margin:4px 0 0;font-size:11px;color:#cbd5e1;">Emitida el ${esc(formatDateLong(data.emisionDate))}</p>
-        </td>
-      </tr>
-    </table>
+    <div style="padding:34px 44px 22px;border-bottom:2px solid #163f63;display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div style="position:relative;width:32px;height:32px;flex-shrink:0;">
+          <div style="position:absolute;left:11px;top:0;width:10px;height:32px;background:#c8631f;border-radius:2px;"></div>
+          <div style="position:absolute;top:11px;left:0;width:32px;height:10px;background:#163f63;border-radius:2px;"></div>
+        </div>
+        <div>
+          <div style="font-size:22px;font-weight:700;color:#163f63;letter-spacing:-0.01em;">Homelab</div>
+          <div style="font-size:12.5px;color:#5b6b7c;margin-top:2px;">Atención de Enfermería a Domicilio</div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;font-weight:600;letter-spacing:0.12em;color:#8894a3;">COTIZACIÓN N°</div>
+        <div style="font-size:22px;font-weight:600;color:#163f63;margin-top:4px;font-family:'IBM Plex Mono',monospace;">${esc(data.numeroDoc)}</div>
+        <div style="font-size:12px;color:#8894a3;margin-top:4px;">Emitida el ${esc(formatDateLong(data.emisionDate))}</div>
+      </div>
+    </div>
 
-    <div style="padding:36px 40px;">
+    <div style="padding:28px 44px 34px;">
 
-      <div class="info-grid" style="margin-bottom:32px;">
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;">
-          <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#64748b;margin-bottom:10px;">${esc(data.leftCard.title)}</p>
+      <div class="info-grid" style="padding-bottom:24px;margin-bottom:28px;border-bottom:1px solid #e1e7ed;">
+        <div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:0.1em;color:#5b6b7c;margin-bottom:12px;">${data.leftCard.title.toUpperCase()}</div>
           ${leftFields}
         </div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;">
-          <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#64748b;margin-bottom:10px;">${esc(data.rightCard.title)}</p>
+        <div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:0.1em;color:#5b6b7c;margin-bottom:12px;">${data.rightCard.title.toUpperCase()}</div>
           ${rightFields}
         </div>
       </div>
 
-      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e2e8f0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
         <thead>
-          <tr style="background:#f1f5f9;">
-            <th style="padding:10px 14px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;border-bottom:1px solid #e2e8f0;width:44px;">#</th>
-            <th style="padding:10px 14px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;border-bottom:1px solid #e2e8f0;text-align:left;">Descripción</th>
-            <th style="padding:10px 14px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;border-bottom:1px solid #e2e8f0;width:90px;">Código</th>
-            <th style="padding:10px 14px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;border-bottom:1px solid #e2e8f0;text-align:right;width:120px;">Precio</th>
+          <tr style="border-bottom:1.5px solid #163f63;">
+            <th style="padding:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#163f63;text-align:left;width:32px;">#</th>
+            <th style="padding:0 14px 8px 0;font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#163f63;text-align:left;">DESCRIPCIÓN</th>
+            <th style="padding:0 14px 8px 0;font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#163f63;text-align:left;width:100px;">CÓDIGO</th>
+            <th style="padding:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#163f63;text-align:right;width:120px;">PRECIO</th>
           </tr>
         </thead>
         <tbody>
@@ -265,13 +273,13 @@ ${autoPrintScript}
 
       ${notasHTML}
 
-      <div class="disclaimer" style="margin-top:${data.notas ? 16 : 32}px;">
+      <div class="disclaimer" style="margin-top:${data.notas ? 20 : 28}px;">
         ${esc(data.disclaimer)}
       </div>
 
-      <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
-        <p style="font-size:10px;color:#94a3b8;">Homelab &middot; Atención de Enfermería a Domicilio</p>
-        <p style="font-size:10px;color:#94a3b8;">Emitida el ${esc(formatDateLong(data.emisionDate))}</p>
+      <div style="margin-top:28px;padding-top:14px;border-top:1px solid #e1e7ed;display:flex;justify-content:space-between;align-items:center;">
+        <p style="font-size:12px;color:#8894a3;"><span style="color:#1f5f8f;font-weight:600;">Homelab</span> &middot; Atención de Enfermería a Domicilio</p>
+        <p style="font-size:12px;color:#8894a3;">Emitida el ${esc(formatDateLong(data.emisionDate))}</p>
       </div>
 
     </div>
