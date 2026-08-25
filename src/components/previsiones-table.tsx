@@ -2,10 +2,10 @@
 
 import { DataTable, type ColumnDef, type FilterDef, type FormFieldDef, type Result, type SearchParams } from './data-table'
 import type { PrevisionRow } from '@/lib/actions/catalogos'
+import { PREVISION_CATEGORIA_LABELS, PREVISION_CATEGORIA_OPTIONS, type PrevisionCategoria } from '@/lib/previsiones'
 
 type Props = {
   initialData: { rows: PrevisionRow[]; total: number }
-  categorias: string[]
   search: (params: SearchParams) => Promise<{ rows: PrevisionRow[]; total: number }>
   onCreate: (fd: FormData) => Promise<Result>
   onUpdate: (fd: FormData) => Promise<Result>
@@ -15,6 +15,8 @@ type Props = {
 function formatCategoriaLabel(categoria: string): string {
   const normalized = categoria.trim()
   if (!normalized) return categoria
+  const label = PREVISION_CATEGORIA_LABELS[normalized as PrevisionCategoria]
+  if (label) return label
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
 }
 
@@ -52,28 +54,23 @@ const columns: ColumnDef<PrevisionRow>[] = [
   },
 ]
 
-export function PrevisionesTable({ initialData, categorias, search, onCreate, onUpdate, onToggle }: Props) {
-  const categoriaOptions = categorias.map((categoria) => ({
-    value: categoria,
-    label: formatCategoriaLabel(categoria),
-  }))
+const filters: FilterDef[] = [
+  { key: 'buscar', label: 'Buscar', type: 'text', placeholder: 'Nombre…' },
+  {
+    key: 'categoria',
+    label: 'Categoría',
+    type: 'select-single',
+    options: [{ value: '', label: '— Todas —' }, ...PREVISION_CATEGORIA_OPTIONS],
+  },
+  { key: 'mostrarInactivos', label: 'Mostrar inactivas', type: 'checkbox' },
+]
 
-  const filters: FilterDef[] = [
-    { key: 'buscar', label: 'Buscar', type: 'text', placeholder: 'Nombre…' },
-    {
-      key: 'categoria',
-      label: 'Categoría',
-      type: 'select-single',
-      options: [{ value: '', label: '— Todas —' }, ...categoriaOptions],
-    },
-    { key: 'mostrarInactivos', label: 'Mostrar inactivas', type: 'checkbox' },
-  ]
+const formFields: FormFieldDef[] = [
+  { name: 'nombre', label: 'Nombre', required: true },
+  { name: 'categoria', label: 'Categoría', type: 'select-single', required: true, options: PREVISION_CATEGORIA_OPTIONS },
+]
 
-  const formFields: FormFieldDef[] = [
-    { name: 'nombre', label: 'Nombre', required: true },
-    { name: 'categoria', label: 'Categoría', type: 'select-single', required: true, options: categoriaOptions },
-  ]
-
+export function PrevisionesTable({ initialData, search, onCreate, onUpdate, onToggle }: Props) {
   return (
     <DataTable
       initialData={initialData}
