@@ -233,17 +233,23 @@ describe('createPrevision', () => {
   it('inserta una previsión', async () => {
     const nombre = `${P}Fonasa`
 
-    const result = await createPrevision(fd({ nombre }))
+    const result = await createPrevision(fd({ nombre, categoria: 'fonasa' }))
     expect(result.success).toBe(true)
 
     const [row] = await db.select().from(healthInsurances).where(eq(healthInsurances.nombre, nombre))
     expect(row).toBeDefined()
     expect(row!.activo).toBe(true)
+    expect(row!.categoria).toBe('fonasa')
     created.healthInsurances.push(row.id)
   })
 
   it('rechaza nombre vacío', async () => {
-    const result = await createPrevision(fd({ nombre: '' }))
+    const result = await createPrevision(fd({ nombre: '', categoria: 'fonasa' }))
+    expect(result.success).toBe(false)
+  })
+
+  it('rechaza categoría fuera del dominio fijo', async () => {
+    const result = await createPrevision(fd({ nombre: `${P}Categoria invalida`, categoria: 'otro' }))
     expect(result.success).toBe(false)
   })
 })
@@ -253,7 +259,7 @@ describe('updatePrevision', () => {
     const prev = await seedPrevision('Prev editar')
     const nuevoNombre = `${P}Prev actualizada`
 
-    const result = await updatePrevision(fd({ id: prev.id, nombre: nuevoNombre }))
+    const result = await updatePrevision(fd({ id: prev.id, nombre: nuevoNombre, categoria: 'isapre' }))
     expect(result.success).toBe(true)
 
     const [updated] = await db.select().from(healthInsurances).where(eq(healthInsurances.id, prev.id))
@@ -262,7 +268,7 @@ describe('updatePrevision', () => {
 
   it('rechaza nombre vacío', async () => {
     const prev = await seedPrevision('Prev nombre vacío')
-    const result = await updatePrevision(fd({ id: prev.id, nombre: '' }))
+    const result = await updatePrevision(fd({ id: prev.id, nombre: '', categoria: 'particular' }))
     expect(result.success).toBe(false)
   })
 })

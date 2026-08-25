@@ -2,12 +2,13 @@
 
 import { db } from '@/db'
 import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops } from '@/db/schema'
-import { eq, asc, and, not, ilike } from 'drizzle-orm'
+import { eq, asc, and, ilike } from 'drizzle-orm'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { z } from 'zod'
 import type { SearchParams } from '@/components/data-table'
 import { fields } from '@/lib/validation'
 import { withQuery } from '@/lib/with-action'
+import { PREVISION_CATEGORIAS } from '@/lib/previsiones'
 import {
   catalogSearch,
   catalogCreate,
@@ -36,7 +37,7 @@ const examenUpdateSchema = examenSchema.extend({ id: fields.id })
 
 const previsionSchema = z.object({
   nombre: fields.nombre,
-  categoria: z.string().trim().optional().transform((v) => v || null),
+  categoria: z.enum(PREVISION_CATEGORIAS, { message: 'Categoría inválida' }),
 })
 const previsionUpdateSchema = previsionSchema.extend({ id: fields.id })
 
@@ -117,19 +118,6 @@ const tallerCfg: CatalogConfig = {
   updateSchema: tallerUpdateSchema,
   path: '/talleres', tag: 'talleres',
   extraUpdateFields: () => ({ updatedAt: new Date() }),
-}
-
-// ─── getPrevisionCategorias ───────────────────────────────────────────────────
-
-export async function getPrevisionCategorias(): Promise<string[]> {
-  return withQuery(async () => {
-    const rows = await db
-      .selectDistinct({ categoria: healthInsurances.categoria })
-      .from(healthInsurances)
-      .where(and(eq(healthInsurances.activo, true), not(eq(healthInsurances.categoria, ''))))
-      .orderBy(asc(healthInsurances.categoria))
-    return rows.map((r) => r.categoria?.trim()).filter((c): c is string => Boolean(c))
-  })
 }
 
 // ─── Procedimientos ───────────────────────────────────────────────────────────
