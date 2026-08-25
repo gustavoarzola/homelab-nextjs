@@ -44,7 +44,6 @@ const navItems = [
   { href: '/tipos-recargos', label: 'Tipos de Recargos', icon: AlertCircle },
   { href: '/precios/visitas', label: 'Precios visitas', icon: Tag },
   { href: '/reportes', label: 'Reportes', icon: FileSpreadsheet },
-  { href: '/configuracion', label: 'Configuración', icon: Settings },
 ]
 
 type Props = {
