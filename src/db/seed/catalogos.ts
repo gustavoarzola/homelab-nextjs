@@ -15,11 +15,10 @@ import {
 import { previsionesData } from './data/previsiones'
 import { residenciasData } from './data/residencias'
 import { procedimientosData } from './data/procedimientos'
-import { examenesIsapreData } from './data/examenes-isapre'
 import { tiposRecargosData } from './data/tipos-recargos'
 import { origenesContactoData } from './data/origenes-contacto'
 import { talleresData } from './data/talleres'
-import { examenesDataWithPrices } from './data/examenes-csv'
+import { examenesDataWithPrices, examenesIsapreData } from './data/examenes-csv'
 import { buildNursingVisitPrices } from './data/precios-visita'
 import { nurseData, COMUNAS_RM, pickByIndex } from './data/enfermeras'
 
