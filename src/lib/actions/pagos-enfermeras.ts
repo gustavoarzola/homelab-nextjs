@@ -28,6 +28,10 @@ type Params = {
   enfermeraId?: string
 }
 
+// Solo se paga a la enfermera por visitas ya cerradas (boleta/factura emitida y
+// cobrada al paciente). completarVisita() exige pagado=true para llegar a este estado.
+const ESTADO_VISITA_PAGABLE = 'completada'
+
 // ─── searchPagosEnfermerasMensual ─────────────────────────────────────────────
 
 export async function searchPagosEnfermerasMensual(
@@ -42,7 +46,7 @@ export async function searchPagosEnfermerasMensual(
   const end = `${year}-${String(month).padStart(2, '0')}-${String(endDate).padStart(2, '0')}`
 
   const conditions = [
-    eq(visits.estado, 'realizada'),
+    eq(visits.estado, ESTADO_VISITA_PAGABLE),
     gte(visits.fecha, start),
     lte(visits.fecha, end),
   ]
@@ -220,7 +224,7 @@ export async function getPagoEnfermeraDetalle(
       .where(
         and(
           eq(visits.idEnfermera, enfermeraId),
-          eq(visits.estado, 'realizada'),
+          eq(visits.estado, ESTADO_VISITA_PAGABLE),
           gte(visits.fecha, start),
           lte(visits.fecha, end),
         ),

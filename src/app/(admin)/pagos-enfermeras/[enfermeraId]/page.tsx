@@ -66,7 +66,7 @@ export default async function PagoEnfermeraDetallePage({ params, searchParams }:
       >
         <div>
           <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-            Visitas realizadas
+            Visitas completadas
           </p>
           <p className="mt-1 text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
             {detalle.cantidadVisitas}
@@ -100,17 +100,12 @@ export default async function PagoEnfermeraDetallePage({ params, searchParams }:
 
       {/* Tabla de visitas */}
       <div
-        className="overflow-x-auto rounded-lg border"
+        className="overflow-x-auto rounded-xl border"
         style={{ borderColor: 'var(--border)' }}
       >
         <table className="w-full text-sm">
           <thead>
-            <tr
-              style={{
-                backgroundColor: 'var(--muted)',
-                borderBottom: '1px solid var(--border)',
-              }}
-            >
+            <tr style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
               {[
                 { label: '#', align: 'left' },
                 { label: 'Fecha', align: 'left' },
@@ -124,8 +119,7 @@ export default async function PagoEnfermeraDetallePage({ params, searchParams }:
               ].map((h, i) => (
                 <th
                   key={i}
-                  className={`px-4 py-3 text-sm font-medium text-${h.align}`}
-                  style={{ color: 'var(--muted-foreground)' }}
+                  className={`px-4 py-3 font-medium text-${h.align}`}
                 >
                   {h.label}
                 </th>
@@ -147,8 +141,7 @@ export default async function PagoEnfermeraDetallePage({ params, searchParams }:
               detalle.rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-t"
-                  style={{ borderColor: 'var(--border)' }}
+                  style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--card)' }}
                 >
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
                     {row.id}

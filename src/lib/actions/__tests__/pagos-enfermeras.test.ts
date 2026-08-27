@@ -93,10 +93,11 @@ async function seedProcedimiento(precio = 10000) {
   return row!
 }
 
-async function seedVisitaRealizada(opts: {
+async function seedVisitaPagable(opts: {
   idPaciente: number
   idEnfermera: number
   costo: number
+  estado?: string
   montoDescuentoProcedimientos?: number
   descuentoProcedimientosAfectaPagoEnfermera?: boolean
   montoDescuento?: number
@@ -109,7 +110,7 @@ async function seedVisitaRealizada(opts: {
       fecha: '2026-06-10',
       idPaciente: opts.idPaciente,
       idEnfermera: opts.idEnfermera,
-      estado: 'realizada',
+      estado: opts.estado ?? 'completada',
       costo: opts.costo,
       montoDescuentoProcedimientos: opts.montoDescuentoProcedimientos ?? 0,
       descuentoProcedimientosAfectaPagoEnfermera: opts.descuentoProcedimientosAfectaPagoEnfermera ?? false,
@@ -132,7 +133,7 @@ describe('pagos-enfermeras con descuento de procedimientos', () => {
     const patient = await seedPaciente()
     const proc = await seedProcedimiento(10000)
     // costo persistido ya neto del descuento: 10000 - 4000 = 6000
-    const visit = await seedVisitaRealizada({
+    const visit = await seedVisitaPagable({
       idPaciente: patient.id, idEnfermera: nurse.id, costo: 6000,
       montoDescuentoProcedimientos: 4000, descuentoProcedimientosAfectaPagoEnfermera: false,
     })
@@ -149,7 +150,7 @@ describe('pagos-enfermeras con descuento de procedimientos', () => {
     const nurse = await seedNurse()
     const patient = await seedPaciente()
     const proc = await seedProcedimiento(10000)
-    const visit = await seedVisitaRealizada({
+    const visit = await seedVisitaPagable({
       idPaciente: patient.id, idEnfermera: nurse.id, costo: 6000,
       montoDescuentoProcedimientos: 4000, descuentoProcedimientosAfectaPagoEnfermera: true,
     })
@@ -165,7 +166,7 @@ describe('pagos-enfermeras con descuento de procedimientos', () => {
     const nurse = await seedNurse()
     const patient = await seedPaciente()
     const proc = await seedProcedimiento(10000)
-    const visit = await seedVisitaRealizada({
+    const visit = await seedVisitaPagable({
       idPaciente: patient.id, idEnfermera: nurse.id, costo: 6000,
       montoDescuentoProcedimientos: 4000, descuentoProcedimientosAfectaPagoEnfermera: false,
     })
@@ -233,7 +234,7 @@ describe('pagos-enfermeras con descuento de visita + descuento de procedimiento 
       const nurse = await seedNurse()
       const patient = await seedPaciente()
       const proc = await seedProcedimiento(COMBINADO_FIXTURE.precioProcedimiento)
-      const visit = await seedVisitaRealizada({
+      const visit = await seedVisitaPagable({
         idPaciente: patient.id,
         idEnfermera: nurse.id,
         costo: COMBINADO_FIXTURE.costo,
@@ -260,4 +261,26 @@ describe('pagos-enfermeras con descuento de visita + descuento de procedimiento 
       expect(resumenRow.base).toBe(expectedBase)
     },
   )
+})
+
+describe('pagos-enfermeras filtra por estado', () => {
+  it('incluye visitas completadas y excluye las que aún están en realizada', async () => {
+    const nurse = await seedNurse(65)
+    const patient = await seedPaciente()
+    const proc = await seedProcedimiento(44000)
+
+    const completada = await seedVisitaPagable({ idPaciente: patient.id, idEnfermera: nurse.id, costo: 44000 })
+    await addProc(completada.id, proc.id, 44000)
+    const realizada = await seedVisitaPagable({ idPaciente: patient.id, idEnfermera: nurse.id, costo: 44000, estado: 'realizada' })
+    await addProc(realizada.id, proc.id, 44000)
+
+    const detalle = await getPagoEnfermeraDetalle(nurse.id, 6, 2026)
+    expect(detalle!.rows.map((r) => r.id)).toEqual([completada.id])
+    expect(detalle!.cantidadVisitas).toBe(1)
+    expect(detalle!.baseTotal).toBe(44000)
+    expect(detalle!.pagoTotal).toBe(28600) // 44000 * 65%
+
+    const { rows } = await searchPagosEnfermerasMensual({ month: 6, year: 2026, enfermeraId: String(nurse.id) })
+    expect(rows.find((r) => r.enfermeraId === nurse.id)!.cantidadVisitas).toBe(1)
+  })
 })

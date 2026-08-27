@@ -31,7 +31,7 @@ export default async function PagosEnfermerasPage({ searchParams }: Props) {
           Pagos a enfermeras
         </h1>
         <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          Base de cálculo: fee visita + procedimientos + recargos (excluye exámenes y talleres)
+          Solo visitas completadas · Base de cálculo: fee visita + procedimientos + recargos (excluye exámenes y talleres)
         </p>
       </div>
       <PagosEnfermerasTable
