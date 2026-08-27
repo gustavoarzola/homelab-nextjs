@@ -86,49 +86,57 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
   )
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {/* Filtros */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-[200px] min-w-0">
-          <SelectCombobox
-            mode="single"
-            options={MONTHS}
-            selected={selectedMonth}
-            onChange={setSelectedMonth}
-            placeholder="Mes"
-            clearable={false}
-          />
+      <div
+        className="flex flex-wrap items-end gap-3 rounded-xl border p-4"
+        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+      >
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Mes</label>
+          <div className="w-[200px] min-w-0">
+            <SelectCombobox
+              mode="single"
+              options={MONTHS}
+              selected={selectedMonth}
+              onChange={setSelectedMonth}
+              placeholder="Mes"
+              clearable={false}
+            />
+          </div>
         </div>
-        <div className="w-[140px] min-w-0">
-          <SelectCombobox
-            mode="single"
-            options={years}
-            selected={selectedYear}
-            onChange={setSelectedYear}
-            placeholder="Año"
-            clearable={false}
-          />
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Año</label>
+          <div className="w-[140px] min-w-0">
+            <SelectCombobox
+              mode="single"
+              options={years}
+              selected={selectedYear}
+              onChange={setSelectedYear}
+              placeholder="Año"
+              clearable={false}
+            />
+          </div>
         </div>
-        <div className="w-[220px] min-w-0">
-          <SelectCombobox
-            mode="single"
-            options={nurseOptions}
-            selected={selectedEnfermera ?? 0}
-            onChange={(v) => setSelectedEnfermera(v === 0 ? null : v)}
-            placeholder="Enfermera"
-            clearable={false}
-          />
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Enfermera</label>
+          <div className="w-[220px] min-w-0">
+            <SelectCombobox
+              mode="single"
+              options={nurseOptions}
+              selected={selectedEnfermera ?? 0}
+              onChange={(v) => setSelectedEnfermera(v === 0 ? null : v)}
+              placeholder="Enfermera"
+              clearable={false}
+            />
+          </div>
         </div>
         <button
           type="button"
           onClick={handleApply}
           disabled={isPending || !selectedMonth || !selectedYear}
-          className="h-10 rounded-full border px-6 text-sm font-medium transition-colors hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-          style={{
-            borderColor: 'var(--primary)',
-            color: 'var(--primary)',
-            backgroundColor: 'var(--background)',
-          }}
+          className="rounded-lg px-4 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
+          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
         >
           Filtrar
         </button>
@@ -136,23 +144,17 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
 
       {/* Tabla */}
       <div
-        className="overflow-x-auto rounded-lg border"
+        className="overflow-x-auto rounded-xl border"
         style={{ borderColor: 'var(--border)' }}
       >
         <table className="w-full text-sm">
           <thead>
-            <tr
-              style={{
-                backgroundColor: 'var(--muted)',
-                borderBottom: '1px solid var(--border)',
-              }}
-            >
+            <tr style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
               {['Enfermera', 'Visitas', 'Fee visita', 'Procedimientos', 'Recargos', 'Base cálculo', '%', 'Total a pagar'].map(
                 (h) => (
                   <th
                     key={h}
-                    className={`px-4 py-3 text-sm font-medium ${h === 'Enfermera' ? 'text-left' : 'text-right'}`}
-                    style={{ color: 'var(--muted-foreground)' }}
+                    className={`px-4 py-3 font-medium ${h === 'Enfermera' ? 'text-left' : 'text-right'}`}
                   >
                     {h}
                   </th>
@@ -175,8 +177,7 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
               rows.map((row) => (
                 <tr
                   key={row.enfermeraId}
-                  className="border-t transition-colors"
-                  style={{ borderColor: 'var(--border)' }}
+                  style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--card)' }}
                 >
                   <td className="px-4 py-3 font-medium">
                     <Link
