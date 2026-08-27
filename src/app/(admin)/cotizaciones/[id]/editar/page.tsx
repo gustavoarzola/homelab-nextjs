@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { CotizacionForm } from '@/components/cotizacion-form'
 import { getCotizacion, updateCotizacion } from '@/lib/actions/cotizaciones'
 import { getPacientes } from '@/lib/actions/pacientes'
-import { getProcedimientos, getExamenes, getTalleres, getIsaprePrevisiones } from '@/lib/actions/catalogos'
+import { getProcedimientos, getExamenes, getTalleres, getIsaprePrevisiones, getComunasForSelect } from '@/lib/actions/catalogos'
 import { getTiposRecargos } from '@/lib/actions/visitas'
 import { getPreciosVisita } from '@/lib/actions/cotizaciones'
 
@@ -20,7 +20,7 @@ export default async function CotizacionEditarPage({ params }: { params: Promise
     redirect(`/cotizaciones/${id}`)
   }
 
-  const [pacientes, procedimientos, examenes, talleres, tiposRecargos, preciosVisita, isaprePrevisiones] =
+  const [pacientes, procedimientos, examenes, talleres, tiposRecargos, preciosVisita, isaprePrevisiones, comunas] =
     await Promise.all([
       getPacientes(),
       getProcedimientos(),
@@ -29,6 +29,7 @@ export default async function CotizacionEditarPage({ params }: { params: Promise
       getTiposRecargos(),
       getPreciosVisita(),
       getIsaprePrevisiones(),
+      getComunasForSelect(),
     ])
 
   async function handleSubmit(fd: FormData): Promise<{ success: true; data: { id: number } } | { success: false; error: string }> {
@@ -61,6 +62,7 @@ export default async function CotizacionEditarPage({ params }: { params: Promise
         tiposRecargos={tiposRecargos}
         preciosVisita={preciosVisita}
         isaprePrevisiones={isaprePrevisiones}
+        comunas={comunas}
         onSubmit={handleSubmit}
       />
     </div>

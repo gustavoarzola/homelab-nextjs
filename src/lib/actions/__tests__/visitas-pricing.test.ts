@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import {
   addresses,
+  comunas,
   exams,
   healthInsurances,
   nursingVisitPrices,
@@ -33,6 +34,7 @@ const created = {
   procedures: [] as number[],
   exams: [] as number[],
   nursingVisitPrices: [] as number[],
+  comunas: [] as number[],
   visits: [] as number[],
 }
 
@@ -46,6 +48,8 @@ afterEach(async () => {
   await Promise.all([
     created.procedures.length ? db.delete(procedures).where(inArray(procedures.id, created.procedures)) : null,
     created.exams.length ? db.delete(exams).where(inArray(exams.id, created.exams)) : null,
+    // Depende de que nursingVisitPrices (FK restrict) ya se haya borrado arriba.
+    created.comunas.length ? db.delete(comunas).where(inArray(comunas.id, created.comunas)) : null,
   ])
   await Promise.all([
     created.patients.length ? db.delete(patients).where(inArray(patients.id, created.patients)) : null,
@@ -63,6 +67,7 @@ afterEach(async () => {
   created.procedures = []
   created.exams = []
   created.nursingVisitPrices = []
+  created.comunas = []
   created.visits = []
 })
 
@@ -116,8 +121,14 @@ async function seedExamen(precioBase = 5000) {
   return exam!
 }
 
-async function seedPrecioVisita(comuna: string | null, precio: number) {
-  const [row] = await db.insert(nursingVisitPrices).values({ comuna, precio }).returning()
+async function seedPrecioVisita(comunaNombre: string | null, precio: number) {
+  let idComuna: number | null = null
+  if (comunaNombre !== null) {
+    const [comunaRow] = await db.insert(comunas).values({ nombre: comunaNombre }).returning()
+    created.comunas.push(comunaRow!.id)
+    idComuna = comunaRow!.id
+  }
+  const [row] = await db.insert(nursingVisitPrices).values({ idComuna, precio }).returning()
   created.nursingVisitPrices.push(row!.id)
   return row!
 }
@@ -126,7 +137,7 @@ async function seedOrUsePrecioBase(precio: number) {
   const [existing] = await db
     .select()
     .from(nursingVisitPrices)
-    .where(and(isNull(nursingVisitPrices.comuna), eq(nursingVisitPrices.activo, true)))
+    .where(and(isNull(nursingVisitPrices.idComuna), eq(nursingVisitPrices.activo, true)))
     .limit(1)
 
   if (existing) return existing

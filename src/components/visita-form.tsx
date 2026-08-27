@@ -1036,6 +1036,13 @@ export function VisitaForm({
                         : 'Precio según comuna del paciente'
                       }
                     </p>
+                    {cobraVisita && !pricingContext.comunaEncontrada && (
+                      <p className="mt-1 text-[12px]" style={{ color: 'var(--destructive)' }}>
+                        {pricingContext.comunaPaciente
+                          ? `La comuna "${pricingContext.comunaPaciente}" del paciente no está en el catálogo — se aplica el precio base. Agrégala en Comunas para asignarle un precio propio.`
+                          : 'El paciente no tiene comuna registrada — se aplica el precio base.'}
+                      </p>
+                    )}
                   </div>
                 </div>
 

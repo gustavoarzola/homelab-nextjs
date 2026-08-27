@@ -5,9 +5,13 @@ import {
   updatePrecioVisita,
   togglePrecioVisita,
 } from '@/lib/actions/precios'
+import { getComunasForSelect } from '@/lib/actions/catalogos'
 
 export default async function PreciosVisitasPage() {
-  const initialData = await searchPreciosVisita({ filters: {}, sort: null, page: 1, pageSize: 100 })
+  const [initialData, comunas] = await Promise.all([
+    searchPreciosVisita({ filters: {}, sort: null, page: 1, pageSize: 100 }),
+    getComunasForSelect(),
+  ])
 
   return (
     <>
@@ -21,6 +25,7 @@ export default async function PreciosVisitasPage() {
       </div>
       <PreciosVisitasTable
         initialRows={initialData.rows}
+        comunas={comunas}
         onCreate={createPrecioVisita}
         onUpdate={updatePrecioVisita}
         onToggle={togglePrecioVisita}

@@ -18,9 +18,9 @@
 // Para cotizaciones no existe un equivalente persistido (la app calcula `total`
 // inline en `createCotizacion`/`updateCotizacion`), así que `computeQuotationCost()`
 // replica esa misma fórmula (ver `00-overview.md`) usando el precio real de
-// visita por comuna (`getPrecioVisitaEnfermeria`).
+// visita por comuna (`resolverPrecioVisitaEnfermeria`/`getPrecioVisitaPorIdComuna`).
 
-import { eq, sql } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 import { db } from '../index'
 import {
   nurses,
@@ -46,10 +46,11 @@ import {
   exams,
   surchargeTypes,
   workshops,
+  comunas,
 } from '../schema'
 import { createRng, type Rng } from './rng'
 import { previsionesData } from './data/previsiones'
-import { getPrecioVisitaEnfermeria, computeCostoVisita } from '@/lib/pricing/visitas'
+import { resolverPrecioVisitaEnfermeria, getPrecioVisitaPorIdComuna, computeCostoVisita } from '@/lib/pricing/visitas'
 import { resolverMontoDescuento, type DescuentoTipo } from '@/lib/pricing/descuento'
 import { todaySantiago, parseDateLocal } from '@/lib/format'
 
@@ -600,15 +601,30 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
 
   const nurseRows = await db.select({ id: nurses.id }).from(nurses).where(eq(nurses.activo, true))
 
-  // Precio real de visita por comuna (getPrecioVisitaEnfermeria) — cacheado por
-  // comuna para no golpear la BD por cada cotización (las visitas obtienen su
-  // fee automáticamente vía `actualizarCostoVisitaPersistida`).
+  // Catálogo real de comunas (id + nombre) — las cotizaciones necesitan un
+  // `id_comuna` que exista de verdad (FK), a diferencia de `COMUNAS` más abajo
+  // (fixture geográfico con lat/lng, incluye comunas fuera de la RM, usado
+  // sólo para direcciones de fantasía y para ejercitar el camino "comuna sin
+  // match en el catálogo ⇒ precio base").
+  const catalogComunaRows = await db.select({ id: comunas.id, nombre: comunas.nombre }).from(comunas).orderBy(asc(comunas.id))
+  const idComunaPorNombre = new Map(catalogComunaRows.map((c) => [c.nombre, c.id]))
+
+  // Precio real de visita de enfermería, cacheado para no golpear la BD por
+  // cada visita/cotización (las visitas persistidas obtienen su fee
+  // automáticamente vía `actualizarCostoVisitaPersistida`; acá se precalcula
+  // para el `costo` que se inserta directo en el INSERT masivo).
   const comunaFeeCache = new Map<string, number>()
   for (const c of COMUNAS) {
-    comunaFeeCache.set(c.nombre, (await getPrecioVisitaEnfermeria(db, c.nombre)) ?? 0)
+    comunaFeeCache.set(c.nombre, (await resolverPrecioVisitaEnfermeria(db, c.nombre)).precio ?? 0)
   }
-  const baseFee = (await getPrecioVisitaEnfermeria(db, null)) ?? 0
+  const baseFee = (await resolverPrecioVisitaEnfermeria(db, null)).precio ?? 0
   const feeForComuna = (comuna: string) => comunaFeeCache.get(comuna) ?? baseFee
+
+  const idComunaFeeCache = new Map<number, number>()
+  for (const c of catalogComunaRows) {
+    idComunaFeeCache.set(c.id, (await getPrecioVisitaPorIdComuna(db, c.id)) ?? 0)
+  }
+  const feeForIdComuna = (idComuna: number) => idComunaFeeCache.get(idComuna) ?? baseFee
 
   // ─── Direcciones + pacientes ──────────────────────────────────────────────
   console.log(`   Insertando ${TOTAL_PATIENTS} direcciones...`)
@@ -941,13 +957,20 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
       let emailDestinatario: string | null = null
       let telefonoDestinatario: string | null = null
       let identificacionDestinatario: string | null = null
-      let comuna: string
+      // Las cotizaciones exigen un `id_comuna` real (FK a `comunas`), a
+      // diferencia de la dirección de fantasía del paciente (que puede caer
+      // fuera de la RM). Si la comuna de la dirección no matchea el catálogo,
+      // se cae a una comuna del catálogo elegida determinísticamente por
+      // índice — igual de reproducible que el resto del seed, sin gastar un
+      // draw extra del PRNG.
+      let idComuna: number
       let patientIdPrevisionIsapre: number | null = null
 
       if (usePatient) {
         const patientArrayIdx = rng.int(0, allPatients.length - 1)
         idPaciente = allPatients[patientArrayIdx]!.id
-        comuna = addressComunas[patientArrayIdx]!
+        const nombreComuna = addressComunas[patientArrayIdx]!
+        idComuna = idComunaPorNombre.get(nombreComuna) ?? pick(catalogComunaRows, patientArrayIdx, 13).id
         const previsionId = patientRows[patientArrayIdx]!.idCompaniaSeguro
         patientIdPrevisionIsapre = isapreIdSet.has(previsionId) ? previsionId : null
       } else {
@@ -955,12 +978,12 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
         const nombre = isMale ? rng.pick(NOMBRES_M) : rng.pick(NOMBRES_F)
         const apellido = rng.pick(APELLIDOS)
         const apellido2 = rng.pick(APELLIDOS)
-        const comunaObj = rng.pick(COMUNAS)
+        const comunaObj = rng.pick(catalogComunaRows)
         nombreDestinatario = `${nombre} ${apellido} ${apellido2}`
         emailDestinatario = `${normalize(nombre)}.${normalize(apellido)}${idx}@mail.cl`
         telefonoDestinatario = `+569${String(rng.int(10000000, 99999999))}`
         identificacionDestinatario = formatRut(6_000_000 + rng.int(0, 4_000_000))
-        comuna = comunaObj.nombre
+        idComuna = comunaObj.id
         if (previsionCatalog.isapreIds.length > 0 && rng.chance(0.15)) {
           patientIdPrevisionIsapre = rng.pick(previsionCatalog.isapreIds)
         }
@@ -1022,7 +1045,7 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
             ]
           : []
 
-      const montoVisitaOriginal = cobraVisita ? feeForComuna(comuna) : 0
+      const montoVisitaOriginal = cobraVisita ? feeForIdComuna(idComuna) : 0
       const cost = computeQuotationCost({
         procItems,
         examItems,
@@ -1051,7 +1074,7 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
           emailDestinatario,
           telefonoDestinatario,
           identificacionDestinatario,
-          comuna,
+          idComuna,
           cobraVisita,
           total: cost.total,
           montoInsumos,

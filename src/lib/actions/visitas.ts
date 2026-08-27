@@ -2,15 +2,15 @@
 
 import { z } from 'zod'
 import { db } from '@/db'
-import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, elderlyResidences, nursingVisitPrices, surchargeTypes } from '@/db/schema'
-import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, isNull } from 'drizzle-orm'
+import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, elderlyResidences, surchargeTypes } from '@/db/schema'
+import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getTiposRecargosForSelect } from './catalogos'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 import { formatNombre } from '@/lib/paciente'
-import { actualizarCostoVisitaPersistida } from '@/lib/pricing/visitas'
+import { actualizarCostoVisitaPersistida, resolverPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
 import { calcNursePayment, calcNursePaymentBase } from '@/lib/pricing/nurse-payment'
 import type { VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
 import { parseFormDataWithArrays, fields } from '@/lib/validation'
@@ -544,25 +544,7 @@ export async function getVisitaFormPricingContext(
   ])
 
   const comuna = pacienteRow?.comuna ?? null
-
-  // Look up commune-specific price, fall back to base price
-  let nursingVisitPrice: number | null = null
-  if (comuna) {
-    const [comunaRow] = await db
-      .select({ precio: nursingVisitPrices.precio })
-      .from(nursingVisitPrices)
-      .where(and(eq(nursingVisitPrices.comuna, comuna), eq(nursingVisitPrices.activo, true)))
-      .limit(1)
-    if (comunaRow) nursingVisitPrice = comunaRow.precio
-  }
-  if (nursingVisitPrice === null) {
-    const [baseRow] = await db
-      .select({ precio: nursingVisitPrices.precio })
-      .from(nursingVisitPrices)
-      .where(and(isNull(nursingVisitPrices.comuna), eq(nursingVisitPrices.activo, true)))
-      .limit(1)
-    nursingVisitPrice = baseRow?.precio ?? null
-  }
+  const { precio: nursingVisitPrice, comunaEncontrada } = await resolverPrecioVisitaEnfermeria(db, comuna)
 
   return {
     examPrices: uniqueExamIds.map((idExamen) => ({
@@ -570,6 +552,8 @@ export async function getVisitaFormPricingContext(
       precioActual: examPriceRows.find((r) => r.id === idExamen)?.precio ?? 0,
     })),
     nursingVisitPrice,
+    comunaPaciente: comuna,
+    comunaEncontrada,
   }
   })
 }
@@ -692,15 +676,7 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
     ])
 
     // Commune-based nursing visit price
-    let precioVisita: number | null = null
-    if (addressRow?.areaAdministrativa3) {
-      const [comunaRow] = await db.select({ precio: nursingVisitPrices.precio }).from(nursingVisitPrices).where(and(eq(nursingVisitPrices.comuna, addressRow.areaAdministrativa3), eq(nursingVisitPrices.activo, true))).limit(1)
-      if (comunaRow) precioVisita = comunaRow.precio
-    }
-    if (precioVisita === null) {
-      const [baseRow] = await db.select({ precio: nursingVisitPrices.precio }).from(nursingVisitPrices).where(and(isNull(nursingVisitPrices.comuna), eq(nursingVisitPrices.activo, true))).limit(1)
-      precioVisita = baseRow?.precio ?? null
-    }
+    const { precio: precioVisita } = await resolverPrecioVisitaEnfermeria(db, addressRow?.areaAdministrativa3 ?? null)
 
     const procMetaMap = new Map((procMeta as { id: number; nombre: string; codigo: string | null }[]).map((p) => [p.id, p]))
     const examMetaMap = new Map((examMeta as { id: number; nombre: string; codigo: string; grupoExamen: string }[]).map((e) => [e.id, e]))

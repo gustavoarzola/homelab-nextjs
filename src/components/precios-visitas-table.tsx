@@ -5,10 +5,12 @@ import { Loader2, Plus, Pencil, ToggleLeft, ToggleRight, X } from 'lucide-react'
 import type { PrecioVisitaRow } from '@/lib/actions/precios'
 import type { SearchParams } from '@/components/data-table'
 import { SelectCombobox } from '@/components/select-combobox'
-import { COMUNAS_OPTIONS } from '@/lib/comunas'
+
+type ComunaOption = { id: number; nombre: string }
 
 type Props = {
   initialRows: PrecioVisitaRow[]
+  comunas: ComunaOption[]
   onCreate: (fd: FormData) => Promise<{ success: boolean; error?: string }>
   onUpdate: (fd: FormData) => Promise<{ success: boolean; error?: string }>
   onToggle: (id: number, activo: boolean) => Promise<{ success: boolean; error?: string }>
@@ -30,23 +32,24 @@ const inputStyle = {
 
 function PrecioVisitaForm({
   row,
+  comunas,
   onDone,
 }: {
   row?: PrecioVisitaRow
+  comunas: ComunaOption[]
   onDone: (fd: FormData) => Promise<{ success: boolean; error?: string }>
 }) {
-  const comunaToIdx = (c: string | null | undefined) =>
-    c ? COMUNAS_OPTIONS.findIndex((o) => o.label === c) : null
+  const comunaOptions = comunas.map((c) => ({ id: c.id, label: c.nombre }))
 
-  const [selectedComuna, setSelectedComuna] = useState<number | null>(comunaToIdx(row?.comuna))
-  const [isBasePrice, setIsBasePrice] = useState(row?.comuna === null)
+  const [selectedIdComuna, setSelectedIdComuna] = useState<number | null>(row?.idComuna ?? null)
+  const [isBasePrice, setIsBasePrice] = useState(row ? row.idComuna === null : false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    fd.set('comuna', !isBasePrice && selectedComuna !== null ? (COMUNAS_OPTIONS[selectedComuna]?.label ?? '') : '')
+    fd.set('idComuna', !isBasePrice && selectedIdComuna !== null ? String(selectedIdComuna) : '')
     if (row) fd.set('id', String(row.id))
     setError(null)
     startTransition(async () => {
@@ -71,9 +74,9 @@ function PrecioVisitaForm({
         <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Comuna</label>
         <SelectCombobox
           mode="single"
-          options={COMUNAS_OPTIONS}
-          selected={selectedComuna}
-          onChange={setSelectedComuna}
+          options={comunaOptions}
+          selected={selectedIdComuna}
+          onChange={setSelectedIdComuna}
           placeholder="Buscar comuna…"
           disabled={isPending || isBasePrice}
         />
@@ -84,7 +87,7 @@ function PrecioVisitaForm({
           checked={isBasePrice}
           onChange={(e) => {
             setIsBasePrice(e.target.checked)
-            if (e.target.checked) setSelectedComuna(null)
+            if (e.target.checked) setSelectedIdComuna(null)
           }}
           disabled={isPending}
         />
@@ -118,7 +121,7 @@ function PrecioVisitaForm({
   )
 }
 
-export function PreciosVisitasTable({ initialRows, onCreate, onUpdate, onToggle, search }: Props) {
+export function PreciosVisitasTable({ initialRows, comunas, onCreate, onUpdate, onToggle, search }: Props) {
   const [rows, setRows] = useState(initialRows)
   const [modal, setModal] = useState<ModalState>({ type: 'none' })
   const [filterBuscar, setFilterBuscar] = useState('')
@@ -367,6 +370,7 @@ export function PreciosVisitasTable({ initialRows, onCreate, onUpdate, onToggle,
               <div className="p-6">
                 <PrecioVisitaForm
                   row={modal.type === 'edit' ? modal.row : undefined}
+                  comunas={comunas}
                   onDone={modal.type === 'edit' ? handleUpdate : handleCreate}
                 />
               </div>

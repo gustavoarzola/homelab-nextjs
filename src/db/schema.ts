@@ -36,6 +36,27 @@ export const users = pgTable(
 )
 
 // ============================================================================
+// 1b. Comuna - Catálogo de comunas (usado por enfermeras, precios de visita
+// y cotizaciones). La comuna del paciente sigue viniendo de Google Maps
+// (`direcciones.area_administrativa_3`, texto libre) y se resuelve contra
+// este catálogo por nombre normalizado — ver `resolverPrecioVisitaEnfermeria`
+// en `src/lib/pricing/visitas.ts`.
+// ============================================================================
+export const comunas = pgTable(
+  'comunas',
+  {
+    id: serial('id').primaryKey(),
+    nombre: varchar('nombre', { length: 100 }).notNull(),
+    activo: boolean('activo').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('comunas_nombre_idx').on(table.nombre),
+  ]
+)
+
+// ============================================================================
 // 2. Enfermera - Profesionales que realizan visitas
 // ============================================================================
 export const nurses = pgTable(
@@ -49,7 +70,7 @@ export const nurses = pgTable(
     telefono: varchar('telefono', { length: 20 }),
     correo: varchar('correo', { length: 100 }),
     porcentajePago: numeric('porcentaje_pago', { precision: 5, scale: 2 }).notNull().default('67.5'),
-    comunaResidencia: varchar('comuna_residencia', { length: 100 }),
+    idComunaResidencia: integer('id_comuna_residencia'),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -63,6 +84,8 @@ export const nurses = pgTable(
     uniqueIndex('enfermeras_nombre_sin_correo_idx')
       .on(table.nombres, table.apellidoPaterno, table.apellidoMaterno)
       .where(sql`${table.correo} IS NULL`),
+    foreignKey({ columns: [table.idComunaResidencia], foreignColumns: [comunas.id] })
+      .onDelete('restrict'),
   ]
 )
 
@@ -353,24 +376,26 @@ export const nursingVisitPrices = pgTable(
   'precios_visita_enfermeria',
   {
     id: serial('id').primaryKey(),
-    comuna: varchar('comuna', { length: 200 }), // null = precio base
+    idComuna: integer('id_comuna'), // null = precio base
     precio: integer('precio').notNull(),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
-    index('precios_visita_enfermeria_comuna_idx').on(table.comuna),
-    // Índice único PARCIAL (solo comunas con nombre): permite onConflictDoNothing
-    // idempotente por comuna en el seed. La fila base (comuna = null) NO puede
-    // cubrirse con un uniqueIndex normal porque Postgres trata cada NULL como
-    // distinto; en drizzle-orm 0.45 `.nullsNotDistinct()` solo existe en el
-    // builder de `unique()` (constraint), no en `uniqueIndex()`. Por eso la fila
-    // base se inserta aparte en seedCatalogos() con un chequeo de existencia
-    // (`WHERE comuna IS NULL`) en vez de depender de este índice.
+    index('precios_visita_enfermeria_id_comuna_idx').on(table.idComuna),
+    // Índice único PARCIAL (solo comunas con id): permite onConflictDoNothing
+    // idempotente por comuna en el seed. La fila base (id_comuna = null) NO
+    // puede cubrirse con un uniqueIndex normal porque Postgres trata cada NULL
+    // como distinto; en drizzle-orm 0.45 `.nullsNotDistinct()` solo existe en
+    // el builder de `unique()` (constraint), no en `uniqueIndex()`. Por eso la
+    // fila base se inserta aparte en seedCatalogos() con un chequeo de
+    // existencia (`WHERE id_comuna IS NULL`) en vez de depender de este índice.
     uniqueIndex('precios_visita_enfermeria_comuna_key')
-      .on(table.comuna)
-      .where(sql`${table.comuna} IS NOT NULL`),
+      .on(table.idComuna)
+      .where(sql`${table.idComuna} IS NOT NULL`),
+    foreignKey({ columns: [table.idComuna], foreignColumns: [comunas.id] })
+      .onDelete('restrict'),
   ]
 )
 
@@ -387,7 +412,7 @@ export const quotations = pgTable(
     emailDestinatario: varchar('email_destinatario', { length: 255 }),
     telefonoDestinatario: varchar('telefono_destinatario', { length: 50 }),
     identificacionDestinatario: varchar('identificacion_destinatario', { length: 50 }),
-    comuna: varchar('comuna', { length: 100 }),
+    idComuna: integer('id_comuna'),
     cobraVisita: boolean('cobra_visita').notNull().default(false),
     total: integer('total').default(0),
     montoInsumos: integer('monto_insumos').notNull().default(0),
@@ -410,6 +435,8 @@ export const quotations = pgTable(
       .onDelete('set null'),
     foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
       .onDelete('set null'),
+    foreignKey({ columns: [table.idComuna], foreignColumns: [comunas.id] })
+      .onDelete('restrict'),
     index('cotizaciones_estado_idx').on(table.estado),
     index('cotizaciones_id_paciente_idx').on(table.idPaciente),
   ]

@@ -3,6 +3,10 @@ import { resolverMontoDescuento, type DescuentoTipo } from '@/lib/pricing/descue
 export type VisitaFormPricingContext = {
   examPrices: { idExamen: number; precioActual: number }[]
   nursingVisitPrice: number | null
+  /** Nombre de comuna del paciente (texto libre, desde Google Maps). */
+  comunaPaciente: string | null
+  /** false ⇒ `comunaPaciente` no matcheó ninguna comuna activa del catálogo — se está usando el precio base y conviene avisar al usuario. */
+  comunaEncontrada: boolean
 }
 
 export type VisitaPreviewInput = {

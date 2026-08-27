@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { isNull, sql } from 'drizzle-orm'
+import { asc, isNull, sql } from 'drizzle-orm'
 import {
   users,
   healthInsurances,
@@ -11,6 +11,7 @@ import {
   workshops,
   nurses,
   nursingVisitPrices,
+  comunas,
 } from '../schema'
 import { previsionesData } from './data/previsiones'
 import { residenciasData } from './data/residencias'
@@ -18,9 +19,10 @@ import { procedimientosData } from './data/procedimientos'
 import { tiposRecargosData } from './data/tipos-recargos'
 import { origenesContactoData } from './data/origenes-contacto'
 import { talleresData } from './data/talleres'
+import { comunasData } from './data/comunas'
 import { examenesDataWithPrices, examenesIsapreData } from './data/examenes-csv'
 import { buildNursingVisitPrices } from './data/precios-visita'
-import { nurseData, COMUNAS_RM, pickByIndex } from './data/enfermeras'
+import { nurseData, pickByIndex } from './data/enfermeras'
 
 // Igual que `PricingDb` en `src/lib/pricing/visitas.ts`: la conexión puede ser
 // tanto el Pool de Neon (drizzle-orm/neon-serverless) como postgres.js
@@ -52,6 +54,17 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
       { nombre: 'Usuario Demo', correo: 'usuario@homelab.cl', contrasena: userHash, rol: 'usuario', activo: true },
     ])
     .onConflictDoNothing({ target: users.correo })
+
+  // ─── Comunas ─────────────────────────────────────────────────────────────
+  // Se inserta antes que enfermeras/precios de visita: ambos necesitan
+  // resolver nombre → id contra este catálogo.
+  console.log(`   Insertando ${comunasData.length} comunas...`)
+  await conn.insert(comunas).values(comunasData).onConflictDoNothing({ target: comunas.nombre })
+  const comunaRows: { id: number; nombre: string }[] = await conn
+    .select({ id: comunas.id, nombre: comunas.nombre })
+    .from(comunas)
+    .orderBy(asc(comunas.nombre))
+  const idComunaPorNombre = new Map(comunaRows.map((c) => [c.nombre, c.id]))
 
   // ─── Previsiones de salud ────────────────────────────────────────────────
   console.log(`   Insertando ${previsionesData.length} previsiones de salud...`)
@@ -98,22 +111,30 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
       nurseData.map((n, i) => ({
         ...n,
         rut: n.rut?.replace(/[.-]/g, '') ?? null,
-        comunaResidencia: pickByIndex(COMUNAS_RM, i),
+        idComunaResidencia: pickByIndex(comunaRows, i).id,
       })),
     )
     .onConflictDoNothing()
 
   // ─── Precios de visita de enfermería por comuna ─────────────────────────
-  // DECISIÓN: `comuna` es nullable y la fila base (comuna = null) representa
+  // DECISIÓN: `idComuna` es nullable y la fila base (idComuna = null) representa
   // el precio por defecto. Postgres no deduplica múltiples NULL con un
   // uniqueIndex normal, y `.nullsNotDistinct()` (drizzle-orm 0.45) solo existe
   // en el builder de `unique()` constraint, no en `uniqueIndex()`. Por eso:
-  //   1. Las comunas con nombre usan el índice único parcial
-  //      `precios_visita_enfermeria_comuna_key` (WHERE comuna IS NOT NULL) vía
+  //   1. Las comunas con id usan el índice único parcial
+  //      `precios_visita_enfermeria_comuna_key` (WHERE id_comuna IS NOT NULL) vía
   //      onConflictDoNothing con ese target.
-  //   2. La fila base (comuna = null) se inserta con un chequeo de existencia
+  //   2. La fila base (idComuna = null) se inserta con un chequeo de existencia
   //      previo, no con onConflictDoNothing.
   const visitPricesData = buildNursingVisitPrices()
+    .map(({ comuna, precio }) => ({
+      idComuna: comuna ? idComunaPorNombre.get(comuna) ?? null : null,
+      precio,
+    }))
+    // Si algún nombre de `buildNursingVisitPrices()` no matchea el catálogo
+    // (no debería pasar: usa un subconjunto de las 52 comunas de la RM), se
+    // descarta en vez de colapsarlo silenciosamente contra la fila base.
+    .filter((row, i) => row.idComuna !== null || i === 0)
   const [basePrice, ...comunaPrices] = visitPricesData
   console.log(`   Insertando ${visitPricesData.length} precios de visitas de enfermería...`)
 
@@ -121,7 +142,7 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
     const [existingBase] = await conn
       .select({ id: nursingVisitPrices.id })
       .from(nursingVisitPrices)
-      .where(isNull(nursingVisitPrices.comuna))
+      .where(isNull(nursingVisitPrices.idComuna))
       .limit(1)
     if (!existingBase) {
       await conn.insert(nursingVisitPrices).values(basePrice)
@@ -133,8 +154,8 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
       .insert(nursingVisitPrices)
       .values(comunaPrices)
       .onConflictDoNothing({
-        target: nursingVisitPrices.comuna,
-        where: sql`${nursingVisitPrices.comuna} IS NOT NULL`,
+        target: nursingVisitPrices.idComuna,
+        where: sql`${nursingVisitPrices.idComuna} IS NOT NULL`,
       })
   }
 
