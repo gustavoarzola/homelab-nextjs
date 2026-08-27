@@ -1,8 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
-import { getVisita, updateVisita, searchOrigenesContacto, getVisitaFormPricingContext } from '@/lib/actions/visitas'
+import { getVisita, updateVisita, getVisitaFormPricingContext } from '@/lib/actions/visitas'
 import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
-import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres, getIsaprePrevisiones } from '@/lib/actions/catalogos'
+import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres, getIsaprePrevisiones, getOrigenesContactoForSelect } from '@/lib/actions/catalogos'
 import { VisitaForm } from '@/components/visita-form'
 import { getSignedUrl } from '@/lib/r2'
 
@@ -34,7 +34,7 @@ export default async function EditarVisitaPage({
     searchProcedimientos({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
     searchExamenes({ filters: {}, sort: null, page: 1, pageSize: 5000 }),
     getTalleres(),
-    searchOrigenesContacto(),
+    getOrigenesContactoForSelect(visita.idOrigenContacto),
     searchPrevisiones({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
     searchResidencias({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
     getTiposRecargosForSelect(),

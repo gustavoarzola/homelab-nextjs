@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect, vi, afterAll } from 'vitest'
 import { db } from '@/db'
-import { procedures, exams, healthInsurances, elderlyResidences } from '@/db/schema'
+import { procedures, exams, healthInsurances, elderlyResidences, contactOrigins } from '@/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { P, fd } from './helpers'
 
@@ -25,6 +25,9 @@ import {
   createResidencia,
   updateResidencia,
   toggleResidencia,
+  createOrigenContacto,
+  updateOrigenContacto,
+  toggleOrigenContacto,
 } from '../catalogos'
 
 const created = {
@@ -32,6 +35,7 @@ const created = {
   exams: [] as number[],
   healthInsurances: [] as number[],
   elderlyResidences: [] as number[],
+  contactOrigins: [] as number[],
 }
 
 afterAll(async () => {
@@ -47,6 +51,9 @@ afterAll(async () => {
       : null,
     created.elderlyResidences.length
       ? db.delete(elderlyResidences).where(inArray(elderlyResidences.id, created.elderlyResidences))
+      : null,
+    created.contactOrigins.length
+      ? db.delete(contactOrigins).where(inArray(contactOrigins.id, created.contactOrigins))
       : null,
   ])
 })
@@ -70,6 +77,11 @@ async function seedPrevision(nombre: string) {
 async function seedResidencia(nombre: string) {
   const [r] = await db.insert(elderlyResidences).values({ nombre: `${P}${nombre}` }).returning()
   created.elderlyResidences.push(r!.id)
+  return r!
+}
+async function seedOrigenContacto(nombre: string) {
+  const [r] = await db.insert(contactOrigins).values({ nombre: `${P}${nombre}` }).returning()
+  created.contactOrigins.push(r!.id)
   return r!
 }
 
@@ -355,6 +367,75 @@ describe('toggleResidencia', () => {
     expect(result.success).toBe(true)
 
     const [updated] = await db.select().from(elderlyResidences).where(eq(elderlyResidences.id, res.id))
+    expect(updated!.activo).toBe(true)
+  })
+})
+
+// ─── ORÍGENES DE CONTACTO ─────────────────────────────────────────────────────
+
+describe('createOrigenContacto', () => {
+  it('inserta un origen de contacto', async () => {
+    const nombre = `${P}Instagram`
+
+    const result = await createOrigenContacto(fd({ nombre }))
+    expect(result.success).toBe(true)
+
+    const [row] = await db.select().from(contactOrigins).where(eq(contactOrigins.nombre, nombre))
+    expect(row).toBeDefined()
+    expect(row!.activo).toBe(true)
+    created.contactOrigins.push(row.id)
+  })
+
+  it('rechaza nombre vacío', async () => {
+    const result = await createOrigenContacto(fd({ nombre: '' }))
+    expect(result.success).toBe(false)
+  })
+
+  it('rechaza nombre duplicado', async () => {
+    const origen = await seedOrigenContacto('Origen duplicado')
+    const result = await createOrigenContacto(fd({ nombre: origen.nombre }))
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('updateOrigenContacto', () => {
+  it('actualiza el nombre', async () => {
+    const origen = await seedOrigenContacto('Origen editar')
+    const nuevoNombre = `${P}Origen actualizado`
+
+    const result = await updateOrigenContacto(fd({ id: origen.id, nombre: nuevoNombre }))
+    expect(result.success).toBe(true)
+
+    const [updated] = await db.select().from(contactOrigins).where(eq(contactOrigins.id, origen.id))
+    expect(updated!.nombre).toBe(nuevoNombre)
+  })
+
+  it('rechaza nombre vacío', async () => {
+    const origen = await seedOrigenContacto('Origen nombre vacío')
+    const result = await updateOrigenContacto(fd({ id: origen.id, nombre: '' }))
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('toggleOrigenContacto', () => {
+  it('desactiva un origen activo', async () => {
+    const origen = await seedOrigenContacto('Origen toggle')
+
+    const result = await toggleOrigenContacto(origen.id, true)
+    expect(result.success).toBe(true)
+
+    const [updated] = await db.select().from(contactOrigins).where(eq(contactOrigins.id, origen.id))
+    expect(updated!.activo).toBe(false)
+  })
+
+  it('activa un origen inactivo', async () => {
+    const origen = await seedOrigenContacto('Origen toggle on')
+    await db.update(contactOrigins).set({ activo: false }).where(eq(contactOrigins.id, origen.id))
+
+    const result = await toggleOrigenContacto(origen.id, false)
+    expect(result.success).toBe(true)
+
+    const [updated] = await db.select().from(contactOrigins).where(eq(contactOrigins.id, origen.id))
     expect(updated!.activo).toBe(true)
   })
 })

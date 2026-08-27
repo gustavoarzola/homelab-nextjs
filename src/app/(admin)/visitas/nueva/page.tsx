@@ -1,8 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
 import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
-import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres, getIsaprePrevisiones } from '@/lib/actions/catalogos'
-import { searchOrigenesContacto, createVisita, getVisitaFormPricingContext } from '@/lib/actions/visitas'
+import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres, getIsaprePrevisiones, getOrigenesContactoForSelect } from '@/lib/actions/catalogos'
+import { createVisita, getVisitaFormPricingContext } from '@/lib/actions/visitas'
 import { VisitaForm } from '@/components/visita-form'
 
 type Props = {
@@ -32,7 +32,7 @@ export default async function NuevaVisitaPage({ searchParams }: Props) {
     searchProcedimientos({ filters: {}, sort: null, page: 1, pageSize: 1000 }),
     searchExamenes({ filters: {}, sort: null, page: 1, pageSize: 5000 }),
     getTalleres(),
-    searchOrigenesContacto(),
+    getOrigenesContactoForSelect(),
     searchPrevisiones({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
     searchResidencias({ filters: { mostrarInactivos: false }, sort: null, page: 1, pageSize: 1000 }),
     getTiposRecargosForSelect(),
