@@ -1,6 +1,7 @@
 import { db } from '@/db'
 import {
   addresses,
+  comunas,
   nursingVisitPrices,
   patients,
   visitExams,
@@ -10,7 +11,7 @@ import {
   visitWorkshops,
   visits,
 } from '@/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 
 import { resolverMontoDescuento, type DescuentoTipo } from '@/lib/pricing/descuento'
 
@@ -33,27 +34,96 @@ export type CostoVisitaCalculado = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PricingDb = any
 
-export async function getPrecioVisitaEnfermeria(
-  conn: PricingDb,
-  comuna: string | null,
-): Promise<number | null> {
-  if (comuna) {
-    const [precioComuna] = await conn
-      .select({ precio: nursingVisitPrices.precio })
-      .from(nursingVisitPrices)
-      .where(and(eq(nursingVisitPrices.comuna, comuna), eq(nursingVisitPrices.activo, true)))
-      .limit(1)
-
-    if (precioComuna) return precioComuna.precio
-  }
-
-  const [precioBase] = await conn
+async function getPrecioBase(conn: PricingDb): Promise<number | null> {
+  const [row] = await conn
     .select({ precio: nursingVisitPrices.precio })
     .from(nursingVisitPrices)
-    .where(and(isNull(nursingVisitPrices.comuna), eq(nursingVisitPrices.activo, true)))
+    .where(and(isNull(nursingVisitPrices.idComuna), eq(nursingVisitPrices.activo, true)))
     .limit(1)
+  return row?.precio ?? null
+}
 
-  return precioBase?.precio ?? null
+async function getPrecioComunaEspecifico(conn: PricingDb, idComuna: number): Promise<number | null> {
+  const [row] = await conn
+    .select({ precio: nursingVisitPrices.precio })
+    .from(nursingVisitPrices)
+    .where(and(eq(nursingVisitPrices.idComuna, idComuna), eq(nursingVisitPrices.activo, true)))
+    .limit(1)
+  return row?.precio ?? null
+}
+
+/**
+ * Precio de visita de enfermería a partir de un `idComuna` ya conocido (p.ej.
+ * seleccionado de un `<select>` respaldado por el catálogo `comunas`, como en
+ * cotizaciones). Cae al precio base si la comuna no tiene precio propio.
+ */
+export async function getPrecioVisitaPorIdComuna(
+  conn: PricingDb,
+  idComuna: number | null,
+): Promise<number | null> {
+  if (idComuna !== null) {
+    const precio = await getPrecioComunaEspecifico(conn, idComuna)
+    if (precio !== null) return precio
+  }
+  return getPrecioBase(conn)
+}
+
+export type PrecioVisitaResuelto = {
+  precio: number | null
+  idComuna: number | null
+  /** false ⇒ el nombre no matcheó ninguna comuna activa del catálogo. */
+  comunaEncontrada: boolean
+  /** true ⇒ se usó el precio base (sin match, comuna sin precio propio, o sin comuna). */
+  usoPrecioBase: boolean
+}
+
+/**
+ * Resuelve el precio de visita de enfermería a partir de un nombre de comuna
+ * (texto libre, típicamente `direcciones.area_administrativa_3` desde Google
+ * Maps). El match contra el catálogo `comunas` es case/acento-insensible
+ * (misma lógica que `normalizeComuna()` en `src/lib/comunas.ts`, aquí
+ * expresada en SQL vía `f_unaccent()`) y sólo considera comunas activas.
+ *
+ * Si el nombre no matchea ninguna comuna del catálogo, o la comuna no tiene
+ * un precio propio configurado, se cae al precio base (`id_comuna IS NULL`).
+ * `comunaEncontrada: false` es la señal para avisar al usuario en el
+ * formulario de visita — puede significar que falta agregar esa comuna al
+ * catálogo.
+ */
+export async function resolverPrecioVisitaEnfermeria(
+  conn: PricingDb,
+  comunaNombre: string | null,
+): Promise<PrecioVisitaResuelto> {
+  let idComuna: number | null = null
+  let comunaEncontrada = false
+
+  const nombreTrimmed = comunaNombre?.trim()
+  if (nombreTrimmed) {
+    const [comunaRow] = await conn
+      .select({ id: comunas.id })
+      .from(comunas)
+      .where(and(
+        eq(comunas.activo, true),
+        sql`lower(f_unaccent(${comunas.nombre})) = lower(f_unaccent(${nombreTrimmed}))`,
+      ))
+      .limit(1)
+    if (comunaRow) {
+      idComuna = comunaRow.id
+      comunaEncontrada = true
+    }
+  }
+
+  const precioEspecifico = idComuna !== null ? await getPrecioComunaEspecifico(conn, idComuna) : null
+  if (precioEspecifico !== null) {
+    return { precio: precioEspecifico, idComuna, comunaEncontrada: true, usoPrecioBase: false }
+  }
+
+  return {
+    precio: await getPrecioBase(conn),
+    idComuna,
+    comunaEncontrada,
+    usoPrecioBase: true,
+  }
 }
 
 /**
@@ -149,7 +219,7 @@ export async function calcularCostoVisitaPersistida(
 
   const aplicaVisitaEnfermeria = visitaPaciente?.cobraVisita ?? false
   const precioVisita = aplicaVisitaEnfermeria
-    ? await getPrecioVisitaEnfermeria(conn, visitaPaciente?.comuna ?? null)
+    ? (await resolverPrecioVisitaEnfermeria(conn, visitaPaciente?.comuna ?? null)).precio
     : null
 
   return computeCostoVisita({

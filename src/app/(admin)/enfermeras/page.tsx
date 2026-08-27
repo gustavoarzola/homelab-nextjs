@@ -6,14 +6,13 @@ import {
   toggleEnfermera,
   deleteEnfermera,
 } from '@/lib/actions/enfermeras'
+import { getComunasForSelect } from '@/lib/actions/catalogos'
 
 export default async function EnfermerasPage() {
-  const initialData = await searchEnfermeras({
-    filters: {},
-    sort: null,
-    page: 1,
-    pageSize: 10,
-  })
+  const [initialData, comunas] = await Promise.all([
+    searchEnfermeras({ filters: {}, sort: null, page: 1, pageSize: 10 }),
+    getComunasForSelect(),
+  ])
 
   return (
     <>
@@ -24,6 +23,7 @@ export default async function EnfermerasPage() {
 
       <EnfermerasTable
         initialData={initialData}
+        comunas={comunas}
         search={searchEnfermeras}
         onCreate={createEnfermera}
         onUpdate={updateEnfermera}

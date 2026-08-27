@@ -7,6 +7,8 @@ const pricingContext = {
     { idExamen: 11, precioActual: 12000 },
   ],
   nursingVisitPrice: 30000,
+  comunaPaciente: 'Providencia',
+  comunaEncontrada: true,
 }
 
 describe('calcularCostoVisitaPreview', () => {
@@ -47,7 +49,7 @@ describe('calcularCostoVisitaPreview', () => {
       selectedTallerIds: [],
       tallerPriceMap: {},
       catalogProcedurePrices: [],
-      pricingContext: { examPrices: [{ idExamen: 10, precioActual: 8000 }], nursingVisitPrice: null },
+      pricingContext: { examPrices: [{ idExamen: 10, precioActual: 8000 }], nursingVisitPrice: null, comunaPaciente: null, comunaEncontrada: false },
       cobraVisita: true,
     })
 

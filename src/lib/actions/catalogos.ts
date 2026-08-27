@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops } from '@/db/schema'
+import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops, comunas } from '@/db/schema'
 import { eq, asc, and, ilike } from 'drizzle-orm'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { z } from 'zod'
@@ -44,6 +44,9 @@ const previsionUpdateSchema = previsionSchema.extend({ id: fields.id })
 const residenciaSchema = z.object({ nombre: fields.nombre })
 const residenciaUpdateSchema = residenciaSchema.extend({ id: fields.id })
 
+const comunaSchema = z.object({ nombre: fields.nombre })
+const comunaUpdateSchema = comunaSchema.extend({ id: fields.id })
+
 const tipoRecargoSchema = z.object({ nombre: fields.nombre, precio: fields.precio.optional().default(0) })
 const tipoRecargoUpdateSchema = tipoRecargoSchema.extend({ id: fields.id })
 
@@ -57,6 +60,7 @@ export type ExamenRow       = { id: number; nombre: string; codigo: string; grup
 export type TallerRow       = { id: number; nombre: string; codigo: string; activo: boolean }
 export type PrevisionRow    = { id: number; nombre: string; categoria: string | null; activo: boolean }
 export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
+export type ComunaRow       = { id: number; nombre: string; activo: boolean }
 export type TipoRecargoRow  = { id: number; nombre: string; precio: number; activo: boolean }
 
 // ─── Catalog configs ──────────────────────────────────────────────────────────
@@ -100,6 +104,14 @@ const residenciaCfg: CatalogConfig = {
   createSchema: residenciaSchema,
   updateSchema: residenciaUpdateSchema,
   path: '/residencias',
+}
+
+const comunaCfg: CatalogConfig = {
+  table: comunas, idCol: comunas.id, nombreCol: comunas.nombre, activoCol: comunas.activo,
+  createSchema: comunaSchema,
+  updateSchema: comunaUpdateSchema,
+  path: '/comunas', tag: 'comunas',
+  extraUpdateFields: () => ({ updatedAt: new Date() }),
 }
 
 const tipoRecargoCfg: CatalogConfig = {
@@ -155,6 +167,24 @@ export async function searchResidencias(params: SearchParams): Promise<{ rows: R
 export async function createResidencia(formData: FormData) { return catalogCreate(residenciaCfg, formData) }
 export async function updateResidencia(formData: FormData) { return catalogUpdate(residenciaCfg, formData) }
 export async function toggleResidencia(id: number, activo: boolean) { return catalogToggle(residenciaCfg, id, activo) }
+
+// ─── Comunas ──────────────────────────────────────────────────────────────────
+
+export async function searchComunas(params: SearchParams): Promise<{ rows: ComunaRow[]; total: number }> {
+  return catalogSearch(comunaCfg, params) as Promise<{ rows: ComunaRow[]; total: number }>
+}
+export async function createComuna(formData: FormData) { return catalogCreate(comunaCfg, formData) }
+export async function updateComuna(formData: FormData) { return catalogUpdate(comunaCfg, formData) }
+export async function toggleComuna(id: number, activo: boolean) { return catalogToggle(comunaCfg, id, activo) }
+
+const _fetchComunas = unstable_cache(
+  () => db.select({ id: comunas.id, nombre: comunas.nombre }).from(comunas).where(eq(comunas.activo, true)).orderBy(asc(comunas.nombre)),
+  ['comunas'],
+  { tags: ['comunas'], revalidate: 86400 },
+)
+export async function getComunasForSelect(): Promise<{ id: number; nombre: string }[]> {
+  return withQuery(() => _fetchComunas())
+}
 
 // ─── Tipos de Recargos ────────────────────────────────────────────────────────
 

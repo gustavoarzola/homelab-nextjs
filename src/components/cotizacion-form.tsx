@@ -21,7 +21,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ExamenesPorGrupo, buildInitialGroups, appendExamGroupsToFormData } from '@/components/exam-grupo-block'
 import type { ExamGroup } from '@/components/exam-grupo-block'
 import { formatNombre } from '@/lib/paciente'
-import { COMUNAS_OPTIONS, COMUNAS_RM } from '@/lib/comunas'
 import { EXAM_GRUPO_META } from '@/lib/exam-grupos'
 import type { CotizacionDetalle } from '@/lib/actions/cotizaciones'
 import { resolverMontoDescuento } from '@/lib/pricing/descuento'
@@ -34,6 +33,7 @@ export type PacienteOption = {
   apellidoPaterno: string | null
   apellidoMaterno?: string | null
   comuna: string | null
+  idComuna: number | null
   email?: string | null
   telefono?: string | null
   rut?: string | null
@@ -46,6 +46,8 @@ type ProcedimientoOption = {
   precio: number
 }
 
+type ComunaOption = { id: number; nombre: string }
+
 type Props = {
   cotizacion?: CotizacionDetalle
   pacientes: PacienteOption[]
@@ -55,21 +57,11 @@ type Props = {
   tiposRecargos: { id: number; label: string; precio: number }[]
   preciosVisita: Record<string, number>
   isaprePrevisiones: IsaprePrevisionRow[]
+  comunas: ComunaOption[]
   onSubmit: (fd: FormData) => Promise<{ success: true; data: { id: number } } | { success: false; error: string }>
 }
 
 const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
-
-function comunaFromIdx(idx: number | null): string | null {
-  if (idx === null || idx < 0) return null
-  return COMUNAS_RM[idx] ?? null
-}
-
-function idxFromComuna(nombre: string | null): number | null {
-  if (!nombre) return null
-  const idx = COMUNAS_RM.indexOf(nombre)
-  return idx >= 0 ? idx : null
-}
 
 function getInitials(p: PacienteOption): string {
   const first = p.nombres?.charAt(0) ?? ''
@@ -88,6 +80,7 @@ export function CotizacionForm({
   tiposRecargos,
   preciosVisita,
   isaprePrevisiones,
+  comunas,
   onSubmit,
 }: Props) {
   const router = useRouter()
@@ -107,13 +100,20 @@ export function CotizacionForm({
   const [telefonoDestinatario, setTelefonoDestinatario] = useState(cotizacion?.telefonoDestinatario ?? '')
   const [identificacionDestinatario, setIdentificacionDestinatario] = useState(cotizacion?.identificacionDestinatario ?? '')
 
-  const [selectedComunaIdx, setSelectedComunaIdx] = useState<number | null>(
-    idxFromComuna(cotizacion?.comuna ?? null)
-  )
+  const [selectedIdComuna, setSelectedIdComuna] = useState<number | null>(cotizacion?.idComuna ?? null)
 
   const pacienteSeleccionado = pacientes.find((p) => p.id === selectedIdPaciente) ?? null
   const comunaPaciente = pacienteSeleccionado?.comuna ?? null
-  const comunaNombre = selectedIdPaciente ? comunaPaciente : comunaFromIdx(selectedComunaIdx)
+  // El paciente predefine la comuna sólo si su dirección matchea el catálogo
+  // (`idComuna` resuelto en `getPacientes()`). Si no matchea (dirección fuera
+  // de la RM, o texto que no coincide con ninguna comuna activa), se exige
+  // selección manual — igual que cuando no hay paciente seleccionado.
+  const comunaPacienteSinMatch = !!pacienteSeleccionado && pacienteSeleccionado.idComuna === null
+  const requiereSeleccionManualComuna = !selectedIdPaciente || comunaPacienteSinMatch
+  const idComunaEfectivo = requiereSeleccionManualComuna ? selectedIdComuna : (pacienteSeleccionado?.idComuna ?? null)
+  const comunaNombre = requiereSeleccionManualComuna
+    ? (comunas.find((c) => c.id === selectedIdComuna)?.nombre ?? null)
+    : comunaPaciente
 
   // Items
   const [selectedProcedures, setSelectedProcedures] = useState<number[]>(cotizacion?.procedureIds ?? [])
@@ -160,9 +160,9 @@ export function CotizacionForm({
 
   const precioVisita = useMemo(() => {
     if (!cobraVisita) return 0
-    if (!comunaNombre) return preciosVisita['__base__'] ?? 0
-    return preciosVisita[comunaNombre] ?? preciosVisita['__base__'] ?? 0
-  }, [cobraVisita, comunaNombre, preciosVisita])
+    if (idComunaEfectivo === null) return preciosVisita['__base__'] ?? 0
+    return preciosVisita[String(idComunaEfectivo)] ?? preciosVisita['__base__'] ?? 0
+  }, [cobraVisita, idComunaEfectivo, preciosVisita])
 
   const montoDescuento = useMemo(
     () => cobraVisita && aplicaDescuento
@@ -219,7 +219,7 @@ export function CotizacionForm({
     e.preventDefault()
     setError(null)
 
-    if (!comunaNombre) {
+    if (idComunaEfectivo === null) {
       const msg = 'Debe seleccionar una comuna'
       setError(msg)
       toast.error(msg)
@@ -227,7 +227,7 @@ export function CotizacionForm({
     }
 
     const fd = new FormData(e.currentTarget)
-    fd.set('comuna', comunaNombre)
+    fd.set('idComuna', String(idComunaEfectivo))
     fd.set('cobraVisita', String(cobraVisita))
     fd.set('montoInsumos', montoInsumos)
     fd.set('descuentoTipo', descuentoTipo)
@@ -269,6 +269,7 @@ export function CotizacionForm({
 
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
   const pacientesOptions = pacientes.map((p) => ({ id: p.id, label: formatNombre(p) }))
+  const comunasOptions = comunas.map((c) => ({ id: c.id, label: c.nombre }))
   const totalExamCount = examGroups.reduce((s, g) => s + g.exams.length, 0)
   const tabs: { id: ServiceTab; label: string; count: number; Icon: typeof Stethoscope }[] = [
     { id: 'procedimientos', label: 'Procedimientos', count: selectedProcedures.length, Icon: Stethoscope },
@@ -422,7 +423,7 @@ export function CotizacionForm({
                   type="button"
                   onClick={() => {
                     setSelectedIdPaciente(null)
-                    setSelectedComunaIdx(null)
+                    setSelectedIdComuna(null)
                   }}
                   className="shrink-0 text-[12px] underline transition-opacity hover:opacity-70"
                   style={{ color: 'var(--muted-foreground)' }}
@@ -453,9 +454,9 @@ export function CotizacionForm({
                       setEmailDestinatario('')
                       setTelefonoDestinatario('')
                       setIdentificacionDestinatario('')
-                      setSelectedComunaIdx(null)
+                      setSelectedIdComuna(null)
                     } else {
-                      setSelectedComunaIdx(null)
+                      setSelectedIdComuna(null)
                     }
                   }}
                   disabled={isPending}
@@ -516,9 +517,9 @@ export function CotizacionForm({
               {/* Comuna */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
-                  Comuna{!selectedIdPaciente && <span style={{ color: 'var(--destructive)' }}> *</span>}
+                  Comuna{requiereSeleccionManualComuna && <span style={{ color: 'var(--destructive)' }}> *</span>}
                 </label>
-                {selectedIdPaciente ? (
+                {selectedIdPaciente && !comunaPacienteSinMatch ? (
                   <div
                     className="flex items-center gap-2 rounded-lg px-3 text-[13px]"
                     style={{
@@ -533,14 +534,23 @@ export function CotizacionForm({
                     <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>desde paciente</span>
                   </div>
                 ) : (
-                  <SelectCombobox
-                    mode="single"
-                    placeholder="Buscar comuna…"
-                    options={COMUNAS_OPTIONS}
-                    selected={selectedComunaIdx}
-                    onChange={setSelectedComunaIdx}
-                    disabled={isPending}
-                  />
+                  <>
+                    <SelectCombobox
+                      mode="single"
+                      placeholder="Buscar comuna…"
+                      options={comunasOptions}
+                      selected={selectedIdComuna}
+                      onChange={setSelectedIdComuna}
+                      disabled={isPending}
+                    />
+                    {comunaPacienteSinMatch && (
+                      <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                        {comunaPaciente
+                          ? `La comuna "${comunaPaciente}" del paciente no está en el catálogo — selecciona una comuna del catálogo o agrégala en Comunas.`
+                          : 'El paciente no tiene comuna registrada — selecciona una comuna del catálogo.'}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </div>

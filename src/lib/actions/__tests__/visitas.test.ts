@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import {
   addresses,
+  comunas,
   healthInsurances,
   nursingVisitPrices,
   patients,
@@ -30,6 +31,7 @@ const created = {
   healthInsurances: [] as number[],
   procedures: [] as number[],
   nursingVisitPrices: [] as number[],
+  comunas: [] as number[],
   visits: [] as number[],
 }
 
@@ -42,6 +44,8 @@ afterEach(async () => {
   ])
   await Promise.all([
     created.procedures.length ? db.delete(procedures).where(inArray(procedures.id, created.procedures)) : null,
+    // Depende de que nursingVisitPrices (FK restrict) ya se haya borrado arriba.
+    created.comunas.length ? db.delete(comunas).where(inArray(comunas.id, created.comunas)) : null,
   ])
   await Promise.all([
     created.patients.length ? db.delete(patients).where(inArray(patients.id, created.patients)) : null,
@@ -58,6 +62,7 @@ afterEach(async () => {
   created.healthInsurances = []
   created.procedures = []
   created.nursingVisitPrices = []
+  created.comunas = []
   created.visits = []
 })
 
@@ -101,8 +106,10 @@ async function seedProcedimiento(precio = 10000) {
   return row!
 }
 
-async function seedPrecioVisita(comuna: string, precio: number) {
-  const [row] = await db.insert(nursingVisitPrices).values({ comuna, precio }).returning()
+async function seedPrecioVisita(comunaNombre: string, precio: number) {
+  const [comunaRow] = await db.insert(comunas).values({ nombre: comunaNombre }).returning()
+  created.comunas.push(comunaRow!.id)
+  const [row] = await db.insert(nursingVisitPrices).values({ idComuna: comunaRow!.id, precio }).returning()
   created.nursingVisitPrices.push(row!.id)
   return row!
 }

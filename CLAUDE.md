@@ -66,6 +66,7 @@ src/
       talleres/             # Catálogo de talleres
       previsiones/          # Catálogo de previsiones de salud
       residencias/          # Catálogo de residencias de adulto mayor
+      comunas/              # Catálogo de comunas
       tipos-recargos/       # Catálogo de tipos de recargos
       precios/              # Gestión de precios (visitas por comuna)
       playground/           # Página de desarrollo/testing de componentes
@@ -85,7 +86,7 @@ src/
     format.ts               # Formateo de fechas (zona Chile)
     rut.ts                  # Validación/formateo RUT chileno
     paciente.ts             # Helper formatNombre()
-    comunas.ts              # Lista de comunas de Chile
+    comunas.ts              # normalizeComuna() — normalización case/acento-insensible (el catálogo vive en la tabla `comunas`)
     utils.ts                # cn() (clsx + tailwind-merge)
   components/
     ui/                     # Primitivos: button, card, chart, checkbox, popover
@@ -136,7 +137,8 @@ src/
 | `residencias_adulto_mayor` | `elderlyResidences` | Residencias de adulto mayor |
 | `origenes_contacto` | `contactOrigins` | Origen del contacto |
 | `tipos_recargos` | `surchargeTypes` | Tipos de recargos excepcionales |
-| `precios_visita_enfermeria` | `nursingVisitPrices` | Precio de visita por comuna (null = base) |
+| `comunas` | `comunas` | Comunas (usado por enfermeras, precios de visita y cotizaciones) |
+| `precios_visita_enfermeria` | `nursingVisitPrices` | Precio de visita por comuna (`id_comuna` null = base) |
 
 ### Tablas pivote
 
@@ -161,6 +163,9 @@ src/
 - `visits` → `surchargeTypes` (N:1, restrict delete)
 - `quotations` → `patients` (N:1, set null — paciente opcional)
 - `quotations` → `visits` (N:1, set null — referencia a visita convertida)
+- `quotations` → `comunas` (N:1, restrict delete)
+- `nurses` → `comunas` (N:1, opcional, restrict delete)
+- `nursingVisitPrices` → `comunas` (N:1, opcional — null = precio base, restrict delete)
 
 ### Convención de nombres
 
@@ -225,9 +230,9 @@ Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al in
 - CRUD estándar: `searchLaboratorios`, `createLaboratorio`, `updateLaboratorio`, `toggleLaboratorio`
 
 ### catalogos.ts
-- CRUD para cada catálogo: procedimientos, exámenes, talleres, previsiones, residencias, tipos de recargos
+- CRUD para cada catálogo: procedimientos, exámenes, talleres, previsiones, residencias, comunas, tipos de recargos
 - Patrón: `search*`, `create*`, `update*`, `toggle*`
-- Helpers: `getProcedimientos()`, `getExamenes()`, `getTalleres()` — para selects
+- Helpers: `getProcedimientos()`, `getExamenes()`, `getTalleres()`, `getComunasForSelect()` — para selects
 
 ### precios.ts
 - `searchPreciosExamenes(params)` / `searchPreciosVisita(params)` — Gestión de precios
@@ -270,9 +275,16 @@ Solo se usan cuando se necesita controlar headers HTTP o servir contenido no-JSO
 El cálculo de costos es central al negocio:
 
 ### Precio de visita de enfermería
-- Tabla `precios_visita_enfermeria` con precio por comuna
-- Si no hay precio para la comuna, se usa el precio base (comuna = null)
-- Función: `getPrecioVisitaEnfermeria(db, comuna)` en `src/lib/pricing/visitas.ts`
+- Tabla `precios_visita_enfermeria` con precio por `id_comuna` (FK a `comunas`)
+- Si no hay precio para la comuna, se usa el precio base (`id_comuna = null`)
+- La comuna del paciente es texto libre (`direcciones.area_administrativa_3`, desde Google Maps) y se
+  resuelve contra el catálogo `comunas` por nombre normalizado (case/acento-insensible)
+- Funciones en `src/lib/pricing/visitas.ts`:
+  - `resolverPrecioVisitaEnfermeria(conn, comunaNombre)` — resuelve por nombre (texto libre); devuelve
+    `{ precio, idComuna, comunaEncontrada, usoPrecioBase }`. `comunaEncontrada: false` indica que el
+    nombre no matcheó ninguna comuna activa del catálogo (se avisa en el formulario de visita)
+  - `getPrecioVisitaPorIdComuna(conn, idComuna)` — resuelve por id ya conocido (p.ej. seleccionado en
+    un `<select>`, como en cotizaciones)
 
 ### Costo total de una visita
 Calculado en `calcularCostoVisitaPersistida()`:

@@ -3,7 +3,7 @@
 import { db } from '@/db'
 import {
   visits, patients, addresses,
-  visitProcedures, visitExams, procedures, exams, nurses,
+  visitProcedures, visitExams, procedures, exams, nurses, comunas,
 } from '@/db/schema'
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
@@ -103,8 +103,9 @@ export async function getEnfermerasActivas(): Promise<{ id: number; nombre: stri
   await requireSession()
 
   const rows = await db
-    .select({ id: nurses.id, nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno, comunaResidencia: nurses.comunaResidencia })
+    .select({ id: nurses.id, nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno, comunaResidencia: comunas.nombre })
     .from(nurses)
+    .leftJoin(comunas, eq(nurses.idComunaResidencia, comunas.id))
     .where(eq(nurses.activo, true))
     .orderBy(asc(nurses.apellidoPaterno))
 

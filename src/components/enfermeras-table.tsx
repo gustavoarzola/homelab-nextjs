@@ -1,12 +1,15 @@
 'use client'
 
+import { useMemo } from 'react'
 import { DataTable, type ColumnDef, type FilterDef, type FormFieldDef, type Result, type SearchParams } from './data-table'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import { formatRut } from '@/lib/rut'
-import { COMUNAS_SELECT_OPTIONS } from '@/lib/comunas'
+
+type ComunaOption = { id: number; nombre: string }
 
 type Props = {
   initialData: { rows: NurseRow[]; total: number }
+  comunas: ComunaOption[]
   search: (params: SearchParams) => Promise<{ rows: NurseRow[]; total: number }>
   onCreate: (fd: FormData) => Promise<Result>
   onUpdate: (fd: FormData) => Promise<Result>
@@ -93,24 +96,24 @@ const filters: FilterDef[] = [
   { key: 'mostrarInactivas', label: 'Mostrar inactivas', type: 'checkbox' },
 ]
 
-const formFields: FormFieldDef[] = [
-  { name: 'nombres', label: 'Nombres', required: true },
-  { name: 'apellidoPaterno', label: 'Apellido paterno', required: true },
-  { name: 'apellidoMaterno', label: 'Apellido materno' },
-  { name: 'rut', label: 'RUT', placeholder: '12.345.678-9' },
-  { name: 'telefono', label: 'Teléfono', type: 'tel' },
-  { name: 'correo', label: 'Correo electrónico', type: 'email' },
-  { name: 'porcentajePago', label: '% Pago', type: 'number', placeholder: '67.5' },
-  {
-    name: 'comunaResidencia',
-    label: 'Comuna de residencia',
-    type: 'select-single',
-    placeholder: 'Buscar comuna…',
-    options: COMUNAS_SELECT_OPTIONS,
-  },
-]
+export function EnfermerasTable({ initialData, comunas, search, onCreate, onUpdate, onToggle, onDelete }: Props) {
+  const formFields: FormFieldDef[] = useMemo(() => [
+    { name: 'nombres', label: 'Nombres', required: true },
+    { name: 'apellidoPaterno', label: 'Apellido paterno', required: true },
+    { name: 'apellidoMaterno', label: 'Apellido materno' },
+    { name: 'rut', label: 'RUT', placeholder: '12.345.678-9' },
+    { name: 'telefono', label: 'Teléfono', type: 'tel' },
+    { name: 'correo', label: 'Correo electrónico', type: 'email' },
+    { name: 'porcentajePago', label: '% Pago', type: 'number', placeholder: '67.5' },
+    {
+      name: 'idComunaResidencia',
+      label: 'Comuna de residencia',
+      type: 'select-single',
+      placeholder: 'Buscar comuna…',
+      options: comunas.map((c) => ({ value: String(c.id), label: c.nombre })),
+    },
+  ], [comunas])
 
-export function EnfermerasTable({ initialData, search, onCreate, onUpdate, onToggle, onDelete }: Props) {
   return (
     <DataTable
       initialData={initialData}

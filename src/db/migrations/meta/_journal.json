@@ -113,6 +113,27 @@
       "when": 1786428378912,
       "tag": "0015_tan_preak",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787808071138,
+      "tag": "0016_comunas_catalogo_step1",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787808071139,
+      "tag": "0017_comunas_catalogo_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787808079132,
+      "tag": "0018_comunas_catalogo_step2",
+      "breakpoints": true
     }
   ]
 }

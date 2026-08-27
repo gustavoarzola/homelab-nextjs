@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import {
   addresses,
+  comunas,
   exams,
   healthInsurances,
   nursingVisitPrices,
@@ -41,6 +42,7 @@ const created = {
   procedures: [] as number[],
   exams: [] as number[],
   nursingVisitPrices: [] as number[],
+  comunas: [] as number[],
   quotations: [] as number[],
   visits: [] as number[],
 }
@@ -56,6 +58,8 @@ afterEach(async () => {
   await Promise.all([
     created.procedures.length ? db.delete(procedures).where(inArray(procedures.id, created.procedures)) : null,
     created.exams.length ? db.delete(exams).where(inArray(exams.id, created.exams)) : null,
+    // Depende de que nursingVisitPrices/quotations (FK restrict/set null) ya se hayan borrado arriba.
+    created.comunas.length ? db.delete(comunas).where(inArray(comunas.id, created.comunas)) : null,
   ])
   await Promise.all([
     created.patients.length ? db.delete(patients).where(inArray(patients.id, created.patients)) : null,
@@ -73,6 +77,7 @@ afterEach(async () => {
   created.procedures = []
   created.exams = []
   created.nursingVisitPrices = []
+  created.comunas = []
   created.quotations = []
   created.visits = []
 })
@@ -126,8 +131,10 @@ async function seedExamen(precio = 5000) {
   return row!
 }
 
-async function seedPrecioVisita(comuna: string, precio: number) {
-  const [row] = await db.insert(nursingVisitPrices).values({ comuna, precio }).returning()
+async function seedPrecioVisita(comunaNombre: string, precio: number) {
+  const [comunaRow] = await db.insert(comunas).values({ nombre: comunaNombre }).returning()
+  created.comunas.push(comunaRow!.id)
+  const [row] = await db.insert(nursingVisitPrices).values({ idComuna: comunaRow!.id, precio }).returning()
   created.nursingVisitPrices.push(row!.id)
   return row!
 }
@@ -150,13 +157,13 @@ describe('createCotizacion — descuento de visita + descuento de procedimiento 
     const patient = await seedPaciente(comuna)
     const proc = await seedProcedimiento(10000)
     const exam = await seedExamen(4000)
-    await seedPrecioVisita(comuna, 25000)
+    const precioVisita = await seedPrecioVisita(comuna, 25000)
 
     const result = await createCotizacion(
       cotizacionForm(
         {
           idPaciente: patient.id,
-          comuna,
+          idComuna: precioVisita.idComuna!,
           cobraVisita: 'true',
           montoInsumos: 2000,
           descuentoTipo: 'monto',
@@ -194,10 +201,10 @@ describe('updateCotizacion — recalcula tras modificar descuentos e insumos', (
     const comuna = unique('ComunaCotiUpdate')
     const patient = await seedPaciente(comuna)
     const proc = await seedProcedimiento(8000)
-    await seedPrecioVisita(comuna, 18000)
+    const precioVisita = await seedPrecioVisita(comuna, 18000)
 
     const createResult = await createCotizacion(
-      cotizacionForm({ idPaciente: patient.id, comuna, cobraVisita: 'true' }, [proc.id]),
+      cotizacionForm({ idPaciente: patient.id, idComuna: precioVisita.idComuna!, cobraVisita: 'true' }, [proc.id]),
     )
     expect(createResult.success).toBe(true)
     const id = (createResult as { success: true; data: { id: number } }).data.id
@@ -208,7 +215,7 @@ describe('updateCotizacion — recalcula tras modificar descuentos e insumos', (
         {
           id,
           idPaciente: patient.id,
-          comuna,
+          idComuna: precioVisita.idComuna!,
           cobraVisita: 'true',
           montoInsumos: 1000,
           descuentoTipo: 'porcentaje',
@@ -238,13 +245,13 @@ describe('getCotizacion', () => {
     const comuna = unique('ComunaCotiGet')
     const patient = await seedPaciente(comuna)
     const proc = await seedProcedimiento(6000)
-    await seedPrecioVisita(comuna, 12000)
+    const precioVisita = await seedPrecioVisita(comuna, 12000)
 
     const createResult = await createCotizacion(
       cotizacionForm(
         {
           idPaciente: patient.id,
-          comuna,
+          idComuna: precioVisita.idComuna!,
           cobraVisita: 'true',
           montoInsumos: 500,
           descuentoTipo: 'monto',
@@ -275,13 +282,13 @@ describe('convertirCotizacionAVisita', () => {
     const patient = await seedPaciente(comuna)
     const proc = await seedProcedimiento(9000)
     const exam = await seedExamen(3000)
-    await seedPrecioVisita(comuna, 22000)
+    const precioVisita = await seedPrecioVisita(comuna, 22000)
 
     const createResult = await createCotizacion(
       cotizacionForm(
         {
           idPaciente: patient.id,
-          comuna,
+          idComuna: precioVisita.idComuna!,
           cobraVisita: 'true',
           montoInsumos: 1200,
           descuentoTipo: 'porcentaje',
@@ -342,13 +349,13 @@ describe('convertirCotizacionAVisita', () => {
 
   it('cuando la cotización no tiene paciente, requiere idPatient explícito para convertir', async () => {
     const comuna = unique('ComunaCotiSinPaciente')
-    await seedPrecioVisita(comuna, 15000)
+    const precioVisita = await seedPrecioVisita(comuna, 15000)
     const patient = await seedPaciente(comuna)
 
     const createResult = await createCotizacion(
       cotizacionForm({
         nombreDestinatario: unique('Destinatario'),
-        comuna,
+        idComuna: precioVisita.idComuna!,
         cobraVisita: 'false',
       }),
     )

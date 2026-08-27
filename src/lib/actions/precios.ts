@@ -20,6 +20,7 @@ import {
   procedures,
   workshops,
   surchargeTypes,
+  comunas,
 } from '@/db/schema'
 import { eq, and, or, isNull, ne, asc, desc, count, ilike, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
@@ -41,6 +42,7 @@ export type PrecioExamenRow = {
 
 export type PrecioVisitaRow = {
   id: number
+  idComuna: number | null
   comuna: string | null
   precio: number
   activo: boolean
@@ -66,13 +68,13 @@ const precioExamenUpdateSchema = z.object({
 })
 
 const precioVisitaCreateSchema = z.object({
-  comuna: z.string().trim().optional().transform((v) => v || null),
+  idComuna: fields.nullableId,
   precio: fields.precioRequerido,
 })
 
 const precioVisitaUpdateSchema = z.object({
   id: fields.id,
-  comuna: z.string().trim().optional().transform((v) => v || null),
+  idComuna: fields.nullableId,
   precio: fields.precioRequerido,
 })
 
@@ -165,22 +167,30 @@ export async function searchPreciosVisita(
   const mostrarInactivos = filters.mostrarInactivos as boolean | undefined
 
   const conditions: SQL[] = []
-  if (buscar) conditions.push(ilike(nursingVisitPrices.comuna, `%${buscar}%`))
+  if (buscar) conditions.push(ilike(comunas.nombre, `%${buscar}%`))
   if (!mostrarInactivos) conditions.push(eq(nursingVisitPrices.activo, true))
   const where = conditions.length ? and(...conditions) : undefined
 
   const [countRow] = await db
     .select({ total: count() })
     .from(nursingVisitPrices)
+    .leftJoin(comunas, eq(nursingVisitPrices.idComuna, comunas.id))
     .where(where)
 
   const sortCol =
-    sort?.key === 'precio' ? nursingVisitPrices.precio : nursingVisitPrices.comuna
+    sort?.key === 'precio' ? nursingVisitPrices.precio : comunas.nombre
   const order = sort?.dir === 'desc' ? desc(sortCol) : asc(sortCol)
 
   const rows = await db
-    .select()
+    .select({
+      id: nursingVisitPrices.id,
+      idComuna: nursingVisitPrices.idComuna,
+      comuna: comunas.nombre,
+      precio: nursingVisitPrices.precio,
+      activo: nursingVisitPrices.activo,
+    })
     .from(nursingVisitPrices)
+    .leftJoin(comunas, eq(nursingVisitPrices.idComuna, comunas.id))
     .where(where)
     .orderBy(order)
     .limit(pageSize)
@@ -190,32 +200,36 @@ export async function searchPreciosVisita(
   })
 }
 
+async function labelParaIdComuna(idComuna: number | null): Promise<string> {
+  if (idComuna === null) return 'el precio base'
+  const [row] = await db.select({ nombre: comunas.nombre }).from(comunas).where(eq(comunas.id, idComuna)).limit(1)
+  return row ? `la comuna "${row.nombre}"` : 'esa comuna'
+}
+
 export async function createPrecioVisita(fd: FormData): Promise<ActionResult> {
-  return withFormAction(precioVisitaCreateSchema, fd, 'Error al crear precio', async ({ comuna, precio }) => {
-    const duplicateCondition = comuna
-      ? eq(nursingVisitPrices.comuna, comuna)
-      : isNull(nursingVisitPrices.comuna)
+  return withFormAction(precioVisitaCreateSchema, fd, 'Error al crear precio', async ({ idComuna, precio }) => {
+    const duplicateCondition = idComuna !== null
+      ? eq(nursingVisitPrices.idComuna, idComuna)
+      : isNull(nursingVisitPrices.idComuna)
     const [existing] = await db.select({ id: nursingVisitPrices.id }).from(nursingVisitPrices).where(duplicateCondition).limit(1)
     if (existing) {
-      const label = comuna ? `la comuna "${comuna}"` : 'el precio base'
-      throw new ActionError(`Ya existe un precio para ${label}`)
+      throw new ActionError(`Ya existe un precio para ${await labelParaIdComuna(idComuna)}`)
     }
-    await db.insert(nursingVisitPrices).values({ comuna, precio })
+    await db.insert(nursingVisitPrices).values({ idComuna, precio })
     revalidatePath('/precios/visitas')
   })
 }
 
 export async function updatePrecioVisita(fd: FormData): Promise<ActionResult> {
-  return withFormAction(precioVisitaUpdateSchema, fd, 'Error al actualizar precio', async ({ id, comuna, precio }) => {
-    const duplicateCondition = comuna
-      ? and(eq(nursingVisitPrices.comuna, comuna), ne(nursingVisitPrices.id, id))
-      : and(isNull(nursingVisitPrices.comuna), ne(nursingVisitPrices.id, id))
+  return withFormAction(precioVisitaUpdateSchema, fd, 'Error al actualizar precio', async ({ id, idComuna, precio }) => {
+    const duplicateCondition = idComuna !== null
+      ? and(eq(nursingVisitPrices.idComuna, idComuna), ne(nursingVisitPrices.id, id))
+      : and(isNull(nursingVisitPrices.idComuna), ne(nursingVisitPrices.id, id))
     const [duplicate] = await db.select({ id: nursingVisitPrices.id }).from(nursingVisitPrices).where(duplicateCondition).limit(1)
     if (duplicate) {
-      const label = comuna ? `la comuna "${comuna}"` : 'el precio base'
-      throw new ActionError(`Ya existe otro precio para ${label}`)
+      throw new ActionError(`Ya existe otro precio para ${await labelParaIdComuna(idComuna)}`)
     }
-    await db.update(nursingVisitPrices).set({ comuna, precio, updatedAt: new Date() }).where(eq(nursingVisitPrices.id, id))
+    await db.update(nursingVisitPrices).set({ idComuna, precio, updatedAt: new Date() }).where(eq(nursingVisitPrices.id, id))
     revalidatePath('/precios/visitas')
   })
 }

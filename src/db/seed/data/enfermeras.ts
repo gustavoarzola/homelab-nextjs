@@ -1,13 +1,5 @@
 // ─── Nurse data ────────────────────────────────────────────────────────────────
 
-export const COMUNAS_RM = [
-  'Providencia', 'Las Condes', 'Ñuñoa', 'Santiago', 'La Florida', 'Maipú',
-  'Vitacura', 'Lo Barnechea', 'La Reina', 'Peñalolén', 'Macul', 'San Miguel',
-  'Independencia', 'Recoleta', 'La Cisterna', 'La Granja', 'Pudahuel',
-  'Quilicura', 'Huechuraba', 'Conchalí', 'Cerrillos', 'Estación Central',
-  'Puente Alto', 'San Bernardo', 'Colina', 'Lampa',
-]
-
 /**
  * Selección determinista por índice (no depende de una semilla de RNG): misma
  * `i` ⇒ mismo resultado siempre. Se usa para asignar `comunaResidencia` a cada

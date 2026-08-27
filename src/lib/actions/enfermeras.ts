@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { nurses, visits } from '@/db/schema'
+import { nurses, visits, comunas } from '@/db/schema'
 import { eq, count, and, or, ilike, asc, desc, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -32,7 +32,7 @@ const enfermeraSchema = z.object({
       (v) => { const n = parseFloat(v); return !isNaN(n) && n >= 0 && n <= 100 },
       'Porcentaje inválido (0–100)',
     ),
-  comunaResidencia: z.string().trim().optional().transform((v) => v || null),
+  idComunaResidencia: fields.nullableId,
 })
 const enfermeraUpdateSchema = enfermeraSchema.extend({ id: fields.id })
 
@@ -46,6 +46,7 @@ export type NurseRow = {
   correo: string | null
   activo: boolean
   porcentajePago: string
+  idComunaResidencia: number | null
   comunaResidencia: string | null
 }
 
@@ -86,8 +87,21 @@ export async function searchEnfermeras(
     const primaryOrder = sort?.dir === 'desc' ? desc(sortCol) : asc(sortCol)
 
     const rows = await db
-      .select()
+      .select({
+        id: nurses.id,
+        nombres: nurses.nombres,
+        apellidoPaterno: nurses.apellidoPaterno,
+        apellidoMaterno: nurses.apellidoMaterno,
+        rut: nurses.rut,
+        telefono: nurses.telefono,
+        correo: nurses.correo,
+        activo: nurses.activo,
+        porcentajePago: nurses.porcentajePago,
+        idComunaResidencia: nurses.idComunaResidencia,
+        comunaResidencia: comunas.nombre,
+      })
       .from(nurses)
+      .leftJoin(comunas, eq(nurses.idComunaResidencia, comunas.id))
       .where(where)
       .orderBy(primaryOrder, asc(nurses.apellidoPaterno), asc(nurses.nombres))
       .limit(pageSize)

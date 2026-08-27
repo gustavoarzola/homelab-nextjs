@@ -15,6 +15,7 @@ import {
   workshops,
   surchargeTypes,
   addresses,
+  comunas,
   visits,
   visitProcedures,
   visitExams,
@@ -28,7 +29,7 @@ import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
-import { getPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
+import { getPrecioVisitaPorIdComuna } from '@/lib/pricing/visitas'
 import { resolverMontoDescuento } from '@/lib/pricing/descuento'
 import { parseFormDataWithArrays, fields } from '@/lib/validation'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
@@ -43,6 +44,7 @@ export type CotizacionDetalle = {
   emailDestinatario: string | null
   telefonoDestinatario: string | null
   identificacionDestinatario: string | null
+  idComuna: number | null
   comuna: string | null
   cobraVisita: boolean
   total: number
@@ -78,6 +80,7 @@ export type CotizacionVista = {
   emailDestinatario: string | null
   telefonoDestinatario: string | null
   identificacionDestinatario: string | null
+  idComuna: number | null
   comuna: string | null
   cobraVisita: boolean
   precioVisita: number
@@ -117,8 +120,13 @@ export type CotizacionRow = {
 
 export async function getCotizacion(id: number): Promise<CotizacionDetalle | null> {
   return withQuery(async () => {
-  const [quotation] = await db.select().from(quotations).where(eq(quotations.id, id))
-  if (!quotation) return null
+  const [row] = await db
+    .select({ quotation: quotations, comunaNombre: comunas.nombre })
+    .from(quotations)
+    .leftJoin(comunas, eq(quotations.idComuna, comunas.id))
+    .where(eq(quotations.id, id))
+  if (!row) return null
+  const { quotation, comunaNombre } = row
 
   const [exams_, isapre_, procs, talleres_, surcharges_] = await Promise.all([
     db
@@ -151,7 +159,8 @@ export async function getCotizacion(id: number): Promise<CotizacionDetalle | nul
     emailDestinatario: quotation.emailDestinatario ?? null,
     telefonoDestinatario: quotation.telefonoDestinatario ?? null,
     identificacionDestinatario: quotation.identificacionDestinatario ?? null,
-    comuna: quotation.comuna ?? null,
+    idComuna: quotation.idComuna ?? null,
+    comuna: comunaNombre ?? null,
     cobraVisita: quotation.cobraVisita,
     total: quotation.total ?? 0,
     montoInsumos: quotation.montoInsumos,
@@ -192,7 +201,8 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
       emailDestinatario: quotations.emailDestinatario,
       telefonoDestinatario: quotations.telefonoDestinatario,
       identificacionDestinatario: quotations.identificacionDestinatario,
-      comuna: quotations.comuna,
+      idComuna: quotations.idComuna,
+      comuna: comunas.nombre,
       cobraVisita: quotations.cobraVisita,
       total: quotations.total,
       montoInsumos: quotations.montoInsumos,
@@ -215,6 +225,7 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
     })
     .from(quotations)
     .leftJoin(patients, eq(quotations.idPaciente, patients.id))
+    .leftJoin(comunas, eq(quotations.idComuna, comunas.id))
     .where(eq(quotations.id, id))
 
   if (!quotation) return null
@@ -270,8 +281,8 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
       .where(eq(quotationSurcharges.idCotizacion, id)),
   ])
 
-  const precioVisita = quotation.cobraVisita && quotation.comuna
-    ? (await getPrecioVisitaEnfermeria(db, quotation.comuna)) ?? 0
+  const precioVisita = quotation.cobraVisita
+    ? (await getPrecioVisitaPorIdComuna(db, quotation.idComuna)) ?? 0
     : 0
 
   const pacienteNombre = quotation.pacienteNombres
@@ -287,6 +298,7 @@ export async function getCotizacionVista(id: number): Promise<CotizacionVista | 
     emailDestinatario: quotation.emailDestinatario ?? null,
     telefonoDestinatario: quotation.telefonoDestinatario ?? null,
     identificacionDestinatario: quotation.identificacionDestinatario ?? null,
+    idComuna: quotation.idComuna ?? null,
     comuna: quotation.comuna ?? null,
     cobraVisita: quotation.cobraVisita,
     precioVisita,
@@ -407,7 +419,7 @@ const cotizacionInputSchema = z.object({
     .transform((v) => v && v !== '' ? v : null),
   telefonoDestinatario: fields.nullableStr,
   identificacionDestinatario: fields.nullableStr,
-  comuna: z.string().trim().min(1, 'Comuna requerida'),
+  idComuna: fields.id,
   cobraVisita: fields.bool,
   montoInsumos: fields.montoInsumos,
   descuentoTipo: fields.descuentoTipo,
@@ -435,7 +447,7 @@ export async function createCotizacion(
 
   const {
     idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
-    identificacionDestinatario, comuna, cobraVisita, montoInsumos,
+    identificacionDestinatario, idComuna, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     descuentoProcedimientosAfectaPagoEnfermera,
     notas,
@@ -505,7 +517,7 @@ export async function createCotizacion(
     let montoVisitaOriginal = 0
     let montoDescuento = 0
     if (cobraVisita) {
-      montoVisitaOriginal = (await getPrecioVisitaEnfermeria(db, comuna)) ?? 0
+      montoVisitaOriginal = (await getPrecioVisitaPorIdComuna(db, idComuna)) ?? 0
       montoDescuento = resolverMontoDescuento(montoVisitaOriginal, descuentoTipo, descuentoValorFinal)
       visitPrice = Math.max(0, montoVisitaOriginal - montoDescuento)
       total += visitPrice
@@ -535,7 +547,7 @@ export async function createCotizacion(
         emailDestinatario,
         telefonoDestinatario,
         identificacionDestinatario,
-        comuna,
+        idComuna,
         cobraVisita,
         total,
         montoInsumos,
@@ -682,7 +694,7 @@ export async function updateCotizacion(
 
   const {
     id, idPaciente, nombreDestinatario, emailDestinatario, telefonoDestinatario,
-    identificacionDestinatario, comuna, cobraVisita, montoInsumos,
+    identificacionDestinatario, idComuna, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     descuentoProcedimientosAfectaPagoEnfermera,
     notas,
@@ -748,7 +760,7 @@ export async function updateCotizacion(
     let montoVisitaOriginal = 0
     let montoDescuento = 0
     if (cobraVisita) {
-      montoVisitaOriginal = (await getPrecioVisitaEnfermeria(db, comuna)) ?? 0
+      montoVisitaOriginal = (await getPrecioVisitaPorIdComuna(db, idComuna)) ?? 0
       montoDescuento = resolverMontoDescuento(montoVisitaOriginal, descuentoTipo, descuentoValorFinal)
       visitPrice = Math.max(0, montoVisitaOriginal - montoDescuento)
       total += visitPrice
@@ -777,7 +789,7 @@ export async function updateCotizacion(
         emailDestinatario,
         telefonoDestinatario,
         identificacionDestinatario,
-        comuna,
+        idComuna,
         cobraVisita,
         total,
         montoInsumos,
@@ -1133,13 +1145,13 @@ export async function rechazarCotizacion(id: number, motivo: string): Promise<Ac
 export async function getPreciosVisita(): Promise<Record<string, number>> {
   return withQuery(async () => {
     const rows = await db
-      .select({ comuna: nursingVisitPrices.comuna, precio: nursingVisitPrices.precio })
+      .select({ idComuna: nursingVisitPrices.idComuna, precio: nursingVisitPrices.precio })
       .from(nursingVisitPrices)
       .where(eq(nursingVisitPrices.activo, true))
     const map: Record<string, number> = {}
     for (const row of rows) {
-      if (row.comuna === null) map['__base__'] = row.precio
-      else map[row.comuna] = row.precio
+      if (row.idComuna === null) map['__base__'] = row.precio
+      else map[String(row.idComuna)] = row.precio
     }
     return map
   })

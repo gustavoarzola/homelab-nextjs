@@ -13,6 +13,7 @@ import {
   procedures,
   exams,
   nurses,
+  comunas,
 } from '@/db/schema'
 import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
@@ -573,7 +574,7 @@ export async function deletePaciente(id: number): Promise<ActionResult> {
 
 // ─── getPacientes (all for select dropdowns) ────────────────────────────────
 
-export async function getPacientes(): Promise<{ id: number; nombres: string; apellidoPaterno: string | null; apellidoMaterno?: string | null; comuna: string | null }[]> {
+export async function getPacientes(): Promise<{ id: number; nombres: string; apellidoPaterno: string | null; apellidoMaterno?: string | null; comuna: string | null; idComuna: number | null }[]> {
   return withQuery(() => db
     .select({
       id: patients.id,
@@ -581,8 +582,17 @@ export async function getPacientes(): Promise<{ id: number; nombres: string; ape
       apellidoPaterno: patients.apellidoPaterno,
       apellidoMaterno: patients.apellidoMaterno,
       comuna: addresses.areaAdministrativa3,
+      idComuna: comunas.id,
     })
     .from(patients)
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
+    // Match por nombre normalizado (case/acento-insensible, misma lógica que
+    // `resolverPrecioVisitaEnfermeria` en src/lib/pricing/visitas.ts) contra
+    // comunas activas — así el formulario de cotización puede resolver el
+    // precio de visita del paciente sin re-implementar el matching en el cliente.
+    .leftJoin(comunas, and(
+      eq(comunas.activo, true),
+      sql`lower(f_unaccent(${comunas.nombre})) = lower(f_unaccent(${addresses.areaAdministrativa3}))`,
+    ))
     .orderBy(asc(patients.apellidoPaterno), asc(patients.nombres)))
 }

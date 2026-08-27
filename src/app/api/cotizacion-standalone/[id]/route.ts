@@ -8,6 +8,7 @@ import {
   quotationSurcharges,
   patients,
   surchargeTypes,
+  comunas,
 } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { formatDateLong, todaySantiago } from '@/lib/format'
@@ -24,10 +25,15 @@ export async function GET(
     return new Response('ID inválido', { status: 400 })
   }
 
-  const [quotation] = await db.select().from(quotations).where(eq(quotations.id, cotizacionId))
-  if (!quotation) {
+  const [quotationRow] = await db
+    .select({ quotation: quotations, comunaNombre: comunas.nombre })
+    .from(quotations)
+    .leftJoin(comunas, eq(quotations.idComuna, comunas.id))
+    .where(eq(quotations.id, cotizacionId))
+  if (!quotationRow) {
     return new Response('Cotización no encontrada', { status: 404 })
   }
+  const quotation = { ...quotationRow.quotation, comuna: quotationRow.comunaNombre }
 
   const [examItems, isapreExamItems, procItems, tallerItems, patientRow, surchargesRows] = await Promise.all([
     db
