@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import {
   addresses,
+  contactOrigins,
   elderlyResidences,
   exams,
   healthInsurances,
@@ -40,6 +41,7 @@ const created = {
   nurses: [] as number[],
   workshops: [] as number[],
   surchargeTypes: [] as number[],
+  contactOrigins: [] as number[],
   visits: [] as number[],
 }
 
@@ -54,6 +56,9 @@ afterEach(async () => {
     created.workshops.length ? db.delete(workshops).where(inArray(workshops.id, created.workshops)) : null,
     created.surchargeTypes.length
       ? db.delete(surchargeTypes).where(inArray(surchargeTypes.id, created.surchargeTypes))
+      : null,
+    created.contactOrigins.length
+      ? db.delete(contactOrigins).where(inArray(contactOrigins.id, created.contactOrigins))
       : null,
   ])
   await Promise.all([
@@ -78,6 +83,7 @@ afterEach(async () => {
   created.nurses = []
   created.workshops = []
   created.surchargeTypes = []
+  created.contactOrigins = []
   created.visits = []
 })
 
@@ -171,11 +177,14 @@ describe('listVisitasForReport', () => {
       idPrevision: prevision!.id,
     })
 
+    const [origen] = await db.insert(contactOrigins).values({ nombre: unique('Web') }).returning()
+    created.contactOrigins.push(origen!.id)
+
     // Estado/metodoPago/origen se setean vía acciones de ciclo de vida en producción;
     // para este test se actualizan directo, ya que solo se está verificando la query del reporte.
     await db
       .update(visits)
-      .set({ estado: 'realizada', metodoPago: 'Efectivo', origenContacto: 'web' })
+      .set({ estado: 'realizada', metodoPago: 'Efectivo', idOrigenContacto: origen!.id })
       .where(eq(visits.id, id))
 
     const [row] = await listVisitasForReport({
@@ -190,7 +199,7 @@ describe('listVisitasForReport', () => {
     expect(row!.hogar).toBe(residencia!.nombre)
     expect(row!.isapre).toBe(prevision!.nombre)
     expect(row!.metodoPago).toBe('Efectivo')
-    expect(row!.origenContacto).toBe('web')
+    expect(row!.origenContacto).toBe(origen!.nombre)
     expect(row!.montoInsumos).toBe(1500)
 
     // Dos procedimientos, uno por línea (orden alfabético por nombre desde la query)

@@ -1,0 +1,1 @@
+ALTER TABLE "visitas" DROP COLUMN "origen_contacto";

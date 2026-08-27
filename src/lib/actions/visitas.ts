@@ -55,7 +55,7 @@ export type VisitaDetalle = {
   numeroBoleta: string
   tipoDocumento: string
   numeroAtencion: number | null
-  origenContacto: string | null
+  idOrigenContacto: number | null
   informacionAdicional: string
   pagado: boolean
   metodoPago: string | null
@@ -348,7 +348,7 @@ export async function listVisitasForReport(
         id: visits.id,
         fecha: visits.fecha,
         estado: visits.estado,
-        origenContacto: visits.origenContacto,
+        origenContacto: contactOrigins.nombre,
         metodoPago: visits.metodoPago,
         montoVisita: visits.montoVisitaOriginal,
         montoDescuento: visits.montoDescuento,
@@ -377,6 +377,7 @@ export async function listVisitasForReport(
       .leftJoin(elderlyResidences, eq(patients.idResidenciaAdulto, elderlyResidences.id))
       .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
       .leftJoin(nurses, eq(visits.idEnfermera, nurses.id))
+      .leftJoin(contactOrigins, eq(visits.idOrigenContacto, contactOrigins.id))
       .where(where)
       .orderBy(buildVisitasOrder({ key: 'fecha', dir: 'asc' }))
 
@@ -592,7 +593,7 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     numeroBoleta: visit.numeroBoleta ?? '',
     tipoDocumento: visit.tipoDocumento ?? '',
     numeroAtencion: visit.numeroAtencion ?? null,
-    origenContacto: visit.origenContacto ?? null,
+    idOrigenContacto: visit.idOrigenContacto ?? null,
     informacionAdicional: visit.informacionAdicional ?? '',
     pagado: visit.pagado,
     metodoPago: visit.metodoPago ?? null,
@@ -642,7 +643,7 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
     const surchargeIds = surcharges_.map((s) => s.idTipoRecargo)
     const allExamIds = [...new Set([...examIds, ...isapreExamIds])]
 
-    const [procMeta, examMeta, tallerMeta, surchargeMeta, patientRow, nurseRow] = await Promise.all([
+    const [procMeta, examMeta, tallerMeta, surchargeMeta, patientRow, nurseRow, origenRow] = await Promise.all([
       procIds.length > 0 ? db.select({ id: procedures.id, nombre: procedures.nombre, codigo: procedures.codigo }).from(procedures).where(inArray(procedures.id, procIds)) : [],
       allExamIds.length > 0 ? db.select({ id: exams.id, nombre: exams.nombre, codigo: exams.codigo, grupoExamen: exams.grupoExamen }).from(exams).where(inArray(exams.id, allExamIds)) : [],
       tallerIds.length > 0 ? db.select({ id: workshops.id, nombre: workshops.nombre }).from(workshops).where(inArray(workshops.id, tallerIds)) : [],
@@ -659,6 +660,9 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
         : Promise.resolve(null),
       visit.idEnfermera
         ? db.select({ nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno, apellidoMaterno: nurses.apellidoMaterno }).from(nurses).where(eq(nurses.id, visit.idEnfermera)).then((r) => r[0] ?? null)
+        : Promise.resolve(null),
+      visit.idOrigenContacto
+        ? db.select({ nombre: contactOrigins.nombre }).from(contactOrigins).where(eq(contactOrigins.id, visit.idOrigenContacto)).then((r) => r[0] ?? null)
         : Promise.resolve(null),
     ])
 
@@ -703,7 +707,7 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
       montoDescuentoProcedimientos: visit.montoDescuentoProcedimientos,
       descuentoProcedimientosAfectaPagoEnfermera: visit.descuentoProcedimientosAfectaPagoEnfermera,
       informacionAdicional: visit.informacionAdicional ?? '',
-      origenContacto: visit.origenContacto ?? null,
+      origenContacto: origenRow?.nombre ?? null,
       idPaciente: visit.idPaciente ?? null,
       pacienteNombre: patientRow ? formatNombre({ nombres: patientRow.nombres, apellidoPaterno: patientRow.apellidoPaterno, apellidoMaterno: patientRow.apellidoMaterno }) || null : null,
       pacienteIdentificador: patientRow?.identificador ?? null,
@@ -743,25 +747,13 @@ export async function deleteVisita(id: number): Promise<ActionResult> {
   })
 }
 
-// ─── searchOrigenesContacto ───────────────────────────────────────────────────
-
-export async function searchOrigenesContacto(): Promise<{ id: number; nombre: string }[]> {
-  return withQuery(() =>
-    db
-      .select({ id: contactOrigins.id, nombre: contactOrigins.nombre })
-      .from(contactOrigins)
-      .where(eq(contactOrigins.activo, true))
-      .orderBy(asc(contactOrigins.nombre)),
-  )
-}
-
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const visitaSharedFields = {
   fecha: fields.fechaRequerida,
   hora: fields.nullableStr,
   idEnfermera: fields.nullableId,
-  origenContacto: fields.nullableStr,
+  idOrigenContacto: fields.nullableId,
   informacionAdicional: z.string().trim().optional().default(''),
   cobraVisita: fields.bool,
   montoInsumos: fields.montoInsumos,
@@ -798,7 +790,7 @@ export async function updateVisita(
 
   const {
     id, fecha, hora, idEnfermera,
-    origenContacto, informacionAdicional, cobraVisita, montoInsumos,
+    idOrigenContacto, informacionAdicional, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     descuentoProcedimientosAfectaPagoEnfermera,
     keyOrdenMedica,
@@ -833,7 +825,7 @@ export async function updateVisita(
       await tx
         .update(visits)
         .set({
-          fecha, hora, idEnfermera, origenContacto, informacionAdicional, cobraVisita, montoInsumos,
+          fecha, hora, idEnfermera, idOrigenContacto, informacionAdicional, cobraVisita, montoInsumos,
           descuentoTipo, descuentoValor: descuentoValorFinal, descuentoAfectaPagoEnfermera,
           descuentoProcedimientosAfectaPagoEnfermera,
           keyOrdenMedica, updatedAt: new Date(),
@@ -972,7 +964,7 @@ export async function createVisita(
 
   const {
     idPaciente, fecha, hora, idEnfermera,
-    origenContacto, informacionAdicional, cobraVisita, montoInsumos,
+    idOrigenContacto, informacionAdicional, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     descuentoProcedimientosAfectaPagoEnfermera,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
@@ -1000,7 +992,7 @@ export async function createVisita(
       .values({
         fecha, hora, estado: 'programada', costo: 0,
         idPaciente, idEnfermera,
-        origenContacto, informacionAdicional,
+        idOrigenContacto, informacionAdicional,
         pagado: false, costoTraslado: 0,
         cobraVisita, montoInsumos,
         descuentoTipo, descuentoValor: descuentoValorFinal, descuentoAfectaPagoEnfermera,

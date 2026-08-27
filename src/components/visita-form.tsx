@@ -415,9 +415,7 @@ export function VisitaForm({
   const [dismissedPriceWarnings, setDismissedPriceWarnings] = useState<Set<number>>(new Set())
   const [dismissedExamWarnings, setDismissedExamWarnings] = useState<Set<number>>(new Set())
   const [selectedEnfermeraId, setSelectedEnfermeraId] = useState<number | null>(visita?.idEnfermera ?? null)
-  const [selectedOrigenContactoId, setSelectedOrigenContactoId] = useState<number | null>(
-    visita?.origenContacto ? origenesContacto.find((o) => o.nombre === visita.origenContacto)?.id ?? null : null
-  )
+  const [selectedOrigenContactoId, setSelectedOrigenContactoId] = useState<number | null>(visita?.idOrigenContacto ?? null)
   const [selectedFecha, setSelectedFecha] = useState<string | null>(visita?.fecha ?? null)
   const [selectedHora, setSelectedHora] = useState<string | null>(visita?.hora?.slice(0, 5) ?? null)
   const [isPending, startTransition] = useTransition()
@@ -626,7 +624,7 @@ export function VisitaForm({
         <input type="hidden" name="idPaciente" value={paciente.id} />
         {isEdit && <input type="hidden" name="id" value={visita.id} />}
         <input type="hidden" name="idEnfermera" value={selectedEnfermeraId ?? ''} />
-        <input type="hidden" name="origenContacto" value={selectedOrigenContactoId !== null ? origenesContacto.find((o) => o.id === selectedOrigenContactoId)?.nombre ?? '' : ''} />
+        <input type="hidden" name="idOrigenContacto" value={selectedOrigenContactoId ?? ''} />
         <input type="hidden" name="hora" value={selectedHora ?? ''} />
         {/* ── LEFT column ── */}
         <div className="flex flex-col gap-5">

@@ -47,6 +47,7 @@ import {
   surchargeTypes,
   workshops,
   comunas,
+  contactOrigins,
 } from '../schema'
 import { createRng, type Rng } from './rng'
 import { previsionesData } from './data/previsiones'
@@ -321,6 +322,7 @@ interface OperationCatalogs {
   examsIsapre: CatalogItem[]
   workshops: CatalogItem[]
   surcharges: { id: number; precio: number }[]
+  contactOrigins: { id: number }[]
 }
 
 async function loadCatalogs(): Promise<OperationCatalogs> {
@@ -350,12 +352,18 @@ async function loadCatalogs(): Promise<OperationCatalogs> {
     .from(surchargeTypes)
     .where(eq(surchargeTypes.activo, true))
 
+  const contactOriginRows = await db
+    .select({ id: contactOrigins.id })
+    .from(contactOrigins)
+    .where(eq(contactOrigins.activo, true))
+
   return {
     procedures: procRows,
     examsRegular: examRows.filter((e) => e.grupoExamen !== 'imalab isapre').map(({ grupoExamen: _g, ...rest }) => rest),
     examsIsapre: examRows.filter((e) => e.grupoExamen === 'imalab isapre').map(({ grupoExamen: _g, ...rest }) => rest),
     workshops: workshopRows.map((w) => ({ ...w, precio: 0 })),
     surcharges: surchargeRows,
+    contactOrigins: contactOriginRows,
   }
 }
 
@@ -690,7 +698,7 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
       numeroBoleta: string
       tipoDocumento: string
       numeroAtencion: number | null
-      origenContacto: string
+      idOrigenContacto: number | null
       informacionAdicional: string
       pagado: boolean
       metodoPago: string | null
@@ -831,7 +839,7 @@ export async function seedOperacion({ now = todaySantiago(), seed = 42 }: SeedOp
         numeroBoleta,
         tipoDocumento,
         numeroAtencion,
-        origenContacto: 'Sistema',
+        idOrigenContacto: catalogs.contactOrigins.length > 0 ? rng.pick(catalogs.contactOrigins).id : null,
         informacionAdicional: '',
         pagado,
         metodoPago,

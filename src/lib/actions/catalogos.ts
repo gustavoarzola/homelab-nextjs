@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops, comunas } from '@/db/schema'
+import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops, comunas, contactOrigins } from '@/db/schema'
 import { eq, asc, and, ilike } from 'drizzle-orm'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { z } from 'zod'
@@ -47,6 +47,9 @@ const residenciaUpdateSchema = residenciaSchema.extend({ id: fields.id })
 const comunaSchema = z.object({ nombre: fields.nombre })
 const comunaUpdateSchema = comunaSchema.extend({ id: fields.id })
 
+const origenContactoSchema = z.object({ nombre: fields.nombre })
+const origenContactoUpdateSchema = origenContactoSchema.extend({ id: fields.id })
+
 const tipoRecargoSchema = z.object({ nombre: fields.nombre, precio: fields.precio.optional().default(0) })
 const tipoRecargoUpdateSchema = tipoRecargoSchema.extend({ id: fields.id })
 
@@ -61,6 +64,7 @@ export type TallerRow       = { id: number; nombre: string; codigo: string; acti
 export type PrevisionRow    = { id: number; nombre: string; categoria: string | null; activo: boolean }
 export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
 export type ComunaRow       = { id: number; nombre: string; activo: boolean }
+export type OrigenContactoRow = { id: number; nombre: string; activo: boolean }
 export type TipoRecargoRow  = { id: number; nombre: string; precio: number; activo: boolean }
 
 // ─── Catalog configs ──────────────────────────────────────────────────────────
@@ -111,6 +115,14 @@ const comunaCfg: CatalogConfig = {
   createSchema: comunaSchema,
   updateSchema: comunaUpdateSchema,
   path: '/comunas', tag: 'comunas',
+  extraUpdateFields: () => ({ updatedAt: new Date() }),
+}
+
+const origenContactoCfg: CatalogConfig = {
+  table: contactOrigins, idCol: contactOrigins.id, nombreCol: contactOrigins.nombre, activoCol: contactOrigins.activo,
+  createSchema: origenContactoSchema,
+  updateSchema: origenContactoUpdateSchema,
+  path: '/origenes-contacto', tag: 'origenes-contacto',
   extraUpdateFields: () => ({ updatedAt: new Date() }),
 }
 
@@ -184,6 +196,37 @@ const _fetchComunas = unstable_cache(
 )
 export async function getComunasForSelect(): Promise<{ id: number; nombre: string }[]> {
   return withQuery(() => _fetchComunas())
+}
+
+// ─── Orígenes de contacto ─────────────────────────────────────────────────────
+
+export async function searchOrigenesContacto(params: SearchParams): Promise<{ rows: OrigenContactoRow[]; total: number }> {
+  return catalogSearch(origenContactoCfg, params) as Promise<{ rows: OrigenContactoRow[]; total: number }>
+}
+export async function createOrigenContacto(formData: FormData) { return catalogCreate(origenContactoCfg, formData) }
+export async function updateOrigenContacto(formData: FormData) { return catalogUpdate(origenContactoCfg, formData) }
+export async function toggleOrigenContacto(id: number, activo: boolean) { return catalogToggle(origenContactoCfg, id, activo) }
+
+const _fetchOrigenesContacto = unstable_cache(
+  () => db.select({ id: contactOrigins.id, nombre: contactOrigins.nombre }).from(contactOrigins).where(eq(contactOrigins.activo, true)).orderBy(asc(contactOrigins.nombre)),
+  ['origenes-contacto'],
+  { tags: ['origenes-contacto'], revalidate: 86400 },
+)
+/**
+ * Orígenes activos para el select del formulario de visita. `incluirId` es el
+ * origen ya seleccionado en la visita (si viene de `getVisita`); si quedó
+ * inactivo desde entonces, se agrega igual para no perder la selección al editar.
+ */
+export async function getOrigenesContactoForSelect(incluirId?: number | null): Promise<{ id: number; nombre: string }[]> {
+  return withQuery(async () => {
+    const activos = await _fetchOrigenesContacto()
+    if (!incluirId || activos.some((o) => o.id === incluirId)) return activos
+    const [inactivo] = await db
+      .select({ id: contactOrigins.id, nombre: contactOrigins.nombre })
+      .from(contactOrigins)
+      .where(eq(contactOrigins.id, incluirId))
+    return inactivo ? [...activos, inactivo].sort((a, b) => a.nombre.localeCompare(b.nombre)) : activos
+  })
 }
 
 // ─── Tipos de Recargos ────────────────────────────────────────────────────────

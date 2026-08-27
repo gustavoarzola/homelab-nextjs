@@ -24,6 +24,7 @@ import {
   BookOpen,
   Wallet,
   FileSpreadsheet,
+  Megaphone,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -44,6 +45,7 @@ const navItems = [
   { href: '/residencias', label: 'Residencias', icon: Building2 },
   { href: '/comunas', label: 'Comunas', icon: MapPin },
   { href: '/tipos-recargos', label: 'Tipos de Recargos', icon: AlertCircle },
+  { href: '/origenes-contacto', label: 'Orígenes de contacto', icon: Megaphone },
   { href: '/precios/visitas', label: 'Precios visitas', icon: Tag },
   { href: '/reportes', label: 'Reportes', icon: FileSpreadsheet },
 ]

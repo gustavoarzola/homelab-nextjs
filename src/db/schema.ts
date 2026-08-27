@@ -291,7 +291,7 @@ export const visits = pgTable(
     numeroBoleta: varchar('numero_boleta', { length: 20 }).default(''),
     tipoDocumento: varchar('tipo_documento', { length: 20 }).default(''),
     numeroAtencion: integer('numero_atencion'),
-    origenContacto: varchar('origen_contacto', { length: 100 }),
+    idOrigenContacto: integer('id_origen_contacto'),
     informacionAdicional: text('informacion_adicional').default(''),
     pagado: boolean('pagado').notNull().default(false),
     metodoPago: varchar('metodo_pago', { length: 30 }),
@@ -318,8 +318,11 @@ export const visits = pgTable(
       .onDelete('cascade'),
     foreignKey({ columns: [table.idEnfermera], foreignColumns: [nurses.id] })
       .onDelete('restrict'),
+    foreignKey({ columns: [table.idOrigenContacto], foreignColumns: [contactOrigins.id] })
+      .onDelete('restrict'),
     index('visitas_fecha_idx').on(table.fecha),
     index('visitas_estado_idx').on(table.estado),
+    index('visitas_id_origen_contacto_idx').on(table.idOrigenContacto),
     uniqueIndex('visitas_numero_atencion_idx').on(table.numeroAtencion).where(sql`${table.numeroAtencion} IS NOT NULL`),
     uniqueIndex('visitas_numero_boleta_tipo_doc_idx').on(table.numeroBoleta, table.tipoDocumento).where(sql`${table.numeroBoleta} IS NOT NULL AND ${table.numeroBoleta} != ''`),
   ]

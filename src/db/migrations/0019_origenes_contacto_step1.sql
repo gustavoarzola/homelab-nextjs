@@ -1,0 +1,3 @@
+ALTER TABLE "visitas" ADD COLUMN "id_origen_contacto" integer;--> statement-breakpoint
+ALTER TABLE "visitas" ADD CONSTRAINT "visitas_id_origen_contacto_origenes_contacto_id_fk" FOREIGN KEY ("id_origen_contacto") REFERENCES "public"."origenes_contacto"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "visitas_id_origen_contacto_idx" ON "visitas" USING btree ("id_origen_contacto");
