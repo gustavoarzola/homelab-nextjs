@@ -1142,7 +1142,8 @@ export async function marcarRealizada(id: number): Promise<ActionResult> {
     if (!visit) throw new ActionError('Visita no encontrada')
     if (visit.estado !== 'confirmada') throw new ActionError('Solo se puede marcar como realizada una visita confirmada')
     if (visit.idEnfermera === null) throw new ActionError('Para marcar esta visita como realizada, primero asigna una enfermera')
-    await db.update(visits).set({ estado: 'realizada', updatedAt: new Date() }).where(eq(visits.id, id))
+    const expectedExamIds = await getExamenesEsperados(id)
+    await db.update(visits).set({ estado: 'realizada', resultadosTotalCount: expectedExamIds.length, updatedAt: new Date() }).where(eq(visits.id, id))
     revalidatePath('/visitas')
     revalidatePath(`/visitas/${id}`)
   })
@@ -1181,6 +1182,171 @@ export async function cancelarVisita(id: number, motivo: string): Promise<Action
   })
 }
 
+// ─── Helpers de cierre de visita (compartidos entre guardado parcial y completarVisita) ────
+
+async function getVisitaRealizada(id: number): Promise<void> {
+  const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
+  if (!visit) throw new ActionError('Visita no encontrada')
+  if (visit.estado !== 'realizada') throw new ActionError('Solo se puede completar una visita realizada')
+}
+
+async function assertDocumentoUnico(id: number, tipoDocumento: 'boleta' | 'factura', numeroBoleta: string): Promise<void> {
+  const [duplicateDocument] = await db
+    .select({ id: visits.id })
+    .from(visits)
+    .where(and(
+      eq(visits.numeroBoleta, numeroBoleta),
+      eq(visits.tipoDocumento, tipoDocumento),
+      ne(visits.id, id),
+    ))
+    .limit(1)
+  if (duplicateDocument) {
+    const label = tipoDocumento === 'factura' ? 'factura' : 'boleta'
+    throw new ActionError(`Ya existe una ${label} con el número ${numeroBoleta}`)
+  }
+}
+
+async function assertAtencionUnica(id: number, numeroAtencion: number): Promise<void> {
+  if (!Number.isInteger(numeroAtencion) || numeroAtencion < 1 || numeroAtencion > 2147483647) {
+    throw new ActionError('N° de atención inválido')
+  }
+  const [duplicateAttention] = await db
+    .select({ id: visits.id })
+    .from(visits)
+    .where(and(eq(visits.numeroAtencion, numeroAtencion), ne(visits.id, id)))
+    .limit(1)
+  if (duplicateAttention) {
+    throw new ActionError(`Ya existe una visita con el N° de atención ${numeroAtencion}`)
+  }
+}
+
+async function getExamenesEsperados(id: number): Promise<number[]> {
+  const [stdExams, isapreExams] = await Promise.all([
+    db.select({ idExamen: visitExams.idExamen }).from(visitExams).where(eq(visitExams.idVisita, id)),
+    db.select({ idExamen: visitIsapreExams.idExamen }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id)),
+  ])
+  return [...new Set([...stdExams, ...isapreExams].map((ex) => ex.idExamen))]
+}
+
+// tx: transacción de Drizzle. Sin tipo compartido entre Neon (Vercel) y postgres.js (local) — mismo
+// patrón que `PricingDb` en src/lib/pricing/visitas.ts.
+async function upsertExamResults(
+  tx: any,
+  idVisita: number,
+  items: { idExamen: number; enviado: boolean; fechaEnvio: string | null }[],
+): Promise<{ enviados: number; total: number }> {
+  for (const item of items) {
+    await tx
+      .insert(visitExamResults)
+      .values({ idVisita, idExamen: item.idExamen, enviado: item.enviado, fechaEnvio: item.fechaEnvio, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [visitExamResults.idVisita, visitExamResults.idExamen],
+        set: { enviado: item.enviado, fechaEnvio: item.fechaEnvio, updatedAt: new Date() },
+      })
+  }
+
+  const [stdCount] = await tx.select({ c: count() }).from(visitExams).where(eq(visitExams.idVisita, idVisita))
+  const [isCount] = await tx.select({ c: count() }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, idVisita))
+  const total = Number(stdCount?.c ?? 0) + Number(isCount?.c ?? 0)
+
+  const [resultRows] = await tx.select({ c: count() }).from(visitExamResults).where(and(eq(visitExamResults.idVisita, idVisita), eq(visitExamResults.enviado, true)))
+  const enviados = Number(resultRows?.c ?? 0)
+
+  await tx.update(visits).set({ resultadosEnviadosCount: enviados, resultadosTotalCount: total, updatedAt: new Date() }).where(eq(visits.id, idVisita))
+
+  return { enviados, total }
+}
+
+// ─── guardarFacturacionVisita ──────────────────────────────────────────────────
+
+export type FacturacionVisitaData = {
+  tipoDocumento: 'boleta' | 'factura'
+  numeroBoleta: string
+  numeroAtencion?: number | null
+}
+
+export async function guardarFacturacionVisita(id: number, data: FacturacionVisitaData): Promise<ActionResult> {
+  return withAction('Error al guardar la facturación', async () => {
+    await requireSession()
+    await getVisitaRealizada(id)
+
+    const numeroBoleta = data.numeroBoleta.trim()
+    if (numeroBoleta) {
+      await assertDocumentoUnico(id, data.tipoDocumento, numeroBoleta)
+    }
+    if (data.numeroAtencion !== null && data.numeroAtencion !== undefined) {
+      await assertAtencionUnica(id, data.numeroAtencion)
+    }
+
+    await db.update(visits).set({
+      tipoDocumento: data.tipoDocumento,
+      numeroBoleta,
+      numeroAtencion: data.numeroAtencion ?? null,
+      updatedAt: new Date(),
+    }).where(eq(visits.id, id))
+
+    revalidatePath('/visitas')
+    revalidatePath(`/visitas/${id}`)
+  })
+}
+
+// ─── guardarPagoVisita ──────────────────────────────────────────────────────────
+
+export type PagoVisitaData = {
+  pagado: boolean
+  metodoPago?: string | null
+  fechaPago?: string | null
+}
+
+export async function guardarPagoVisita(id: number, data: PagoVisitaData): Promise<ActionResult> {
+  return withAction('Error al guardar el pago', async () => {
+    await requireSession()
+    await getVisitaRealizada(id)
+
+    if (data.pagado && data.fechaPago && !/^\d{4}-\d{2}-\d{2}$/.test(data.fechaPago)) {
+      throw new ActionError('Formato de fecha de pago inválido')
+    }
+
+    await db.update(visits).set({
+      pagado: data.pagado,
+      metodoPago: data.pagado ? (data.metodoPago ?? null) : null,
+      fechaPago: data.pagado ? (data.fechaPago ?? null) : null,
+      updatedAt: new Date(),
+    }).where(eq(visits.id, id))
+
+    revalidatePath('/visitas')
+    revalidatePath(`/visitas/${id}`)
+  })
+}
+
+// ─── guardarEnvioExamenesVisita ─────────────────────────────────────────────────
+
+export type EnvioExamenVisitaItem = { idExamen: number; enviado: boolean; fechaEnvio: string | null }
+
+export async function guardarEnvioExamenesVisita(id: number, examenes: EnvioExamenVisitaItem[]): Promise<ActionResult> {
+  return withAction('Error al guardar el envío de exámenes', async () => {
+    await requireSession()
+    await getVisitaRealizada(id)
+
+    const expectedExamIds = await getExamenesEsperados(id)
+    for (const ex of examenes) {
+      if (!ex.idExamen || !expectedExamIds.includes(ex.idExamen)) {
+        throw new ActionError('Uno de los exámenes enviados no pertenece a esta visita')
+      }
+      if (ex.fechaEnvio && !/^\d{4}-\d{2}-\d{2}$/.test(ex.fechaEnvio)) {
+        throw new ActionError('Formato de fecha de envío inválido')
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      await upsertExamResults(tx, id, examenes)
+    })
+
+    revalidatePath('/visitas')
+    revalidatePath(`/visitas/${id}`)
+  })
+}
+
 // ─── completarVisita ──────────────────────────────────────────────────────────
 
 export type CompletarVisitaData = {
@@ -1196,45 +1362,18 @@ export type CompletarVisitaData = {
 export async function completarVisita(id: number, data: CompletarVisitaData): Promise<ActionResult> {
   return withAction('Error al completar la visita', async () => {
     await requireSession()
-    const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
-    if (!visit) throw new ActionError('Visita no encontrada')
-    if (visit.estado !== 'realizada') throw new ActionError('Solo se puede completar una visita realizada')
+    await getVisitaRealizada(id)
     if (!data.tipoDocumento || !data.numeroBoleta.trim()) throw new ActionError('Tipo de documento y N° boleta/factura son requeridos')
     if (!data.pagado) throw new ActionError('La visita debe estar marcada como pagada para completarla')
     if (!data.metodoPago) throw new ActionError('Método de pago requerido para completar la visita')
     if (!data.fechaPago) throw new ActionError('Fecha de pago requerida para completar la visita')
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data.fechaPago)) throw new ActionError('Formato de fecha de pago inválido')
     if (data.numeroAtencion !== null && data.numeroAtencion !== undefined) {
-      if (!Number.isInteger(data.numeroAtencion) || data.numeroAtencion < 1 || data.numeroAtencion > 2147483647) {
-        throw new ActionError('N° de atención inválido')
-      }
+      await assertAtencionUnica(id, data.numeroAtencion)
     }
 
     const numeroBoleta = data.numeroBoleta.trim()
-    const [duplicateDocument] = await db
-      .select({ id: visits.id })
-      .from(visits)
-      .where(and(
-        eq(visits.numeroBoleta, numeroBoleta),
-        eq(visits.tipoDocumento, data.tipoDocumento),
-        ne(visits.id, id),
-      ))
-      .limit(1)
-    if (duplicateDocument) {
-      const label = data.tipoDocumento === 'factura' ? 'factura' : 'boleta'
-      throw new ActionError(`Ya existe una ${label} con el número ${numeroBoleta}`)
-    }
-
-    if (data.numeroAtencion !== null && data.numeroAtencion !== undefined) {
-      const [duplicateAttention] = await db
-        .select({ id: visits.id })
-        .from(visits)
-        .where(and(eq(visits.numeroAtencion, data.numeroAtencion), ne(visits.id, id)))
-        .limit(1)
-      if (duplicateAttention) {
-        throw new ActionError(`Ya existe una visita con el N° de atención ${data.numeroAtencion}`)
-      }
-    }
+    await assertDocumentoUnico(id, data.tipoDocumento, numeroBoleta)
 
     const submittedExams = new Map<number, string>()
     for (const ex of data.examenes) {
@@ -1244,11 +1383,7 @@ export async function completarVisita(id: number, data: CompletarVisitaData): Pr
       submittedExams.set(ex.idExamen, ex.fechaEnvio)
     }
 
-    const [stdExams, isapreExams] = await Promise.all([
-      db.select({ idExamen: visitExams.idExamen }).from(visitExams).where(eq(visitExams.idVisita, id)),
-      db.select({ idExamen: visitIsapreExams.idExamen }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id)),
-    ])
-    const expectedExamIds = [...new Set([...stdExams, ...isapreExams].map((ex) => ex.idExamen))]
+    const expectedExamIds = await getExamenesEsperados(id)
 
     for (const idExamen of submittedExams.keys()) {
       if (!expectedExamIds.includes(idExamen)) throw new ActionError('Uno de los exámenes enviados no pertenece a esta visita')
@@ -1261,23 +1396,12 @@ export async function completarVisita(id: number, data: CompletarVisitaData): Pr
 
     const examenesCompletos = expectedExamIds.map((idExamen) => ({
       idExamen,
+      enviado: true,
       fechaEnvio: submittedExams.get(idExamen)!,
     }))
 
     await db.transaction(async (tx) => {
-      for (const ex of examenesCompletos) {
-        await tx
-          .insert(visitExamResults)
-          .values({ idVisita: id, idExamen: ex.idExamen, enviado: true, fechaEnvio: ex.fechaEnvio, updatedAt: new Date() })
-          .onConflictDoUpdate({
-            target: [visitExamResults.idVisita, visitExamResults.idExamen],
-            set: { enviado: true, fechaEnvio: ex.fechaEnvio, updatedAt: new Date() },
-          })
-      }
-
-      const [stdCount] = await tx.select({ c: count() }).from(visitExams).where(eq(visitExams.idVisita, id))
-      const [isCount] = await tx.select({ c: count() }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id))
-      const total = Number(stdCount?.c ?? 0) + Number(isCount?.c ?? 0)
+      await upsertExamResults(tx, id, examenesCompletos)
 
       await tx.update(visits).set({
         estado: 'completada',
@@ -1287,8 +1411,6 @@ export async function completarVisita(id: number, data: CompletarVisitaData): Pr
         pagado: data.pagado,
         metodoPago: data.pagado ? (data.metodoPago ?? null) : null,
         fechaPago: data.pagado ? (data.fechaPago ?? null) : null,
-        resultadosEnviadosCount: examenesCompletos.length,
-        resultadosTotalCount: total,
         updatedAt: new Date(),
       }).where(eq(visits.id, id))
     })
