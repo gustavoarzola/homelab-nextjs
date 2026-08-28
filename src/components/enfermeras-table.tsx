@@ -36,7 +36,7 @@ const columns: ColumnDef<NurseRow>[] = [
     header: 'RUT',
     enableSorting: true,
     cell: ({ row }) => (
-      <span style={{ color: row.original.rut ? 'inherit' : 'var(--muted-foreground)' }}>
+      <span style={{ color: row.original.rut ? 'inherit' : 'var(--color-fg-muted)' }}>
         {row.original.rut ? formatRut(row.original.rut) : '—'}
       </span>
     ),
@@ -45,7 +45,7 @@ const columns: ColumnDef<NurseRow>[] = [
     id: 'telefono',
     header: 'Teléfono',
     cell: ({ row }) => (
-      <span style={{ color: row.original.telefono ? 'inherit' : 'var(--muted-foreground)' }}>
+      <span style={{ color: row.original.telefono ? 'inherit' : 'var(--color-fg-muted)' }}>
         {row.original.telefono ?? '—'}
       </span>
     ),
@@ -55,7 +55,7 @@ const columns: ColumnDef<NurseRow>[] = [
     header: 'Correo',
     enableSorting: true,
     cell: ({ row }) => (
-      <span style={{ color: row.original.correo ? 'inherit' : 'var(--muted-foreground)' }}>
+      <span style={{ color: row.original.correo ? 'inherit' : 'var(--color-fg-muted)' }}>
         {row.original.correo ?? '—'}
       </span>
     ),
@@ -69,7 +69,7 @@ const columns: ColumnDef<NurseRow>[] = [
     id: 'comunaResidencia',
     header: 'Comuna',
     cell: ({ row }) => (
-      <span style={{ color: row.original.comunaResidencia ? 'inherit' : 'var(--muted-foreground)' }}>
+      <span style={{ color: row.original.comunaResidencia ? 'inherit' : 'var(--color-fg-muted)' }}>
         {row.original.comunaResidencia ?? '—'}
       </span>
     ),

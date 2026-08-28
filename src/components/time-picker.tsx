@@ -69,12 +69,12 @@ export function TimePicker({
         disabled={disabled}
         className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
-          backgroundColor: 'var(--background)',
-          border: '1px solid var(--input)',
-          color: value ? 'var(--foreground)' : 'var(--muted-foreground)',
+          backgroundColor: 'var(--color-surface)',
+          border: '1px solid var(--color-border-strong)',
+          color: value ? 'var(--color-fg)' : 'var(--color-fg-muted)',
         }}
       >
-        <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--muted-foreground)' }} />
+        <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-fg-muted)' }} />
         <span className="flex-1 text-left">{value ?? placeholder}</span>
       </button>
 
@@ -82,9 +82,9 @@ export function TimePicker({
         <div
           className="absolute left-0 top-full z-50 mt-1.5 rounded-2xl border shadow-lg"
           style={{
-            backgroundColor: 'var(--popover)',
-            borderColor: 'var(--border)',
-            color: 'var(--popover-foreground)',
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-fg)',
             width: '140px',
           }}
         >
@@ -94,9 +94,9 @@ export function TimePicker({
               ref={value === null ? selectedRef : undefined}
               type="button"
               onClick={() => { onChange(null); setOpen(false) }}
-              className="mx-1.5 rounded-xl px-3 py-1.5 text-sm text-left transition-colors hover:bg-[var(--muted)] cursor-pointer"
+              className="mx-1.5 rounded-xl px-3 py-1.5 text-sm text-left transition-colors hover:bg-[var(--color-surface-muted)] cursor-pointer"
               style={{
-                color: value === null ? 'var(--primary)' : 'var(--muted-foreground)',
+                color: value === null ? 'var(--color-primary)' : 'var(--color-fg-muted)',
                 fontWeight: value === null ? 500 : undefined,
               }}
             >
@@ -104,7 +104,7 @@ export function TimePicker({
             </button>
 
             {/* Divider */}
-            <div className="my-1 mx-3 border-t" style={{ borderColor: 'var(--border)' }} />
+            <div className="my-1 mx-3 border-t" style={{ borderColor: 'var(--color-border)' }} />
 
             {/* Slots */}
             {SLOTS.map((slot) => {
@@ -118,11 +118,11 @@ export function TimePicker({
                   className="mx-1.5 rounded-xl px-3 py-1.5 text-sm text-left transition-colors cursor-pointer"
                   style={
                     isSelected
-                      ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }
-                      : { color: 'var(--foreground)' }
+                      ? { backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-fg)' }
+                      : { color: 'var(--color-fg)' }
                   }
                   onMouseEnter={(e) => {
-                    if (!isSelected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--muted)'
+                    if (!isSelected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface-muted)'
                   }}
                   onMouseLeave={(e) => {
                     if (!isSelected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''

@@ -169,7 +169,7 @@ function IsapreSelector({
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1.5 rounded-md px-2.5 h-[30px] border text-[13px] bg-card"
-        style={{ borderColor: value ? 'var(--input)' : EXAM_GRUPO_META['imalab isapre'].color, minWidth: 180 }}
+        style={{ borderColor: value ? 'var(--color-border-strong)' : EXAM_GRUPO_META['imalab isapre'].color, minWidth: 180 }}
       >
         <span className="flex-1 text-left truncate text-foreground">
           {selected ? selected.nombre : <span className="text-muted-foreground">Seleccionar isapre…</span>}
@@ -321,7 +321,7 @@ function GrupoLabBlock({
               <div
                 key={e.id}
                 className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-2.5 text-[13px] bg-card"
-                style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}
+                style={{ borderTop: i === 0 ? 'none' : '1px solid var(--color-border)' }}
               >
                 <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px] bg-muted text-muted-foreground">{e.codigo}</span>
                 <span className="min-w-[180px] flex-1 text-foreground">{e.nombre}</span>

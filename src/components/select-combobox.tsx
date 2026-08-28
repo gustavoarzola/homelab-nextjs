@@ -154,14 +154,14 @@ export function SelectCombobox(props: Props) {
       ref={dropdownRef}
       style={{
         ...dropdownStyle,
-        backgroundColor: 'var(--card)',
-        borderColor: 'var(--border)',
-        color: 'var(--foreground)',
+        backgroundColor: 'var(--color-surface)',
+        borderColor: 'var(--color-border)',
+        color: 'var(--color-fg)',
       }}
       className="overflow-hidden rounded-lg border shadow-xl"
     >
       {filtered.length === 0 ? (
-        <div className="px-3 py-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+        <div className="px-3 py-2 text-sm" style={{ color: 'var(--color-fg-muted)' }}>
           Sin resultados
         </div>
       ) : (
@@ -183,8 +183,8 @@ export function SelectCombobox(props: Props) {
                 }}
                 className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:opacity-80"
                 style={{
-                  backgroundColor: isSelected ? 'var(--accent)' : undefined,
-                  color: isSelected ? 'var(--accent-foreground)' : 'var(--foreground)',
+                  backgroundColor: isSelected ? 'var(--brand-blue-soft)' : undefined,
+                  color: isSelected ? 'var(--brand-blue-fg)' : 'var(--color-fg)',
                 }}
               >
                 <Check
@@ -194,7 +194,7 @@ export function SelectCombobox(props: Props) {
                 {o.code && (
                   <span
                     className="shrink-0 flex items-center justify-center rounded px-1.5 py-0.5 font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
-                    style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', width: '10ch' }}
+                    style={{ backgroundColor: 'var(--color-surface-muted)', color: 'var(--color-fg-muted)', width: '10ch' }}
                   >
                     {o.code}
                   </span>
@@ -226,7 +226,7 @@ export function SelectCombobox(props: Props) {
             <span
               key={o.id}
               className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium"
-              style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
+              style={{ backgroundColor: 'var(--brand-blue-soft)', color: 'var(--brand-blue-fg)' }}
             >
               {o.label}
               <button
@@ -247,9 +247,9 @@ export function SelectCombobox(props: Props) {
         ref={triggerRef}
         className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm relative"
         style={{
-          backgroundColor: 'var(--background)',
-          border: '1px solid var(--input)',
-          color: 'var(--foreground)',
+          backgroundColor: 'var(--color-surface)',
+          border: '1px solid var(--color-border-strong)',
+          color: 'var(--color-fg)',
           opacity: props.disabled ? 0.5 : 1,
         }}
       >
@@ -267,7 +267,7 @@ export function SelectCombobox(props: Props) {
         {displayValue ? (
           <span
             className="absolute left-3 right-8 pointer-events-none text-sm truncate"
-            style={{ color: 'var(--foreground)' }}
+            style={{ color: 'var(--color-fg)' }}
             title={displayValue}
           >
             {displayValue}
@@ -275,7 +275,7 @@ export function SelectCombobox(props: Props) {
         ) : !open && !query && props.placeholder && selectedOptions.length === 0 ? (
           <span
             className="absolute left-3 right-8 pointer-events-none text-sm truncate"
-            style={{ color: 'var(--muted-foreground)' }}
+            style={{ color: 'var(--color-fg-muted)' }}
           >
             {props.placeholder}
           </span>
@@ -300,7 +300,7 @@ export function SelectCombobox(props: Props) {
           }}
           disabled={props.disabled || (isSingleMode && isClearable && selectedOptions.length === 0)}
           className="absolute right-3 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded hover:opacity-70 disabled:opacity-30 disabled:cursor-default"
-          style={{ color: 'var(--muted-foreground)' }}
+          style={{ color: 'var(--color-fg-muted)' }}
         >
           {isSingleMode && isClearable && selectedOptions.length > 0 ? (
             <X className="h-4 w-4" />
