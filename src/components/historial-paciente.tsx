@@ -15,6 +15,10 @@ import {
 import type { HistorialPaciente as HistorialPacienteType } from '@/lib/actions/pacientes'
 import { formatNombre } from '@/lib/paciente'
 import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Tag } from '@/components/ui/tag'
+import { EmptyState } from '@/components/ui/empty-state'
 
 type Props = {
   data: HistorialPacienteType
@@ -71,309 +75,196 @@ export function HistorialPaciente({ data }: Props) {
   const sortedYears = Object.keys(groupedByYear).sort((a, b) => b.localeCompare(a))
 
   return (
-    <div className="min-h-screen p-6 md:p-8" style={{ background: 'var(--background)' }}>
-      <div className="mx-auto max-w-4xl space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-              <Link
-                href="/pacientes"
-                className="flex items-center gap-1 hover:underline"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Pacientes
-              </Link>
-              <span>/</span>
-              <span>Historial</span>
-            </div>
-            <h1 className="text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-              {nombrePaciente}
-            </h1>
-            <div className="flex flex-wrap items-center gap-3 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-              {paciente.identificador && (
-                <span className="flex items-center gap-1">
-                  <User className="h-3.5 w-3.5" />
-                  {paciente.identificador}
-                </span>
-              )}
-              {paciente.prevision && (
-                <span
-                  className="rounded-full px-2 py-0.5 text-xs font-medium"
-                  style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}
-                >
-                  {paciente.prevision}
-                </span>
-              )}
-              {paciente.comuna && (
-                <span className="text-xs">{paciente.comuna}</span>
-              )}
-            </div>
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <Link
-              href={`/visitas/nueva?pacienteId=${paciente.id}`}
-              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80"
-              style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
-            >
-              <Calendar className="h-3.5 w-3.5" />
-              Nueva visita
-              <ExternalLink className="h-3 w-3 opacity-60" />
+    <div className="mx-auto max-w-4xl flex flex-col gap-5">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="page-head__crumb">
+            <Link href="/pacientes">
+              <ArrowLeft className="inline h-3.5 w-3.5" style={{ marginRight: 4 }} />
+              Pacientes
             </Link>
-            <Link
-              href={`/pacientes/${paciente.id}`}
-              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80"
-              style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
-            >
-              <Pencil className="h-3.5 w-3.5" />
+            <span className="sep">/</span>
+            <span>Historial</span>
+          </div>
+          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 600, marginTop: 4 }}>
+            {nombrePaciente}
+          </h1>
+          <p className="page-head__meta">
+            {paciente.identificador && (
+              <span className="flex items-center gap-1">
+                <User className="h-3.5 w-3.5" />
+                {paciente.identificador}
+              </span>
+            )}
+            {paciente.prevision && <Tag noDot>{paciente.prevision}</Tag>}
+            {paciente.comuna && <span>{paciente.comuna}</span>}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button asChild>
+            <Link href={`/visitas/nueva?pacienteId=${paciente.id}`}>
+              <Calendar />
+              Nueva visita
+              <ExternalLink className="opacity-60" style={{ width: 12, height: 12 }} />
+            </Link>
+          </Button>
+          <Button variant="secondary" asChild>
+            <Link href={`/pacientes/${paciente.id}`}>
+              <Pencil />
               Editar
             </Link>
-          </div>
+          </Button>
         </div>
+      </div>
 
-        {/* Stats */}
-        <div
-          className="grid grid-cols-2 gap-3 rounded-xl p-4 sm:grid-cols-4"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-        >
-          <div className="text-center">
-            <p className="text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-              {visitas.length}
-            </p>
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              Total visitas
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-semibold" style={{ color: 'oklch(0.5 0.15 150)' }}>
-              {totalRealizadas}
-            </p>
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              Realizadas
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-semibold" style={{ color: 'var(--destructive)' }}>
-              {totalCanceladas}
-            </p>
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              Canceladas
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-              {formatCosto(costoTotal)}
-            </p>
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              Costo total
-            </p>
-          </div>
+      {/* Stats */}
+      <div className="hl-card grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="text-center">
+          <p className="hl-tnum" style={{ fontSize: 'var(--text-2xl)', fontWeight: 600 }}>{visitas.length}</p>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>Total visitas</p>
         </div>
+        <div className="text-center">
+          <p className="hl-tnum" style={{ fontSize: 'var(--text-2xl)', fontWeight: 600, color: 'var(--ok-fg)' }}>{totalRealizadas}</p>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>Realizadas</p>
+        </div>
+        <div className="text-center">
+          <p className="hl-tnum" style={{ fontSize: 'var(--text-2xl)', fontWeight: 600, color: 'var(--color-destructive)' }}>{totalCanceladas}</p>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>Canceladas</p>
+        </div>
+        <div className="text-center">
+          <p className="hl-tnum" style={{ fontSize: 'var(--text-2xl)', fontWeight: 600 }}>{formatCosto(costoTotal)}</p>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>Costo total</p>
+        </div>
+      </div>
 
-        {/* Year filter */}
-        {years.length > 1 && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedYear('todos')}
-              className="rounded-full px-3 py-1 text-sm font-medium transition-colors"
-              style={
-                selectedYear === 'todos'
-                  ? { background: 'var(--foreground)', color: 'var(--background)' }
-                  : { background: 'var(--muted)', color: 'var(--muted-foreground)' }
-              }
-            >
-              Todos
-            </button>
-            {years.map((year) => (
-              <button
-                key={year}
-                onClick={() => setSelectedYear(year)}
-                className="rounded-full px-3 py-1 text-sm font-medium transition-colors"
-                style={
-                  selectedYear === year
-                    ? { background: 'var(--foreground)', color: 'var(--background)' }
-                    : { background: 'var(--muted)', color: 'var(--muted-foreground)' }
-                }
-              >
-                {year}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {visitas.length === 0 && (
-          <div
-            className="flex flex-col items-center gap-4 rounded-xl py-16 text-center"
-            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      {/* Year filter */}
+      {years.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant={selectedYear === 'todos' ? 'default' : 'secondary'}
+            onClick={() => setSelectedYear('todos')}
           >
-            <ClipboardList className="h-10 w-10 opacity-30" style={{ color: 'var(--muted-foreground)' }} />
-            <div>
-              <p className="font-medium" style={{ color: 'var(--foreground)' }}>
-                Sin visitas registradas
-              </p>
-              <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                Este paciente no tiene atenciones en el historial
-              </p>
-            </div>
-            <Link
-              href={`/visitas/nueva?pacienteId=${paciente.id}`}
-              className="flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
-              style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+            Todos
+          </Button>
+          {years.map((year) => (
+            <Button
+              key={year}
+              size="sm"
+              variant={selectedYear === year ? 'default' : 'secondary'}
+              onClick={() => setSelectedYear(year)}
             >
-              <Calendar className="h-3.5 w-3.5" />
-              Registrar primera visita
-            </Link>
-          </div>
-        )}
-
-        {/* Visit cards grouped by year */}
-        {sortedYears.map((year) => (
-          <div key={year} className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted-foreground)' }}>
               {year}
-            </h2>
-            {(groupedByYear[year] ?? []).map((visita) => {
-              const style = getEstadoStyle(visita.estado)
-              return (
-                <div
-                  key={visita.id}
-                  className="rounded-xl"
-                  style={{
-                    background: 'var(--card)',
-                    border: '1px solid var(--border)',
-                    borderLeft: `4px solid ${style.border}`,
-                    opacity: style.opacity ?? '1',
-                  }}
-                >
-                  {/* Card header */}
-                  <div className="flex items-center justify-between px-4 pt-4 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                          {formatFecha(visita.fecha)}
-                        </p>
-                        {visita.hora && (
-                          <p className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                            <Clock className="h-3 w-3" />
-                            {formatHora(visita.hora)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <span
-                      className="rounded-full px-2.5 py-0.5 text-xs font-medium capitalize"
-                      style={{ background: style.bg, color: style.color }}
-                    >
-                      {visita.estado}
-                    </span>
-                  </div>
+            </Button>
+          ))}
+        </div>
+      )}
 
-                  <div
-                    className="mx-4"
-                    style={{ height: '1px', background: 'var(--border)' }}
-                  />
+      {/* Empty state */}
+      {visitas.length === 0 && (
+        <div className="hl-card">
+          <EmptyState
+            icon={<ClipboardList />}
+            title="Sin visitas registradas"
+            description="Este paciente no tiene atenciones en el historial"
+          />
+          <div className="flex justify-center">
+            <Button asChild>
+              <Link href={`/visitas/nueva?pacienteId=${paciente.id}`}>
+                <Calendar />
+                Registrar primera visita
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
 
-                  {/* Card body */}
-                  <div className="space-y-3 px-4 py-3">
-                    {visita.enfermera && (
-                      <p className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                        <User className="h-3.5 w-3.5 shrink-0" />
-                        {visita.enfermera}
+      {/* Visit cards grouped by year */}
+      {sortedYears.map((year) => (
+        <div key={year} className="flex flex-col gap-3">
+          <h2 className="hl-label">{year}</h2>
+          {(groupedByYear[year] ?? []).map((visita) => {
+            const style = getEstadoStyle(visita.estado)
+            return (
+              <div key={visita.id} className="hl-card hl-card--flush" style={{ borderLeft: `4px solid ${style.border}` }}>
+                {/* Card header */}
+                <div className="flex items-center justify-between" style={{ padding: '16px 16px 12px' }}>
+                  <div>
+                    <p style={{ fontSize: 'var(--text-base)', fontWeight: 500 }}>{formatFecha(visita.fecha)}</p>
+                    {visita.hora && (
+                      <p className="flex items-center gap-1" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
+                        <Clock style={{ width: 12, height: 12 }} />
+                        {formatHora(visita.hora)}
                       </p>
                     )}
-
-                    {visita.procedimientos.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                          Procedimientos:
-                        </span>
-                        {visita.procedimientos.map((p, i) => (
-                          <span
-                            key={i}
-                            className="rounded-full px-2 py-0.5 text-xs font-medium"
-                            style={
-                              p.categoria === 'curaciones'
-                                ? {
-                                    background: 'oklch(0.85 0.1 70 / 20%)',
-                                    color: 'oklch(0.5 0.1 70)',
-                                  }
-                                : {
-                                    background: 'var(--muted)',
-                                    color: 'var(--muted-foreground)',
-                                  }
-                            }
-                          >
-                            {p.nombre}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {visita.examenes.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                          Exámenes:
-                        </span>
-                        {visita.examenes.map((e, i) => (
-                          <span
-                            key={i}
-                            className="rounded-full px-2 py-0.5 text-xs font-medium"
-                            style={{
-                              background: 'oklch(0.85 0.08 290 / 20%)',
-                              color: 'oklch(0.5 0.1 290)',
-                            }}
-                          >
-                            {e.nombre}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
-
-                  <div
-                    className="mx-4"
-                    style={{ height: '1px', background: 'var(--border)' }}
-                  />
-
-                  {/* Card footer */}
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                        {formatCosto(visita.costo)}
-                      </span>
-                      {visita.numeroBoleta && (
-                        <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                          <FileText className="h-3 w-3" />
-                          {visita.tipoDocumento ? `${visita.tipoDocumento} ` : ''}
-                          {visita.numeroBoleta}
-                        </span>
-                      )}
-                      {visita.informacionAdicional && (
-                        <span
-                          className="max-w-xs truncate text-xs"
-                          style={{ color: 'var(--muted-foreground)' }}
-                          title={visita.informacionAdicional}
-                        >
-                          {visita.informacionAdicional}
-                        </span>
-                      )}
-                    </div>
-                    <Link
-                      href={`/visitas/${visita.id}`}
-                      className="flex items-center gap-1 text-xs transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--muted-foreground)' }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                      Editar
-                    </Link>
-                  </div>
+                  <Badge badgeClass={style.badgeClass} className="capitalize">{visita.estado}</Badge>
                 </div>
-              )
-            })}
-          </div>
-        ))}
-      </div>
+
+                <div style={{ height: 1, background: 'var(--color-border)', margin: '0 16px' }} />
+
+                {/* Card body */}
+                <div className="flex flex-col gap-3" style={{ padding: '12px 16px' }}>
+                  {visita.enfermera && (
+                    <p className="flex items-center gap-1.5" style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
+                      <User className="shrink-0" style={{ width: 14, height: 14 }} />
+                      {visita.enfermera}
+                    </p>
+                  )}
+
+                  {visita.procedimientos.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>Procedimientos:</span>
+                      {visita.procedimientos.map((p, i) => (
+                        <Tag key={i} tone={p.categoria === 'curaciones' ? 'amber' : 'neutral'}>{p.nombre}</Tag>
+                      ))}
+                    </div>
+                  )}
+
+                  {visita.examenes.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>Exámenes:</span>
+                      {visita.examenes.map((e, i) => (
+                        <Tag key={i} tone="violet">{e.nombre}</Tag>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ height: 1, background: 'var(--color-border)', margin: '0 16px' }} />
+
+                {/* Card footer */}
+                <div className="flex items-center justify-between" style={{ padding: '12px 16px' }}>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="hl-tnum" style={{ fontSize: 'var(--text-base)', fontWeight: 500 }}>{formatCosto(visita.costo)}</span>
+                    {visita.numeroBoleta && (
+                      <span className="flex items-center gap-1" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
+                        <FileText style={{ width: 12, height: 12 }} />
+                        {visita.tipoDocumento ? `${visita.tipoDocumento} ` : ''}
+                        {visita.numeroBoleta}
+                      </span>
+                    )}
+                    {visita.informacionAdicional && (
+                      <span
+                        className="max-w-xs truncate"
+                        style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}
+                        title={visita.informacionAdicional}
+                      >
+                        {visita.informacionAdicional}
+                      </span>
+                    )}
+                  </div>
+                  <Link href={`/visitas/${visita.id}`} className="flex items-center gap-1" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
+                    <Pencil style={{ width: 12, height: 12 }} />
+                    Editar
+                  </Link>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
     </div>
   )
 }

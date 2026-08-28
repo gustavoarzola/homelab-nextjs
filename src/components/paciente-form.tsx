@@ -11,6 +11,9 @@ import { formatRut, validatePasaporte } from '@/lib/rut'
 import { BirthDatePicker } from '@/components/birth-date-picker'
 import { SelectCombobox } from '@/components/select-combobox'
 import { FileUpload } from '@/components/file-upload'
+import { Button } from '@/components/ui/button'
+import { Callout } from '@/components/ui/callout'
+import './paciente-form.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,18 +37,6 @@ type AddressState = {
   latitud: string
   longitud: string
 }
-
-// ─── Style helpers ────────────────────────────────────────────────────────────
-
-const inputClass =
-  'w-full rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50'
-const inputStyle = {
-  backgroundColor: 'var(--background)',
-  border: '1px solid var(--input)',
-  color: 'var(--foreground)',
-}
-const labelClass = 'text-sm font-medium'
-const labelStyle = { color: 'var(--foreground)' }
 
 // ─── Map preview ──────────────────────────────────────────────────────────────
 
@@ -103,8 +94,8 @@ function MapPreview({ lat, lng }: { lat: string; lng: string }) {
   return (
     <div
       ref={mapRef}
-      className="w-full overflow-hidden rounded-lg"
-      style={{ height: '450px', border: '1px solid var(--border)' }}
+      className="w-full overflow-hidden"
+      style={{ height: '450px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}
     />
   )
 }
@@ -313,42 +304,26 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
     })
   }
 
-  const sectionClass = 'rounded-xl border p-6'
-  const sectionStyle = { backgroundColor: 'var(--card)', borderColor: 'var(--border)' }
-  const sectionTitleClass = 'mb-4 text-sm font-semibold uppercase tracking-wide'
-  const sectionTitleStyle = { color: 'var(--muted-foreground)' }
-
   if (createdId !== null) {
     return (
       <div className="flex h-full items-center justify-center p-8">
-        <div
-          className="w-full max-w-sm rounded-xl border p-8 text-center"
-          style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-        >
-          <CheckCircle2 style={{ color: 'var(--primary)' }} className="h-12 w-12 mx-auto mb-4" />
-          <h2 className="mb-2 text-lg font-semibold">
+        <div className="hl-card w-full max-w-sm text-center">
+          <CheckCircle2 style={{ color: 'var(--color-primary)', width: 48, height: 48 }} className="mx-auto mb-4" />
+          <h2 style={{ marginBottom: 8, fontSize: 'var(--text-lg)', fontWeight: 600 }}>
             {paciente ? 'Paciente actualizado' : 'Paciente creado'}
           </h2>
-          <p className="mb-6 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+          <p style={{ marginBottom: 24, fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
             {paciente
               ? 'Los datos del paciente han sido actualizados.'
               : 'El paciente ha sido registrado exitosamente.'}
           </p>
           <div className="flex flex-col gap-3">
-            <Link
-              href={`/visitas/nueva?pacienteId=${createdId}`}
-              className="rounded-lg px-4 py-2.5 text-sm font-medium hover:opacity-80 transition-opacity"
-              style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-            >
-              Crear visita
-            </Link>
-            <Link
-              href="/pacientes"
-              className="rounded-lg px-4 py-2.5 text-sm hover:opacity-80 transition-opacity"
-              style={{ color: 'var(--muted-foreground)' }}
-            >
-              Volver al listado
-            </Link>
+            <Button asChild>
+              <Link href={`/visitas/nueva?pacienteId=${createdId}`}>Crear visita</Link>
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link href="/pacientes">Volver al listado</Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -358,161 +333,129 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
   return (
     <>
       {/* Sticky header */}
-      <div
-        className="sticky top-0 z-10 flex items-center justify-between border-b px-8 py-3"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-      >
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
-          {paciente ? 'Editar paciente' : 'Nuevo paciente'}
-        </h1>
-        <div className="flex gap-2">
-          <Link
-            href="/pacientes"
-            className="rounded-lg px-4 py-2 text-sm hover:opacity-80 transition-opacity"
-            style={{ color: 'var(--muted-foreground)' }}
-          >
-            Cancelar
-          </Link>
-          <button
-            type="submit"
-            form="paciente-form"
-            disabled={isPending}
-            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
-            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-          >
-            {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      <div className="pac-bar">
+        <h1>{paciente ? 'Editar paciente' : 'Nuevo paciente'}</h1>
+        <div className="pac-bar__actions">
+          <Button variant="ghost" asChild>
+            <Link href="/pacientes">Cancelar</Link>
+          </Button>
+          <Button type="submit" form="paciente-form" disabled={isPending}>
+            {isPending && <Loader2 className="animate-spin" />}
             {paciente ? 'Guardar cambios' : 'Crear paciente'}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Error banner */}
       {errors.general && (
-        <div
-          className="mx-8 mt-4 rounded-lg px-4 py-3 text-sm"
-          style={{ backgroundColor: 'var(--destructive)', color: 'white' }}
-        >
-          {errors.general}
-        </div>
+        <Callout tone="bad" className="mb-4">{errors.general}</Callout>
       )}
 
-      <form id="paciente-form" onSubmit={handleSubmit} className="flex flex-col gap-6 p-8">
+      <form id="paciente-form" onSubmit={handleSubmit} className="flex flex-col gap-5">
         {/* Hidden id for edit mode */}
         {paciente && <input type="hidden" name="id" value={paciente.id} />}
 
         {/* ── Datos personales ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <h2 className={sectionTitleClass} style={sectionTitleStyle}>
+        <section className="hl-card">
+          <h2 className="hl-label" style={{ marginBottom: 16 }}>
             Datos personales
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Nombres <span style={{ color: 'var(--destructive)' }}>*</span>
+            <div className="hl-fieldgroup">
+              <label>
+                Nombres <span className="req">*</span>
               </label>
-              <input
-                name="nombres"
-                type="text"
-                required
-                defaultValue={paciente?.nombres ?? ''}
-                disabled={isPending}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Apellido paterno <span style={{ color: 'var(--destructive)' }}>*</span>
-              </label>
-              <input
-                name="apellidoPaterno"
-                type="text"
-                required
-                defaultValue={paciente?.apellidoPaterno ?? ''}
-                disabled={isPending}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Apellido materno
-              </label>
-              <input
-                name="apellidoMaterno"
-                type="text"
-                defaultValue={paciente?.apellidoMaterno ?? ''}
-                disabled={isPending}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Tipo de identificador
-              </label>
-              <div className="flex flex-col gap-2">
-                <SelectCombobox
-                  mode="single"
-                  options={TIPO_IDENTIFICADOR_OPTIONS}
-                  selected={tipoIdSelected}
-                  onChange={setTipoIdSelected}
-                  placeholder="Selecciona un tipo..."
+              <div className="hl-input">
+                <input
+                  name="nombres"
+                  type="text"
+                  required
+                  defaultValue={paciente?.nombres ?? ''}
                   disabled={isPending}
                 />
-                <input type="hidden" name="tipoIdentificador" value={tipoId} />
               </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Identificador
+            <div className="hl-fieldgroup">
+              <label>
+                Apellido paterno <span className="req">*</span>
               </label>
-              <input
-                name="identificador"
-                type="text"
-                placeholder={tipoId === 'rut' ? '12.345.678-9' : tipoId === 'pasaporte' ? 'AA1234567' : ''}
-                defaultValue={
-                  paciente
-                    ? tipoId === 'rut'
-                      ? formatRut(paciente.identificador ?? '')
-                      : paciente.identificador ?? ''
-                    : ''
-                }
-                disabled={isPending || !tipoId}
-                className={inputClass}
-                style={inputStyle}
-              />
+              <div className="hl-input">
+                <input
+                  name="apellidoPaterno"
+                  type="text"
+                  required
+                  defaultValue={paciente?.apellidoPaterno ?? ''}
+                  disabled={isPending}
+                />
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                N° de serie (cédula)
-              </label>
-              <input
-                name="serieDocumento"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="012345678"
-                defaultValue={paciente?.serieDocumento ?? ''}
+            <div className="hl-fieldgroup">
+              <label>Apellido materno</label>
+              <div className="hl-input">
+                <input
+                  name="apellidoMaterno"
+                  type="text"
+                  defaultValue={paciente?.apellidoMaterno ?? ''}
+                  disabled={isPending}
+                />
+              </div>
+            </div>
+
+            <div className="hl-fieldgroup">
+              <label>Tipo de identificador</label>
+              <SelectCombobox
+                mode="single"
+                options={TIPO_IDENTIFICADOR_OPTIONS}
+                selected={tipoIdSelected}
+                onChange={setTipoIdSelected}
+                placeholder="Selecciona un tipo..."
                 disabled={isPending}
-                onInput={(e) => {
-                  const t = e.currentTarget
-                  t.value = t.value.replace(/\D/g, '')
-                }}
-                className={inputClass}
-                style={inputStyle}
               />
+              <input type="hidden" name="tipoIdentificador" value={tipoId} />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Fecha de nacimiento
-              </label>
+            <div className="hl-fieldgroup">
+              <label>Identificador</label>
+              <div className="hl-input">
+                <input
+                  name="identificador"
+                  type="text"
+                  placeholder={tipoId === 'rut' ? '12.345.678-9' : tipoId === 'pasaporte' ? 'AA1234567' : ''}
+                  defaultValue={
+                    paciente
+                      ? tipoId === 'rut'
+                        ? formatRut(paciente.identificador ?? '')
+                        : paciente.identificador ?? ''
+                      : ''
+                  }
+                  disabled={isPending || !tipoId}
+                />
+              </div>
+            </div>
+
+            <div className="hl-fieldgroup">
+              <label>N° de serie (cédula)</label>
+              <div className="hl-input">
+                <input
+                  name="serieDocumento"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="012345678"
+                  defaultValue={paciente?.serieDocumento ?? ''}
+                  disabled={isPending}
+                  onInput={(e) => {
+                    const t = e.currentTarget
+                    t.value = t.value.replace(/\D/g, '')
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="hl-fieldgroup">
+              <label>Fecha de nacimiento</label>
               <BirthDatePicker
                 name="fechaNacimiento"
                 value={fechaNacimiento}
@@ -521,79 +464,68 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Correo electrónico
-              </label>
-              <input
-                name="correo"
-                type="email"
-                defaultValue={paciente?.correo ?? ''}
-                disabled={isPending}
-                className={inputClass}
-                style={inputStyle}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Previsión de salud
-              </label>
-              <div className="flex flex-col gap-2">
-                <SelectCombobox
-                  mode="single"
-                  options={previsiones.map((p) => ({ id: p.id, label: p.nombre }))}
-                  selected={previsionSelected}
-                  onChange={setPrevisionSelected}
-                  placeholder="Selecciona una previsión..."
+            <div className="hl-fieldgroup">
+              <label>Correo electrónico</label>
+              <div className="hl-input">
+                <input
+                  name="correo"
+                  type="email"
+                  defaultValue={paciente?.correo ?? ''}
                   disabled={isPending}
                 />
-                <input type="hidden" name="idCompaniaSeguro" value={previsionSelected ?? ''} />
               </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Residencia adulto mayor
-              </label>
-              <div className="flex flex-col gap-2">
-                <SelectCombobox
-                  mode="single"
-                  options={residencias.map((r) => ({ id: r.id, label: r.nombre }))}
-                  selected={residenciaSelected}
-                  onChange={setResidenciaSelected}
-                  placeholder="Selecciona una residencia..."
-                  disabled={isPending}
-                />
-                <input type="hidden" name="idResidenciaAdulto" value={residenciaSelected ?? ''} />
-              </div>
+            <div className="hl-fieldgroup">
+              <label>Previsión de salud</label>
+              <SelectCombobox
+                mode="single"
+                options={previsiones.map((p) => ({ id: p.id, label: p.nombre }))}
+                selected={previsionSelected}
+                onChange={setPrevisionSelected}
+                placeholder="Selecciona una previsión..."
+                disabled={isPending}
+              />
+              <input type="hidden" name="idCompaniaSeguro" value={previsionSelected ?? ''} />
             </div>
 
-            <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <label className={labelClass} style={labelStyle}>
-                Información adicional
-              </label>
-              <textarea
-                name="informacionAdicional"
-                rows={3}
-                defaultValue={paciente?.informacionAdicional ?? ''}
+            <div className="hl-fieldgroup">
+              <label>Residencia adulto mayor</label>
+              <SelectCombobox
+                mode="single"
+                options={residencias.map((r) => ({ id: r.id, label: r.nombre }))}
+                selected={residenciaSelected}
+                onChange={setResidenciaSelected}
+                placeholder="Selecciona una residencia..."
                 disabled={isPending}
-                className={inputClass}
-                style={inputStyle}
               />
+              <input type="hidden" name="idResidenciaAdulto" value={residenciaSelected ?? ''} />
+            </div>
+
+            <div className="hl-fieldgroup sm:col-span-2">
+              <label>Información adicional</label>
+              <div className="hl-input" style={{ height: 'auto', padding: '10px 12px', alignItems: 'flex-start' }}>
+                <textarea
+                  name="informacionAdicional"
+                  rows={3}
+                  defaultValue={paciente?.informacionAdicional ?? ''}
+                  disabled={isPending}
+                  className="w-full resize-none"
+                />
+              </div>
             </div>
           </div>
         </section>
 
         {/* ── Dirección ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <h2 className={sectionTitleClass} style={sectionTitleStyle}>
+        <section className="hl-card">
+          <h2 className="hl-label" style={{ marginBottom: 16 }}>
             Dirección
           </h2>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className={labelClass} style={labelStyle}>
-                Búsqueda de dirección <span style={{ color: 'var(--destructive)' }}>*</span>
+            <div className="hl-fieldgroup">
+              <label>
+                Búsqueda de dirección <span className="req">*</span>
               </label>
               <AddressAutocomplete
                 value={addressValue}
@@ -601,9 +533,9 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
                 onPlaceSelected={(addr) => setAddressFields(addr)}
                 disabled={isPending}
               />
-              <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
                 Escribe la dirección para buscarla en Google Maps
-              </p>
+              </span>
             </div>
 
             {/* Map preview */}
@@ -625,11 +557,11 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
         </section>
 
         {/* ── Documento de identificación ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <h2 className={sectionTitleClass} style={sectionTitleStyle}>
+        <section className="hl-card">
+          <h2 className="hl-label" style={{ marginBottom: 4 }}>
             Documento de identificación
           </h2>
-          <p className="mb-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+          <p style={{ marginBottom: 12, fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
             Imagen (JPG, PNG, WEBP) o PDF. Máximo 10 MB.
           </p>
           <input type="hidden" name="keyIdentificacion" value={keyIdentificacion ?? ''} />
@@ -644,56 +576,49 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
         </section>
 
         {/* ── Teléfonos ── */}
-        <section className={sectionClass} style={sectionStyle}>
-          <h2 className={sectionTitleClass} style={sectionTitleStyle}>
+        <section className="hl-card">
+          <h2 className="hl-label" style={{ marginBottom: 16 }}>
             Teléfonos
           </h2>
           <div className="flex flex-col gap-2">
             {phones.map((phone, i) => (
               <div key={i} className="flex gap-2">
-                <input
-                  type="tel"
-                  value={phone.telefono}
-                  onChange={(e) => updatePhone(i, 'telefono', e.target.value)}
-                  placeholder="+56 9 1234 5678"
-                  disabled={isPending}
-                  className="flex-1 rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50"
-                  style={inputStyle}
-                />
-                <input
-                  type="text"
-                  value={phone.descripcion}
-                  onChange={(e) => updatePhone(i, 'descripcion', e.target.value)}
-                  placeholder="celular, casa..."
-                  disabled={isPending}
-                  className="w-36 rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50"
-                  style={inputStyle}
-                />
-                <button
+                <div className="hl-input flex-1">
+                  <input
+                    type="tel"
+                    value={phone.telefono}
+                    onChange={(e) => updatePhone(i, 'telefono', e.target.value)}
+                    placeholder="+56 9 1234 5678"
+                    disabled={isPending}
+                  />
+                </div>
+                <div className="hl-input" style={{ width: 144 }}>
+                  <input
+                    type="text"
+                    value={phone.descripcion}
+                    onChange={(e) => updatePhone(i, 'descripcion', e.target.value)}
+                    placeholder="celular, casa..."
+                    disabled={isPending}
+                  />
+                </div>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => removePhone(i)}
                   disabled={isPending || phones.length === 1}
-                  className="rounded p-2 hover:opacity-80 transition-opacity disabled:opacity-30"
-                  style={{ color: 'var(--muted-foreground)' }}
                   title="Eliminar teléfono"
                 >
-                  <X className="h-4 w-4" />
-                </button>
+                  <X />
+                </Button>
               </div>
             ))}
-            <button
-              type="button"
-              onClick={addPhone}
-              disabled={isPending}
-              className="flex w-fit items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm hover:opacity-80 transition-opacity disabled:opacity-50"
-              style={{ color: 'var(--primary)' }}
-            >
-              <Plus className="h-4 w-4" />
+            <Button type="button" variant="ghost" onClick={addPhone} disabled={isPending} style={{ width: 'fit-content' }}>
+              <Plus />
               Agregar teléfono
-            </button>
+            </Button>
           </div>
         </section>
-
       </form>
     </>
   )
