@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { formatDate } from '@/lib/format'
 import type { CobroPendienteRow, ResultadoPendienteRow } from '@/lib/actions/dashboard'
 
@@ -14,51 +16,41 @@ type ResultadosProps = {
   items: ResultadoPendienteRow[]
 }
 
-function EmptyState() {
-  return (
-    <div className="rounded-2xl border border-dashed border-black/8 px-4 py-6 text-center text-sm text-muted-foreground">
-      Sin pendientes este mes.
-    </div>
-  )
-}
-
 export function DashboardCobrosTable({ items }: CobrosProps) {
   return (
-    <Card className="border-black/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98))] shadow-[0_12px_30px_-20px_rgba(15,23,42,0.24)]">
-      <CardHeader className="pb-3">
+    <Card>
+      <CardHeader className="pb-2">
         <CardTitle>Cobros pendientes</CardTitle>
         <CardDescription>Visitas realizadas sin pago registrado</CardDescription>
       </CardHeader>
-      <CardContent className="pb-4">
+      <CardContent>
         {items.length === 0 ? (
-          <EmptyState />
+          <EmptyState title="Sin pendientes este mes." />
         ) : (
-          <div className="overflow-hidden rounded-xl border" style={{ borderColor: 'var(--border)' }}>
-            <table className="w-full text-sm">
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+            <table className="hl-table">
               <thead>
-                <tr style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-                  <th className="px-3 py-2 text-left font-medium">Fecha</th>
-                  <th className="px-3 py-2 text-left font-medium">Paciente</th>
-                  <th className="px-3 py-2 text-right font-medium">Monto</th>
-                  <th className="px-3 py-2" />
+                <tr>
+                  <th>Fecha</th>
+                  <th>Paciente</th>
+                  <th className="hl-num">Monto</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.id} style={{ borderTop: '1px solid var(--border)', color: 'var(--foreground)' }}>
-                    <td className="px-3 py-2 font-mono text-xs">{formatDate(item.fecha)}</td>
-                    <td className="px-3 py-2">{item.paciente ?? '—'}</td>
-                    <td className="px-3 py-2 text-right font-mono font-medium" style={{ color: 'oklch(0.55 0.18 25)' }}>
+                  <tr key={item.id}>
+                    <td className="hl-mono hl-tnum" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)', whiteSpace: 'nowrap' }}>{formatDate(item.fecha)}</td>
+                    <td>{item.paciente ?? '—'}</td>
+                    <td className="hl-num hl-tnum" style={{ fontWeight: 500, color: 'var(--color-destructive)' }}>
                       ${item.costo.toLocaleString('es-CL')}
                     </td>
-                    <td className="px-3 py-2">
-                      <Link
-                        href={`/visitas/${item.id}`}
-                        className="flex items-center justify-end gap-1 text-xs transition-opacity hover:opacity-70"
-                        style={{ color: 'var(--primary)' }}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </Link>
+                    <td style={{ textAlign: 'right' }}>
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link href={`/visitas/${item.id}`}>
+                          <ExternalLink />
+                        </Link>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -73,37 +65,35 @@ export function DashboardCobrosTable({ items }: CobrosProps) {
 
 export function DashboardResultadosTable({ items }: ResultadosProps) {
   return (
-    <Card className="border-black/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98))] shadow-[0_12px_30px_-20px_rgba(15,23,42,0.24)]">
-      <CardHeader className="pb-3">
+    <Card>
+      <CardHeader className="pb-2">
         <CardTitle>Resultados pendientes</CardTitle>
         <CardDescription>Visitas realizadas con resultados por enviar</CardDescription>
       </CardHeader>
-      <CardContent className="pb-4">
+      <CardContent>
         {items.length === 0 ? (
-          <EmptyState />
+          <EmptyState title="Sin pendientes este mes." />
         ) : (
-          <div className="overflow-hidden rounded-xl border" style={{ borderColor: 'var(--border)' }}>
-            <table className="w-full text-sm">
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+            <table className="hl-table">
               <thead>
-                <tr style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-                  <th className="px-3 py-2 text-left font-medium">Fecha</th>
-                  <th className="px-3 py-2 text-left font-medium">Paciente</th>
-                  <th className="px-3 py-2" />
+                <tr>
+                  <th>Fecha</th>
+                  <th>Paciente</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.id} style={{ borderTop: '1px solid var(--border)', color: 'var(--foreground)' }}>
-                    <td className="px-3 py-2 font-mono text-xs">{formatDate(item.fecha)}</td>
-                    <td className="px-3 py-2">{item.paciente ?? '—'}</td>
-                    <td className="px-3 py-2">
-                      <Link
-                        href={`/visitas/${item.id}`}
-                        className="flex items-center justify-end gap-1 text-xs transition-opacity hover:opacity-70"
-                        style={{ color: 'var(--primary)' }}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </Link>
+                  <tr key={item.id}>
+                    <td className="hl-mono hl-tnum" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)', whiteSpace: 'nowrap' }}>{formatDate(item.fecha)}</td>
+                    <td>{item.paciente ?? '—'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link href={`/visitas/${item.id}`}>
+                          <ExternalLink />
+                        </Link>
+                      </Button>
                     </td>
                   </tr>
                 ))}

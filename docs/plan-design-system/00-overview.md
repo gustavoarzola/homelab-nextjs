@@ -74,7 +74,7 @@ Trampas a manejar en el paso 01:
 | `07-visita-form.md` | `visita-form.tsx`, `exam-grupo-block.tsx`, páginas nueva/editar | **hecho** |
 | `08-cotizaciones.md` | `cotizacion-lifecycle-view.tsx`, `cotizacion-form.tsx` | **hecho** |
 | `09-pacientes.md` | `paciente-form.tsx`, `historial-paciente.tsx`, `file-upload.tsx` | **hecho** |
-| `10-dashboard.md` | Sacar glassmorphism; cards y gráficos desde tokens DS | pendiente |
+| `10-dashboard.md` | Sacar glassmorphism; cards y gráficos desde tokens DS | **hecho** |
 | `11-operacion.md` | `asignacion-*`, `pagos-enfermeras-table.tsx` + `[enfermeraId]/page.tsx`, `precios-visitas-table.tsx`, `reportes-visitas` | pendiente |
 | `12-limpieza.md` | Alias de compatibilidad, `.dark`, `tailwind.config.ts`, oklch sueltos | pendiente |
 
