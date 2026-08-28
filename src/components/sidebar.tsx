@@ -83,7 +83,7 @@ export function Sidebar({ userName, userRole, onSignOut }: Props) {
   return (
     <aside className="app-side">
       <div className="app-side__logo">
-        <Image src="/homelab-logo.png" alt="HomeLab" height={54} width={104} style={{ height: 54, width: 'auto' }} priority />
+        <Image src="/homelab-logo.png" alt="HomeLab" height={54} width={104} priority />
       </div>
 
       <nav className="app-side__nav">

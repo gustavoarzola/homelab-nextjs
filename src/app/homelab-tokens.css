@@ -8,6 +8,9 @@
        emita utilidades directas (bg-surface, text-fg-muted, rounded-lg, etc.)
        además de las custom properties que consumen las clases .hl-*.
        Ver docs/plan-design-system/01-fundaciones.md.
+     - al final del archivo hay una sección "COMPAT RADIX" (paso 03) con
+       selectores adicionales para primitivos que envuelven Radix (usa
+       data-state, no el data-checked/data-on de los mockups vanilla-JS).
 
    Convención de prefijos:
      --color-*     color semántico/escala      .hl-btn      botón
@@ -498,3 +501,24 @@
 .hl-tl__dot.is-bad { background: var(--color-destructive); }
 .hl-tl__body b { display: block; font-size: var(--text-base); font-weight: 500; }
 .hl-tl__body span { display: block; font-size: var(--text-sm); color: var(--color-fg-muted); margin-top: 1px; }
+
+/* ============================================================================
+   COMPAT RADIX — primitivos de src/components/ui/* que envuelven Radix
+   (checkbox, popover) usan `data-state`, no el `data-checked`/`data-on` que
+   usan los mockups vanilla-JS del DS. Mismos tokens, mismo look.
+   ========================================================================== */
+.hl-checkbox[data-state="checked"] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-fg);
+}
+.hl-checkbox[data-state="indeterminate"] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.hl-popover {
+  z-index: 60; width: 18rem; padding: var(--space-4);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); outline: none;
+}
