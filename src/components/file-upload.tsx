@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { Loader2, Upload, FileText } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 type Props = {
   folder: 'pacientes' | 'visitas'
@@ -61,46 +62,42 @@ export function FileUpload({ folder, accept, currentKey, signedUrl, onUploaded, 
       />
 
       {currentKey && (
-        <div
-          className="flex items-center gap-3 rounded-lg p-3"
-          style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}
-        >
+        <div className="flex items-center gap-3" style={{ background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 12 }}>
           {previewUrl && isImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={previewUrl}
               alt="Archivo adjunto"
-              className="h-16 w-16 rounded object-cover shrink-0"
-              style={{ border: '1px solid var(--border)' }}
+              className="h-16 w-16 shrink-0 object-cover"
+              style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)' }}
             />
           ) : (
-            <FileText className="h-8 w-8 shrink-0" style={{ color: 'var(--muted-foreground)' }} />
+            <FileText className="shrink-0" style={{ width: 32, height: 32, color: 'var(--color-fg-muted)' }} />
           )}
-          <div className="flex flex-col gap-1 min-w-0">
-            <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-              Archivo actual
-            </span>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span style={{ fontSize: 'var(--text-base)', fontWeight: 500 }}>Archivo actual</span>
             {previewUrl && !isImage && (
               <a
                 href={previewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs hover:underline truncate"
-                style={{ color: 'var(--primary)' }}
+                className="truncate hover:underline"
+                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}
               >
                 Ver documento
               </a>
             )}
           </div>
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
+            className="ml-auto shrink-0"
             onClick={() => fileRef.current?.click()}
             disabled={disabled || uploading}
-            className="ml-auto shrink-0 rounded px-2.5 py-1 text-xs hover:opacity-80 transition-opacity disabled:opacity-50"
-            style={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
           >
             Reemplazar
-          </button>
+          </Button>
         </div>
       )}
 
@@ -109,27 +106,23 @@ export function FileUpload({ folder, accept, currentKey, signedUrl, onUploaded, 
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={disabled || uploading}
-          className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm hover:opacity-80 transition-opacity disabled:opacity-50 w-fit"
-          style={{ border: '1px dashed var(--border)', color: 'var(--muted-foreground)' }}
+          className="flex w-fit items-center gap-2 transition-opacity hover:opacity-80 disabled:opacity-50"
+          style={{ border: '1px dashed var(--color-border)', color: 'var(--color-fg-muted)', borderRadius: 'var(--radius-md)', padding: '10px 12px', fontSize: 'var(--text-base)', background: 'transparent' }}
         >
-          {uploading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Upload className="h-4 w-4" />
-          )}
+          {uploading ? <Loader2 className="animate-spin" style={{ width: 16, height: 16 }} /> : <Upload style={{ width: 16, height: 16 }} />}
           {uploading ? 'Subiendo...' : 'Subir archivo'}
         </button>
       )}
 
       {uploading && currentKey && (
-        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <div className="flex items-center gap-2" style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
+          <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
           Subiendo...
         </div>
       )}
 
       {error && (
-        <p className="text-xs" style={{ color: 'var(--destructive)' }}>{error}</p>
+        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-destructive)' }}>{error}</p>
       )}
     </div>
   )
