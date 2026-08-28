@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FormDatePicker } from '@/components/form-date-picker'
 import { SelectCombobox } from '@/components/select-combobox'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
 import { VISITA_REPORT_COLUMNS } from '@/lib/reportes/visitas-columns'
 
 const ESTADO_OPTIONS = [
@@ -69,7 +70,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
+            <label className="hl-label">
               Período
             </label>
             <FormDatePicker
@@ -84,7 +85,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
+            <label className="hl-label">
               Estado
             </label>
             <SelectCombobox
@@ -94,13 +95,13 @@ export function ReportesVisitas({ enfermeras }: Props) {
               onChange={setEstadoIds}
               placeholder="— Todos los estados —"
             />
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
               Sin selección incluye todos los estados.
             </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
+            <label className="hl-label">
               Enfermera
             </label>
             <SelectCombobox
@@ -110,7 +111,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
               onChange={setEnfermeraIds}
               placeholder="— Todas —"
             />
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
               Sin selección incluye todas las enfermeras.
             </p>
           </div>
@@ -125,8 +126,8 @@ export function ReportesVisitas({ enfermeras }: Props) {
               type="button"
               onClick={() => setAllColumns(true)}
               disabled={allSelected}
-              className="text-xs font-medium hover:opacity-80 disabled:opacity-40"
-              style={{ color: 'var(--primary)' }}
+              className="hover:opacity-80 disabled:opacity-40"
+              style={{ fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-primary)', background: 'none', border: 0, cursor: 'pointer' }}
             >
               Todas
             </button>
@@ -134,8 +135,8 @@ export function ReportesVisitas({ enfermeras }: Props) {
               type="button"
               onClick={() => setAllColumns(false)}
               disabled={noneSelected}
-              className="text-xs font-medium hover:opacity-80 disabled:opacity-40"
-              style={{ color: 'var(--primary)' }}
+              className="hover:opacity-80 disabled:opacity-40"
+              style={{ fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-primary)', background: 'none', border: 0, cursor: 'pointer' }}
             >
               Ninguna
             </button>
@@ -144,7 +145,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {VISITA_REPORT_COLUMNS.map((col) => (
-              <label key={col.key} className="flex items-center gap-2 text-sm" style={{ color: 'var(--foreground)' }}>
+              <label key={col.key} className="flex items-center gap-2" style={{ fontSize: 'var(--text-base)' }}>
                 <Checkbox
                   checked={selectedColumns[col.key] ?? false}
                   onCheckedChange={() => toggleColumn(col.key)}
@@ -154,27 +155,23 @@ export function ReportesVisitas({ enfermeras }: Props) {
             ))}
           </div>
 
-          <div className="mt-6 flex items-center justify-between border-t pt-4" style={{ borderColor: 'var(--border)' }}>
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+          <div className="mt-6 flex items-center justify-between" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
               {noneSelected
                 ? 'Selecciona al menos una columna para descargar.'
                 : `${activeColumnKeys.length} de ${VISITA_REPORT_COLUMNS.length} columnas seleccionadas`}
             </p>
-            <a
-              href={noneSelected ? undefined : buildExportUrl()}
-              aria-disabled={noneSelected}
-              onClick={(e) => { if (noneSelected) e.preventDefault() }}
-              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-              style={{
-                backgroundColor: 'var(--primary)',
-                color: 'var(--primary-foreground)',
-                opacity: noneSelected ? 0.5 : 1,
-                cursor: noneSelected ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <Download className="h-4 w-4" />
-              Descargar Excel
-            </a>
+            <Button asChild>
+              <a
+                href={noneSelected ? undefined : buildExportUrl()}
+                aria-disabled={noneSelected}
+                onClick={(e) => { if (noneSelected) e.preventDefault() }}
+                style={{ opacity: noneSelected ? 0.5 : 1, cursor: noneSelected ? 'not-allowed' : 'pointer' }}
+              >
+                <Download />
+                Descargar Excel
+              </a>
+            </Button>
           </div>
         </CardContent>
       </Card>

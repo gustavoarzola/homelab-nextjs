@@ -5,6 +5,9 @@ import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { getPagoEnfermeraDetalle } from '@/lib/actions/pagos-enfermeras'
 import { formatDateTime } from '@/lib/format'
 import { PageHeader } from '@/components/page-header'
+import { MetaGrid, MetaTile } from '@/components/ui/meta'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -52,164 +55,104 @@ export default async function PagoEnfermeraDetallePage({ params, searchParams }:
       />
 
       {/* Tarjeta resumen */}
-      <div
-        className="mb-6 grid grid-cols-2 gap-4 rounded-xl border p-5 sm:grid-cols-4"
-        style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}
-      >
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-            Visitas completadas
-          </p>
-          <p className="mt-1 text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-            {detalle.cantidadVisitas}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-            Base cálculo
-          </p>
-          <p className="mt-1 text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-            {fmt(detalle.baseTotal)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-            Porcentaje
-          </p>
-          <p className="mt-1 text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-            {detalle.porcentaje}%
-          </p>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-            Total a pagar
-          </p>
-          <p className="mt-1 text-2xl font-semibold" style={{ color: 'var(--primary)' }}>
-            {fmt(detalle.pagoTotal)}
-          </p>
-        </div>
+      <div className="hl-card" style={{ marginBottom: 24 }}>
+        <MetaGrid>
+          <MetaTile label="Visitas completadas" value={<span className="hl-tnum" style={{ fontSize: 'var(--text-2xl)', fontWeight: 600 }}>{detalle.cantidadVisitas}</span>} />
+          <MetaTile label="Base cálculo" value={<span className="hl-tnum" style={{ fontSize: 'var(--text-2xl)', fontWeight: 600 }}>{fmt(detalle.baseTotal)}</span>} />
+          <MetaTile label="Porcentaje" value={<span className="hl-tnum" style={{ fontSize: 'var(--text-2xl)', fontWeight: 600 }}>{detalle.porcentaje}%</span>} />
+          <MetaTile label="Total a pagar" value={<span className="hl-tnum" style={{ fontSize: 'var(--text-2xl)', fontWeight: 600, color: 'var(--color-primary)' }}>{fmt(detalle.pagoTotal)}</span>} />
+        </MetaGrid>
       </div>
 
       {/* Tabla de visitas */}
-      <div
-        className="overflow-x-auto rounded-xl border"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-              {[
-                { label: '#', align: 'left' },
-                { label: 'Fecha', align: 'left' },
-                { label: 'Paciente', align: 'left' },
-                { label: 'Fee visita', align: 'right' },
-                { label: 'Procedimientos', align: 'right' },
-                { label: 'Recargos', align: 'right' },
-                { label: 'Base cálculo', align: 'right' },
-                { label: 'Pago estimado', align: 'right' },
-                { label: '', align: 'right' },
-              ].map((h, i) => (
-                <th
-                  key={i}
-                  className={`px-4 py-3 font-medium text-${h.align}`}
-                >
-                  {h.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {detalle.rows.length === 0 ? (
+      <div className="hl-card hl-card--flush">
+        <div className="overflow-x-auto">
+          <table className="hl-table">
+            <thead>
               <tr>
-                <td
-                  colSpan={9}
-                  className="px-4 py-10 text-center text-sm"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
-                  Sin visitas para este período
-                </td>
+                <th>#</th>
+                <th>Fecha</th>
+                <th>Paciente</th>
+                <th className="hl-num">Fee visita</th>
+                <th className="hl-num">Procedimientos</th>
+                <th className="hl-num">Recargos</th>
+                <th className="hl-num">Base cálculo</th>
+                <th className="hl-num">Pago estimado</th>
+                <th />
               </tr>
-            ) : (
-              detalle.rows.map((row) => (
-                <tr
-                  key={row.id}
-                  style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--card)' }}
-                >
-                  <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                    {row.id}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--foreground)' }}>
-                    {formatDateTime(row.fecha, row.hora)}
-                  </td>
-                  <td className="px-4 py-3" style={{ color: row.paciente ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
-                    {row.paciente ?? '—'}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-right"
-                    style={{ color: row.feeVisita > 0 ? 'var(--foreground)' : 'var(--muted-foreground)' }}
-                  >
-                    {row.feeVisita > 0 ? fmt(row.feeVisita) : '—'}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-right"
-                    style={{ color: row.procedimientos > 0 ? 'var(--foreground)' : 'var(--muted-foreground)' }}
-                  >
-                    {row.procedimientos > 0 ? fmt(row.procedimientos) : '—'}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-right"
-                    style={{ color: row.recargos > 0 ? 'var(--foreground)' : 'var(--muted-foreground)' }}
-                  >
-                    {row.recargos > 0 ? fmt(row.recargos) : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium" style={{ color: 'var(--foreground)' }}>
-                    {fmt(row.base)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--foreground)' }}>
-                    {fmt(row.pagoEstimado)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/visitas/${row.id}`}
-                      title="Ver / editar visita"
-                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors hover:opacity-70"
-                      style={{ color: 'var(--muted-foreground)' }}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </Link>
+            </thead>
+            <tbody>
+              {detalle.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={9}>
+                    <EmptyState title="Sin visitas para este período" />
                   </td>
                 </tr>
-              ))
+              ) : (
+                detalle.rows.map((row) => (
+                  <tr key={row.id}>
+                    <td className="hl-mono" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
+                      {row.id}
+                    </td>
+                    <td className="whitespace-nowrap">
+                      {formatDateTime(row.fecha, row.hora)}
+                    </td>
+                    <td style={{ color: row.paciente ? 'var(--color-fg)' : 'var(--color-fg-muted)' }}>
+                      {row.paciente ?? '—'}
+                    </td>
+                    <td className="hl-num hl-tnum" style={{ color: row.feeVisita > 0 ? 'var(--color-fg)' : 'var(--color-fg-muted)' }}>
+                      {row.feeVisita > 0 ? fmt(row.feeVisita) : '—'}
+                    </td>
+                    <td className="hl-num hl-tnum" style={{ color: row.procedimientos > 0 ? 'var(--color-fg)' : 'var(--color-fg-muted)' }}>
+                      {row.procedimientos > 0 ? fmt(row.procedimientos) : '—'}
+                    </td>
+                    <td className="hl-num hl-tnum" style={{ color: row.recargos > 0 ? 'var(--color-fg)' : 'var(--color-fg-muted)' }}>
+                      {row.recargos > 0 ? fmt(row.recargos) : '—'}
+                    </td>
+                    <td className="hl-num hl-tnum" style={{ fontWeight: 500 }}>
+                      {fmt(row.base)}
+                    </td>
+                    <td className="hl-num hl-tnum" style={{ fontWeight: 600 }}>
+                      {fmt(row.pagoEstimado)}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link href={`/visitas/${row.id}`} title="Ver / editar visita">
+                          <ExternalLink />
+                        </Link>
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {detalle.rows.length > 0 && (
+              <tfoot>
+                <tr style={{ background: 'var(--color-surface-muted)', borderTop: '1px solid var(--color-border)' }}>
+                  <td style={{ padding: 'var(--row-py) var(--cell-px)', fontWeight: 600 }}>Total</td>
+                  <td />
+                  <td />
+                  <td className="hl-num hl-tnum" style={{ padding: 'var(--row-py) var(--cell-px)', fontWeight: 600 }}>
+                    {fmt(detalle.rows.reduce((s, r) => s + r.feeVisita, 0))}
+                  </td>
+                  <td className="hl-num hl-tnum" style={{ padding: 'var(--row-py) var(--cell-px)', fontWeight: 600 }}>
+                    {fmt(detalle.rows.reduce((s, r) => s + r.procedimientos, 0))}
+                  </td>
+                  <td className="hl-num hl-tnum" style={{ padding: 'var(--row-py) var(--cell-px)', fontWeight: 600 }}>
+                    {fmt(detalle.rows.reduce((s, r) => s + r.recargos, 0))}
+                  </td>
+                  <td className="hl-num hl-tnum" style={{ padding: 'var(--row-py) var(--cell-px)', fontWeight: 600 }}>
+                    {fmt(detalle.baseTotal)}
+                  </td>
+                  <td className="hl-num hl-tnum" style={{ padding: 'var(--row-py) var(--cell-px)', fontWeight: 600, color: 'var(--color-primary)' }}>
+                    {fmt(detalle.pagoTotal)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
             )}
-          </tbody>
-          {detalle.rows.length > 0 && (
-            <tfoot>
-              <tr style={{ backgroundColor: 'var(--muted)', borderTop: '1px solid var(--border)' }}>
-                <td className="px-4 py-3 font-semibold" style={{ color: 'var(--foreground)' }}>
-                  Total
-                </td>
-                <td />
-                <td />
-                <td className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--foreground)' }}>
-                  {fmt(detalle.rows.reduce((s, r) => s + r.feeVisita, 0))}
-                </td>
-                <td className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--foreground)' }}>
-                  {fmt(detalle.rows.reduce((s, r) => s + r.procedimientos, 0))}
-                </td>
-                <td className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--foreground)' }}>
-                  {fmt(detalle.rows.reduce((s, r) => s + r.recargos, 0))}
-                </td>
-                <td className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--foreground)' }}>
-                  {fmt(detalle.baseTotal)}
-                </td>
-                <td className="px-4 py-3 text-right font-semibold" style={{ color: 'var(--primary)' }}>
-                  {fmt(detalle.pagoTotal)}
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          )}
-        </table>
+          </table>
+        </div>
       </div>
     </>
   )

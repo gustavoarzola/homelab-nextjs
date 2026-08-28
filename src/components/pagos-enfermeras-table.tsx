@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import { SelectCombobox } from '@/components/select-combobox'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import type { PagoEnfermeraResumenRow } from '@/lib/actions/pagos-enfermeras'
 
 const MONTHS = [
@@ -85,15 +87,14 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
     { cantidadVisitas: 0, montoVisitas: 0, montoProcs: 0, montoRecargos: 0, base: 0, pagoEstimado: 0 },
   )
 
+  const tfootCellStyle: React.CSSProperties = { padding: 'var(--row-py) var(--cell-px)', color: 'var(--color-fg)', fontWeight: 600 }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Filtros */}
-      <div
-        className="flex flex-wrap items-end gap-3 rounded-xl border p-4"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-      >
+      <div className="toolbar">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Mes</label>
+          <label className="hl-label">Mes</label>
           <div className="w-[200px] min-w-0">
             <SelectCombobox
               mode="single"
@@ -106,7 +107,7 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Año</label>
+          <label className="hl-label">Año</label>
           <div className="w-[140px] min-w-0">
             <SelectCombobox
               mode="single"
@@ -119,7 +120,7 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Enfermera</label>
+          <label className="hl-label">Enfermera</label>
           <div className="w-[220px] min-w-0">
             <SelectCombobox
               mode="single"
@@ -131,166 +132,77 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
             />
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleApply}
-          disabled={isPending || !selectedMonth || !selectedYear}
-          className="rounded-lg px-4 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
-          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-        >
+        <Button onClick={handleApply} disabled={isPending || !selectedMonth || !selectedYear}>
           Filtrar
-        </button>
+        </Button>
       </div>
 
       {/* Tabla */}
-      <div
-        className="overflow-x-auto rounded-xl border"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-              {['Enfermera', 'Visitas', 'Fee visita', 'Procedimientos', 'Recargos', 'Base cálculo', '%', 'Total a pagar'].map(
-                (h) => (
-                  <th
-                    key={h}
-                    className={`px-4 py-3 font-medium ${h === 'Enfermera' ? 'text-left' : 'text-right'}`}
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
+      <div className="hl-card hl-card--flush">
+        <div className="overflow-x-auto">
+          <table className="hl-table">
+            <thead>
               <tr>
-                <td
-                  colSpan={8}
-                  className="px-4 py-10 text-center text-sm"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
-                  Sin datos para el período seleccionado
-                </td>
+                {['Enfermera', 'Visitas', 'Fee visita', 'Procedimientos', 'Recargos', 'Base cálculo', '%', 'Total a pagar'].map(
+                  (h) => (
+                    <th key={h} className={h === 'Enfermera' ? '' : 'hl-num'}>
+                      {h}
+                    </th>
+                  ),
+                )}
               </tr>
-            ) : (
-              rows.map((row) => (
-                <tr
-                  key={row.enfermeraId}
-                  style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--card)' }}
-                >
-                  <td className="px-4 py-3 font-medium">
-                    <Link
-                      href={`/pagos-enfermeras/${row.enfermeraId}?month=${selectedMonth ?? month}&year=${selectedYear ?? year}`}
-                      className="transition-colors hover:opacity-70"
-                      style={{ color: 'var(--foreground)' }}
-                    >
-                      {row.enfermera}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-right" style={{ color: 'var(--foreground)' }}>
-                    {row.cantidadVisitas}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-right"
-                    style={{
-                      color: row.montoVisitas > 0 ? 'var(--foreground)' : 'var(--muted-foreground)',
-                    }}
-                  >
-                    {row.montoVisitas > 0 ? fmt(row.montoVisitas) : '—'}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-right"
-                    style={{
-                      color: row.montoProcs > 0 ? 'var(--foreground)' : 'var(--muted-foreground)',
-                    }}
-                  >
-                    {row.montoProcs > 0 ? fmt(row.montoProcs) : '—'}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-right"
-                    style={{
-                      color: row.montoRecargos > 0 ? 'var(--foreground)' : 'var(--muted-foreground)',
-                    }}
-                  >
-                    {row.montoRecargos > 0 ? fmt(row.montoRecargos) : '—'}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-right font-medium"
-                    style={{ color: 'var(--foreground)' }}
-                  >
-                    {fmt(row.base)}
-                  </td>
-                  <td className="px-4 py-3 text-right" style={{ color: 'var(--muted-foreground)' }}>
-                    {row.porcentaje}%
-                  </td>
-                  <td
-                    className="px-4 py-3 text-right font-semibold"
-                    style={{ color: 'var(--foreground)' }}
-                  >
-                    {fmt(row.pagoEstimado)}
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={8}>
+                    <EmptyState title="Sin datos para el período seleccionado" />
                   </td>
                 </tr>
-              ))
+              ) : (
+                rows.map((row) => (
+                  <tr key={row.enfermeraId}>
+                    <td style={{ fontWeight: 500 }}>
+                      <Link
+                        href={`/pagos-enfermeras/${row.enfermeraId}?month=${selectedMonth ?? month}&year=${selectedYear ?? year}`}
+                        className="transition-colors hover:opacity-70"
+                      >
+                        {row.enfermera}
+                      </Link>
+                    </td>
+                    <td className="hl-num hl-tnum">{row.cantidadVisitas}</td>
+                    <td className="hl-num hl-tnum" style={{ color: row.montoVisitas > 0 ? 'var(--color-fg)' : 'var(--color-fg-muted)' }}>
+                      {row.montoVisitas > 0 ? fmt(row.montoVisitas) : '—'}
+                    </td>
+                    <td className="hl-num hl-tnum" style={{ color: row.montoProcs > 0 ? 'var(--color-fg)' : 'var(--color-fg-muted)' }}>
+                      {row.montoProcs > 0 ? fmt(row.montoProcs) : '—'}
+                    </td>
+                    <td className="hl-num hl-tnum" style={{ color: row.montoRecargos > 0 ? 'var(--color-fg)' : 'var(--color-fg-muted)' }}>
+                      {row.montoRecargos > 0 ? fmt(row.montoRecargos) : '—'}
+                    </td>
+                    <td className="hl-num hl-tnum" style={{ fontWeight: 500 }}>{fmt(row.base)}</td>
+                    <td className="hl-num hl-tnum" style={{ color: 'var(--color-fg-muted)' }}>{row.porcentaje}%</td>
+                    <td className="hl-num hl-tnum" style={{ fontWeight: 600 }}>{fmt(row.pagoEstimado)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {rows.length > 1 && (
+              <tfoot>
+                <tr style={{ background: 'var(--color-surface-muted)', borderTop: '1px solid var(--color-border)' }}>
+                  <td style={tfootCellStyle}>Total</td>
+                  <td className="hl-num hl-tnum" style={tfootCellStyle}>{totals.cantidadVisitas}</td>
+                  <td className="hl-num hl-tnum" style={tfootCellStyle}>{fmt(totals.montoVisitas)}</td>
+                  <td className="hl-num hl-tnum" style={tfootCellStyle}>{fmt(totals.montoProcs)}</td>
+                  <td className="hl-num hl-tnum" style={tfootCellStyle}>{fmt(totals.montoRecargos)}</td>
+                  <td className="hl-num hl-tnum" style={tfootCellStyle}>{fmt(totals.base)}</td>
+                  <td className="hl-num" style={{ ...tfootCellStyle, color: 'var(--color-fg-muted)', fontWeight: 400 }}>—</td>
+                  <td className="hl-num hl-tnum" style={tfootCellStyle}>{fmt(totals.pagoEstimado)}</td>
+                </tr>
+              </tfoot>
             )}
-          </tbody>
-          {rows.length > 1 && (
-            <tfoot>
-              <tr
-                style={{
-                  backgroundColor: 'var(--muted)',
-                  borderTop: '1px solid var(--border)',
-                }}
-              >
-                <td
-                  className="px-4 py-3 font-semibold"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  Total
-                </td>
-                <td
-                  className="px-4 py-3 text-right font-semibold"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {totals.cantidadVisitas}
-                </td>
-                <td
-                  className="px-4 py-3 text-right font-semibold"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {fmt(totals.montoVisitas)}
-                </td>
-                <td
-                  className="px-4 py-3 text-right font-semibold"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {fmt(totals.montoProcs)}
-                </td>
-                <td
-                  className="px-4 py-3 text-right font-semibold"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {fmt(totals.montoRecargos)}
-                </td>
-                <td
-                  className="px-4 py-3 text-right font-semibold"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {fmt(totals.base)}
-                </td>
-                <td className="px-4 py-3 text-right" style={{ color: 'var(--muted-foreground)' }}>
-                  —
-                </td>
-                <td
-                  className="px-4 py-3 text-right font-semibold"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {fmt(totals.pagoEstimado)}
-                </td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
+          </table>
+        </div>
       </div>
     </div>
   )

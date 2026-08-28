@@ -66,8 +66,8 @@ export function AsignacionMap({ visitas }: { visitas: VisitaAsignacion[] }) {
   return (
     <div
       ref={mapRef}
-      className="h-full w-full overflow-hidden rounded-lg"
-      style={{ minHeight: '300px', border: '1px solid var(--border)' }}
+      className="h-full w-full overflow-hidden"
+      style={{ minHeight: '300px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}
     />
   )
 }
