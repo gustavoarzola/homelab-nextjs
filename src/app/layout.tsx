@@ -1,8 +1,11 @@
 import type { Metadata } from 'next'
-import { ThemeProvider } from 'next-themes'
+import { Inter, JetBrains_Mono } from 'next/font/google'
 import NextTopLoader from 'nextjs-toploader'
 import { Toaster } from 'sonner'
 import './globals.css'
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains' })
 
 export const metadata: Metadata = {
   title: 'Homelab - Gestión de Visitas de Enfermería',
@@ -15,13 +18,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" data-density="medium" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <NextTopLoader color="#18181b" showSpinner={false} height={2} />
-          {children}
-          <Toaster richColors closeButton />
-        </ThemeProvider>
+        <NextTopLoader color="#1F7AB8" showSpinner={false} height={2} />
+        {children}
+        <Toaster richColors closeButton />
       </body>
     </html>
   )
