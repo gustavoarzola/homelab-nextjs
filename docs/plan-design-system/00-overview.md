@@ -68,7 +68,7 @@ Trampas a manejar en el paso 01:
 | `01-fundaciones.md` | tokens CSS, fuentes, logo, solo-claro, alias de compatibilidad | **hecho** |
 | `02-shell.md` | `(admin)/layout.tsx`, `sidebar.tsx`, `PageHeader`, `login/` | **hecho** |
 | `03-primitivos.md` | `src/components/ui/*` | **hecho** |
-| `04-data-table.md` | `data-table.tsx` completo | pendiente |
+| `04-data-table.md` | `data-table.tsx` completo | **hecho** |
 | `05-catalogos.md` | Los 12 `*-table.tsx` + sus `page.tsx` | pendiente |
 | `06-visita-ciclo.md` | `visita-lifecycle-view.tsx` + `visitas/[id]/page.tsx` | pendiente |
 | `07-visita-form.md` | `visita-form.tsx`, `exam-grupo-block.tsx`, páginas nueva/editar | pendiente |

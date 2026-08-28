@@ -12,12 +12,13 @@ import {
 import {
   Plus, PowerOff, Power, Trash2, Pencil,
   ChevronUp, ChevronDown, ChevronsUpDown,
-  ChevronLeft, ChevronRight, X, Loader2, Download,
+  ChevronLeft, ChevronRight, X, Loader2, Download, Check, Inbox,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { SelectCombobox } from './select-combobox'
 import { FormDatePicker } from './form-date-picker'
+import { Button } from './ui/button'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -295,33 +296,42 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
   return (
     <div>
       {/* Filters */}
-      <div
-        className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border p-4"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-      >
+      <div className="toolbar">
         {filterDefs.map((f) => (
           <div key={f.type === 'date-range' ? `${f.keyFrom}-${f.keyTo}` : f.key} className="flex flex-col gap-1">
             {f.type === 'checkbox' ? (
-              <label className="flex cursor-pointer items-center gap-2 text-sm select-none" style={{ color: 'var(--foreground)' }}>
-                <input
-                  type="checkbox"
-                  checked={draft[f.key] as boolean}
-                  onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.checked }))}
-                  className="h-4 w-4 cursor-pointer rounded"
-                />
+              <label
+                role="checkbox"
+                aria-checked={draft[f.key] as boolean}
+                tabIndex={0}
+                onClick={() => setDraft((d) => ({ ...d, [f.key]: !d[f.key] }))}
+                onKeyDown={(e) => {
+                  if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault()
+                    setDraft((d) => ({ ...d, [f.key]: !d[f.key] }))
+                  }
+                }}
+                className="flex cursor-pointer items-center gap-2 select-none"
+                style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}
+              >
+                <span className="hl-checkbox" data-checked={draft[f.key] ? '' : undefined}>
+                  {(draft[f.key] as boolean) && <Check style={{ width: 12, height: 12 }} strokeWidth={3} />}
+                </span>
                 {f.label}
               </label>
             ) : f.type === 'select' ? (
               <>
-                <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
-                <select
-                  value={draft[f.key] as string}
-                  onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                  className="rounded-lg px-3 py-2 text-sm outline-none w-52"
-                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                >
-                  {f.options?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                </select>
+                <label className="hl-label">{f.label}</label>
+                <div className="hl-input hl-input--select" style={{ width: '208px' }}>
+                  <select
+                    value={draft[f.key] as string}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                    className="w-full appearance-none"
+                  >
+                    {f.options?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </select>
+                  <ChevronDown className="hl-affix" />
+                </div>
               </>
             ) : f.type === 'select-single' ? (() => {
               const opts = f.options ?? []
@@ -329,7 +339,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
               const selectedIdx = opts.findIndex((o) => o.value !== '' && o.value === (draft[f.key] as string))
               return (
                 <>
-                  <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
+                  <label className="hl-label">{f.label}</label>
                   <div style={{ width: '208px' }}>
                     <SelectCombobox
                       mode="single"
@@ -343,7 +353,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
               )
             })() : f.type === 'date-range' ? (
               <>
-                <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
+                <label className="hl-label">{f.label}</label>
                 <div style={{ width: '292px' }}>
                   <FormDatePicker
                     mode="range"
@@ -365,7 +375,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
               </>
             ) : f.type === 'date' ? (
               <>
-                <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
+                <label className="hl-label">{f.label}</label>
                 <div style={{ width: '208px' }}>
                   <FormDatePicker
                     mode="single"
@@ -378,102 +388,76 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
               </>
             ) : (
               <>
-                <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>{f.label}</label>
-                <input
-                  type="text"
-                  value={draft[f.key] as string}
-                  placeholder={f.placeholder}
-                  onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                  onKeyDown={(e) => e.key === 'Enter' && handleApply()}
-                  className="rounded-lg px-3 py-2 text-sm outline-none w-52"
-                  style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                />
+                <label className="hl-label">{f.label}</label>
+                <div className="hl-input" style={{ width: '208px' }}>
+                  <input
+                    type="text"
+                    value={draft[f.key] as string}
+                    placeholder={f.placeholder}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                    onKeyDown={(e) => e.key === 'Enter' && handleApply()}
+                  />
+                </div>
               </>
             )}
           </div>
         ))}
-        <button
-          onClick={handleApply}
-          disabled={isPending}
-          className="rounded-lg px-4 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
-          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-        >
-          Aplicar
-        </button>
+        <Button onClick={handleApply} disabled={isPending}>Aplicar</Button>
         {hasActiveFilters && (
-          <button
-            onClick={handleClear}
-            disabled={isPending}
-            className="rounded-lg px-4 py-1.5 text-sm disabled:opacity-50 hover:opacity-80 transition-opacity"
-            style={{ color: 'var(--muted-foreground)' }}
-          >
-            Limpiar
-          </button>
+          <Button variant="ghost" onClick={handleClear} disabled={isPending}>Limpiar</Button>
         )}
       </div>
 
       {/* Toolbar */}
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+        <p style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
           {data.total} {data.total === 1 ? entityLabel : `${entityLabel}s`}
         </p>
         <div className="flex items-center gap-2">
           {exportHref && (
-            <a
-              href={(() => {
-                const qs = buildExportQuery(applied, toOurSort(sorting))
-                return qs ? `${exportHref}?${qs}` : exportHref
-              })()}
-              title="Descargar Excel con los registros filtrados"
-              className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium hover:opacity-80 transition-opacity"
-              style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
-            >
-              <Download className="h-4 w-4" />
-              Descargar Excel
-            </a>
+            <Button variant="secondary" asChild>
+              <a
+                href={(() => {
+                  const qs = buildExportQuery(applied, toOurSort(sorting))
+                  return qs ? `${exportHref}?${qs}` : exportHref
+                })()}
+                title="Descargar Excel con los registros filtrados"
+              >
+                <Download />
+                Descargar Excel
+              </a>
+            </Button>
           )}
           {createHref ? (
-            <Link
-              href={createHref}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium hover:opacity-80 transition-opacity"
-              style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-            >
-              <Plus className="h-4 w-4" />
-              {createLabel ?? `Nuevo/a ${entityLabel}`}
-            </Link>
+            <Button asChild>
+              <Link href={createHref}>
+                <Plus />
+                {createLabel ?? `Nuevo/a ${entityLabel}`}
+              </Link>
+            </Button>
           ) : onCreate ? (
-            <button
+            <Button
               onClick={() => {
                 setFormDraft({})
                 setModal({ type: 'create' })
               }}
               disabled={isPending}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
-              style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
             >
-              <Plus className="h-4 w-4" />
+              <Plus />
               {createLabel ?? `Nuevo/a ${entityLabel}`}
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
 
       {/* Table */}
-      <div
-        className="rounded-xl border overflow-hidden"
-        style={{
-          backgroundColor: 'var(--card)',
-          borderColor: 'var(--border)',
-          opacity: isPending ? 0.6 : 1,
-          transition: 'opacity 150ms',
-        }}
-      >
-        <table className="w-full border-collapse">
+      <div className="hl-card hl-card--flush" style={{ opacity: isPending ? 0.6 : 1, transition: 'opacity 150ms' }}>
+        <table className="hl-table">
           <thead>
             {table.getHeaderGroups().map((hg) => {
               const visibleHeaders = hg.headers.filter((h) => h.id !== ACTIONS_COL)
               return (
-                <tr key={hg.id} className="border-b" style={{ borderColor: 'var(--border)' }}>
+                <tr key={hg.id}>
                   {visibleHeaders.map((header) => {
                     const canSort = header.column.getCanSort()
                     const sorted = header.column.getIsSorted()
@@ -481,11 +465,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                       <th
                         key={header.id}
                         onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
-                        className={cn(
-                          'px-4 py-2 text-left text-xs font-medium uppercase tracking-wide select-none whitespace-nowrap',
-                          canSort && 'cursor-pointer hover:opacity-80'
-                        )}
-                        style={{ color: 'var(--muted-foreground)' }}
+                        className={cn('select-none whitespace-nowrap', canSort && 'cursor-pointer hover:opacity-80')}
                       >
                         <span className="flex items-center gap-1">
                           {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
@@ -507,50 +487,44 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
           <tbody>
             {table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-sm"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
-                  Sin resultados.
+                <td colSpan={columns.length}>
+                  <div className="hl-empty">
+                    <Inbox />
+                    <p>Sin resultados.</p>
+                  </div>
                 </td>
               </tr>
             ) : (
               table.getRowModel().rows.map((row) => {
                 const dataCells = row.getVisibleCells().filter((c) => c.column.id !== ACTIONS_COL)
                 return (
-                  <tr
-                    key={row.id}
-                    className={cn('border-b last:border-0', row.original.activo === false && 'opacity-50')}
-                    style={{ borderColor: 'var(--border)' }}
-                  >
+                  <tr key={row.id} className={cn(row.original.activo === false && 'opacity-50')}>
                     {dataCells.map((cell) => (
-                      <td key={cell.id} className="px-4 py-3 text-sm" style={{ color: 'var(--foreground)' }}>
+                      <td key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}
 
                     {/* Row actions */}
-                    <td className="px-4 py-3">
+                    <td>
                       <div className="flex items-center justify-end gap-1">
                         {extraRowActions?.(row.original)}
                         {(() => {
                           const editHref = getEditHref?.(row.original)
                           if (editHref) {
                             return (
-                              <Link
-                                href={editHref}
-                                title="Editar"
-                                className="rounded p-1.5 hover:opacity-80 transition-opacity"
-                                style={{ color: 'var(--muted-foreground)' }}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Link>
+                              <Button variant="ghost" size="icon" asChild>
+                                <Link href={editHref} title="Editar">
+                                  <Pencil />
+                                </Link>
+                              </Button>
                             )
                           }
                           if (!getEditHref && onUpdate) {
                             return (
-                              <button
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => {
                                   const initialDraft: Record<string, string> = {}
                                   formFields.forEach((f) => {
@@ -561,38 +535,37 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                                 }}
                                 disabled={isPending}
                                 title="Editar"
-                                className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
-                                style={{ color: 'var(--muted-foreground)' }}
                               >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
+                                <Pencil />
+                              </Button>
                             )
                           }
                           return null
                         })()}
 
                         {onToggle && row.original.activo !== undefined && (
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setModal({ type: 'confirmToggle', id: row.original.id, activo: row.original.activo! })}
                             disabled={isPending}
                             title={row.original.activo ? 'Desactivar' : 'Activar'}
-                            className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
-                            style={{ color: 'var(--muted-foreground)' }}
                           >
-                            {row.original.activo ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-                          </button>
+                            {row.original.activo ? <PowerOff /> : <Power />}
+                          </Button>
                         )}
 
                         {onDelete && (
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setModal({ type: 'confirmDelete', id: row.original.id })}
                             disabled={isPending}
                             title="Eliminar"
-                            className="rounded p-1.5 hover:opacity-80 transition-opacity disabled:opacity-30"
-                            style={{ color: 'var(--destructive)' }}
+                            style={{ color: 'var(--color-destructive)' }}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                            <Trash2 />
+                          </Button>
                         )}
                       </div>
                     </td>
@@ -602,188 +575,153 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
             )}
           </tbody>
         </table>
-      </div>
 
-      {/* Footer */}
-      <div className="mt-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          <span>Mostrar</span>
-          <select
-            value={pageSize}
-            onChange={(e) => handlePageSize(Number(e.target.value))}
-            disabled={isPending}
-            className="rounded-md px-2 py-1 text-sm outline-none disabled:opacity-50"
-            style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-          >
-            {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-          <span>por página</span>
-        </div>
-
-        {totalPages > 1 && (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => handlePage(page - 1)}
-              disabled={page <= 1 || isPending}
-              className="cursor-pointer rounded p-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
-              style={{ color: 'var(--muted-foreground)' }}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            {getPageNumbers(page, totalPages).map((p, i) =>
-              p === '…' ? (
-                <span key={`ellipsis-${i}`} className="px-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>…</span>
-              ) : (
-                <button
-                  key={p}
-                  onClick={() => handlePage(p)}
-                  disabled={isPending}
-                  className="h-8 w-8 cursor-pointer rounded text-sm font-medium transition-colors hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
-                  style={p === page
-                    ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }
-                    : { color: 'var(--foreground)' }
-                  }
-                >
-                  {p}
-                </button>
-              )
-            )}
-
-            <button
-              onClick={() => handlePage(page + 1)}
-              disabled={page >= totalPages || isPending}
-              className="cursor-pointer rounded p-1.5 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
-              style={{ color: 'var(--muted-foreground)' }}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+        {/* Footer */}
+        <div className="hl-pager">
+          <div className="flex items-center gap-2">
+            <span>Mostrar</span>
+            <div className="hl-input hl-input--select" style={{ width: 'auto', height: 30 }}>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSize(Number(e.target.value))}
+                disabled={isPending}
+                className="appearance-none disabled:opacity-50"
+              >
+                {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <span>por página</span>
           </div>
-        )}
+
+          {totalPages > 1 && (
+            <div className="hl-pager__nums">
+              <button
+                aria-label="Anterior"
+                onClick={() => handlePage(page - 1)}
+                disabled={page <= 1 || isPending}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+
+              {getPageNumbers(page, totalPages).map((p, i) =>
+                p === '…' ? (
+                  <span key={`ellipsis-${i}`} className="px-1">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => handlePage(p)}
+                    disabled={isPending}
+                    aria-current={p === page ? 'true' : undefined}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+
+              <button
+                aria-label="Siguiente"
+                onClick={() => handlePage(page + 1)}
+                disabled={page >= totalPages || isPending}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal */}
       {modal.type !== 'none' && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: 'oklch(0 0 0 / 35%)', backdropFilter: 'blur(4px)' }}
-        >
+        <div className="hl-backdrop">
           {modal.type === 'confirmToggle' && (
-            <div
-              className="w-full max-w-sm rounded-xl border p-6 shadow-xl"
-              style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-            >
-              <h2 className="mb-2 text-base font-semibold" style={{ color: 'var(--foreground)' }}>
-                {modal.activo ? `¿Desactivar ${entityLabel}?` : `¿Activar ${entityLabel}?`}
-              </h2>
-              <p className="mb-6 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                {modal.activo
-                  ? `El ${entityLabel} quedará inactivo y no aparecerá en los listados principales.`
-                  : `El ${entityLabel} volverá a estar disponible.`}
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setModal({ type: 'none' })}
-                  disabled={isPending}
-                  className="rounded-lg px-4 py-2 text-sm hover:opacity-80 transition-opacity disabled:opacity-50"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
+            <div className="hl-modal" style={{ maxWidth: 400 }}>
+              <div className="hl-modal__body">
+                <h2 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 600 }}>
+                  {modal.activo ? `¿Desactivar ${entityLabel}?` : `¿Activar ${entityLabel}?`}
+                </h2>
+                <p style={{ margin: 0, fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
+                  {modal.activo
+                    ? `El ${entityLabel} quedará inactivo y no aparecerá en los listados principales.`
+                    : `El ${entityLabel} volverá a estar disponible.`}
+                </p>
+              </div>
+              <div className="hl-modal__foot">
+                <Button variant="ghost" onClick={() => setModal({ type: 'none' })} disabled={isPending}>
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant={modal.activo ? 'destructive' : 'default'}
                   onClick={() => { handleToggle(modal.id, modal.activo); setModal({ type: 'none' }) }}
                   disabled={isPending}
-                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
-                  style={modal.activo
-                    ? { backgroundColor: 'var(--destructive)', color: 'white' }
-                    : { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
                 >
-                  {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {isPending && <Loader2 className="animate-spin" />}
                   {modal.activo ? 'Desactivar' : 'Activar'}
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           {modal.type === 'confirmDelete' && (
-            <div
-              className="w-full max-w-sm rounded-xl border p-6 shadow-xl"
-              style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-            >
-              <h2 className="mb-2 text-base font-semibold" style={{ color: 'var(--foreground)' }}>
-                ¿Eliminar {entityLabel}?
-              </h2>
-              <p className="mb-6 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                Esta acción no se puede deshacer.
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setModal({ type: 'none' })}
-                  disabled={isPending}
-                  className="rounded-lg px-4 py-2 text-sm hover:opacity-80 transition-opacity disabled:opacity-50"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
+            <div className="hl-modal" style={{ maxWidth: 400 }}>
+              <div className="hl-modal__body">
+                <h2 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 600 }}>
+                  ¿Eliminar {entityLabel}?
+                </h2>
+                <p style={{ margin: 0, fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
+                  Esta acción no se puede deshacer.
+                </p>
+              </div>
+              <div className="hl-modal__foot">
+                <Button variant="ghost" onClick={() => setModal({ type: 'none' })} disabled={isPending}>
                   Cancelar
-                </button>
-                <button
-                  onClick={() => handleDelete(modal.id)}
-                  disabled={isPending}
-                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--destructive)', color: 'white' }}
-                >
-                  {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                </Button>
+                <Button variant="destructive" onClick={() => handleDelete(modal.id)} disabled={isPending}>
+                  {isPending && <Loader2 className="animate-spin" />}
                   Eliminar
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           {(modal.type === 'create' || modal.type === 'edit') && (
-            <div
-              className="w-full max-w-lg rounded-xl border shadow-xl"
-              style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-            >
-              <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: 'var(--border)' }}>
-                <h2 className="text-base font-semibold" style={{ color: 'var(--foreground)' }}>
-                  {modal.type === 'create' ? (createLabel ?? `Nuevo/a ${entityLabel}`) : `Editar ${entityLabel}`}
-                </h2>
-                <button
-                  onClick={() => setModal({ type: 'none' })}
-                  disabled={isPending}
-                  className="rounded p-1 hover:opacity-80 transition-opacity disabled:opacity-50"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
-                  <X className="h-4 w-4" />
+            <div className="hl-modal">
+              <div className="hl-modal__head">
+                <h2>{modal.type === 'create' ? (createLabel ?? `Nuevo/a ${entityLabel}`) : `Editar ${entityLabel}`}</h2>
+                <button className="hl-modal__close" onClick={() => setModal({ type: 'none' })} disabled={isPending} aria-label="Cerrar">
+                  <X />
                 </button>
               </div>
 
               <form
                 key={modal.type === 'edit' ? `edit-${modal.row.id}` : 'create'}
                 onSubmit={(e) => modal.type === 'edit' ? handleUpdate(e, modal.row.id) : handleCreate(e)}
-                className="flex flex-col gap-4 p-6"
+                className="flex flex-1 min-h-0 flex-col"
               >
+              <div className="hl-modal__body">
                 {formFields.map((field) => {
                   const value = modal.type === 'edit'
                     ? ((modal.row as Record<string, unknown>)[field.name] ?? '')
                     : ''
                   return (
-                    <div key={field.name} className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                    <div key={field.name} className="hl-fieldgroup">
+                      <label>
                         {field.label}
-                        {field.required && <span className="ml-0.5" style={{ color: 'var(--destructive)' }}>*</span>}
+                        {field.required && <span className="req"> *</span>}
                       </label>
                       {field.type === 'select' ? (
-                        <select
-                          name={field.name}
-                          required={field.required}
-                          defaultValue={String(value)}
-                          disabled={isPending}
-                          className="rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50"
-                          style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                        >
-                          {!field.required && <option value="">— Seleccionar —</option>}
-                          {field.options?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                        </select>
+                        <div className="hl-input hl-input--select">
+                          <select
+                            name={field.name}
+                            required={field.required}
+                            defaultValue={String(value)}
+                            disabled={isPending}
+                            className="w-full appearance-none disabled:opacity-50"
+                          >
+                            {!field.required && <option value="">— Seleccionar —</option>}
+                            {field.options?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                          </select>
+                          <ChevronDown className="hl-affix" />
+                        </div>
                       ) : field.type === 'select-single' ? (() => {
                         const opts = field.options ?? []
                         const selectedVal = formDraft[field.name] ?? String(value)
@@ -803,40 +741,29 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                           </>
                         )
                       })() : (
-                        <input
-                          name={field.name}
-                          type={field.type ?? 'text'}
-                          required={field.required}
-                          placeholder={field.placeholder}
-                          defaultValue={String(value)}
-                          disabled={isPending}
-                          className="rounded-lg px-3 py-2 text-sm outline-none disabled:opacity-50"
-                          style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-                        />
+                        <div className="hl-input">
+                          <input
+                            name={field.name}
+                            type={field.type ?? 'text'}
+                            required={field.required}
+                            placeholder={field.placeholder}
+                            defaultValue={String(value)}
+                            disabled={isPending}
+                          />
+                        </div>
                       )}
                     </div>
                   )
                 })}
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setModal({ type: 'none' })}
-                    disabled={isPending}
-                    className="rounded-lg px-4 py-2 text-sm hover:opacity-80 transition-opacity disabled:opacity-50"
-                    style={{ color: 'var(--muted-foreground)' }}
-                  >
+              </div>
+                <div className="hl-modal__foot">
+                  <Button type="button" variant="ghost" onClick={() => setModal({ type: 'none' })} disabled={isPending}>
                     Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isPending}
-                    className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-                  >
-                    {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  </Button>
+                  <Button type="submit" disabled={isPending}>
+                    {isPending && <Loader2 className="animate-spin" />}
                     {modal.type === 'create' ? 'Crear' : 'Guardar'}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>
