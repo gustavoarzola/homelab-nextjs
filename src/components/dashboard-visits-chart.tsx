@@ -45,7 +45,7 @@ type Props = {
 const chartConfig = {
   visits: {
     label: 'Visitas',
-    color: 'var(--brand-primary)',
+    color: 'var(--brand-blue)',
   },
 } satisfies ChartConfig
 
@@ -59,10 +59,7 @@ export function DashboardVisitsChart({
   averageVisits,
 }: Props) {
   return (
-    <Card
-      className="border-black/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98))] shadow-[0_12px_30px_-20px_rgba(15,23,42,0.28)]"
-      style={{ borderColor: 'var(--border)' }}
-    >
+    <Card>
       <CardHeader className="pb-1">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -72,11 +69,11 @@ export function DashboardVisitsChart({
             </CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <div className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-muted-foreground">
-              Total: <span className="font-medium text-foreground">{totalVisits}</span>
+            <div style={{ borderRadius: 'var(--radius-full)', background: 'var(--color-surface-muted)', padding: '4px 12px', fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
+              Total: <span className="hl-tnum" style={{ fontWeight: 500, color: 'var(--color-fg)' }}>{totalVisits}</span>
             </div>
-            <div className="rounded-full bg-black/[0.04] px-3 py-1 text-xs text-muted-foreground">
-              Promedio: <span className="font-medium text-foreground">{averageVisits.toFixed(1)}</span>
+            <div style={{ borderRadius: 'var(--radius-full)', background: 'var(--color-surface-muted)', padding: '4px 12px', fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
+              Promedio: <span className="hl-tnum" style={{ fontWeight: 500, color: 'var(--color-fg)' }}>{averageVisits.toFixed(1)}</span>
             </div>
           </div>
         </div>
@@ -99,7 +96,7 @@ export function DashboardVisitsChart({
                 <stop offset="100%" stopColor="var(--color-visits)" stopOpacity={0.06} />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} stroke="rgba(148, 163, 184, 0.2)" />
+            <CartesianGrid vertical={false} stroke="var(--color-border)" />
             <YAxis
               allowDecimals={false}
               axisLine={false}
@@ -116,7 +113,7 @@ export function DashboardVisitsChart({
               tickFormatter={(value) => value}
             />
             <ChartTooltip
-              cursor={{ stroke: 'rgba(44, 95, 158, 0.18)', strokeWidth: 1 }}
+              cursor={{ stroke: 'var(--brand-blue)', strokeWidth: 1, strokeOpacity: 0.18 }}
               content={<ChartTooltipContent indicator="line" />}
             />
             <Area
@@ -147,11 +144,11 @@ export function DashboardVisitsChart({
           </AreaChart>
         </ChartContainer>
       </CardContent>
-      <CardFooter className="flex-col items-start gap-1 border-t border-black/5 pt-3 text-sm">
-        <div className="flex items-center gap-2 font-medium leading-none text-foreground">
+      <CardFooter className="flex-col items-start gap-1" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, fontSize: 'var(--text-base)' }}>
+        <div className="flex items-center gap-2" style={{ fontWeight: 500, lineHeight: 1 }}>
           Pico de {peakVisits} visitas en {peakLabel} <TrendingUp className="h-4 w-4" />
         </div>
-        <div className="leading-none text-muted-foreground">
+        <div style={{ lineHeight: 1, color: 'var(--color-fg-muted)' }}>
           Evolución diaria del período seleccionado.
         </div>
       </CardFooter>

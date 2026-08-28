@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
 
 type RankingItem = {
   label: string
@@ -32,13 +33,13 @@ export function DashboardRankingCard({
   const Icon = icon === 'nurse' ? Stethoscope : Building2
 
   return (
-    <Card
-      className="border-black/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98))] shadow-[0_12px_30px_-20px_rgba(15,23,42,0.24)]"
-      style={{ borderColor: 'var(--border)' }}
-    >
-      <CardHeader className="pb-3">
+    <Card>
+      <CardHeader className="pb-1">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[rgba(44,95,158,0.08)] text-[var(--primary)]">
+          <div
+            className="flex h-10 w-10 items-center justify-center"
+            style={{ borderRadius: 'var(--radius-lg)', background: 'var(--brand-blue-soft)', color: 'var(--brand-blue-fg)' }}
+          >
             <Icon className="h-4 w-4" />
           </div>
           <div>
@@ -47,11 +48,9 @@ export function DashboardRankingCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 pb-5">
+      <CardContent className="space-y-3 pb-1">
         {items.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-black/8 px-4 py-6 text-sm text-muted-foreground">
-            No hay datos para este período.
-          </div>
+          <EmptyState title="No hay datos para este período." />
         ) : (
           items.map((item) => {
             const width = `${Math.max((item.visits / maxVisits) * 100, 10)}%`
@@ -59,18 +58,15 @@ export function DashboardRankingCard({
             return (
               <div key={item.label} className="space-y-2">
                 <div className="flex items-center justify-between gap-4">
-                  <span className="min-w-0 flex-1 break-words text-sm font-medium text-foreground">
+                  <span className="min-w-0 flex-1 break-words" style={{ fontSize: 'var(--text-base)', fontWeight: 500 }}>
                     {item.label}
                   </span>
-                  <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">
+                  <span className="shrink-0 whitespace-nowrap" style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
                     {item.visits} visita{item.visits === 1 ? '' : 's'}
                   </span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-black/[0.05]">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ background: 'linear-gradient(90deg, var(--brand-primary), var(--brand-primary-light))', width }}
-                  />
+                <div className="hl-progress">
+                  <i style={{ width, background: 'linear-gradient(90deg, var(--brand-blue), var(--brand-blue-strong))' }} />
                 </div>
               </div>
             )

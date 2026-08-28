@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 
 import { SelectCombobox } from '@/components/select-combobox'
+import { Button } from '@/components/ui/button'
 
 const MONTHS = [
   { id: 1, label: 'Enero' },
@@ -76,19 +77,9 @@ export function DashboardFilters({ month, year }: Props) {
         />
       </div>
 
-      <button
-        type="button"
-        onClick={handleApply}
-        disabled={isPending || !selectedMonth || !selectedYear}
-        className="h-10 rounded-full border px-6 text-sm font-medium transition-colors hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-        style={{
-          borderColor: 'var(--primary)',
-          color: 'var(--primary)',
-          backgroundColor: 'var(--background)',
-        }}
-      >
+      <Button variant="secondary" onClick={handleApply} disabled={isPending || !selectedMonth || !selectedYear}>
         Filtrar
-      </button>
+      </Button>
     </div>
   )
 }
