@@ -4,6 +4,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react'
 
 import { getPagoEnfermeraDetalle } from '@/lib/actions/pagos-enfermeras'
 import { formatDateTime } from '@/lib/format'
+import { PageHeader } from '@/components/page-header'
 
 const MONTH_LABELS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -39,25 +40,16 @@ export default async function PagoEnfermeraDetallePage({ params, searchParams }:
 
   return (
     <>
-      {/* Volver */}
-      <Link
-        href={backHref}
-        className="mb-6 inline-flex items-center gap-2 text-sm transition-colors hover:opacity-70"
-        style={{ color: 'var(--muted-foreground)' }}
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Volver a pagos enfermeras
-      </Link>
-
-      {/* Encabezado */}
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
-          {detalle.enfermera}
-        </h1>
-        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          {monthLabel} {year}
-        </p>
-      </div>
+      <PageHeader
+        crumb={
+          <Link href={backHref} className="inline-flex items-center gap-1.5">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Volver a pagos enfermeras
+          </Link>
+        }
+        title={detalle.enfermera}
+        meta={`${monthLabel} ${year}`}
+      />
 
       {/* Tarjeta resumen */}
       <div

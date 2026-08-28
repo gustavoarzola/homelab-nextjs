@@ -17,14 +17,14 @@ export default async function AdminLayout({
   if (!session) redirect('/login')
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--background)' }}>
+    <div className="app hl-root">
       <Sidebar
         userName={session.user?.name ?? 'Usuario'}
         userRole={session.user?.role ?? 'usuario'}
         onSignOut={handleSignOut}
       />
-      <main className="relative flex-1 overflow-y-auto p-8">
-        {children}
+      <main className="app-main">
+        <div className="app-body">{children}</div>
       </main>
     </div>
   )
