@@ -6,7 +6,13 @@ import Link from 'next/link'
 import { Check, X, AlertCircle, ChevronDown, ChevronRight, Home } from 'lucide-react'
 import { toast } from 'sonner'
 import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
-import type { VisitaLifecycleDetalle, CompletarVisitaData } from '@/lib/actions/visitas'
+import type {
+  VisitaLifecycleDetalle,
+  CompletarVisitaData,
+  FacturacionVisitaData,
+  PagoVisitaData,
+  EnvioExamenVisitaItem,
+} from '@/lib/actions/visitas'
 import { formatDate } from '@/lib/format'
 import { FormDatePicker } from '@/components/form-date-picker'
 
@@ -682,10 +688,13 @@ function PanelConfirmada({
 
 // ─── Completion accordion section ─────────────────────────────────────────────
 
+type SectionStatus = 'guardado' | 'sin-guardar' | 'pendiente'
+
 function CompletionSection({
   num,
   title,
   done,
+  dirty,
   open,
   onToggle,
   summary,
@@ -694,11 +703,13 @@ function CompletionSection({
   num: number
   title: string
   done: boolean
+  dirty?: boolean
   open: boolean
   onToggle: () => void
   summary?: string | null
   children: React.ReactNode
 }) {
+  const status: SectionStatus = dirty ? 'sin-guardar' : done ? 'guardado' : 'pendiente'
   return (
     <div className="rounded-xl overflow-hidden mb-2" style={{ border: `1px solid ${done ? 'oklch(0.7 0.14 145 / 35%)' : 'var(--border)'}` }}>
       <button
@@ -718,8 +729,14 @@ function CompletionSection({
           )}
         </div>
         <span className="flex-1 text-[13px] font-medium">{title}</span>
-        {!done && !open && (
+        {!open && status === 'sin-guardar' && (
+          <span className="text-[10.5px] px-1.5 py-0.5 rounded" style={{ background: 'oklch(0.95 0.1 60)', color: 'oklch(0.45 0.15 60)' }}>Sin guardar</span>
+        )}
+        {!open && status === 'pendiente' && (
           <span className="text-[10.5px] px-1.5 py-0.5 rounded" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>Pendiente</span>
+        )}
+        {!open && status === 'guardado' && (
+          <span className="text-[10.5px] px-1.5 py-0.5 rounded" style={{ background: 'oklch(0.95 0.04 145)', color: 'oklch(0.4 0.13 145)' }}>Guardado</span>
         )}
         <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform" style={{ transform: open ? 'rotate(180deg)' : 'none' }} />
       </button>
@@ -761,9 +778,15 @@ function InlineError({ children }: { children: string }) {
 function PanelRealizada({
   visita,
   onCompletar,
+  onGuardarFacturacion,
+  onGuardarPago,
+  onGuardarExamenes,
 }: {
   visita: VisitaLifecycleDetalle
   onCompletar: (data: CompletarVisitaData) => Promise<{ success: boolean; error?: string }>
+  onGuardarFacturacion: (data: FacturacionVisitaData) => Promise<{ success: boolean; error?: string }>
+  onGuardarPago: (data: PagoVisitaData) => Promise<{ success: boolean; error?: string }>
+  onGuardarExamenes: (examenes: EnvioExamenVisitaItem[]) => Promise<{ success: boolean; error?: string }>
 }) {
   const router = useRouter()
   const [openSec, setOpenSec] = useState<CompletionSectionId | null>('facturacion')
@@ -781,7 +804,16 @@ function PanelRealizada({
       return { idExamen: e.id, enviado: saved?.enviado ?? false, fecha: saved?.fechaEnvio ?? '' }
     })
   )
+
+  // Última versión guardada en el servidor de cada sección — se usa para detectar cambios sin guardar.
+  const [savedFacturacion, setSavedFacturacion] = useState({ tipoDoc, boleta, atencion })
+  const [savedPago, setSavedPago] = useState({ pagado, metodo, fechaPago })
+  const [savedExamenes, setSavedExamenes] = useState(examenes)
+
   const [isPending, startTransition] = useTransition()
+  const [isPendingFacturacion, startFacturacionTransition] = useTransition()
+  const [isPendingPago, startPagoTransition] = useTransition()
+  const [isPendingExamenes, startExamenesTransition] = useTransition()
   const [completionError, setCompletionError] = useState<CompletionError | null>(null)
 
   const facturacionDone = !!(tipoDoc && boleta.trim())
@@ -791,6 +823,14 @@ function PanelRealizada({
   const tasks = hasExamenes ? [facturacionDone, pagoDone, examenesDone] : [facturacionDone, pagoDone]
   const doneTasks = tasks.filter(Boolean).length
   const allDone = tasks.every(Boolean)
+
+  const facturacionDirty = tipoDoc !== savedFacturacion.tipoDoc || boleta !== savedFacturacion.boleta || atencion !== savedFacturacion.atencion
+  const pagoDirty = pagado !== savedPago.pagado || metodo !== savedPago.metodo || fechaPago !== savedPago.fechaPago
+  const examenesDirty = examenes.some((e) => {
+    const s = savedExamenes.find((x) => x.idExamen === e.idExamen)
+    return !s || s.enviado !== e.enviado || s.fecha !== e.fecha
+  })
+  const hayCambiosSinGuardar = facturacionDirty || pagoDirty || (hasExamenes && examenesDirty)
 
   function toggle(sec: typeof openSec) { setOpenSec(openSec === sec ? null : sec) }
 
@@ -871,6 +911,74 @@ function PanelRealizada({
     return { section: 'facturacion', message }
   }
 
+  function handleGuardarFacturacion(advance: boolean) {
+    setCompletionError(null)
+    startFacturacionTransition(async () => {
+      const data: FacturacionVisitaData = {
+        tipoDocumento: tipoDoc,
+        numeroBoleta: boleta,
+        numeroAtencion: atencion ? Number(atencion) : null,
+      }
+      const result = await onGuardarFacturacion(data)
+      if (result.success) {
+        toast.success('Facturación guardada')
+        setSavedFacturacion({ tipoDoc, boleta, atencion })
+        if (advance) setOpenSec('pago')
+        router.refresh()
+      } else {
+        const message = result.error ?? 'Error al guardar la facturación'
+        const serverError = completionErrorFromServer(message)
+        setCompletionError(serverError)
+        toast.error(message)
+      }
+    })
+  }
+
+  function handleGuardarPago(advance: boolean) {
+    setCompletionError(null)
+    startPagoTransition(async () => {
+      const data: PagoVisitaData = {
+        pagado,
+        metodoPago: pagado ? metodo : null,
+        fechaPago: pagado ? fechaPago : null,
+      }
+      const result = await onGuardarPago(data)
+      if (result.success) {
+        toast.success('Pago guardado')
+        setSavedPago({ pagado, metodo, fechaPago })
+        if (advance) setOpenSec('examenes')
+        router.refresh()
+      } else {
+        const message = result.error ?? 'Error al guardar el pago'
+        const serverError = completionErrorFromServer(message)
+        setCompletionError(serverError)
+        toast.error(message)
+      }
+    })
+  }
+
+  function handleGuardarExamenes() {
+    setCompletionError(null)
+    startExamenesTransition(async () => {
+      const data: EnvioExamenVisitaItem[] = examenes.map((e) => ({
+        idExamen: e.idExamen,
+        enviado: e.enviado,
+        fechaEnvio: e.enviado ? (e.fecha || null) : null,
+      }))
+      const result = await onGuardarExamenes(data)
+      if (result.success) {
+        toast.success('Envío de exámenes guardado')
+        setSavedExamenes(examenes)
+        router.refresh()
+      } else {
+        const message = result.error ?? 'Error al guardar el envío de exámenes'
+        const serverError = completionErrorFromServer(message)
+        setCompletionError(serverError)
+        toast.error(message)
+      }
+    })
+  }
+
   function handleCompletar() {
     const validationError = validateCompletion()
     if (validationError) {
@@ -928,7 +1036,7 @@ function PanelRealizada({
       </div>
 
       {/* 1: Facturación */}
-      <CompletionSection num={1} title="Facturación" done={facturacionDone} open={openSec === 'facturacion'} onToggle={() => toggle('facturacion')} summary={facturacionSummary}>
+      <CompletionSection num={1} title="Facturación" done={facturacionDone} dirty={facturacionDirty} open={openSec === 'facturacion'} onToggle={() => toggle('facturacion')} summary={facturacionSummary}>
         <div className="flex flex-col gap-2">
           <label className="text-xs font-medium" style={{ color: 'var(--foreground)' }}>Tipo documento <span style={{ color: 'oklch(0.5 0.18 25)' }}>*</span></label>
           <div className="flex gap-2">
@@ -955,15 +1063,19 @@ function PanelRealizada({
             className="h-9 rounded-lg px-3 text-[13px] outline-none" style={{ background: 'var(--background)', border: `1px solid ${completionError?.field === 'atencion' ? 'oklch(0.65 0.2 25)' : 'var(--input)'}`, color: 'var(--foreground)' }} />
           {completionError?.field === 'atencion' && <InlineError>{completionError.message}</InlineError>}
         </div>
-        {facturacionDone && (
-          <button type="button" onClick={() => toggle('pago')} className="w-full h-8 rounded-lg text-[12.5px] font-medium flex items-center justify-center gap-1.5 transition-opacity hover:opacity-90" style={{ background: 'oklch(0.4 0.13 145)', color: 'white', border: 'none' }}>
-            Continuar con pago <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => handleGuardarFacturacion(facturacionDone)}
+          disabled={!facturacionDirty || isPendingFacturacion}
+          className="w-full h-8 rounded-lg text-[12.5px] font-medium flex items-center justify-center gap-1.5 transition-opacity disabled:opacity-40 hover:opacity-90"
+          style={{ background: 'oklch(0.4 0.13 145)', color: 'white', border: 'none' }}
+        >
+          {isPendingFacturacion ? 'Guardando…' : facturacionDone ? <>Guardar y continuar <ChevronRight className="w-3.5 h-3.5" /></> : 'Guardar'}
+        </button>
       </CompletionSection>
 
       {/* 2: Pago */}
-      <CompletionSection num={2} title="Pago" done={pagoDone} open={openSec === 'pago'} onToggle={() => toggle('pago')} summary={pagoSummary}>
+      <CompletionSection num={2} title="Pago" done={pagoDone} dirty={pagoDirty} open={openSec === 'pago'} onToggle={() => toggle('pago')} summary={pagoSummary}>
         <button type="button" onClick={() => { setCompletionError(null); setPagado(!pagado) }}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all"
           style={{ background: pagado ? 'oklch(0.95 0.04 145)' : 'var(--muted)', border: `1px solid ${completionError?.field === 'pagado' ? 'oklch(0.65 0.2 25)' : pagado ? 'oklch(0.7 0.14 145 / 30%)' : 'var(--border)'}` }}>
@@ -1002,16 +1114,20 @@ function PanelRealizada({
             </div>
           </>
         )}
-        {pagoDone && hasExamenes && (
-          <button type="button" onClick={() => toggle('examenes')} className="w-full h-8 rounded-lg text-[12.5px] font-medium flex items-center justify-center gap-1.5 transition-opacity hover:opacity-90" style={{ background: 'oklch(0.4 0.13 145)', color: 'white', border: 'none' }}>
-            Continuar con exámenes <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => handleGuardarPago(pagoDone && hasExamenes)}
+          disabled={!pagoDirty || isPendingPago}
+          className="w-full h-8 rounded-lg text-[12.5px] font-medium flex items-center justify-center gap-1.5 transition-opacity disabled:opacity-40 hover:opacity-90"
+          style={{ background: 'oklch(0.4 0.13 145)', color: 'white', border: 'none' }}
+        >
+          {isPendingPago ? 'Guardando…' : pagoDone && hasExamenes ? <>Guardar y continuar <ChevronRight className="w-3.5 h-3.5" /></> : 'Guardar'}
+        </button>
       </CompletionSection>
 
       {/* 3: Exámenes */}
       {hasExamenes && (
-        <CompletionSection num={3} title="Envío de exámenes" done={examenesDone} open={openSec === 'examenes'} onToggle={() => toggle('examenes')} summary={examenesSummary}>
+        <CompletionSection num={3} title="Envío de exámenes" done={examenesDone} dirty={examenesDirty} open={openSec === 'examenes'} onToggle={() => toggle('examenes')} summary={examenesSummary}>
           {/* Progress */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--muted)' }}>
@@ -1019,6 +1135,7 @@ function PanelRealizada({
             </div>
             <span className="text-[11.5px] tabular-nums shrink-0" style={{ color: 'var(--muted-foreground)' }}>{examSent}/{examenes.length}</span>
           </div>
+
           {allExamsWithMeta.map((ex) => {
             const st = examenes.find((e) => e.idExamen === ex.id)!
             const rowDone = st.enviado && st.fecha
@@ -1059,6 +1176,15 @@ function PanelRealizada({
             )
           })}
           {completionError?.section === 'examenes' && <InlineError>{completionError.message}</InlineError>}
+          <button
+            type="button"
+            onClick={() => handleGuardarExamenes()}
+            disabled={!examenesDirty || isPendingExamenes}
+            className="w-full h-8 rounded-lg text-[12.5px] font-medium flex items-center justify-center gap-1.5 transition-opacity disabled:opacity-40 hover:opacity-90"
+            style={{ background: 'oklch(0.4 0.13 145)', color: 'white', border: 'none' }}
+          >
+            {isPendingExamenes ? 'Guardando…' : 'Guardar'}
+          </button>
         </CompletionSection>
       )}
 
@@ -1076,6 +1202,11 @@ function PanelRealizada({
       {!allDone && (
         <p className="text-[11.5px] text-center mt-1.5" style={{ color: 'var(--muted-foreground)' }}>
           Completa las {tasks.length - doneTasks} sección{tasks.length - doneTasks !== 1 ? 'es' : ''} pendiente{tasks.length - doneTasks !== 1 ? 's' : ''} para habilitar
+        </p>
+      )}
+      {allDone && hayCambiosSinGuardar && (
+        <p className="text-[11.5px] text-center mt-1.5" style={{ color: 'oklch(0.5 0.15 60)' }}>
+          Hay cambios sin guardar en pantalla — se guardarán al completar la visita
         </p>
       )}
     </div>
@@ -1181,6 +1312,9 @@ type Props = {
   onMarcarNoRealizada: (costo: number, concepto: string) => Promise<{ success: boolean; error?: string }>
   onCancelar: (motivo: string) => Promise<{ success: boolean; error?: string }>
   onCompletar: (data: CompletarVisitaData) => Promise<{ success: boolean; error?: string }>
+  onGuardarFacturacion: (data: FacturacionVisitaData) => Promise<{ success: boolean; error?: string }>
+  onGuardarPago: (data: PagoVisitaData) => Promise<{ success: boolean; error?: string }>
+  onGuardarExamenes: (examenes: EnvioExamenVisitaItem[]) => Promise<{ success: boolean; error?: string }>
 }
 
 const EDITABLE_STATES = ['programada', 'confirmada', 'realizada']
@@ -1192,6 +1326,9 @@ export function VisitaLifecycleView({
   onMarcarNoRealizada,
   onCancelar,
   onCompletar,
+  onGuardarFacturacion,
+  onGuardarPago,
+  onGuardarExamenes,
 }: Props) {
   const isEditable = EDITABLE_STATES.includes(visita.estado)
   const isCompleted = visita.estado === 'completada'
@@ -1260,7 +1397,13 @@ export function VisitaLifecycleView({
               <PanelConfirmada visitId={visita.id} hasAssignedNurse={visita.idEnfermera !== null} onMarcarRealizada={onMarcarRealizada} onMarcarNoRealizada={onMarcarNoRealizada} onCancelar={onCancelar} />
             )}
             {visita.estado === 'realizada' && (
-              <PanelRealizada visita={visita} onCompletar={onCompletar} />
+              <PanelRealizada
+                visita={visita}
+                onCompletar={onCompletar}
+                onGuardarFacturacion={onGuardarFacturacion}
+                onGuardarPago={onGuardarPago}
+                onGuardarExamenes={onGuardarExamenes}
+              />
             )}
             {visita.estado === 'no_realizada' && <PanelNoRealizada v={visita} />}
             {visita.estado === 'cancelada' && <PanelCancelada v={visita} />}

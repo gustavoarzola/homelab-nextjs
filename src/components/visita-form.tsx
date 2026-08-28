@@ -1341,7 +1341,7 @@ export function VisitaForm({
           {isEdit && totalExamCount > 0 && (
             <div className="mt-2 overflow-hidden rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
               <Link
-                href={`/visitas/${visita.id}/resultados`}
+                href={`/visitas/${visita.id}`}
                 className="flex items-center justify-between gap-2 px-4 py-3 text-[13px] font-medium transition-opacity hover:opacity-70"
                 style={{ color: 'var(--foreground)' }}
               >

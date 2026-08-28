@@ -6,9 +6,12 @@ import {
   marcarNoRealizada,
   cancelarVisita,
   completarVisita,
+  guardarFacturacionVisita,
+  guardarPagoVisita,
+  guardarEnvioExamenesVisita,
 } from '@/lib/actions/visitas'
 import { VisitaLifecycleView } from '@/components/visita-lifecycle-view'
-import type { CompletarVisitaData } from '@/lib/actions/visitas'
+import type { CompletarVisitaData, FacturacionVisitaData, PagoVisitaData, EnvioExamenVisitaItem } from '@/lib/actions/visitas'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +52,21 @@ export default async function VisitaPage({
     return completarVisita(idVisita, data)
   }
 
+  async function handleGuardarFacturacion(data: FacturacionVisitaData) {
+    'use server'
+    return guardarFacturacionVisita(idVisita, data)
+  }
+
+  async function handleGuardarPago(data: PagoVisitaData) {
+    'use server'
+    return guardarPagoVisita(idVisita, data)
+  }
+
+  async function handleGuardarExamenes(examenes: EnvioExamenVisitaItem[]) {
+    'use server'
+    return guardarEnvioExamenesVisita(idVisita, examenes)
+  }
+
   return (
     <VisitaLifecycleView
       visita={visita}
@@ -57,6 +75,9 @@ export default async function VisitaPage({
       onMarcarNoRealizada={handleMarcarNoRealizada}
       onCancelar={handleCancelar}
       onCompletar={handleCompletar}
+      onGuardarFacturacion={handleGuardarFacturacion}
+      onGuardarPago={handleGuardarPago}
+      onGuardarExamenes={handleGuardarExamenes}
     />
   )
 }
