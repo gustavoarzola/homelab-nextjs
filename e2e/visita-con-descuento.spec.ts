@@ -25,7 +25,11 @@ test('crea una visita con descuento en procedimiento + insumos y el costo se ref
   await comboboxOptions(page).first().click()
   await closeDropdowns(page)
 
-  const totalVisita = page.getByText('Total visita', { exact: true }).locator('xpath=following-sibling::span')
+  // Rail del formulario (design-system paso 07): "Total visita" es <dt>/<dd>
+  // dentro de .hl-kv--total, igual patrón que el .hl-kv--total de la vista
+  // de ciclo de vida post-guardado (paso 06) — no hay ambigüedad porque
+  // nunca coexisten en la misma página.
+  const totalVisita = page.locator('.hl-kv--total dd')
   await expect(totalVisita).toBeVisible()
   const totalBaseline = parseCLP((await totalVisita.textContent()) ?? '')
   expect(totalBaseline).toBeGreaterThan(0)

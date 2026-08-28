@@ -8,8 +8,14 @@ import {
   ChevronRight, Stethoscope, FlaskConical, BookOpen, X, MapPin,
 } from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
+import { cn } from '@/lib/utils'
 import { SelectCombobox } from '@/components/select-combobox'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Chip } from '@/components/ui/chip'
+import { FieldGroup } from '@/components/ui/field'
+import { MetaGrid, MetaTile } from '@/components/ui/meta'
 import { FileUpload } from '@/components/file-upload'
 import { TimePicker } from '@/components/time-picker'
 import { FormDatePicker } from '@/components/form-date-picker'
@@ -27,6 +33,7 @@ import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
 import { toast } from 'sonner'
 import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
 import { calcularCostoVisitaPreview, type VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
+import './visita-form.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,26 +77,6 @@ type ServiceTab = 'procedimientos' | 'examenes' | 'talleres'
 
 const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
 
-// ─── Estado badge ──────────────────────────────────────────────────────────────
-
-function EstadoBadge({ estado, size = 'sm' }: { estado: string; size?: 'sm' | 'lg' }) {
-  const cfg = ESTADO_VISITA_STYLES[estado] ?? ESTADO_VISITA_STYLES.creada!
-  return (
-    <span
-      className="rounded-md font-medium uppercase tracking-wide"
-      style={{
-        backgroundColor: cfg.bg,
-        color: cfg.color,
-        fontSize: size === 'lg' ? 11 : 10.5,
-        padding: size === 'lg' ? '4px 10px' : '2px 8px',
-        letterSpacing: '0.06em',
-      }}
-    >
-      {cfg.label}
-    </span>
-  )
-}
-
 // ─── ProcedimientoPriceWarning ────────────────────────────────────────────────
 
 function ProcedimientoPriceWarning({
@@ -108,39 +95,25 @@ function ProcedimientoPriceWarning({
     })
   }
   return (
-    <div
-      className="mt-2 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 text-[13px]"
-      style={{ backgroundColor: 'oklch(0.97 0.05 75)', border: '1px solid oklch(0.85 0.12 75)' }}
-    >
-      <div className="flex items-center gap-2.5" style={{ color: 'oklch(0.35 0.14 70)' }}>
-        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+    <div className="hl-callout hl-callout--warn" style={{ marginTop: 8, alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <AlertTriangle />
         <span>
-          <span className="font-medium">{procedimiento.nombre}</span>
+          <span style={{ fontWeight: 500 }}>{procedimiento.nombre}</span>
           {' — Precio cambió: '}
-          <span className="line-through">${savedPrice.toLocaleString('es-CL')}</span>
+          <span style={{ textDecoration: 'line-through' }}>${savedPrice.toLocaleString('es-CL')}</span>
           {' → '}
-          <span className="font-semibold">${procedimiento.precio.toLocaleString('es-CL')}</span>
+          <span style={{ fontWeight: 600 }}>${procedimiento.precio.toLocaleString('es-CL')}</span>
         </span>
       </div>
-      <div className="flex shrink-0 gap-2">
-        <button
-          type="button"
-          onClick={handleActualizar}
-          disabled={isPending}
-          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-[11.5px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-          style={{ backgroundColor: 'oklch(0.4 0.14 70)', color: 'white' }}
-        >
-          {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <Button type="button" size="sm" onClick={handleActualizar} disabled={isPending}>
+          {isPending && <Loader2 className="animate-spin" />}
           Actualizar
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="rounded px-2.5 py-1 text-[11.5px] font-medium transition-opacity hover:opacity-80"
-          style={{ border: '1px solid oklch(0.75 0.08 70)', color: 'oklch(0.4 0.14 70)' }}
-        >
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={onDismiss}>
           Mantener
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -164,39 +137,25 @@ function ExamenPriceWarning({
     })
   }
   return (
-    <div
-      className="mt-2 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 text-[13px]"
-      style={{ backgroundColor: 'oklch(0.97 0.05 75)', border: '1px solid oklch(0.85 0.12 75)' }}
-    >
-      <div className="flex items-center gap-2.5" style={{ color: 'oklch(0.35 0.14 70)' }}>
-        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+    <div className="hl-callout hl-callout--warn" style={{ marginTop: 8, alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <AlertTriangle />
         <span>
-          <span className="font-medium">{examen.nombre}</span>
+          <span style={{ fontWeight: 500 }}>{examen.nombre}</span>
           {' — Precio cambió: '}
-          <span className="line-through">${savedPrice.toLocaleString('es-CL')}</span>
+          <span style={{ textDecoration: 'line-through' }}>${savedPrice.toLocaleString('es-CL')}</span>
           {' → '}
-          <span className="font-semibold">${examen.precio.toLocaleString('es-CL')}</span>
+          <span style={{ fontWeight: 600 }}>${examen.precio.toLocaleString('es-CL')}</span>
         </span>
       </div>
-      <div className="flex shrink-0 gap-2">
-        <button
-          type="button"
-          onClick={handleActualizar}
-          disabled={isPending}
-          className="flex items-center gap-1.5 rounded px-2.5 py-1 text-[11.5px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-          style={{ backgroundColor: 'oklch(0.4 0.14 70)', color: 'white' }}
-        >
-          {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <Button type="button" size="sm" onClick={handleActualizar} disabled={isPending}>
+          {isPending && <Loader2 className="animate-spin" />}
           Actualizar
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="rounded px-2.5 py-1 text-[11.5px] font-medium transition-opacity hover:opacity-80"
-          style={{ border: '1px solid oklch(0.75 0.08 70)', color: 'oklch(0.4 0.14 70)' }}
-        >
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={onDismiss}>
           Mantener
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -264,21 +223,16 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
   const hasMap = !!(paciente.latitud && paciente.longitud)
 
   return (
-    <div className="overflow-hidden rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-      <div className="flex items-center justify-between gap-4 border-b px-6 py-4" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-start gap-3">
-          <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold"
-            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-          >
+    <div className="dcard">
+      <div className="dcard__head" style={{ marginBottom: 16, alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <span className="hl-avatar" style={{ width: 44, height: 44, fontSize: 'var(--text-md)' }}>
             {(paciente.nombres?.charAt(0) ?? '') + (paciente.apellidoPaterno?.charAt(0) ?? '')}
-          </div>
+          </span>
           <div>
-            <p className="text-[15px] font-semibold" style={{ color: 'var(--foreground)' }}>
-              {nombreDisplay}
-            </p>
+            <p style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>{nombreDisplay}</p>
             {paciente.identificador && (
-              <p className="mt-0.5 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+              <p className="hl-mono" style={{ marginTop: 2, fontSize: 'var(--text-sm)', color: 'var(--color-fg-muted)' }}>
                 {paciente.tipoIdentificador === 'rut' && formatRut(paciente.identificador)}
                 {paciente.tipoIdentificador === 'pasaporte' && `Pasaporte ${paciente.identificador}`}
                 {!paciente.tipoIdentificador && paciente.identificador}
@@ -286,34 +240,29 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
             )}
           </div>
         </div>
-        <Link
-          href={`/pacientes/${paciente.id}`}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-opacity hover:opacity-70"
-          style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}
-        >
-          <Pencil className="h-3.5 w-3.5" />
-          Editar datos
-        </Link>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href={`/pacientes/${paciente.id}`}>
+            <Pencil />
+            Editar datos
+          </Link>
+        </Button>
       </div>
 
-      <div className="flex" style={{ minHeight: '160px' }}>
-        <div className="flex-1 p-5">
+      <div className="flex" style={{ minHeight: 130, gap: 20 }}>
+        <div className="flex-1">
           {fields.length > 0 ? (
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <MetaGrid>
               {fields.map(({ label, value }) => (
-                <div key={label} className={`flex gap-2 text-[12.5px] ${label === 'Dirección' ? 'col-span-2' : ''}`}>
-                  <dt className="w-20 shrink-0 font-medium" style={{ color: 'var(--muted-foreground)' }}>{label}</dt>
-                  <dd style={{ color: 'var(--foreground)' }}>{value}</dd>
-                </div>
+                <MetaTile key={label} label={label} value={value} />
               ))}
-            </dl>
+            </MetaGrid>
           ) : (
-            <p className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>Sin datos adicionales registrados.</p>
+            <p style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>Sin datos adicionales registrados.</p>
           )}
         </div>
 
         {hasMap && (
-          <div className="w-[200px] shrink-0 overflow-hidden border-l" style={{ borderColor: 'var(--border)' }}>
+          <div style={{ width: 200, flexShrink: 0, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
             <MapPreview lat={paciente.latitud!} lng={paciente.longitud!} />
           </div>
         )}
@@ -332,16 +281,9 @@ function SummaryGroup({
   items: { name: string; price: number }[]
   subtotal: number
 }) {
-  const dotColor = {
-    blue:   'oklch(0.45 0.12 240)',
-    green:  'oklch(0.45 0.13 145)',
-    violet: 'oklch(0.45 0.13 290)',
-    amber:  'oklch(0.5 0.13 70)',
-  }[tone]
-
   if (!items.length || subtotal === 0) {
     return (
-      <div className="flex items-center justify-between text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+      <div className="rail-g__item" style={{ paddingLeft: 0 }}>
         <span>{label}</span>
         <span>—</span>
       </div>
@@ -349,22 +291,20 @@ function SummaryGroup({
   }
 
   return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="inline-flex items-center gap-2 text-[12px] font-medium" style={{ color: 'var(--foreground)' }}>
-          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: dotColor }} />
+    <div className="rail-g">
+      <div className="rail-g__head">
+        <span>
+          <span className="d" style={{ background: `var(--tag-${tone}-dot)` }} />
           {label}
         </span>
-        <span className="text-[12px] font-medium tabular-nums">{CLP(subtotal)}</span>
+        <b className="hl-tnum">{CLP(subtotal)}</b>
       </div>
-      <ul className="space-y-0.5 pl-3.5">
-        {items.filter((i) => i.price !== 0).map((item, idx) => (
-          <li key={idx} className="flex items-baseline justify-between gap-2 text-[12px]" style={{ color: item.price < 0 ? 'oklch(0.55 0.18 25)' : 'var(--muted-foreground)' }}>
-            <span className="truncate">{item.name}</span>
-            <span className="shrink-0 tabular-nums">{item.price < 0 ? `-${CLP(Math.abs(item.price))}` : CLP(item.price)}</span>
-          </li>
-        ))}
-      </ul>
+      {items.filter((i) => i.price !== 0).map((item, idx) => (
+        <div key={idx} className="rail-g__item" style={item.price < 0 ? { color: 'var(--color-destructive)' } : undefined}>
+          <span className="truncate">{item.name}</span>
+          <span>{item.price < 0 ? `-${CLP(Math.abs(item.price))}` : CLP(item.price)}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -546,71 +486,52 @@ export function VisitaForm({
   const enfermeraNombre = enfermeras.find((e) => e.id === selectedEnfermeraId)
   const enfermeraLabel = enfermeraNombre ? formatNombre(enfermeraNombre) : '—'
 
+  const cfg = isEdit && visita.estado ? (ESTADO_VISITA_STYLES[visita.estado] ?? ESTADO_VISITA_STYLES.creada!) : null
+  const examsBadgeOk = isEdit && visita && visita.resultadosEnviadosCount > 0 && visita.resultadosEnviadosCount >= totalExamCount
+
   return (
     <>
       {/* ── Sticky header ── */}
-      <div
-        className="sticky top-0 z-10 flex h-[60px] items-center justify-between border-b px-8"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-      >
-        <div className="flex items-center gap-2">
+      <div className="edit-bar">
+        <div className="edit-bar__crumb">
           <button
             type="button"
             onClick={() => router.push('/visitas')}
-            className="text-[13px] transition-opacity hover:opacity-70"
-            style={{ color: 'var(--muted-foreground)' }}
+            style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit' }}
           >
             Visitas
           </button>
-          <ChevronRight className="h-3.5 w-3.5" style={{ color: 'var(--muted-foreground)' }} />
-          <h1 className="text-[16px] font-semibold" style={{ color: 'var(--foreground)' }}>
-            {isEdit ? `Visita #${visita.id}` : 'Nueva visita'}
-          </h1>
-          {isEdit && visita.estado && <EstadoBadge estado={visita.estado} size="lg" />}
+          <ChevronRight style={{ width: 14, height: 14 }} />
         </div>
+        <h1>
+          {isEdit ? `Visita #${visita.id}` : 'Nueva visita'}
+          {isEdit && cfg && <Badge badgeClass={cfg.badgeClass}>{cfg.label}</Badge>}
+        </h1>
 
-        <div className="flex items-center gap-2">
-          <Link
-            href={isEdit ? `/visitas/${visita.id}` : '/visitas'}
-            className="rounded-lg px-3.5 text-[13px] font-medium transition-opacity hover:opacity-80"
-            style={{ height: 36, lineHeight: '36px', color: 'var(--muted-foreground)' }}
-          >
-            Cancelar
-          </Link>
-          {isEdit && (
-            <Link
-              href={`/api/cotizacion/${visita.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-lg border px-3.5 text-[13px] font-medium transition-opacity hover:opacity-80"
-              style={{ height: 36, color: 'var(--foreground)', borderColor: 'var(--border)' }}
-            >
-              <FileText className="h-3.5 w-3.5" />
+        <span className="edit-bar__spacer" />
+
+        <Button variant="ghost" asChild>
+          <Link href={isEdit ? `/visitas/${visita.id}` : '/visitas'}>Cancelar</Link>
+        </Button>
+        {isEdit && (
+          <Button variant="secondary" asChild>
+            <Link href={`/api/cotizacion/${visita.id}`} target="_blank" rel="noopener noreferrer">
+              <FileText />
               Cotización PDF
             </Link>
-          )}
-          <button
-            type="submit"
-            form="visita-form"
-            disabled={isPending}
-            className="flex items-center gap-2 rounded-lg px-3.5 text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-            style={{ height: 36, backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-          >
-            {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {isEdit ? 'Guardar cambios' : 'Crear visita'}
-          </button>
-        </div>
+          </Button>
+        )}
+        <Button type="submit" form="visita-form" disabled={isPending}>
+          {isPending && <Loader2 className="animate-spin" />}
+          {isEdit ? 'Guardar cambios' : 'Crear visita'}
+        </Button>
       </div>
 
       {/* ── Error banner ── */}
       {error && (
-        <div
-          ref={errorRef}
-          className="mx-8 mt-4 flex items-center gap-2 rounded-lg px-4 py-3 text-[13px]"
-          style={{ backgroundColor: 'var(--destructive)', color: 'white' }}
-        >
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          {error}
+        <div ref={errorRef} className="hl-callout hl-callout--bad mx-8 mt-4">
+          <AlertTriangle />
+          <div>{error}</div>
         </div>
       )}
 
@@ -633,730 +554,606 @@ export function VisitaForm({
           <PacienteCard paciente={paciente} />
 
           {/* Agenda */}
-          <section
-            className="rounded-xl border p-6"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-          >
-            <div className="mb-4">
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-                Agenda
-              </h2>
-              <p className="mt-0.5 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
-                Fecha, hora y quién realiza la visita.
-              </p>
+          <section className="fcard">
+            <div className="fcard__head">
+              <div>
+                <h2>Agenda</h2>
+                <p>Fecha, hora y quién realiza la visita.</p>
+              </div>
             </div>
+            <div className="fcard__body">
+              <div className="ed-grid3">
+                <FieldGroup label="Fecha" required>
+                  <FormDatePicker
+                    mode="single"
+                    name="fecha"
+                    value={selectedFecha ?? undefined}
+                    onChange={(value) => setSelectedFecha(value ?? null)}
+                    disabled={isPending}
+                    weekStartsOn={1}
+                    placeholder="Seleccionar fecha"
+                    className="w-full"
+                  />
+                </FieldGroup>
 
-            <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
-              {/* Fecha */}
-              <div className="col-span-2 flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
-                  Fecha <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <FormDatePicker
-                  mode="single"
-                  name="fecha"
-                  value={selectedFecha ?? undefined}
-                  onChange={(value) => setSelectedFecha(value ?? null)}
-                  disabled={isPending}
-                  weekStartsOn={1}
-                  placeholder="Seleccionar fecha"
-                  className="w-full"
-                />
-              </div>
+                <FieldGroup label="Hora">
+                  <TimePicker value={selectedHora} onChange={setSelectedHora} disabled={isPending} className="w-full" />
+                </FieldGroup>
 
-              {/* Hora */}
-              <div className="col-span-2 flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Hora</label>
-                <TimePicker value={selectedHora} onChange={setSelectedHora} disabled={isPending} className="w-full" />
-              </div>
+                <FieldGroup label="Enfermera">
+                  <SelectCombobox
+                    mode="single"
+                    options={enfermerasOptions}
+                    selected={selectedEnfermeraId}
+                    onChange={setSelectedEnfermeraId}
+                    placeholder="Buscar enfermera…"
+                    disabled={isPending}
+                  />
+                </FieldGroup>
 
-              {/* Enfermera */}
-              <div className="col-span-2 flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Enfermera</label>
-                <SelectCombobox
-                  mode="single"
-                  options={enfermerasOptions}
-                  selected={selectedEnfermeraId}
-                  onChange={setSelectedEnfermeraId}
-                  placeholder="Buscar enfermera…"
-                  disabled={isPending}
-                />
-              </div>
-
-              {/* Origen de contacto */}
-              <div className="col-span-2 flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Origen de contacto</label>
-                <SelectCombobox
-                  mode="single"
-                  options={origenesContactoOptions}
-                  selected={selectedOrigenContactoId}
-                  onChange={setSelectedOrigenContactoId}
-                  placeholder="Buscar origen…"
-                  disabled={isPending}
-                />
+                <FieldGroup label="Origen de contacto">
+                  <SelectCombobox
+                    mode="single"
+                    options={origenesContactoOptions}
+                    selected={selectedOrigenContactoId}
+                    onChange={setSelectedOrigenContactoId}
+                    placeholder="Buscar origen…"
+                    disabled={isPending}
+                  />
+                </FieldGroup>
               </div>
             </div>
           </section>
 
           {/* Servicios — tabbed */}
-          <section
-            className="rounded-xl border p-6"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-          >
-            <div className="mb-4 flex items-end justify-between gap-3">
+          <section className="fcard">
+            <div className="fcard__head">
               <div>
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-                  Servicios
-                </h2>
-                <p className="mt-0.5 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
-                  Procedimientos y exámenes usan precios del catálogo. Los talleres permiten precio personalizado.
-                </p>
+                <h2>Servicios</h2>
+                <p>Procedimientos y exámenes usan precios del catálogo. Los talleres permiten precio personalizado.</p>
               </div>
               {(costoPreview.subtotalProcedimientos + costoPreview.subtotalExamenes + costoPreview.subtotalTalleres) > 0 && (
-                <span className="shrink-0 text-[13px] tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                <span style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)', flexShrink: 0 }}>
                   Subtotal{' '}
-                  <span className="font-semibold" style={{ color: 'var(--foreground)' }}>
+                  <span className="hl-tnum" style={{ fontWeight: 600, color: 'var(--color-fg)' }}>
                     {CLP(costoPreview.subtotalProcedimientos + costoPreview.subtotalExamenes + costoPreview.subtotalTalleres)}
                   </span>
                 </span>
               )}
             </div>
 
-            {/* Tab strip */}
-            <div
-              className="mb-5 flex items-center gap-1 rounded-lg p-1"
-              style={{ backgroundColor: 'var(--muted)', width: 'fit-content' }}
-            >
-              {tabs.map(({ id, label, count, hasWarning, Icon: TabIcon }) => {
-                const active = activeTab === id
-                return (
+            <div className="fcard__body">
+              {/* Tab strip */}
+              <div className="ed-tabs">
+                {tabs.map(({ id, label, count, hasWarning, Icon: TabIcon }) => (
                   <button
                     key={id}
                     type="button"
                     onClick={() => setActiveTab(id)}
-                    className="relative inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors"
-                    style={{
-                      backgroundColor: active ? 'var(--card)' : 'transparent',
-                      color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
-                      boxShadow: active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                    }}
+                    aria-selected={activeTab === id}
+                    style={{ position: 'relative' }}
                   >
-                    <TabIcon className="h-3.5 w-3.5" />
+                    <TabIcon style={{ width: 14, height: 14 }} />
                     {label}
-                    {count > 0 && (
-                      <span
-                        className="ml-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10.5px] font-semibold tabular-nums"
-                        style={{
-                          backgroundColor: active ? 'var(--foreground)' : 'transparent',
-                          color: active ? 'var(--background)' : 'var(--muted-foreground)',
-                          border: active ? 'none' : '1px solid var(--border)',
-                        }}
-                      >
-                        {count}
-                      </span>
-                    )}
-                    {hasWarning && !active && (
-                      <span
-                        className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full"
-                        style={{ backgroundColor: 'oklch(0.65 0.18 70)' }}
-                      />
-                    )}
+                    {count > 0 && <span className="count">{count}</span>}
+                    {hasWarning && activeTab !== id && <span className="ed-tab-dot" />}
                   </button>
-                )
-              })}
-            </div>
+                ))}
+              </div>
 
-            {/* Tab: Procedimientos */}
-            {activeTab === 'procedimientos' && (
-              <div>
-                <div className="mb-4">
-                  <SelectCombobox
-                    options={procedimientosOptions}
-                    selected={selectedProcedures}
-                    onChange={(ids) => {
-                      setSelectedProcedures(ids)
-                      setDismissedPriceWarnings((prev) => {
-                        const next = new Set(prev)
-                        for (const id of prev) { if (!ids.includes(id)) next.delete(id) }
-                        return next
-                      })
-                    }}
-                    placeholder="Buscar procedimiento…"
-                    disabled={isPending}
-                    showPills={false}
-                  />
-                </div>
-                {selectedProcedures.length === 0 ? (
-                  <div
-                    className="rounded-lg border border-dashed py-8 text-center text-[13px]"
-                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
-                  >
-                    Sin procedimientos seleccionados.
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
-                    {selectedProcedures.map((id, i) => {
-                      const proc = procedimientos.find((p) => p.id === id)
-                      if (!proc) return null
-                      const savedEntry = visita?.procedurePrices.find((p) => p.idProcedimiento === id)
-                      const precio = savedEntry?.precio ?? proc.precio
-                      const priceChanged = savedEntry && savedEntry.precio !== proc.precio && !dismissedPriceWarnings.has(id)
-                      const descuento = Math.min(parseInt(procedureDiscountMap[id] ?? '0') || 0, precio)
-                      return (
-                        <div
-                          key={id}
-                          className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
-                          style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)', backgroundColor: 'var(--card)' }}
-                        >
-                          <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px]" style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-                            {proc.codigo}
-                          </span>
-                          <span className="flex-1" style={{ color: 'var(--foreground)' }}>{proc.nombre}</span>
-                          {priceChanged && <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: 'oklch(0.6 0.14 70)' }} />}
-                          <span className="tabular-nums" style={{ color: 'var(--foreground)', minWidth: 80, textAlign: 'right' }}>
-                            {descuento > 0 && (
-                              <span className="mr-1.5 font-normal line-through" style={{ color: 'var(--muted-foreground)' }}>
-                                {CLP(precio)}
-                              </span>
-                            )}
-                            {CLP(precio - descuento)}
-                          </span>
-                          <div
-                            className="flex shrink-0 items-center gap-1 rounded border px-1.5 py-1"
-                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
-                          >
-                            <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>Desc. $</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max={precio}
-                              value={procedureDiscountMap[id] ?? '0'}
-                              onChange={(e) => setProcedureDiscountMap((prev) => ({ ...prev, [id]: e.target.value }))}
-                              placeholder="0"
-                              disabled={isPending}
-                              className="w-16 bg-transparent text-right text-[12px] tabular-nums outline-none"
-                              style={{ color: 'var(--foreground)' }}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedProcedures((prev) => prev.filter((x) => x !== id))}
-                            className="rounded p-1 transition-opacity hover:opacity-70"
-                            style={{ color: 'var(--muted-foreground)' }}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-                {costoPreview.montoDescuentoProcedimientos > 0 && (
-                  <div className="mt-3 flex items-start gap-3 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
-                    <Checkbox
-                      id="descuentoProcedimientosAfectaPagoEnfermera"
-                      checked={descuentoProcedimientosAfectaPagoEnfermera}
-                      onCheckedChange={(checked) => setDescuentoProcedimientosAfectaPagoEnfermera(checked === true)}
+              {/* Tab: Procedimientos */}
+              {activeTab === 'procedimientos' && (
+                <div>
+                  <div className="mb-4">
+                    <SelectCombobox
+                      options={procedimientosOptions}
+                      selected={selectedProcedures}
+                      onChange={(ids) => {
+                        setSelectedProcedures(ids)
+                        setDismissedPriceWarnings((prev) => {
+                          const next = new Set(prev)
+                          for (const id of prev) { if (!ids.includes(id)) next.delete(id) }
+                          return next
+                        })
+                      }}
+                      placeholder="Buscar procedimiento…"
                       disabled={isPending}
-                      className="mt-0.5"
+                      showPills={false}
                     />
-                    <label
-                      htmlFor="descuentoProcedimientosAfectaPagoEnfermera"
-                      className="cursor-pointer text-[12px] leading-tight"
-                      style={{ color: 'var(--muted-foreground)' }}
-                    >
-                      Descuento de procedimientos afecta el pago de la enfermera (si no está marcado, la enfermera cobra sobre el valor original de los procedimientos)
-                    </label>
                   </div>
-                )}
-                {isEdit && visita && visita.estado !== 'realizada' && selectedProcedures.map((procId) => {
-                  if (dismissedPriceWarnings.has(procId)) return null
-                  const savedEntry = visita.procedurePrices.find((p) => p.idProcedimiento === procId)
-                  if (!savedEntry) return null
-                  const proc = procedimientos.find((p) => p.id === procId)
-                  if (!proc || proc.precio === savedEntry.precio) return null
-                  return (
-                    <ProcedimientoPriceWarning
-                      key={procId}
-                      procedimiento={proc}
-                      savedPrice={savedEntry.precio}
-                      idVisita={visita.id}
-                      onDismiss={() => setDismissedPriceWarnings((prev) => new Set([...prev, procId]))}
-                    />
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Tab: Exámenes */}
-            {activeTab === 'examenes' && (
-              <div className="space-y-3">
-                <ExamenesPorGrupo
-                  groups={examGroups}
-                  setGroups={setExamGroups}
-                  allExams={examenes}
-                  isaprePrevisiones={isaprePrevisiones}
-                />
-                {isEdit && visita && visita.estado !== 'realizada' && regularExamIds.map((examId) => {
-                  if (dismissedExamWarnings.has(examId)) return null
-                  const savedEntry = visita.examPrices.find((e) => e.idExamen === examId)
-                  if (!savedEntry || savedEntry.precio === 0) return null
-                  const examen = examenes.find((e) => e.id === examId)
-                  if (!examen || examen.precio === savedEntry.precio) return null
-                  return (
-                    <ExamenPriceWarning
-                      key={examId}
-                      examen={examen}
-                      savedPrice={savedEntry.precio}
-                      idVisita={visita.id}
-                      onDismiss={() => setDismissedExamWarnings((prev) => new Set([...prev, examId]))}
-                    />
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Tab: Talleres */}
-            {activeTab === 'talleres' && (
-              <div>
-                <div className="mb-4">
-                  <SelectCombobox
-                    options={talleresOptions}
-                    selected={selectedTallers}
-                    onChange={(ids) => {
-                      setSelectedTallers(ids)
-                      setTallerPriceMap((prev) => {
-                        const next = { ...prev }
-                        for (const key of Object.keys(next)) {
-                          if (!ids.includes(Number(key))) delete next[Number(key)]
-                        }
-                        return next
-                      })
-                    }}
-                    placeholder="Buscar taller…"
-                    disabled={isPending}
-                    showPills={false}
-                  />
-                </div>
-                {selectedTallers.length === 0 ? (
-                  <div
-                    className="rounded-lg border border-dashed py-8 text-center text-[13px]"
-                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
-                  >
-                    Sin talleres seleccionados.
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
-                    {selectedTallers.map((id, i) => {
-                      const taller = talleres.find((t) => t.id === id)
-                      if (!taller) return null
-                      return (
-                        <div
-                          key={id}
-                          className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
-                          style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)', backgroundColor: 'var(--card)' }}
-                        >
-                          <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px]" style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-                            {taller.codigo}
-                          </span>
-                          <span className="flex-1" style={{ color: 'var(--foreground)' }}>{taller.nombre}</span>
-                          <div
-                            className="flex items-center gap-1 rounded border px-1.5 py-0.5"
-                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
-                          >
-                            <span className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>$</span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={tallerPriceMap[id] ?? ''}
-                              onChange={(e) => setTallerPriceMap((prev) => ({ ...prev, [id]: e.target.value }))}
-                              placeholder="0"
-                              disabled={isPending}
-                              className="w-20 bg-transparent text-right text-[13px] tabular-nums outline-none"
-                              style={{ color: 'var(--foreground)' }}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedTallers((prev) => prev.filter((x) => x !== id))}
-                            className="rounded p-1 transition-opacity hover:opacity-70"
-                            style={{ color: 'var(--muted-foreground)' }}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Cargos adicionales — cobrar visita + recargo */}
-          <section
-            className="rounded-xl border p-6"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-          >
-            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-              Cargos adicionales
-            </h2>
-            <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              {/* Visita */}
-              <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="cobraVisita"
-                    checked={cobraVisita}
-                    onCheckedChange={(checked) => setCobraVisita(checked === true)}
-                    disabled={isPending}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <label htmlFor="cobraVisita" className="cursor-pointer text-[13px] font-medium leading-tight" style={{ color: 'var(--foreground)' }}>
-                        Cobrar visita
-                      </label>
-                      {cobraVisita && costoPreview.costoVisitaEnfermeriaOriginal > 0 && (
-                        <span className="shrink-0 text-[13px] font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
-                          {costoPreview.montoDescuento > 0 && (
-                            <span className="mr-1.5 font-normal line-through" style={{ color: 'var(--muted-foreground)' }}>
-                              {CLP(costoPreview.costoVisitaEnfermeriaOriginal)}
+                  {selectedProcedures.length === 0 ? (
+                    <div className="ed-empty">Sin procedimientos seleccionados.</div>
+                  ) : (
+                    <div className="ed-items">
+                      {selectedProcedures.map((id) => {
+                        const proc = procedimientos.find((p) => p.id === id)
+                        if (!proc) return null
+                        const savedEntry = visita?.procedurePrices.find((p) => p.idProcedimiento === id)
+                        const precio = savedEntry?.precio ?? proc.precio
+                        const priceChanged = savedEntry && savedEntry.precio !== proc.precio && !dismissedPriceWarnings.has(id)
+                        const descuento = Math.min(parseInt(procedureDiscountMap[id] ?? '0') || 0, precio)
+                        return (
+                          <div key={id} className="ed-item">
+                            <div className="ed-item__main">
+                              <Chip>{proc.codigo}</Chip>
+                              <span className="ed-item__nm">{proc.nombre}</span>
+                              {priceChanged && <AlertTriangle style={{ width: 14, height: 14, color: 'var(--warn-fg)', flexShrink: 0 }} />}
+                            </div>
+                            <span className="ed-item__pr">
+                              {descuento > 0 && <s>{CLP(precio)}</s>}
+                              {CLP(precio - descuento)}
                             </span>
-                          )}
-                          {CLP(costoPreview.costoVisitaEnfermeria)}
-                        </span>
-                      )}
+                            <div className="ed-dcto">
+                              <span>Desc. $</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max={precio}
+                                value={procedureDiscountMap[id] ?? '0'}
+                                onChange={(e) => setProcedureDiscountMap((prev) => ({ ...prev, [id]: e.target.value }))}
+                                placeholder="0"
+                                disabled={isPending}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setSelectedProcedures((prev) => prev.filter((x) => x !== id))}
+                            >
+                              <X />
+                            </Button>
+                          </div>
+                        )
+                      })}
                     </div>
-                    <p className="mt-1 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
-                      {cobraVisita && !costoPreview.precioVisitaConfigurado
-                        ? 'Sin precio configurado para esta comuna'
-                        : 'Precio según comuna del paciente'
-                      }
-                    </p>
-                    {cobraVisita && !pricingContext.comunaEncontrada && (
-                      <p className="mt-1 text-[12px]" style={{ color: 'var(--destructive)' }}>
-                        {pricingContext.comunaPaciente
-                          ? `La comuna "${pricingContext.comunaPaciente}" del paciente no está en el catálogo — se aplica el precio base. Agrégala en Comunas para asignarle un precio propio.`
-                          : 'El paciente no tiene comuna registrada — se aplica el precio base.'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {cobraVisita && (
-                  <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
-                    <div className="flex items-start gap-3">
+                  )}
+                  {costoPreview.montoDescuentoProcedimientos > 0 && (
+                    <div className="mt-3 flex items-start gap-3 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
                       <Checkbox
-                        id="aplicaDescuento"
-                        checked={aplicaDescuento}
-                        onCheckedChange={(checked) => setAplicaDescuento(checked === true)}
+                        id="descuentoProcedimientosAfectaPagoEnfermera"
+                        checked={descuentoProcedimientosAfectaPagoEnfermera}
+                        onCheckedChange={(checked) => setDescuentoProcedimientosAfectaPagoEnfermera(checked === true)}
                         disabled={isPending}
                         className="mt-0.5"
                       />
-                      <label htmlFor="aplicaDescuento" className="cursor-pointer text-[13px] font-medium leading-tight" style={{ color: 'var(--foreground)' }}>
-                        Aplicar descuento
+                      <label
+                        htmlFor="descuentoProcedimientosAfectaPagoEnfermera"
+                        className="cursor-pointer"
+                        style={{ fontSize: 'var(--text-sm)', lineHeight: 1.4, color: 'var(--color-fg-muted)' }}
+                      >
+                        Descuento de procedimientos afecta el pago de la enfermera (si no está marcado, la enfermera cobra sobre el valor original de los procedimientos)
                       </label>
                     </div>
+                  )}
+                  {isEdit && visita && visita.estado !== 'realizada' && selectedProcedures.map((procId) => {
+                    if (dismissedPriceWarnings.has(procId)) return null
+                    const savedEntry = visita.procedurePrices.find((p) => p.idProcedimiento === procId)
+                    if (!savedEntry) return null
+                    const proc = procedimientos.find((p) => p.id === procId)
+                    if (!proc || proc.precio === savedEntry.precio) return null
+                    return (
+                      <ProcedimientoPriceWarning
+                        key={procId}
+                        procedimiento={proc}
+                        savedPrice={savedEntry.precio}
+                        idVisita={visita.id}
+                        onDismiss={() => setDismissedPriceWarnings((prev) => new Set([...prev, procId]))}
+                      />
+                    )
+                  })}
+                </div>
+              )}
 
-                    {aplicaDescuento && (
-                      <div className="mt-3 space-y-3 pl-7">
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={descuentoTipo}
-                            onChange={(e) => setDescuentoTipo(e.target.value as 'monto' | 'porcentaje')}
-                            disabled={isPending}
-                            className="rounded border px-2 py-1.5 text-[13px] outline-none"
-                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-                          >
-                            <option value="monto">Monto fijo</option>
-                            <option value="porcentaje">Porcentaje</option>
-                          </select>
-                          <div
-                            className="flex flex-1 items-center gap-1 rounded border px-2 py-1.5"
-                            style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
-                          >
-                            <span className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>
-                              {descuentoTipo === 'porcentaje' ? '%' : '$'}
-                            </span>
-                            <input
-                              type="number"
-                              min="0"
-                              max={descuentoTipo === 'porcentaje' ? 100 : undefined}
-                              value={descuentoValor}
-                              onChange={(e) => setDescuentoValor(e.target.value)}
-                              placeholder="0"
-                              disabled={isPending}
-                              className="w-full bg-transparent text-[13px] tabular-nums outline-none"
-                              style={{ color: 'var(--foreground)' }}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <Checkbox
-                            id="descuentoAfectaPagoEnfermera"
-                            checked={descuentoAfectaPagoEnfermera}
-                            onCheckedChange={(checked) => setDescuentoAfectaPagoEnfermera(checked === true)}
-                            disabled={isPending}
-                            className="mt-0.5"
-                          />
-                          <label htmlFor="descuentoAfectaPagoEnfermera" className="cursor-pointer text-[12px] leading-tight" style={{ color: 'var(--muted-foreground)' }}>
-                            Afecta el pago de la enfermera (si no está marcado, la enfermera cobra sobre el valor original de la visita)
-                          </label>
-                        </div>
-                      </div>
-                    )}
+              {/* Tab: Exámenes */}
+              {activeTab === 'examenes' && (
+                <div className="space-y-3">
+                  <ExamenesPorGrupo
+                    groups={examGroups}
+                    setGroups={setExamGroups}
+                    allExams={examenes}
+                    isaprePrevisiones={isaprePrevisiones}
+                  />
+                  {isEdit && visita && visita.estado !== 'realizada' && regularExamIds.map((examId) => {
+                    if (dismissedExamWarnings.has(examId)) return null
+                    const savedEntry = visita.examPrices.find((e) => e.idExamen === examId)
+                    if (!savedEntry || savedEntry.precio === 0) return null
+                    const examen = examenes.find((e) => e.id === examId)
+                    if (!examen || examen.precio === savedEntry.precio) return null
+                    return (
+                      <ExamenPriceWarning
+                        key={examId}
+                        examen={examen}
+                        savedPrice={savedEntry.precio}
+                        idVisita={visita.id}
+                        onDismiss={() => setDismissedExamWarnings((prev) => new Set([...prev, examId]))}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Tab: Talleres */}
+              {activeTab === 'talleres' && (
+                <div>
+                  <div className="mb-4">
+                    <SelectCombobox
+                      options={talleresOptions}
+                      selected={selectedTallers}
+                      onChange={(ids) => {
+                        setSelectedTallers(ids)
+                        setTallerPriceMap((prev) => {
+                          const next = { ...prev }
+                          for (const key of Object.keys(next)) {
+                            if (!ids.includes(Number(key))) delete next[Number(key)]
+                          }
+                          return next
+                        })
+                      }}
+                      placeholder="Buscar taller…"
+                      disabled={isPending}
+                      showPills={false}
+                    />
                   </div>
-                )}
-              </div>
-
-              {/* Recargos */}
-              <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
-                <div className="mb-2.5 flex items-center justify-between">
-                  <span className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>Recargos</span>
-                  {costoPreview.subtotalRecargos > 0 && (
-                    <span className="text-[13px] font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
-                      {CLP(costoPreview.subtotalRecargos)}
-                    </span>
+                  {selectedTallers.length === 0 ? (
+                    <div className="ed-empty">Sin talleres seleccionados.</div>
+                  ) : (
+                    <div className="ed-items">
+                      {selectedTallers.map((id) => {
+                        const taller = talleres.find((t) => t.id === id)
+                        if (!taller) return null
+                        return (
+                          <div key={id} className="ed-item">
+                            <div className="ed-item__main">
+                              <Chip>{taller.codigo}</Chip>
+                              <span className="ed-item__nm">{taller.nombre}</span>
+                            </div>
+                            <div className="ed-dcto">
+                              <span>$</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={tallerPriceMap[id] ?? ''}
+                                onChange={(e) => setTallerPriceMap((prev) => ({ ...prev, [id]: e.target.value }))}
+                                placeholder="0"
+                                disabled={isPending}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setSelectedTallers((prev) => prev.filter((x) => x !== id))}
+                            >
+                              <X />
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
-                <SelectCombobox
-                  mode="multi"
-                  options={tiposRecargos}
-                  selected={selectedSurcharges}
-                  onChange={setSelectedSurcharges}
-                  placeholder="Agregar recargo…"
-                  disabled={isPending}
-                  showPills={false}
-                />
-                {selectedSurcharges.length > 0 && (
-                  <div className="mt-2 overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
-                    {selectedSurcharges.map((id) => {
-                      const tipo = tiposRecargos.find((t) => t.id === id)
-                      if (!tipo) return null
-                      const precio = visita?.surchargePrices.find((s) => s.idTipoRecargo === id)?.precio ?? tipo.precio
-                      return (
-                        <div
-                          key={id}
-                          className="flex items-center gap-3 px-3.5 py-2.5 text-[13px]"
-                          style={{ backgroundColor: 'var(--background)', borderBottom: '1px solid var(--border)' }}
-                        >
-                          <span className="flex-1" style={{ color: 'var(--foreground)' }}>{tipo.label}</span>
-                          <span className="tabular-nums" style={{ color: 'var(--foreground)' }}>{CLP(precio)}</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedSurcharges((prev) => prev.filter((x) => x !== id))}
-                            disabled={isPending}
-                            className="transition-opacity hover:opacity-70"
-                            style={{ color: 'var(--muted-foreground)' }}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+              )}
+            </div>
+          </section>
 
-              {/* Insumos */}
-              <div className="col-span-2 rounded-lg p-4" style={{ backgroundColor: 'var(--muted)', border: '1px solid var(--border)' }}>
-                <div className="mb-2.5 flex items-center justify-between">
-                  <label htmlFor="montoInsumosInput" className="text-[13px] font-medium" style={{ color: 'var(--foreground)' }}>
+          {/* Cargos adicionales — cobrar visita + recargo */}
+          <section className="fcard">
+            <div className="fcard__head">
+              <div>
+                <h2>Cargos adicionales</h2>
+              </div>
+            </div>
+            <div className="fcard__body">
+              <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                {/* Visita */}
+                <div className="rounded-lg p-4" style={{ background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="cobraVisita"
+                      checked={cobraVisita}
+                      onCheckedChange={(checked) => setCobraVisita(checked === true)}
+                      disabled={isPending}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <label htmlFor="cobraVisita" className="cursor-pointer" style={{ fontSize: 'var(--text-base)', fontWeight: 500, lineHeight: 1.3 }}>
+                          Cobrar visita
+                        </label>
+                        {cobraVisita && costoPreview.costoVisitaEnfermeriaOriginal > 0 && (
+                          <span className="hl-tnum" style={{ fontSize: 'var(--text-base)', fontWeight: 600, flexShrink: 0 }}>
+                            {costoPreview.montoDescuento > 0 && (
+                              <span style={{ marginRight: 6, fontWeight: 400, textDecoration: 'line-through', color: 'var(--color-fg-muted)' }}>
+                                {CLP(costoPreview.costoVisitaEnfermeriaOriginal)}
+                              </span>
+                            )}
+                            {CLP(costoPreview.costoVisitaEnfermeria)}
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ marginTop: 4, fontSize: 'var(--text-sm)', color: 'var(--color-fg-muted)' }}>
+                        {cobraVisita && !costoPreview.precioVisitaConfigurado
+                          ? 'Sin precio configurado para esta comuna'
+                          : 'Precio según comuna del paciente'
+                        }
+                      </p>
+                      {cobraVisita && !pricingContext.comunaEncontrada && (
+                        <p style={{ marginTop: 4, fontSize: 'var(--text-sm)', color: 'var(--color-destructive)' }}>
+                          {pricingContext.comunaPaciente
+                            ? `La comuna "${pricingContext.comunaPaciente}" del paciente no está en el catálogo — se aplica el precio base. Agrégala en Comunas para asignarle un precio propio.`
+                            : 'El paciente no tiene comuna registrada — se aplica el precio base.'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {cobraVisita && (
+                    <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="aplicaDescuento"
+                          checked={aplicaDescuento}
+                          onCheckedChange={(checked) => setAplicaDescuento(checked === true)}
+                          disabled={isPending}
+                          className="mt-0.5"
+                        />
+                        <label htmlFor="aplicaDescuento" className="cursor-pointer" style={{ fontSize: 'var(--text-base)', fontWeight: 500, lineHeight: 1.3 }}>
+                          Aplicar descuento
+                        </label>
+                      </div>
+
+                      {aplicaDescuento && (
+                        <div className="mt-3 space-y-3 pl-7">
+                          <div className="ed-dcto-row">
+                            <div className="segm">
+                              <button type="button" aria-pressed={descuentoTipo === 'monto'} onClick={() => setDescuentoTipo('monto')}>Monto fijo</button>
+                              <button type="button" aria-pressed={descuentoTipo === 'porcentaje'} onClick={() => setDescuentoTipo('porcentaje')}>Porcentaje</button>
+                            </div>
+                            <div className="hl-input flex-1">
+                              <span className="hl-affix" style={{ width: 'auto', height: 'auto' }}>
+                                {descuentoTipo === 'porcentaje' ? '%' : '$'}
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                max={descuentoTipo === 'porcentaje' ? 100 : undefined}
+                                value={descuentoValor}
+                                onChange={(e) => setDescuentoValor(e.target.value)}
+                                placeholder="0"
+                                disabled={isPending}
+                                className="hl-tnum"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-3">
+                            <Checkbox
+                              id="descuentoAfectaPagoEnfermera"
+                              checked={descuentoAfectaPagoEnfermera}
+                              onCheckedChange={(checked) => setDescuentoAfectaPagoEnfermera(checked === true)}
+                              disabled={isPending}
+                              className="mt-0.5"
+                            />
+                            <label htmlFor="descuentoAfectaPagoEnfermera" className="cursor-pointer" style={{ fontSize: 'var(--text-sm)', lineHeight: 1.4, color: 'var(--color-fg-muted)' }}>
+                              Afecta el pago de la enfermera (si no está marcado, la enfermera cobra sobre el valor original de la visita)
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Recargos */}
+                <div className="rounded-lg p-4" style={{ background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <span style={{ fontSize: 'var(--text-base)', fontWeight: 500 }}>Recargos</span>
+                    {costoPreview.subtotalRecargos > 0 && (
+                      <span className="hl-tnum" style={{ fontSize: 'var(--text-base)', fontWeight: 600 }}>
+                        {CLP(costoPreview.subtotalRecargos)}
+                      </span>
+                    )}
+                  </div>
+                  <SelectCombobox
+                    mode="multi"
+                    options={tiposRecargos}
+                    selected={selectedSurcharges}
+                    onChange={setSelectedSurcharges}
+                    placeholder="Agregar recargo…"
+                    disabled={isPending}
+                    showPills={false}
+                  />
+                  {selectedSurcharges.length > 0 && (
+                    <div className="ed-items mt-2">
+                      {selectedSurcharges.map((id) => {
+                        const tipo = tiposRecargos.find((t) => t.id === id)
+                        if (!tipo) return null
+                        const precio = visita?.surchargePrices.find((s) => s.idTipoRecargo === id)?.precio ?? tipo.precio
+                        return (
+                          <div key={id} className="ed-item">
+                            <span className="ed-item__nm" style={{ flex: 1 }}>{tipo.label}</span>
+                            <span className="ed-item__pr">{CLP(precio)}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setSelectedSurcharges((prev) => prev.filter((x) => x !== id))}
+                              disabled={isPending}
+                            >
+                              <X />
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Insumos */}
+                <div className="col-span-2 rounded-lg p-4" style={{ background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+                  <label htmlFor="montoInsumosInput" style={{ display: 'block', marginBottom: 10, fontSize: 'var(--text-base)', fontWeight: 500 }}>
                     Monto de insumos
                   </label>
-                </div>
-                <div
-                  className="flex items-center gap-1 rounded border px-2 py-1.5"
-                  style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}
-                >
-                  <span className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>$</span>
-                  <input
-                    id="montoInsumosInput"
-                    type="number"
-                    min="0"
-                    value={montoInsumos}
-                    onChange={(e) => setMontoInsumos(e.target.value)}
-                    placeholder="0"
-                    disabled={isPending}
-                    className="w-full bg-transparent text-[13px] tabular-nums outline-none"
-                    style={{ color: 'var(--foreground)' }}
-                  />
+                  <div className="hl-input" style={{ maxWidth: 220 }}>
+                    <span className="hl-affix" style={{ width: 'auto', height: 'auto' }}>$</span>
+                    <input
+                      id="montoInsumosInput"
+                      type="number"
+                      min="0"
+                      value={montoInsumos}
+                      onChange={(e) => setMontoInsumos(e.target.value)}
+                      placeholder="0"
+                      disabled={isPending}
+                      className="hl-tnum"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
           {/* ── Orden médica ── */}
-          <section
-            className="rounded-xl border p-6"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-          >
-            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-              Orden médica
-            </h2>
-            <p className="mb-3 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
-              Imagen de la orden original (JPG, PNG, WEBP). Máximo 10 MB. Se adjunta al correo de asignación.
-            </p>
-            <input type="hidden" name="keyOrdenMedica" value={keyOrdenMedica ?? ''} />
-            <FileUpload
-              folder="visitas"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              currentKey={keyOrdenMedica}
-              signedUrl={signedUrlOrdenMedica}
-              onUploaded={setKeyOrdenMedica}
-              disabled={isPending}
-            />
+          <section className="fcard">
+            <div className="fcard__head">
+              <div>
+                <h2>Orden médica</h2>
+                <p>Imagen de la orden original (JPG, PNG, WEBP). Máximo 10 MB. Se adjunta al correo de asignación.</p>
+              </div>
+            </div>
+            <div className="fcard__body">
+              <input type="hidden" name="keyOrdenMedica" value={keyOrdenMedica ?? ''} />
+              <FileUpload
+                folder="visitas"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                currentKey={keyOrdenMedica}
+                signedUrl={signedUrlOrdenMedica}
+                onUploaded={setKeyOrdenMedica}
+                disabled={isPending}
+              />
+            </div>
           </section>
 
           {/* Información adicional */}
-          <section
-            className="rounded-xl border p-6"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-          >
-            <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-              Información adicional
-            </h2>
-            <p className="mb-3 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
-              Notas internas del equipo de enfermería.
-            </p>
-            <textarea
-              name="informacionAdicional"
-              rows={3}
-              defaultValue={visita?.informacionAdicional ?? ''}
-              disabled={isPending}
-              className="w-full resize-none rounded-lg px-3 py-2.5 text-[13px] outline-none disabled:opacity-50"
-              style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-              placeholder="Notas para el equipo de enfermería…"
-            />
+          <section className="fcard">
+            <div className="fcard__head">
+              <div>
+                <h2>Información adicional</h2>
+                <p>Notas internas del equipo de enfermería.</p>
+              </div>
+            </div>
+            <div className="fcard__body">
+              <div className="hl-input" style={{ height: 'auto', alignItems: 'flex-start', padding: '10px 12px' }}>
+                <textarea
+                  name="informacionAdicional"
+                  rows={3}
+                  defaultValue={visita?.informacionAdicional ?? ''}
+                  disabled={isPending}
+                  className="w-full resize-none"
+                  placeholder="Notas para el equipo de enfermería…"
+                />
+              </div>
+            </div>
           </section>
         </div>
 
         {/* ── RIGHT — sticky rail ── */}
-        <aside style={{ position: 'sticky', top: 80, height: 'fit-content' }}>
-          <div className="overflow-hidden rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-
+        <aside style={{ position: 'sticky', top: 76, height: 'fit-content' }}>
+          <div className="hl-rail__card">
             {/* Estado de la visita */}
-            <div className="px-5 pt-5 pb-4">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-                  Estado de la visita
-                </h3>
-                {isEdit && visita?.estado && <EstadoBadge estado={visita.estado} />}
-              </div>
-              <div className="space-y-1.5 text-[12.5px]">
-                <RailRow label="Fecha" value={selectedFecha ? formatDate(selectedFecha) : '—'} />
-                <RailRow label="Hora"  value={selectedHora ?? '—'} />
-                <RailRow label="Enfermera" value={enfermeraLabel} />
-              </div>
+            <div className="hl-rail__head">
+              <h3>Estado de la visita</h3>
+              {isEdit && cfg && <Badge badgeClass={cfg.badgeClass}>{cfg.label}</Badge>}
             </div>
+            <div className="hl-rail__body">
+              <div className="hl-kv"><dt>Fecha</dt><dd>{selectedFecha ? formatDate(selectedFecha) : '—'}</dd></div>
+              <div className="hl-kv"><dt>Hora</dt><dd>{selectedHora ?? '—'}</dd></div>
+              <div className="hl-kv"><dt>Enfermera</dt><dd>{enfermeraLabel}</dd></div>
 
-            {/* Resumen de costos */}
-            <div className="space-y-3 px-5 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-              <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-                Resumen de costos
-              </h3>
-              <SummaryGroup
-                tone="blue"
-                label="Procedimientos"
-                items={[
-                  ...selectedProcedures.flatMap((id) => {
-                    const p = procedimientos.find((x) => x.id === id)
-                    if (!p) return []
-                    const saved = visita?.procedurePrices.find((x) => x.idProcedimiento === id)
-                    return [{ name: p.nombre, price: saved?.precio ?? p.precio }]
-                  }),
-                  ...(costoPreview.montoDescuentoProcedimientos > 0
-                    ? [{ name: 'Descuento procedimientos', price: -costoPreview.montoDescuentoProcedimientos }]
-                    : []),
-                ]}
-                subtotal={costoPreview.subtotalProcedimientos}
-              />
-              <SummaryGroup
-                tone="green"
-                label="Exámenes"
-                items={[
-                  ...regularExamIds.flatMap((id) => {
-                    const e = examenes.find((x) => x.id === id)
-                    if (!e) return []
-                    const saved = visita?.examPrices.find((x) => x.idExamen === id)
-                    return [{ name: e.nombre, price: saved?.precio ?? e.precio }]
-                  }),
-                  ...(isapreBlock?.exams ?? []).map((e) => ({
-                    name: e.nombre,
-                    price: e.tipo === 'isapre' ? (Number(e.valorPagar.replace(/[^\d]/g, '')) || 0) : 0,
-                  })),
-                ]}
-                subtotal={costoPreview.subtotalExamenes}
-              />
-              <SummaryGroup
-                tone="violet"
-                label="Talleres"
-                items={selectedTallers.map((id) => {
-                  const t = talleres.find((x) => x.id === id)!
-                  return { name: t?.nombre ?? '', price: parseInt(tallerPriceMap[id] ?? '0') || 0 }
-                })}
-                subtotal={costoPreview.subtotalTalleres}
-              />
-              <SummaryGroup
-                tone="amber"
-                label="Adicionales"
-                items={[
-                  ...(cobraVisita ? [{ name: `Visita enfermería`, price: costoPreview.costoVisitaEnfermeriaOriginal }] : []),
-                  ...(costoPreview.montoDescuento > 0 ? [{ name: 'Descuento visita', price: -costoPreview.montoDescuento }] : []),
-                  ...selectedSurcharges.map((id) => {
-                    const tipo = tiposRecargos.find((t) => t.id === id)
-                    const precio = visita?.surchargePrices.find((s) => s.idTipoRecargo === id)?.precio ?? tipo?.precio ?? 0
-                    return { name: tipo?.label ?? '', price: precio }
-                  }),
-                  ...(costoPreview.montoInsumos > 0 ? [{ name: 'Insumos', price: costoPreview.montoInsumos }] : []),
-                ]}
-                subtotal={costoPreview.costoVisitaEnfermeria + costoPreview.subtotalRecargos + costoPreview.montoInsumos}
-              />
-            </div>
+              {/* Resumen de costos */}
+              <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 4, paddingTop: 14, display: 'grid', gap: 12, minWidth: 0 }}>
+                <span className="hl-label">Resumen de costos</span>
+                <SummaryGroup
+                  tone="blue"
+                  label="Procedimientos"
+                  items={[
+                    ...selectedProcedures.flatMap((id) => {
+                      const p = procedimientos.find((x) => x.id === id)
+                      if (!p) return []
+                      const saved = visita?.procedurePrices.find((x) => x.idProcedimiento === id)
+                      return [{ name: p.nombre, price: saved?.precio ?? p.precio }]
+                    }),
+                    ...(costoPreview.montoDescuentoProcedimientos > 0
+                      ? [{ name: 'Descuento procedimientos', price: -costoPreview.montoDescuentoProcedimientos }]
+                      : []),
+                  ]}
+                  subtotal={costoPreview.subtotalProcedimientos}
+                />
+                <SummaryGroup
+                  tone="green"
+                  label="Exámenes"
+                  items={[
+                    ...regularExamIds.flatMap((id) => {
+                      const e = examenes.find((x) => x.id === id)
+                      if (!e) return []
+                      const saved = visita?.examPrices.find((x) => x.idExamen === id)
+                      return [{ name: e.nombre, price: saved?.precio ?? e.precio }]
+                    }),
+                    ...(isapreBlock?.exams ?? []).map((e) => ({
+                      name: e.nombre,
+                      price: e.tipo === 'isapre' ? (Number(e.valorPagar.replace(/[^\d]/g, '')) || 0) : 0,
+                    })),
+                  ]}
+                  subtotal={costoPreview.subtotalExamenes}
+                />
+                <SummaryGroup
+                  tone="violet"
+                  label="Talleres"
+                  items={selectedTallers.map((id) => {
+                    const t = talleres.find((x) => x.id === id)!
+                    return { name: t?.nombre ?? '', price: parseInt(tallerPriceMap[id] ?? '0') || 0 }
+                  })}
+                  subtotal={costoPreview.subtotalTalleres}
+                />
+                <SummaryGroup
+                  tone="amber"
+                  label="Adicionales"
+                  items={[
+                    ...(cobraVisita ? [{ name: `Visita enfermería`, price: costoPreview.costoVisitaEnfermeriaOriginal }] : []),
+                    ...(costoPreview.montoDescuento > 0 ? [{ name: 'Descuento visita', price: -costoPreview.montoDescuento }] : []),
+                    ...selectedSurcharges.map((id) => {
+                      const tipo = tiposRecargos.find((t) => t.id === id)
+                      const precio = visita?.surchargePrices.find((s) => s.idTipoRecargo === id)?.precio ?? tipo?.precio ?? 0
+                      return { name: tipo?.label ?? '', price: precio }
+                    }),
+                    ...(costoPreview.montoInsumos > 0 ? [{ name: 'Insumos', price: costoPreview.montoInsumos }] : []),
+                  ]}
+                  subtotal={costoPreview.costoVisitaEnfermeria + costoPreview.subtotalRecargos + costoPreview.montoInsumos}
+                />
+              </div>
 
-            {/* Total */}
-            <div
-              className="space-y-1 px-5 py-4"
-              style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--muted)' }}
-            >
-              <div className="flex items-baseline justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--muted-foreground)' }}>
-                  Total visita
-                </span>
-                <span className="text-[22px] font-semibold tabular-nums" style={{ color: 'var(--foreground)' }}>
-                  {CLP(costoPreview.total)}
-                </span>
+              {/* Total */}
+              <div className="hl-kv hl-kv--total">
+                <dt>Total visita</dt>
+                <dd className="hl-tnum">{CLP(costoPreview.total)}</dd>
               </div>
               {visita?.numeroBoleta && (
-                <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                <p className="fhint">
                   {visita.tipoDocumento === 'boleta' ? 'Boleta' : 'Factura'} {visita.numeroBoleta}
                 </p>
               )}
             </div>
-
           </div>
 
           {/* Link a resultados de exámenes */}
           {isEdit && totalExamCount > 0 && (
-            <div className="mt-2 overflow-hidden rounded-xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
+            <div className="fcard" style={{ marginTop: 8 }}>
               <Link
                 href={`/visitas/${visita.id}`}
-                className="flex items-center justify-between gap-2 px-4 py-3 text-[13px] font-medium transition-opacity hover:opacity-70"
-                style={{ color: 'var(--foreground)' }}
+                className="flex items-center justify-between gap-2 transition-opacity hover:opacity-70"
+                style={{ padding: '14px 18px', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-fg)' }}
               >
                 <span>Resultados de exámenes</span>
-                <span
-                  className="rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
-                  style={{
-                    backgroundColor: visita.resultadosEnviadosCount > 0 && visita.resultadosEnviadosCount >= totalExamCount
-                      ? 'oklch(0.6 0.118 184.704 / 12%)'
-                      : 'oklch(0.7 0.15 60 / 15%)',
-                    color: visita.resultadosEnviadosCount > 0 && visita.resultadosEnviadosCount >= totalExamCount
-                      ? 'oklch(0.45 0.118 184.704)'
-                      : 'oklch(0.40 0.15 60)',
-                  }}
-                >
+                <span className={cn('hl-badge', examsBadgeOk ? 'is-ok' : 'is-warn', 'hl-tnum')}>
                   {visita.resultadosEnviadosCount}/{totalExamCount}
                 </span>
               </Link>
@@ -1364,24 +1161,12 @@ export function VisitaForm({
           )}
 
           {isEdit && (
-            <p className="mt-3 px-2 text-[11px] space-y-0.5" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="fhint" style={{ marginTop: 12, paddingLeft: 8 }}>
               Visita #{visita.id}
             </p>
           )}
         </aside>
       </form>
     </>
-  )
-}
-
-// ─── RailRow ──────────────────────────────────────────────────────────────────
-
-function RailRow({ label, value, tone }: { label: string; value: string; tone?: 'green' | 'muted' }) {
-  const color = tone === 'green' ? 'oklch(0.45 0.13 145)' : 'var(--foreground)'
-  return (
-    <div className="flex justify-between gap-2">
-      <span className="text-[12.5px]" style={{ color: 'var(--muted-foreground)' }}>{label}</span>
-      <span className="text-right text-[12.5px]" style={{ color, fontWeight: tone === 'green' ? 500 : 400 }}>{value}</span>
-    </div>
   )
 }

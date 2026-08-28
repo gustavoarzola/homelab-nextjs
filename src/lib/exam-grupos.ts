@@ -7,10 +7,10 @@ export const EXAM_GRUPO_META: Record<ExamGrupo, {
   bg: string
   color: string
 }> = {
-  'imalab':          { label: 'Imalab',          tipo: 'catalogo', bg: '#dbeafe', color: '#1e40af' },
-  'imalab fonasa 3': { label: 'Imalab Fonasa 3', tipo: 'catalogo', bg: '#d1fae5', color: '#065f46' },
-  'integramédica':   { label: 'Integramédica',   tipo: 'catalogo', bg: '#fce7f3', color: '#9d174d' },
-  'imalab isapre':   { label: 'Imalab · Isapre', tipo: 'isapre',   bg: '#fef3c7', color: '#92400e' },
+  'imalab':          { label: 'Imalab',          tipo: 'catalogo', bg: 'var(--tag-blue-bg)',   color: 'var(--tag-blue-fg)' },
+  'imalab fonasa 3': { label: 'Imalab Fonasa 3', tipo: 'catalogo', bg: 'var(--tag-green-bg)',  color: 'var(--tag-green-fg)' },
+  'integramédica':   { label: 'Integramédica',   tipo: 'catalogo', bg: 'var(--tag-violet-bg)', color: 'var(--tag-violet-fg)' },
+  'imalab isapre':   { label: 'Imalab · Isapre', tipo: 'isapre',   bg: 'var(--tag-amber-bg)',  color: 'var(--tag-amber-fg)' },
 }
 
 // Backward-compat
