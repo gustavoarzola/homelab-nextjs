@@ -1,6 +1,9 @@
 'use client'
 
 import { DataTable, type ColumnDef, type FilterDef, type SearchParams } from './data-table'
+import { Badge } from './ui/badge'
+import { Chip } from './ui/chip'
+import { Button } from './ui/button'
 import type { CotizacionRow } from '@/lib/actions/cotizaciones'
 import { formatDate } from '@/lib/format'
 import { Printer, Stethoscope } from 'lucide-react'
@@ -10,33 +13,27 @@ const columns: ColumnDef<CotizacionRow>[] = [
   {
     id: 'id',
     header: 'N°',
-    cell: ({ row }) => (
-      <span className="tabular-nums text-sm font-mono" style={{ color: 'var(--muted-foreground)' }}>
-        COT-{String(row.original.id).padStart(5, '0')}
-      </span>
-    ),
+    cell: ({ row }) => <Chip>COT-{String(row.original.id).padStart(5, '0')}</Chip>,
   },
   {
     id: 'fecha',
     header: 'Fecha',
     enableSorting: true,
     cell: ({ row }) => (
-      <span className="tabular-nums text-sm">{formatDate(row.original.fecha)}</span>
+      <span className="hl-tnum">{formatDate(row.original.fecha)}</span>
     ),
   },
   {
     id: 'paciente',
     header: 'Paciente',
     enableSorting: true,
-    cell: ({ row }) => (
-      <span className="text-sm">{row.original.paciente ?? '—'}</span>
-    ),
+    cell: ({ row }) => <span>{row.original.paciente ?? '—'}</span>,
   },
   {
     id: 'destinatario',
     header: 'Destinatario',
     cell: ({ row }) => (
-      <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+      <span style={{ color: 'var(--color-fg-muted)' }}>
         {row.original.destinatario ?? '—'}
       </span>
     ),
@@ -47,17 +44,9 @@ const columns: ColumnDef<CotizacionRow>[] = [
     enableSorting: true,
     cell: ({ row }) => {
       const cfg = ESTADO_COTIZACION_STYLES[row.original.estado]
-      return (
-        <span
-          className="inline-block rounded-full px-2 py-0.5 text-xs font-medium"
-          style={{
-            backgroundColor: cfg ? cfg.bg : 'var(--destructive)',
-            color: cfg ? cfg.color : 'white',
-          }}
-        >
-          {cfg ? cfg.label : `Inválido: ${row.original.estado}`}
-        </span>
-      )
+      return cfg
+        ? <Badge badgeClass={cfg.badgeClass}>{cfg.label}</Badge>
+        : <Badge badgeClass="is-cot-rechazada">Inválido: {row.original.estado}</Badge>
     },
   },
   {
@@ -65,10 +54,10 @@ const columns: ColumnDef<CotizacionRow>[] = [
     header: 'Total',
     enableSorting: true,
     cell: ({ row }) => (
-      <span className="tabular-nums text-sm font-medium">
+      <span className="hl-tnum block text-right" style={{ fontWeight: 500 }}>
         {row.original.total > 0
           ? `$${row.original.total.toLocaleString('es-CL')}`
-          : <span style={{ color: 'var(--muted-foreground)' }}>—</span>
+          : <span style={{ color: 'var(--color-fg-muted)' }}>—</span>
         }
       </span>
     ),
@@ -108,25 +97,17 @@ export function CotizacionesTable({ initialData, search }: Props) {
       extraRowActions={(row) => (
         <>
           {row.idVisita && (
-            <a
-              href={`/visitas/${row.idVisita}`}
-              title="Ver visita"
-              className="rounded p-1.5 transition-opacity hover:opacity-80"
-              style={{ color: 'oklch(0.45 0.13 145)' }}
-            >
-              <Stethoscope className="h-4 w-4" />
-            </a>
+            <Button variant="ghost" size="icon" asChild>
+              <a href={`/visitas/${row.idVisita}`} title="Ver visita" style={{ color: 'var(--ok-fg)' }}>
+                <Stethoscope />
+              </a>
+            </Button>
           )}
-          <a
-            href={`/api/cotizacion-standalone/${row.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Imprimir cotización"
-            className="rounded p-1.5 transition-opacity hover:opacity-80"
-            style={{ color: 'var(--muted-foreground)' }}
-          >
-            <Printer className="h-4 w-4" />
-          </a>
+          <Button variant="ghost" size="icon" asChild>
+            <a href={`/api/cotizacion-standalone/${row.id}`} target="_blank" rel="noopener noreferrer" title="Imprimir cotización">
+              <Printer />
+            </a>
+          </Button>
         </>
       )}
     />
