@@ -23,6 +23,8 @@ import { AsignacionCard } from '@/components/asignacion-card'
 import { AsignacionMap } from '@/components/asignacion-map'
 import { FormDatePicker } from '@/components/form-date-picker'
 import { SelectCombobox } from '@/components/select-combobox'
+import { Button } from '@/components/ui/button'
+import { Tag } from '@/components/ui/tag'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,22 +52,23 @@ function DropZone({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {label && (
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+        <p className="hl-label" style={{ marginBottom: 8 }}>
           {label} ({visitas.length})
         </p>
       )}
       <div
         ref={setNodeRef}
         data-testid={`dropzone-${id}`}
-        className="flex-1 overflow-y-auto rounded-lg p-2 transition-colors"
+        className="flex-1 overflow-y-auto p-2 transition-colors"
         style={{
-          backgroundColor: isOver ? 'var(--accent)' : 'var(--muted)',
-          border: `2px dashed ${isOver ? 'var(--primary)' : 'var(--border)'}`,
+          background: isOver ? 'var(--brand-blue-soft)' : 'var(--color-surface-muted)',
+          border: `2px dashed ${isOver ? 'var(--brand-blue)' : 'var(--color-border)'}`,
+          borderRadius: 'var(--radius-md)',
           minHeight: '200px',
         }}
       >
         {visitas.length === 0 ? (
-          <p className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
+          <p className="flex h-full items-center justify-center" style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
             {empty}
           </p>
         ) : (
@@ -187,7 +190,7 @@ export function AsignacionBoard({ initialFecha, initialVisitas, enfermeras }: Pr
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold" style={{ color: 'var(--foreground)' }}>
+            <h1 style={{ fontSize: 'var(--text-lg)', fontWeight: 600 }}>
               Asignación de visitas
             </h1>
             <FormDatePicker
@@ -199,29 +202,24 @@ export function AsignacionBoard({ initialFecha, initialVisitas, enfermeras }: Pr
               placeholder="Seleccionar fecha"
               className="w-[170px]"
             />
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--muted-foreground)' }} />}
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-fg-muted)' }} />}
           </div>
           {isDirty && (
-            <button
-              onClick={handleSave}
-              disabled={isPending}
-              className="flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-              style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-            >
-              <Save className="h-4 w-4" />
+            <Button onClick={handleSave} disabled={isPending}>
+              <Save />
               Guardar cambios
-            </button>
+            </Button>
           )}
         </div>
 
         {/* 3-column layout with fixed header row */}
         <div className="grid min-h-0 flex-1 grid-cols-[1fr_1fr_1fr] grid-rows-[auto_1fr] gap-4">
           {/* Headers row */}
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+          <p className="hl-label">
             Sin asignar ({unassigned.length})
           </p>
           <div className="flex items-start gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="hl-label" style={{ paddingTop: 8 }}>
               Enfermera
             </p>
             <div className="flex-1">
@@ -236,20 +234,15 @@ export function AsignacionBoard({ initialFecha, initialVisitas, enfermeras }: Pr
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="hl-label">
               Mapa ({nurseVisitas.filter((v) => v.latitud && v.longitud).length} ubicaciones)
             </p>
             {selectedNurseId !== null && (() => {
               const comuna = enfermeras.find((e) => e.id === selectedNurseId)?.comunaResidencia
               return comuna ? (
-                <p className="flex items-center gap-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                <p className="flex items-center gap-2" style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
                   Comuna de residencia enfermera
-                  <span
-                    className="rounded-md px-2.5 py-0.5 text-sm font-medium"
-                    style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
-                  >
-                    {comuna}
-                  </span>
+                  <Tag noDot>{comuna}</Tag>
                 </p>
               ) : null
             })()}
@@ -271,7 +264,7 @@ export function AsignacionBoard({ initialFecha, initialVisitas, enfermeras }: Pr
           />
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-hidden rounded-lg" style={{ border: '1px solid var(--border)' }}>
+            <div className="min-h-0 flex-1 overflow-hidden" style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
               <AsignacionMap visitas={nurseVisitas} />
             </div>
           </div>

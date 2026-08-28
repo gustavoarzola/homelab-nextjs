@@ -8,6 +8,11 @@ import type { EnfermeraConVisitas, VisitaSinAsignar } from '@/lib/actions/visita
 import { formatDateLong } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { FormDatePicker } from '@/components/form-date-picker'
+import { PageHeader } from '@/components/page-header'
+import { Button } from '@/components/ui/button'
+import { Callout } from '@/components/ui/callout'
+import { MetaGrid, MetaTile } from '@/components/ui/meta'
+import { EmptyState } from '@/components/ui/empty-state'
 import { toast } from 'sonner'
 
 type Props = {
@@ -85,27 +90,14 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
   const totalVisitas = enfermeras.reduce((sum, e) => sum + e.visitas.length, 0)
 
   return (
-    <div className="flex flex-col gap-6 p-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-          Envío de Programación
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          Envíe las programaciones de visitas a las enfermeras por correo
-        </p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader title="Envío de Programación" meta="Envíe las programaciones de visitas a las enfermeras por correo" />
 
       {/* Busqueda */}
-      <div
-        className="rounded-lg border p-6"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-      >
+      <div className="hl-card">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--foreground)' }}>
-              Seleccione una fecha
-            </label>
+          <div className="hl-fieldgroup flex-1">
+            <label>Seleccione una fecha</label>
             <FormDatePicker
               mode="single"
               value={fecha}
@@ -116,40 +108,27 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
               className="w-full"
             />
           </div>
-          <button
-            onClick={handleBuscar}
-            disabled={loading || isPending}
-            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calendar className="h-4 w-4" />}
+          <Button onClick={handleBuscar} disabled={loading || isPending}>
+            {loading ? <Loader2 className="animate-spin" /> : <Calendar />}
             Buscar
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Visitas sin asignar */}
       {visitasSinAsignar.length > 0 && (
-        <div
-          className="rounded-lg border p-4"
-          style={{ backgroundColor: 'var(--card)', borderColor: 'var(--destructive)' }}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2" style={{ color: 'var(--destructive)' }}>
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <p className="text-sm font-medium">
+        <div className="hl-card">
+          <Callout tone="bad">
+            <div className="flex items-center justify-between gap-4">
+              <p style={{ fontWeight: 500 }}>
                 {visitasSinAsignar.length} visita(s) confirmada(s) sin enfermera asignada — no se podrán enviar
               </p>
+              <Link href="/asignacion" className="flex shrink-0 items-center gap-1 hover:opacity-70" style={{ fontSize: 'var(--text-xs)' }}>
+                Ir a asignar <ExternalLink className="h-3 w-3" />
+              </Link>
             </div>
-            <Link
-              href="/asignacion"
-              className="flex shrink-0 items-center gap-1 text-xs transition-opacity hover:opacity-70"
-              style={{ color: 'var(--primary)' }}
-            >
-              Ir a asignar <ExternalLink className="h-3 w-3" />
-            </Link>
-          </div>
-          <ul className="mt-2 space-y-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+          </Callout>
+          <ul className="mt-2" style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
             {visitasSinAsignar.map((v) => (
               <li key={v.id}>
                 {v.hora ? `${v.hora} — ` : ''}{v.pacienteNombre}
@@ -161,106 +140,50 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
 
       {/* Resumen */}
       {enfermeras.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <div
-            className="rounded-lg border p-4"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-          >
-            <p className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>
-              Enfermeras
-            </p>
-            <p className="mt-1 text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-              {enfermeras.length}
-            </p>
-          </div>
-          <div
-            className="rounded-lg border p-4"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-          >
-            <p className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>
-              Visitas
-            </p>
-            <p className="mt-1 text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>
-              {totalVisitas}
-            </p>
-          </div>
-          <div
-            className="rounded-lg border p-4"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-          >
-            <p className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>
-              Fecha
-            </p>
-            <p
-              className="mt-1 text-sm font-semibold"
-              style={{ color: 'var(--foreground)' }}
-            >
-              {formatDateLong(fechaBuscada)}
-            </p>
-          </div>
-        </div>
+        <MetaGrid>
+          <MetaTile label="Enfermeras" value={enfermeras.length} />
+          <MetaTile label="Visitas" value={totalVisitas} />
+          <MetaTile label="Fecha" value={formatDateLong(fechaBuscada)} />
+        </MetaGrid>
       )}
 
       {/* Tabla de enfermeras */}
       {enfermeras.length > 0 ? (
-        <div
-          className="rounded-lg border overflow-hidden"
-          style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-        >
+        <div className="hl-card hl-card--flush">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="hl-table">
               <thead>
-                <tr style={{ backgroundColor: 'var(--muted)' }}>
-                  <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-                    Enfermera
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-                    Correo
-                  </th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-                    Visitas
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-                    Pacientes
-                  </th>
-                  <th className="px-6 py-3 text-center text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-                    Acción
-                  </th>
+                <tr>
+                  <th>Enfermera</th>
+                  <th>Correo</th>
+                  <th style={{ textAlign: 'center' }}>Visitas</th>
+                  <th>Pacientes</th>
+                  <th style={{ textAlign: 'center' }}>Acción</th>
                 </tr>
               </thead>
               <tbody>
-                {enfermeras.map((enfermera, idx) => (
-                  <tr
-                    key={enfermera.id}
-                    style={{
-                      backgroundColor: idx % 2 === 0 ? 'var(--card)' : 'var(--muted)',
-                      borderBottom: '1px solid var(--border)',
-                    }}
-                  >
-                    <td className="px-6 py-4 text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                {enfermeras.map((enfermera) => (
+                  <tr key={enfermera.id}>
+                    <td style={{ fontWeight: 500 }}>
                       {formatNombre(enfermera)}
                     </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                    <td>
                       {enfermera.correo ? (
-                        <a
-                          href={`mailto:${enfermera.correo}`}
-                          style={{ color: 'var(--primary)' }}
-                          className="hover:underline"
-                        >
+                        <a href={`mailto:${enfermera.correo}`} style={{ color: 'var(--color-primary)' }} className="hover:underline">
                           {enfermera.correo}
                         </a>
                       ) : (
-                        <span className="flex items-center gap-1" style={{ color: 'var(--destructive)' }}>
+                        <span className="flex items-center gap-1" style={{ color: 'var(--color-destructive)' }}>
                           <AlertCircle className="h-4 w-4" />
                           Sin correo
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-center text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                    <td className="hl-tnum" style={{ textAlign: 'center', fontWeight: 600 }}>
                       {enfermera.visitas.length}
                     </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                      <div className="space-y-1">
+                    <td>
+                      <div className="flex flex-col gap-1">
                         {enfermera.visitas.map((v) => (
                           <div key={v.id}>
                             {formatNombre(v.paciente)}
@@ -268,19 +191,16 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
                         ))}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
+                    <td style={{ textAlign: 'center' }}>
+                      <Button
+                        variant={enfermera.correo ? 'default' : 'secondary'}
+                        size="sm"
                         onClick={() => handleEnviarUnica(enfermera)}
                         disabled={!enfermera.correo || isPending}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-30"
-                        style={{
-                          backgroundColor: enfermera.correo ? 'var(--primary)' : 'var(--muted)',
-                          color: enfermera.correo ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
-                        }}
                       >
-                        {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                        {isPending ? <Loader2 className="animate-spin" /> : <Mail />}
                         Enviar
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -289,28 +209,18 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
           </div>
         </div>
       ) : (
-        <div
-          className="rounded-lg border p-8 text-center"
-          style={{ backgroundColor: 'var(--muted)', borderColor: 'var(--border)' }}
-        >
-          <p style={{ color: 'var(--muted-foreground)' }}>
-            Seleccione una fecha para ver las visitas asignadas
-          </p>
+        <div className="hl-card">
+          <EmptyState title="Seleccione una fecha para ver las visitas asignadas" />
         </div>
       )}
 
       {/* Botón enviar a todos */}
       {enfermeras.length > 0 && (
         <div className="flex justify-end">
-          <button
-            onClick={handleEnviarTodos}
-            disabled={isPending}
-            className="flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-50"
-            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-          >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+          <Button onClick={handleEnviarTodos} disabled={isPending}>
+            {isPending ? <Loader2 className="animate-spin" /> : <Mail />}
             Enviar a todos ({enfermeras.length})
-          </button>
+          </Button>
         </div>
       )}
     </div>

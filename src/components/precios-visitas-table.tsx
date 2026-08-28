@@ -1,10 +1,14 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Loader2, Plus, Pencil, ToggleLeft, ToggleRight, X } from 'lucide-react'
+import { Loader2, Plus, Pencil, ToggleLeft, ToggleRight, X, Check } from 'lucide-react'
 import type { PrecioVisitaRow } from '@/lib/actions/precios'
 import type { SearchParams } from '@/components/data-table'
 import { SelectCombobox } from '@/components/select-combobox'
+import { Button } from '@/components/ui/button'
+import { StatusDot } from '@/components/ui/status-dot'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Callout } from '@/components/ui/callout'
 
 type ComunaOption = { id: number; nombre: string }
 
@@ -22,13 +26,6 @@ type ModalState =
   | { type: 'create' }
   | { type: 'edit'; row: PrecioVisitaRow }
   | { type: 'confirmToggle'; id: number; activo: boolean }
-
-const inputClass = 'rounded-lg px-3 py-2 text-sm outline-none'
-const inputStyle = {
-  backgroundColor: 'var(--background)',
-  border: '1px solid var(--input)',
-  color: 'var(--foreground)',
-}
 
 function PrecioVisitaForm({
   row,
@@ -62,16 +59,9 @@ function PrecioVisitaForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {error && (
-        <div
-          className="rounded-lg p-3 text-sm"
-          style={{ backgroundColor: 'oklch(0.6 0.2 29 / 10%)', color: 'var(--destructive)', border: '1px solid var(--destructive)' }}
-        >
-          {error}
-        </div>
-      )}
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Comuna</label>
+      {error && <Callout tone="bad">{error}</Callout>}
+      <div className="hl-fieldgroup">
+        <label>Comuna</label>
         <SelectCombobox
           mode="single"
           options={comunaOptions}
@@ -81,41 +71,49 @@ function PrecioVisitaForm({
           disabled={isPending || isBasePrice}
         />
       </div>
-      <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--foreground)' }}>
-        <input
-          type="checkbox"
-          checked={isBasePrice}
-          onChange={(e) => {
-            setIsBasePrice(e.target.checked)
-            if (e.target.checked) setSelectedIdComuna(null)
-          }}
-          disabled={isPending}
-        />
+      <label
+        role="checkbox"
+        aria-checked={isBasePrice}
+        tabIndex={0}
+        onClick={() => {
+          const next = !isBasePrice
+          setIsBasePrice(next)
+          if (next) setSelectedIdComuna(null)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault()
+            const next = !isBasePrice
+            setIsBasePrice(next)
+            if (next) setSelectedIdComuna(null)
+          }
+        }}
+        className="flex cursor-pointer items-center gap-2 select-none"
+        style={{ fontSize: 'var(--text-base)' }}
+      >
+        <span className="hl-checkbox" data-checked={isBasePrice ? '' : undefined}>
+          {isBasePrice && <Check style={{ width: 12, height: 12 }} strokeWidth={3} />}
+        </span>
         Precio base sin comuna
       </label>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Precio ($)</label>
-        <input
-          name="precio"
-          type="number"
-          min="0"
-          required
-          defaultValue={row?.precio ?? ''}
-          disabled={isPending}
-          className={inputClass}
-          style={inputStyle}
-        />
+      <div className="hl-fieldgroup">
+        <label>Precio ($)</label>
+        <div className="hl-input">
+          <input
+            name="precio"
+            type="number"
+            min="0"
+            required
+            defaultValue={row?.precio ?? ''}
+            disabled={isPending}
+          />
+        </div>
       </div>
       <div className="flex justify-end gap-2 pt-2">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
-          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-        >
-          {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        <Button type="submit" disabled={isPending}>
+          {isPending && <Loader2 className="animate-spin" />}
           {row ? 'Guardar' : 'Crear'}
-        </button>
+        </Button>
       </div>
     </form>
   )
@@ -170,46 +168,52 @@ export function PreciosVisitasTable({ initialRows, comunas, onCreate, onUpdate, 
   return (
     <div className="flex flex-col gap-4">
       {/* Filters */}
-      <div
-        className="flex flex-wrap items-end gap-3 rounded-xl border p-4"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-      >
+      <div className="toolbar">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Buscar comuna</label>
-          <input
-            type="text"
-            value={filterBuscar}
-            placeholder="Nombre de comuna…"
-            onChange={(e) => setFilterBuscar(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
-            className="rounded-lg px-3 py-2 text-sm outline-none w-52"
-            style={{ backgroundColor: 'var(--background)', border: '1px solid var(--input)', color: 'var(--foreground)' }}
-          />
+          <label className="hl-label">Buscar comuna</label>
+          <div className="hl-input" style={{ width: 208 }}>
+            <input
+              type="text"
+              value={filterBuscar}
+              placeholder="Nombre de comuna…"
+              onChange={(e) => setFilterBuscar(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+            />
+          </div>
         </div>
 
-        <label className="flex items-center gap-2 text-sm self-end pb-2" style={{ color: 'var(--foreground)' }}>
-          <input
-            type="checkbox"
-            checked={filterMostrarInactivos}
-            onChange={(e) => {
-              setFilterMostrarInactivos(e.target.checked)
-              applyFilters({ mostrarInactivos: e.target.checked })
-            }}
-            disabled={isPending}
-          />
+        <label
+          role="checkbox"
+          aria-checked={filterMostrarInactivos}
+          tabIndex={0}
+          onClick={() => {
+            const next = !filterMostrarInactivos
+            setFilterMostrarInactivos(next)
+            applyFilters({ mostrarInactivos: next })
+          }}
+          onKeyDown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault()
+              const next = !filterMostrarInactivos
+              setFilterMostrarInactivos(next)
+              applyFilters({ mostrarInactivos: next })
+            }
+          }}
+          className="flex cursor-pointer items-center gap-2 select-none"
+          style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}
+        >
+          <span className="hl-checkbox" data-checked={filterMostrarInactivos ? '' : undefined}>
+            {filterMostrarInactivos && <Check style={{ width: 12, height: 12 }} strokeWidth={3} />}
+          </span>
           Mostrar inactivos
         </label>
 
-        <button
-          onClick={() => applyFilters()}
-          disabled={isPending}
-          className="rounded-lg px-4 py-1.5 text-sm font-medium disabled:opacity-50 hover:opacity-80 transition-opacity"
-          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-        >
+        <Button onClick={() => applyFilters()} disabled={isPending}>
           Aplicar
-        </button>
+        </Button>
 
-        <button
+        <Button
+          variant="ghost"
           onClick={() => {
             setFilterBuscar('')
             setFilterMostrarInactivos(false)
@@ -219,82 +223,56 @@ export function PreciosVisitasTable({ initialRows, comunas, onCreate, onUpdate, 
             })
           }}
           disabled={isPending}
-          className="rounded-lg px-4 py-1.5 text-sm disabled:opacity-50 hover:opacity-80 transition-opacity"
-          style={{ color: 'var(--muted-foreground)' }}
         >
           Limpiar
-        </button>
+        </Button>
 
-        <button
-          onClick={() => setModal({ type: 'create' })}
-          disabled={isPending}
-          className="ml-auto flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
-          style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-        >
-          <Plus className="h-3.5 w-3.5" />
+        <Button className="ml-auto" onClick={() => setModal({ type: 'create' })} disabled={isPending}>
+          <Plus />
           Nuevo precio
-        </button>
+        </Button>
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border" style={{ borderColor: 'var(--border)' }}>
-        <table className="w-full text-sm">
+      <div className="hl-card hl-card--flush">
+        <table className="hl-table">
           <thead>
-            <tr style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-              <th className="px-4 py-3 text-left font-medium">Comuna</th>
-              <th className="px-4 py-3 text-right font-medium">Precio</th>
-              <th className="px-4 py-3 text-left font-medium">Estado</th>
-              <th className="px-4 py-3" />
+            <tr>
+              <th>Comuna</th>
+              <th className="hl-num">Precio</th>
+              <th>Estado</th>
+              <th />
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                  No hay precios configurados.
+                <td colSpan={4}>
+                  <EmptyState title="No hay precios configurados." />
                 </td>
               </tr>
             )}
             {rows.map((row) => (
-              <tr key={row.id} style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--card)' }}>
-                <td className="px-4 py-3 font-medium" style={{ color: 'var(--foreground)' }}>
-                  {row.comuna ?? 'Precio base'}
+              <tr key={row.id}>
+                <td style={{ fontWeight: 500 }}>{row.comuna ?? 'Precio base'}</td>
+                <td className="hl-num hl-tnum">${row.precio.toLocaleString('es-CL')}</td>
+                <td>
+                  <StatusDot active={row.activo}>{row.activo ? 'Activo' : 'Inactivo'}</StatusDot>
                 </td>
-                <td className="px-4 py-3 text-right font-mono" style={{ color: 'var(--foreground)' }}>
-                  ${row.precio.toLocaleString('es-CL')}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className="rounded-full px-2 py-0.5 text-xs font-medium"
-                    style={
-                      row.activo
-                        ? { backgroundColor: 'oklch(0.6 0.118 184.704 / 12%)', color: 'oklch(0.45 0.118 184.704)' }
-                        : { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }
-                    }
-                  >
-                    {row.activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => setModal({ type: 'edit', row })}
-                      disabled={isPending}
-                      className="rounded p-1 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--muted-foreground)' }}
-                      title="Editar"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
+                <td>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => setModal({ type: 'edit', row })} disabled={isPending} title="Editar">
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => setModal({ type: 'confirmToggle', id: row.id, activo: row.activo })}
                       disabled={isPending}
-                      className="rounded p-1 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--muted-foreground)' }}
                       title={row.activo ? 'Desactivar' : 'Activar'}
                     >
-                      {row.activo ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
-                    </button>
+                      {row.activo ? <ToggleRight /> : <ToggleLeft />}
+                    </Button>
                   </div>
                 </td>
               </tr>
@@ -305,69 +283,47 @@ export function PreciosVisitasTable({ initialRows, comunas, onCreate, onUpdate, 
 
       {/* Modal */}
       {modal.type !== 'none' && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: 'oklch(0 0 0 / 35%)', backdropFilter: 'blur(4px)' }}
-        >
+        <div className="hl-backdrop">
           {modal.type === 'confirmToggle' && (
-            <div
-              className="w-full max-w-sm rounded-xl border p-6 shadow-xl"
-              style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-            >
-              <h2 className="mb-2 text-base font-semibold" style={{ color: 'var(--foreground)' }}>
-                {modal.activo ? '¿Desactivar precio?' : '¿Activar precio?'}
-              </h2>
-              <p className="mb-6 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                {modal.activo
-                  ? 'El precio quedará inactivo y no aparecerá en los listados principales.'
-                  : 'El precio volverá a estar disponible.'}
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setModal({ type: 'none' })}
-                  disabled={isPending}
-                  className="rounded-lg px-4 py-2 text-sm hover:opacity-80 transition-opacity disabled:opacity-50"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
+            <div className="hl-modal" style={{ maxWidth: 400 }}>
+              <div className="hl-modal__body">
+                <h2 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 600 }}>
+                  {modal.activo ? '¿Desactivar precio?' : '¿Activar precio?'}
+                </h2>
+                <p style={{ margin: 0, fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
+                  {modal.activo
+                    ? 'El precio quedará inactivo y no aparecerá en los listados principales.'
+                    : 'El precio volverá a estar disponible.'}
+                </p>
+              </div>
+              <div className="hl-modal__foot">
+                <Button variant="ghost" onClick={() => setModal({ type: 'none' })} disabled={isPending}>
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant={modal.activo ? 'destructive' : 'default'}
                   onClick={() => {
                     handleToggle(modal.id, modal.activo)
                     setModal({ type: 'none' })
                   }}
                   disabled={isPending}
-                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
-                  style={modal.activo
-                    ? { backgroundColor: 'var(--destructive)', color: 'white' }
-                    : { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
                 >
-                  {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {isPending && <Loader2 className="animate-spin" />}
                   {modal.activo ? 'Desactivar' : 'Activar'}
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           {(modal.type === 'create' || modal.type === 'edit') && (
-            <div
-              className="w-full max-w-md rounded-xl border shadow-xl"
-              style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-            >
-              <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: 'var(--border)' }}>
-                <h2 className="text-base font-semibold" style={{ color: 'var(--foreground)' }}>
-                  {modal.type === 'create' ? 'Nuevo precio de visita' : 'Editar precio de visita'}
-                </h2>
-                <button
-                  onClick={() => setModal({ type: 'none' })}
-                  disabled={isPending}
-                  className="rounded p-1 hover:opacity-80 transition-opacity disabled:opacity-50"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
-                  <X className="h-4 w-4" />
+            <div className="hl-modal" style={{ maxWidth: 420 }}>
+              <div className="hl-modal__head">
+                <h2>{modal.type === 'create' ? 'Nuevo precio de visita' : 'Editar precio de visita'}</h2>
+                <button className="hl-modal__close" onClick={() => setModal({ type: 'none' })} disabled={isPending} aria-label="Cerrar">
+                  <X />
                 </button>
               </div>
-              <div className="p-6">
+              <div className="hl-modal__body">
                 <PrecioVisitaForm
                   row={modal.type === 'edit' ? modal.row : undefined}
                   comunas={comunas}
