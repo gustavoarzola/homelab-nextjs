@@ -47,7 +47,7 @@ export default async function CotizacionEditarPage({ params }: { params: Promise
         <Link
           href={`/cotizaciones/${id}`}
           className="inline-flex items-center gap-1.5 text-sm transition-opacity hover:opacity-80"
-          style={{ color: 'var(--muted-foreground)' }}
+          style={{ color: 'var(--color-fg-muted)' }}
         >
           <ArrowLeft className="h-4 w-4" />
           Volver a cotización
