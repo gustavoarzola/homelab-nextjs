@@ -404,7 +404,7 @@ export async function sendAllScheduledVisitsEmails(
       }
 
       const { error: sendError } = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev',
+        from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',
         to: enfermera.correo,
         subject,
         html: htmlContent,
