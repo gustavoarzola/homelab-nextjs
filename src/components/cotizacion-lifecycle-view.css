@@ -1,0 +1,29 @@
+/* ============================================================================
+   Cotización — ciclo de vida (page-specific)
+   ----------------------------------------------------------------------------
+   Origen: proyecto de diseño Claude Design (f20b3901-7c86-452d-854e-3c51dd890562),
+   archivo `Cotizacion Ciclo de Vida DS.html`. Este mockup necesita muy poco CSS
+   propio — casi todo se arma con primitivos de homelab-tokens.css/
+   homelab-shell.css (.page-head, .split, .hl-card, .hl-rail, .hl-kv, .hl-callout,
+   .hl-badge, .hl-stepper, .hl-disclosure). Solo 3 clases page-specific:
+   ========================================================================== */
+
+.stepbar {
+  background: var(--color-surface); border-bottom: 1px solid var(--color-border);
+  padding: 15px 32px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+}
+
+.item-line {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 9px 0; border-bottom: 1px solid var(--color-border); font-size: var(--text-base);
+}
+.item-line:last-child { border-bottom: 0; }
+.item-line__left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+.sect-title {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 18px; background: var(--color-surface-muted); border-bottom: 1px solid var(--color-border);
+}
+.sect-title .hl-label { margin: 0; }
+
+.wfull { width: 100%; justify-content: center; }
