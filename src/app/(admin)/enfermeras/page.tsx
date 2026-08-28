@@ -7,6 +7,7 @@ import {
   deleteEnfermera,
 } from '@/lib/actions/enfermeras'
 import { getComunasForSelect } from '@/lib/actions/catalogos'
+import { PageHeader } from '@/components/page-header'
 
 export default async function EnfermerasPage() {
   const [initialData, comunas] = await Promise.all([
@@ -16,11 +17,7 @@ export default async function EnfermerasPage() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>Enfermeras</h1>
-        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Gestión del equipo de enfermería</p>
-      </div>
-
+      <PageHeader title="Enfermeras" meta="Gestión del equipo de enfermería" />
       <EnfermerasTable
         initialData={initialData}
         comunas={comunas}

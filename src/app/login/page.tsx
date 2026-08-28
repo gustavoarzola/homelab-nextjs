@@ -1,5 +1,6 @@
 import { signIn } from '@/auth'
 import { AuthError } from 'next-auth'
+import Image from 'next/image'
 import { redirect } from 'next/navigation'
 
 import { SubmitButton } from './submit-button'
@@ -28,92 +29,52 @@ export default async function LoginPage({ searchParams }: Props) {
   const { error } = await searchParams
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--background)' }}>
-      <div
-        className="w-full max-w-sm rounded-xl border p-8 shadow-sm"
-        style={{
-          backgroundColor: 'var(--card)',
-          borderColor: 'var(--border)',
-        }}
-      >
+    <div className="hl-root min-h-screen flex items-center justify-center" style={{ background: 'var(--color-bg)' }}>
+      <div className="hl-card w-full max-w-sm">
         {/* Logo / título */}
         <div className="mb-8 text-center">
-          <div
-            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl text-xl font-bold"
-            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
-          >
-            H
-          </div>
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
-            Homelab
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+          <Image src="/homelab-logo.png" alt="HomeLab" height={64} width={124} style={{ height: 64, width: 'auto', margin: '0 auto 16px' }} priority />
+          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>Homelab</h1>
+          <p style={{ marginTop: 4, fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
             Gestión de visitas de enfermería
           </p>
         </div>
 
         {/* Error */}
         {error === 'credentials' && (
-          <div
-            className="mb-4 rounded-lg px-4 py-3 text-sm"
-            style={{
-              backgroundColor: 'oklch(0.577 0.245 27.325 / 10%)',
-              color: 'var(--destructive)',
-              border: '1px solid oklch(0.577 0.245 27.325 / 30%)',
-            }}
-          >
+          <div className="hl-callout hl-callout--bad mb-4">
             Correo o contraseña incorrectos
           </div>
         )}
 
         {/* Formulario */}
-        <form action={login} className="space-y-4">
-          <div className="space-y-1.5">
-            <label
-              htmlFor="correo"
-              className="block text-sm font-medium"
-              style={{ color: 'var(--foreground)' }}
-            >
-              Correo electrónico
-            </label>
-            <input
-              id="correo"
-              name="correo"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder="admin@homelab.cl"
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors"
-              style={{
-                backgroundColor: 'var(--background)',
-                border: '1px solid var(--input)',
-                color: 'var(--foreground)',
-              }}
-            />
+        <form action={login} className="grid gap-4">
+          <div className="hl-fieldgroup">
+            <label htmlFor="correo">Correo electrónico</label>
+            <div className="hl-input">
+              <input
+                id="correo"
+                name="correo"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="admin@homelab.cl"
+              />
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label
-              htmlFor="contrasena"
-              className="block text-sm font-medium"
-              style={{ color: 'var(--foreground)' }}
-            >
-              Contraseña
-            </label>
-            <input
-              id="contrasena"
-              name="contrasena"
-              type="password"
-              required
-              autoComplete="current-password"
-              placeholder="••••••••"
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors"
-              style={{
-                backgroundColor: 'var(--background)',
-                border: '1px solid var(--input)',
-                color: 'var(--foreground)',
-              }}
-            />
+          <div className="hl-fieldgroup">
+            <label htmlFor="contrasena">Contraseña</label>
+            <div className="hl-input">
+              <input
+                id="contrasena"
+                name="contrasena"
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+              />
+            </div>
           </div>
 
           <SubmitButton />

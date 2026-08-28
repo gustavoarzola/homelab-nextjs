@@ -6,16 +6,7 @@ export function SubmitButton() {
   const { pending } = useFormStatus()
 
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      aria-disabled={pending}
-      className="mt-2 w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
-      style={{
-        backgroundColor: 'var(--primary)',
-        color: 'var(--primary-foreground)',
-      }}
-    >
+    <button type="submit" disabled={pending} aria-disabled={pending} className="hl-btn hl-btn--primary" style={{ width: '100%', justifyContent: 'center' }}>
       {pending ? 'Iniciando sesión...' : 'Iniciar sesión'}
     </button>
   )

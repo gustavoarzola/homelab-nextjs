@@ -6,6 +6,7 @@ import {
   togglePrecioVisita,
 } from '@/lib/actions/precios'
 import { getComunasForSelect } from '@/lib/actions/catalogos'
+import { PageHeader } from '@/components/page-header'
 
 export default async function PreciosVisitasPage() {
   const [initialData, comunas] = await Promise.all([
@@ -15,14 +16,7 @@ export default async function PreciosVisitasPage() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
-          Precios de visita de enfermería
-        </h1>
-        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          Precio de visita según comuna del paciente
-        </p>
-      </div>
+      <PageHeader title="Precios de visita de enfermería" meta="Precio de visita según comuna del paciente" />
       <PreciosVisitasTable
         initialRows={initialData.rows}
         comunas={comunas}

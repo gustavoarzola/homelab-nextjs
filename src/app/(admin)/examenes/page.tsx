@@ -1,15 +1,13 @@
 import { ExamenesTable } from '@/components/examenes-table'
 import { searchExamenes, createExamen, updateExamen, toggleExamen } from '@/lib/actions/catalogos'
+import { PageHeader } from '@/components/page-header'
 
 export default async function ExamenesPage() {
   const initialData = await searchExamenes({ filters: {}, sort: null, page: 1, pageSize: 10 })
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>Exámenes</h1>
-        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Catálogo de exámenes médicos</p>
-      </div>
+      <PageHeader title="Exámenes" meta="Catálogo de exámenes médicos" />
       <ExamenesTable
         initialData={initialData}
         search={searchExamenes}

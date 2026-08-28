@@ -66,7 +66,7 @@ Trampas a manejar en el paso 01:
 | Archivo | Alcance | Estado |
 |---|---|---|
 | `01-fundaciones.md` | tokens CSS, fuentes, logo, solo-claro, alias de compatibilidad | **hecho** |
-| `02-shell.md` | `(admin)/layout.tsx`, `sidebar.tsx`, `PageHeader`, `login/` | pendiente |
+| `02-shell.md` | `(admin)/layout.tsx`, `sidebar.tsx`, `PageHeader`, `login/` | **hecho** |
 | `03-primitivos.md` | `src/components/ui/*` | pendiente |
 | `04-data-table.md` | `data-table.tsx` completo | pendiente |
 | `05-catalogos.md` | Los 12 `*-table.tsx` + sus `page.tsx` | pendiente |

@@ -1,6 +1,7 @@
 import { PagosEnfermerasTable } from '@/components/pagos-enfermeras-table'
 import { searchPagosEnfermerasMensual } from '@/lib/actions/pagos-enfermeras'
 import { getEnfermeras } from '@/lib/actions/visitas'
+import { PageHeader } from '@/components/page-header'
 
 type Props = {
   searchParams: Promise<{ month?: string; year?: string; enfermeraId?: string }>
@@ -26,14 +27,10 @@ export default async function PagosEnfermerasPage({ searchParams }: Props) {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
-          Pagos a enfermeras
-        </h1>
-        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          Solo visitas completadas · Base de cálculo: fee visita + procedimientos + recargos (excluye exámenes y talleres)
-        </p>
-      </div>
+      <PageHeader
+        title="Pagos a enfermeras"
+        meta="Solo visitas completadas · Base de cálculo: fee visita + procedimientos + recargos (excluye exámenes y talleres)"
+      />
       <PagosEnfermerasTable
         rows={rows}
         month={month}

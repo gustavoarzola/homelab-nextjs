@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -14,10 +15,7 @@ import {
   Building2,
   MapPin,
   AlertCircle,
-  Settings,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
   Mail,
   Tag,
   FileText,
@@ -26,7 +24,6 @@ import {
   FileSpreadsheet,
   Megaphone,
 } from 'lucide-react'
-import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -38,6 +35,9 @@ const navItems = [
   { href: '/pacientes', label: 'Pacientes', icon: Users },
   { href: '/enfermeras', label: 'Enfermeras', icon: Stethoscope },
   { href: '/pagos-enfermeras', label: 'Pagos enfermeras', icon: Wallet },
+]
+
+const catalogItems = [
   { href: '/procedimientos', label: 'Procedimientos', icon: ClipboardList },
   { href: '/examenes', label: 'Exámenes', icon: Microscope },
   { href: '/talleres', label: 'Talleres', icon: BookOpen },
@@ -50,6 +50,27 @@ const navItems = [
   { href: '/reportes', label: 'Reportes', icon: FileSpreadsheet },
 ]
 
+const allItems = [...navItems, ...catalogItems]
+
+function isActive(pathname: string, href: string) {
+  if (pathname === href) return true
+  if (!pathname.startsWith(href + '/')) return false
+  // evita que "/asignacion" quede activo estando en "/asignacion/envio-correos"
+  const moreSpecific = allItems.some(
+    (other) => other.href !== href && other.href.startsWith(href + '/') && pathname.startsWith(other.href)
+  )
+  return !moreSpecific
+}
+
+function initials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('')
+}
+
 type Props = {
   userName: string
   userRole: string
@@ -58,123 +79,46 @@ type Props = {
 
 export function Sidebar({ userName, userRole, onSignOut }: Props) {
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <aside
-      className={cn(
-        'relative flex h-screen flex-col border-r transition-all duration-300',
-        collapsed ? 'w-16' : 'w-60'
-      )}
-      style={{
-        backgroundColor: 'var(--card)',
-        borderColor: 'var(--border)',
-      }}
-    >
-      {/* Toggle */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-6 z-10 flex h-6 w-6 items-center justify-center rounded-full border shadow-sm transition-colors hover:opacity-80"
-        style={{
-          backgroundColor: 'var(--card)',
-          borderColor: 'var(--border)',
-          color: 'var(--muted-foreground)',
-        }}
-      >
-        {collapsed ? (
-          <ChevronRight className="h-3 w-3" />
-        ) : (
-          <ChevronLeft className="h-3 w-3" />
-        )}
-      </button>
-
-      {/* Logo */}
-      <div
-        className="flex h-14 items-center gap-3 border-b px-4"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
-          style={{
-            backgroundColor: 'var(--primary)',
-            color: 'var(--primary-foreground)',
-          }}
-        >
-          H
-        </div>
-        {!collapsed && (
-          <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
-            Homelab
-          </span>
-        )}
+    <aside className="app-side">
+      <div className="app-side__logo">
+        <Image src="/homelab-logo.png" alt="HomeLab" height={54} width={104} style={{ height: 54, width: 'auto' }} priority />
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active =
-            pathname === href ||
-            (pathname.startsWith(href + '/') &&
-              !navItems.some(
-                (other) =>
-                  other.href !== href &&
-                  other.href.startsWith(href) &&
-                  (pathname === other.href || pathname.startsWith(other.href + '/'))
-              ))
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={collapsed ? label : undefined}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                active
-                  ? 'font-medium'
-                  : 'hover:opacity-80'
-              )}
-              style={
-                active
-                  ? {
-                      backgroundColor: 'var(--accent)',
-                      color: 'var(--accent-foreground)',
-                    }
-                  : {
-                      color: 'var(--muted-foreground)',
-                    }
-              }
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{label}</span>}
-            </Link>
-          )
-        })}
+      <nav className="app-side__nav">
+        {navItems.map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className={cn(isActive(pathname, href) && 'active')}>
+            <Icon />
+            <span>{label}</span>
+          </Link>
+        ))}
+
+        <div className="app-side__group">Catálogos</div>
+        {catalogItems.map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className={cn(isActive(pathname, href) && 'active')}>
+            <Icon />
+            <span>{label}</span>
+          </Link>
+        ))}
       </nav>
 
-      {/* Usuario + logout */}
-      <div
-        className="border-t p-2"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        {!collapsed && (
-          <div className="mb-1 px-3 py-2">
-            <p className="truncate text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-              {userName}
-            </p>
-            <p className="text-xs capitalize" style={{ color: 'var(--muted-foreground)' }}>
-              {userRole}
-            </p>
-          </div>
-        )}
-        <button
-          onClick={onSignOut}
-          title={collapsed ? 'Cerrar sesión' : undefined}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:opacity-80"
-          style={{ color: 'var(--muted-foreground)' }}
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && <span>Cerrar sesión</span>}
-        </button>
+      <div className="app-side__user">
+        <span className="hl-avatar">{initials(userName)}</span>
+        <div className="min-w-0">
+          <b className="truncate">{userName}</b>
+          <span className="capitalize">{userRole}</span>
+        </div>
       </div>
+      <button
+        type="button"
+        onClick={onSignOut}
+        className="hl-btn hl-btn--ghost hl-btn--sm"
+        style={{ margin: '0 8px 8px', width: 'calc(100% - 16px)', justifyContent: 'flex-start' }}
+      >
+        <LogOut />
+        <span>Cerrar sesión</span>
+      </button>
     </aside>
   )
 }
