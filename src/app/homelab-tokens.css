@@ -1,0 +1,500 @@
+/* ============================================================================
+   HomeLab — Design System · tokens + base
+   Exámenes y enfermería a domicilio
+   ----------------------------------------------------------------------------
+   Origen: proyecto de diseño Claude Design (f20b3901-7c86-452d-854e-3c51dd890562),
+   archivo `homelab-tokens.css`. Copiado verbatim salvo:
+     - el bloque `:root` inicial se convirtió en `@theme` para que Tailwind 4
+       emita utilidades directas (bg-surface, text-fg-muted, rounded-lg, etc.)
+       además de las custom properties que consumen las clases .hl-*.
+       Ver docs/plan-design-system/01-fundaciones.md.
+
+   Convención de prefijos:
+     --color-*     color semántico/escala      .hl-btn      botón
+     --space-*     espaciado                   .hl-input    campo
+     --radius-*    radios                      .hl-badge    estado
+     --text-*      tipografía                  .hl-tag      grupo + dot
+     --shadow-*    elevación                   .hl-chip     código mono
+     --control-*   densidad (parametrizable)   .hl-card     contenedor
+   ========================================================================== */
+
+@theme {
+  /* ── 1 · Neutrales (escala gris fría neutra, base del backoffice) ──────── */
+  --neutral-0:   oklch(1 0 0);
+  --neutral-50:  oklch(0.985 0 0);
+  --neutral-100: oklch(0.970 0 0);
+  --neutral-200: oklch(0.922 0 0);
+  --neutral-300: oklch(0.870 0 0);
+  --neutral-400: oklch(0.708 0 0);
+  --neutral-500: oklch(0.556 0 0);
+  --neutral-600: oklch(0.440 0 0);
+  --neutral-700: oklch(0.371 0 0);
+  --neutral-800: oklch(0.269 0 0);
+  --neutral-900: oklch(0.205 0 0);
+  --neutral-950: oklch(0.145 0 0);
+
+  /* ── 2 · Marca HomeLab ─────────────────────────────────────────────────
+     Azul confianza = color de acción/acento primario. Naranjo = acento
+     cálido, uso escaso (énfasis aditivo, destacados puntuales). NUNCA
+     pintar superficies grandes con naranjo. */
+  --brand-blue:        oklch(0.559 0.126 244.3);   /* #1F7AB8  azul HomeLab   */
+  --brand-blue-strong: oklch(0.513 0.119 244.7);   /* #166CA6  hover/active   */
+  --brand-blue-soft:   oklch(0.962 0.022 244);     /* fondo tinte azul        */
+  --brand-blue-fg:     oklch(0.470 0.120 244);     /* texto sobre tinte azul  */
+  --brand-orange:        oklch(0.724 0.157 47.5);  /* #F38345  naranjo HomeLab */
+  --brand-orange-strong: oklch(0.675 0.163 46.8);  /* hover                   */
+  --brand-orange-soft:   oklch(0.960 0.040 60);    /* fondo tinte naranjo     */
+  --brand-orange-fg:     oklch(0.530 0.150 47);    /* texto sobre tinte       */
+
+  /* ── 3 · Tokens semánticos (lo que consumen los componentes) ───────────── */
+  --color-bg:            var(--neutral-100);   /* fondo app (gris muy claro)  */
+  --color-surface:       var(--neutral-0);     /* cards / superficies         */
+  --color-surface-muted: var(--neutral-100);   /* headers de tabla, zebras    */
+  --color-fg:            var(--neutral-950);   /* texto primario              */
+  --color-fg-muted:      var(--neutral-500);   /* texto secundario            */
+  --color-fg-subtle:     var(--neutral-400);   /* placeholders, hints         */
+  --color-border:        var(--neutral-200);   /* bordes / divisores          */
+  --color-border-strong: var(--neutral-300);   /* bordes de input             */
+  --color-ring:          var(--brand-blue);    /* foco accesible              */
+
+  --color-primary:       var(--brand-blue);        /* acción primaria         */
+  --color-primary-hover: var(--brand-blue-strong);
+  --color-primary-fg:    var(--neutral-0);
+  --color-accent:        var(--brand-orange);      /* énfasis cálido escaso   */
+
+  --color-destructive:    oklch(0.577 0.245 27.3);
+  --color-destructive-fg: var(--neutral-0);
+  --color-destructive-soft: oklch(0.96 0.03 27);
+
+  /* ── 4 · Estados de visita (funcionales, no de marca) ──────────────────
+     Heredados del código real (visitas-table.tsx). Cada estado = un hue
+     fijo. Badge = fondo a 12–15% + texto al 0.4–0.45 de luminancia. */
+  --estado-creada-bg:       oklch(0.70 0.10 250 / 15%);
+  --estado-creada-fg:       oklch(0.35 0.10 250);
+  --estado-confirmada-bg:   oklch(0.70 0.15 60 / 15%);
+  --estado-confirmada-fg:   oklch(0.40 0.15 60);
+  --estado-realizada-bg:    oklch(0.60 0.118 184.7 / 12%);
+  --estado-realizada-fg:    oklch(0.45 0.118 184.7);
+  --estado-cancelada-bg:    var(--neutral-100);
+  --estado-cancelada-fg:    var(--neutral-500);
+  --estado-norealizada-bg:  oklch(0.65 0.15 30 / 15%);
+  --estado-norealizada-fg:  oklch(0.45 0.15 30);
+  /* pago / resultados */
+  --ok-bg:      oklch(0.60 0.118 184.7 / 12%);
+  --ok-fg:      oklch(0.45 0.118 184.7);
+  --warn-bg:    oklch(0.70 0.15 60 / 15%);
+  --warn-fg:    oklch(0.40 0.15 60);
+
+  /* ── 4b · Estados de cotización (creada → enviada → aceptada|rechazada) ──
+     Valores del proyecto (globals.css). El gris de "creada" es más marcado
+     que el neutral-100 para que el badge se lea sobre superficie blanca. */
+  --cot-creada-bg:    oklch(0.93 0 0);
+  --cot-creada-fg:    oklch(0.45 0 0);
+  --cot-enviada-bg:   oklch(0.88 0.07 250 / 60%);
+  --cot-enviada-fg:   oklch(0.45 0.10 250);
+  --cot-aceptada-bg:  oklch(0.88 0.10 145 / 60%);
+  --cot-aceptada-fg:  oklch(0.40 0.13 145);
+  --cot-rechazada-bg: oklch(0.95 0.025 25);
+  --cot-rechazada-fg: oklch(0.50 0.18 25);
+
+  /* ── 5 · Tintes de grupo (categorías de catálogo: grupo de examen, etc) ──
+     bg suave + fg legible + dot saturado. Mismo hue por familia. */
+  --tag-blue-bg:   oklch(0.96 0.03 240);  --tag-blue-fg:   oklch(0.42 0.13 240);  --tag-blue-dot:   oklch(0.55 0.16 240);
+  --tag-green-bg:  oklch(0.96 0.03 150);  --tag-green-fg:  oklch(0.40 0.13 150);  --tag-green-dot:  oklch(0.55 0.15 150);
+  --tag-amber-bg:  oklch(0.96 0.05 75);   --tag-amber-fg:  oklch(0.45 0.13 70);   --tag-amber-dot:  oklch(0.60 0.15 70);
+  --tag-violet-bg: oklch(0.96 0.03 290);  --tag-violet-fg: oklch(0.42 0.13 290);  --tag-violet-dot: oklch(0.55 0.16 290);
+  --tag-red-bg:    oklch(0.96 0.03 25);   --tag-red-fg:    oklch(0.45 0.16 25);   --tag-red-dot:    oklch(0.60 0.18 25);
+  --tag-teal-bg:   oklch(0.96 0.03 185);  --tag-teal-fg:   oklch(0.42 0.09 185);  --tag-teal-dot:   oklch(0.55 0.10 185);
+  --tag-neutral-bg: var(--neutral-100);   --tag-neutral-fg: var(--neutral-600);   --tag-neutral-dot: var(--neutral-500);
+
+  /* ── 6 · Tipografía ────────────────────────────────────────────────────── */
+  --font-sans: var(--font-inter), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, 'SF Mono', monospace;
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 13px;   /* tamaño de cuerpo del backoffice */
+  --text-md:   14px;
+  --text-lg:   16px;
+  --text-xl:   20px;
+  --text-2xl:  24px;
+  --text-3xl:  30px;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --tracking-label: 0.06em;   /* labels uppercase */
+
+  /* ── 7 · Espaciado (base 4px) ──────────────────────────────────────────── */
+  --space-1: 4px;   --space-2: 8px;   --space-3: 12px;  --space-4: 16px;
+  --space-5: 20px;  --space-6: 24px;  --space-8: 32px;  --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* ── 8 · Radios ────────────────────────────────────────────────────────── */
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   10px;   /* default (cards, --radius del código) */
+  --radius-xl:   14px;
+  --radius-full: 9999px;
+
+  /* ── 9 · Elevación (sutil; las cards usan borde, no sombra) ─────────────── */
+  --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.07), 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.08), 0 2px 4px oklch(0 0 0 / 0.04);
+  --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.12);   /* popovers, dropdowns */
+
+  /* ── 10 · Densidad (PARAMETRIZABLE) ────────────────────────────────────
+     Cambiar el modo en un solo lugar reescala controles y filas en toda la
+     app. Default = medium. Override:  <html data-density="compact"> */
+  --control-h:    36px;   /* alto de botones / inputs */
+  --control-px:   12px;   /* padding horizontal de controles */
+  --row-py:       12px;   /* padding vertical de filas de tabla */
+  --cell-px:      16px;   /* padding horizontal de celdas */
+  --card-p:       24px;   /* padding interno de cards */
+  --gap-stack:    16px;   /* separación vertical entre bloques */
+
+  /* ── 11 · Movimiento ───────────────────────────────────────────────────
+     Transiciones cortas y funcionales: confirman una acción, no decoran.
+     --dur-fast para hover/foco, --dur para cambios de estado,
+     --dur-slow para entradas de capas flotantes (modal, popover). */
+  --dur-fast: 120ms;
+  --dur:      140ms;
+  --dur-slow: 180ms;
+  --ease:     cubic-bezier(.16, 1, .3, 1);   /* salida suave, entrada rápida */
+  --ease-io:  cubic-bezier(.4, 0, .2, 1);    /* estándar bidireccional */
+}
+
+/* Modos de densidad — un solo parámetro reescala todo */
+:root[data-density="compact"] {
+  --control-h: 32px; --control-px: 10px; --row-py: 8px;  --cell-px: 12px; --card-p: 18px; --gap-stack: 12px;
+}
+:root[data-density="comfortable"] {
+  --control-h: 42px; --control-px: 16px; --row-py: 16px; --cell-px: 20px; --card-p: 28px; --gap-stack: 20px;
+}
+
+/* ============================================================================
+   BASE — primitivas reutilizables (clases .hl-*)
+   ========================================================================== */
+
+.hl-root {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--color-fg);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+.hl-mono { font-family: var(--font-mono); }
+.hl-tnum { font-variant-numeric: tabular-nums; }
+
+/* ── Botones ─────────────────────────────────────────────────────────────── */
+.hl-btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  height: var(--control-h); padding: 0 calc(var(--control-px) + 2px);
+  border-radius: var(--radius-md); border: 1px solid transparent;
+  font: 500 var(--text-base)/1 var(--font-sans); white-space: nowrap;
+  cursor: pointer; transition: background var(--dur) var(--ease-io), border-color var(--dur) var(--ease-io), opacity var(--dur) var(--ease-io);
+}
+.hl-btn:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 2px; }
+.hl-btn svg { width: 16px; height: 16px; }
+.hl-btn--primary    { background: var(--color-primary); color: var(--color-primary-fg); border-color: var(--color-primary); }
+.hl-btn--primary:hover { background: var(--color-primary-hover); border-color: var(--color-primary-hover); }
+.hl-btn--secondary  { background: var(--color-surface); color: var(--color-fg); border-color: var(--color-border-strong); }
+.hl-btn--secondary:hover { background: var(--neutral-50); }
+.hl-btn--ghost      { background: transparent; color: var(--color-fg-muted); }
+.hl-btn--ghost:hover { background: var(--neutral-100); color: var(--color-fg); }
+.hl-btn--destructive{ background: transparent; color: var(--color-destructive); border-color: var(--color-border-strong); }
+.hl-btn--destructive:hover { background: var(--color-destructive-soft); border-color: var(--color-destructive); }
+.hl-btn--accent     { background: var(--color-accent); color: var(--neutral-0); border-color: var(--color-accent); }
+.hl-btn--accent:hover { background: var(--brand-orange-strong); border-color: var(--brand-orange-strong); }
+.hl-btn--icon { width: var(--control-h); padding: 0; justify-content: center; }
+.hl-btn--sm { height: 30px; font-size: var(--text-sm); padding: 0 10px; }
+.hl-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* ── Inputs ──────────────────────────────────────────────────────────────── */
+.hl-input {
+  display: flex; align-items: center; gap: var(--space-2);
+  height: var(--control-h); padding: 0 var(--control-px);
+  background: var(--color-surface); border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md); font-size: var(--text-base); color: var(--color-fg);
+}
+.hl-input:focus-within { border-color: var(--color-ring); box-shadow: 0 0 0 3px oklch(0.559 0.126 244 / 0.15); }
+.hl-input > input, .hl-input > textarea, .hl-input > select { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; color: inherit; }
+.hl-input > input::placeholder, .hl-input > textarea::placeholder { color: var(--color-fg-subtle); }
+.hl-input .hl-affix { color: var(--color-fg-muted); flex-shrink: 0; display: inline-flex; width: 15px; height: 15px; }
+.hl-input--select { cursor: pointer; }
+.hl-input.has-error { border-color: var(--color-destructive); }
+
+.hl-checkbox {
+  width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0;
+  border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  display: inline-flex; align-items: center; justify-content: center; color: transparent;
+}
+.hl-checkbox[data-checked] { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-primary-fg); }
+/* indeterminado (select-all parcial): barra dibujada en CSS, siempre visible */
+.hl-checkbox.is-indet { background: var(--color-primary); border-color: var(--color-primary); }
+.hl-checkbox.is-indet::after { content: ""; width: 9px; height: 2px; border-radius: 1px; background: var(--color-primary-fg); }
+
+.hl-switch { width: 36px; height: 20px; border-radius: var(--radius-full); background: var(--neutral-300); position: relative; flex-shrink: 0; transition: background var(--dur) var(--ease-io); }
+.hl-switch[data-on] { background: var(--color-primary); }
+.hl-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-xs); transition: transform var(--dur) var(--ease-io); }
+.hl-switch[data-on]::after { transform: translateX(16px); }
+
+/* ── Badges de estado ────────────────────────────────────────────────────── */
+.hl-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: var(--radius-full);
+  font: 500 var(--text-sm)/1.4 var(--font-sans); white-space: nowrap;
+}
+.hl-badge.is-creada      { background: var(--estado-creada-bg);      color: var(--estado-creada-fg); }
+.hl-badge.is-confirmada  { background: var(--estado-confirmada-bg);  color: var(--estado-confirmada-fg); }
+.hl-badge.is-realizada   { background: var(--estado-realizada-bg);   color: var(--estado-realizada-fg); }
+.hl-badge.is-cancelada   { background: var(--estado-cancelada-bg);   color: var(--estado-cancelada-fg); }
+.hl-badge.is-norealizada { background: var(--estado-norealizada-bg); color: var(--estado-norealizada-fg); }
+.hl-badge.is-ok          { background: var(--ok-bg);   color: var(--ok-fg); }
+.hl-badge.is-warn        { background: var(--warn-bg); color: var(--warn-fg); }
+/* estados de cotización */
+.hl-badge.is-cot-creada    { background: var(--cot-creada-bg);    color: var(--cot-creada-fg); }
+.hl-badge.is-cot-enviada   { background: var(--cot-enviada-bg);   color: var(--cot-enviada-fg); }
+.hl-badge.is-cot-aceptada  { background: var(--cot-aceptada-bg);  color: var(--cot-aceptada-fg); }
+.hl-badge.is-cot-rechazada { background: var(--cot-rechazada-bg); color: var(--cot-rechazada-fg); }
+
+/* ── Status dot (alternativa sobria a la pill para activo/inactivo) ──────── */
+.hl-dot { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--color-fg); }
+.hl-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: oklch(0.65 0.16 150); box-shadow: 0 0 0 2px oklch(0.65 0.16 150 / 0.18); }
+.hl-dot.is-off { color: var(--color-fg-muted); }
+.hl-dot.is-off::before { background: var(--neutral-400); box-shadow: none; }
+
+/* ── Group tag (categoría con dot de color) ─────────────────────────────── */
+.hl-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 8px; border-radius: var(--radius-sm);
+  font: 500 var(--text-sm)/1.4 var(--font-sans); white-space: nowrap;
+  background: var(--tag-neutral-bg); color: var(--tag-neutral-fg);
+}
+.hl-tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--tag-neutral-dot); }
+.hl-tag.t-blue   { background: var(--tag-blue-bg);   color: var(--tag-blue-fg); }   .hl-tag.t-blue::before   { background: var(--tag-blue-dot); }
+.hl-tag.t-green  { background: var(--tag-green-bg);  color: var(--tag-green-fg); }  .hl-tag.t-green::before  { background: var(--tag-green-dot); }
+.hl-tag.t-amber  { background: var(--tag-amber-bg);  color: var(--tag-amber-fg); }  .hl-tag.t-amber::before  { background: var(--tag-amber-dot); }
+.hl-tag.t-violet { background: var(--tag-violet-bg); color: var(--tag-violet-fg); } .hl-tag.t-violet::before { background: var(--tag-violet-dot); }
+.hl-tag.t-red    { background: var(--tag-red-bg);    color: var(--tag-red-fg); }    .hl-tag.t-red::before    { background: var(--tag-red-dot); }
+.hl-tag.t-teal   { background: var(--tag-teal-bg);   color: var(--tag-teal-fg); }   .hl-tag.t-teal::before   { background: var(--tag-teal-dot); }
+.hl-tag.no-dot::before { display: none; }
+
+/* ── Code chip (códigos en mono) ────────────────────────────────────────── */
+.hl-chip {
+  font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: .02em;
+  padding: 2px 6px; border-radius: var(--radius-sm);
+  background: var(--color-surface-muted); color: var(--color-fg-muted);
+  border: 1px solid var(--color-border); white-space: nowrap;
+}
+
+/* ── Avatar ─────────────────────────────────────────────────────────────── */
+.hl-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 50%;
+  font: 600 var(--text-sm)/1 var(--font-sans); letter-spacing: -0.02em;
+  background: var(--tag-blue-bg); color: var(--tag-blue-fg);
+}
+
+/* ── Card ───────────────────────────────────────────────────────────────── */
+.hl-card {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: var(--card-p);
+}
+.hl-card--flush { padding: 0; overflow: hidden; }
+
+/* ── Filtro: chip activo con remove ─────────────────────────────────────── */
+.hl-filter {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 6px 0 10px; border-radius: var(--radius-full);
+  background: var(--brand-blue-soft); color: var(--brand-blue-fg);
+  font: 500 var(--text-sm)/1 var(--font-sans);
+}
+.hl-filter button { display: inline-flex; border: 0; background: transparent; cursor: pointer; color: inherit; opacity: .65; padding: 2px; border-radius: 50%; }
+.hl-filter button:hover { opacity: 1; background: oklch(0.55 0.12 244 / 0.15); }
+
+/* ── Progress ───────────────────────────────────────────────────────────── */
+.hl-progress { height: 8px; border-radius: var(--radius-full); background: var(--color-surface-muted); overflow: hidden; }
+.hl-progress > i { display: block; height: 100%; border-radius: var(--radius-full); background: var(--ok-fg); }
+
+/* ── Tabla ──────────────────────────────────────────────────────────────── */
+.hl-table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
+.hl-table thead th {
+  text-align: left; padding: 10px var(--cell-px);
+  background: var(--color-surface-muted); border-bottom: 1px solid var(--color-border);
+  font: 600 var(--text-xs)/1 var(--font-sans); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-fg-muted);
+}
+.hl-table tbody td { padding: var(--row-py) var(--cell-px); border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+.hl-table tbody tr:last-child td { border-bottom: 0; }
+.hl-table tbody tr { transition: background var(--dur-fast) var(--ease-io); }
+.hl-table tbody tr:hover { background: var(--neutral-50); }
+.hl-table--zebra tbody tr:nth-child(even) { background: var(--color-surface-muted); }
+.hl-table--zebra tbody tr:nth-child(even):hover { background: var(--neutral-100); }
+.hl-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Label de sección ───────────────────────────────────────────────────── */
+.hl-label {
+  font: 600 var(--text-xs)/1 var(--font-sans);
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+/* ============================================================================
+   MODAL — form sobre backdrop con blur (patrón real de data-table.tsx)
+   ========================================================================== */
+.hl-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: oklch(0 0 0 / 35%); backdrop-filter: blur(4px);
+  animation: hl-fade var(--dur) var(--ease-io);
+}
+.hl-backdrop[hidden] { display: none; }
+@keyframes hl-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes hl-pop { from { opacity: 0; transform: translateY(8px) scale(.985) } to { opacity: 1; transform: none } }
+
+.hl-modal {
+  width: 100%; max-width: 520px; max-height: calc(100vh - 48px);
+  display: flex; flex-direction: column;
+  background: var(--color-surface); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg); animation: hl-pop var(--dur-slow) var(--ease);
+  overflow: hidden;
+}
+.hl-modal__head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 20px var(--card-p) 16px; border-bottom: 1px solid var(--color-border);
+}
+.hl-modal__head h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; letter-spacing: -0.01em; }
+.hl-modal__head p { margin: 3px 0 0; font-size: var(--text-sm); color: var(--color-fg-muted); }
+.hl-modal__body { padding: var(--card-p); overflow-y: auto; display: grid; gap: 18px; }
+.hl-modal__foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  padding: 16px var(--card-p); border-top: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+.hl-modal__close {
+  border: 0; background: transparent; cursor: pointer; color: var(--color-fg-muted);
+  padding: 6px; border-radius: var(--radius-sm); display: inline-flex; flex-shrink: 0;
+}
+.hl-modal__close:hover { background: var(--neutral-100); color: var(--color-fg); }
+.hl-modal__close svg { width: 16px; height: 16px; }
+
+/* Field group dentro del modal */
+.hl-fieldgroup { display: grid; gap: 6px; }
+.hl-fieldgroup > label { font-size: var(--text-base); font-weight: 500; }
+.hl-fieldgroup .req { color: var(--color-destructive); }
+.hl-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* ============================================================================
+   STEPPER — ciclo de vida de una entidad
+   ========================================================================== */
+.hl-stepper { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+.hl-step { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.hl-step__dot {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--color-border); background: var(--color-surface);
+}
+.hl-step__dot svg { width: 11px; height: 11px; }
+.hl-step__label { font-size: var(--text-base); color: var(--color-fg-muted); }
+/* completado */
+.hl-step.is-done .hl-step__dot { background: var(--ok-fg); border-color: var(--ok-fg); color: #fff; }
+.hl-step.is-done .hl-step__label { color: var(--ok-fg); }
+/* actual */
+.hl-step.is-active .hl-step__dot { background: var(--color-primary); border-color: var(--color-primary); }
+.hl-step.is-active .hl-step__dot::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #fff; }
+.hl-step.is-active .hl-step__label { color: var(--color-fg); font-weight: 600; }
+/* pendiente */
+.hl-step.is-todo .hl-step__dot::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--color-border); }
+/* rechazado / terminal negativo */
+.hl-step.is-bad .hl-step__dot { background: var(--color-destructive); border-color: var(--color-destructive); color: #fff; }
+.hl-step.is-bad .hl-step__label { color: var(--color-destructive); font-weight: 600; }
+
+.hl-pipe { width: 28px; height: 1.5px; background: var(--color-border); flex-shrink: 0; margin: 0 10px; }
+.hl-pipe.is-filled { background: var(--ok-fg); }
+
+/* ── Rail de acciones (panel derecho del ciclo de vida) ──────────────────── */
+.hl-rail { display: grid; gap: 14px; align-content: start; }
+.hl-rail__card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+.hl-rail__head { padding: 14px 18px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hl-rail__head h3 { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.hl-rail__body { padding: 18px; display: grid; gap: 14px; }
+
+/* ── Línea de resumen (label / valor) ───────────────────────────────────── */
+.hl-kv { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-size: var(--text-base); }
+.hl-kv > dt { color: var(--color-fg-muted); }
+.hl-kv > dd { margin: 0; font-variant-numeric: tabular-nums; }
+.hl-kv--total { padding-top: 12px; border-top: 1px solid var(--color-border); font-size: var(--text-lg); font-weight: 600; }
+
+/* ── Callout (aviso contextual) ─────────────────────────────────────────── */
+.hl-callout { display: flex; gap: 10px; padding: 12px 14px; border-radius: var(--radius-md); font-size: var(--text-base); line-height: 1.5; }
+.hl-callout svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+.hl-callout--info { background: var(--brand-blue-soft); color: var(--brand-blue-fg); }
+.hl-callout--warn { background: var(--brand-orange-soft); color: var(--brand-orange-fg); }
+.hl-callout--ok   { background: var(--ok-bg); color: var(--ok-fg); }
+.hl-callout--bad  { background: var(--color-destructive-soft); color: var(--color-destructive); }
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.hl-empty { padding: 48px 24px; text-align: center; color: var(--color-fg-muted); }
+.hl-empty svg { width: 28px; height: 28px; margin-bottom: 12px; color: var(--color-fg-subtle); }
+.hl-empty p { margin: 0 0 4px; font-size: var(--text-md); font-weight: 500; color: var(--color-fg); }
+.hl-empty span { font-size: var(--text-base); }
+
+/* ── Paginación ─────────────────────────────────────────────────────────── */
+.hl-pager { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px var(--cell-px); border-top: 1px solid var(--color-border); font-size: var(--text-sm); color: var(--color-fg-muted); }
+.hl-pager__nums { display: flex; gap: 4px; }
+.hl-pager__nums button { min-width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; cursor: pointer; font: 500 var(--text-sm) var(--font-sans); color: var(--color-fg-muted); }
+.hl-pager__nums button:hover { background: var(--neutral-100); color: var(--color-fg); }
+.hl-pager__nums button[aria-current="true"] { background: var(--brand-blue-soft); color: var(--brand-blue-fg); border-color: transparent; }
+
+/* ============================================================================
+   META TILE — par label/valor sobre superficie muted (ficha de datos)
+   ========================================================================== */
+.hl-meta { padding: 9px 12px; border-radius: var(--radius-md); background: var(--color-surface-muted); }
+.hl-meta > dt { font: 600 var(--text-xs)/1 var(--font-sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--color-fg-muted); margin-bottom: 4px; }
+.hl-meta > dd { margin: 0; font-size: var(--text-base); font-weight: 500; color: var(--color-fg); }
+.hl-metagrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+
+/* ============================================================================
+   DISCLOSURE — acción secundaria/destructiva que se despliega en su lugar
+   ========================================================================== */
+.hl-disclosure { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; transition: border-color var(--dur) var(--ease-io); }
+.hl-disclosure > summary { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; font-size: var(--text-base); font-weight: 500; color: var(--color-fg); list-style: none; }
+.hl-disclosure > summary::-webkit-details-marker { display: none; }
+.hl-disclosure > summary:hover { background: var(--neutral-50); }
+.hl-disclosure > summary svg { width: 15px; height: 15px; }
+.hl-disclosure > summary .chev { margin-left: auto; color: var(--color-fg-subtle); transition: transform var(--dur) var(--ease-io); }
+.hl-disclosure[open] > summary .chev { transform: rotate(180deg); }
+.hl-disclosure__body { padding: 14px 12px; border-top: 1px solid var(--color-border); display: grid; gap: 12px; }
+.hl-disclosure--danger[open] { border-color: color-mix(in oklch, var(--color-destructive) 40%, transparent); }
+.hl-disclosure--danger[open] > summary { background: var(--color-destructive-soft); color: var(--color-destructive); }
+
+/* ============================================================================
+   TOAST — confirmación efímera (equivalente a sonner)
+   ========================================================================== */
+.hl-toasts { position: fixed; bottom: 20px; right: 20px; z-index: 100; display: grid; gap: 8px; justify-items: end; pointer-events: none; }
+.hl-toast {
+  display: flex; align-items: center; gap: 10px; padding: 11px 15px;
+  background: var(--neutral-900); color: var(--neutral-0);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+  font-size: var(--text-base); font-weight: 500;
+  animation: hl-toast-in var(--dur-slow) var(--ease);
+}
+.hl-toast svg { width: 15px; height: 15px; flex-shrink: 0; }
+.hl-toast.is-ok svg { color: oklch(0.75 0.16 150); }
+.hl-toast.is-bad svg { color: oklch(0.72 0.18 25); }
+.hl-toast.out { animation: hl-toast-out var(--dur) var(--ease-io) forwards; }
+@keyframes hl-toast-in { from { opacity: 0; transform: translateY(10px) scale(.97) } to { opacity: 1; transform: none } }
+@keyframes hl-toast-out { to { opacity: 0; transform: translateY(6px) } }
+
+/* ============================================================================
+   TIMELINE — hitos de una entidad en el tiempo
+   ========================================================================== */
+.hl-timeline { display: grid; gap: 0; }
+.hl-tl { display: grid; grid-template-columns: 20px 1fr; gap: 10px; padding-bottom: 14px; position: relative; }
+.hl-tl:last-child { padding-bottom: 0; }
+.hl-tl::before { content: ""; position: absolute; left: 9.5px; top: 18px; bottom: 0; width: 1.5px; background: var(--color-border); }
+.hl-tl:last-child::before { display: none; }
+.hl-tl__dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--ok-fg); color: #fff; z-index: 1; }
+.hl-tl__dot svg { width: 11px; height: 11px; }
+.hl-tl__dot.is-todo { background: var(--color-surface); border: 1.5px solid var(--color-border); }
+.hl-tl__dot.is-bad { background: var(--color-destructive); }
+.hl-tl__body b { display: block; font-size: var(--text-base); font-weight: 500; }
+.hl-tl__body span { display: block; font-size: var(--text-sm); color: var(--color-fg-muted); margin-top: 1px; }
