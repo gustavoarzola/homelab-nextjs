@@ -69,13 +69,13 @@ Trampas a manejar en el paso 01:
 | `02-shell.md` | `(admin)/layout.tsx`, `sidebar.tsx`, `PageHeader`, `login/` | **hecho** |
 | `03-primitivos.md` | `src/components/ui/*` | **hecho** |
 | `04-data-table.md` | `data-table.tsx` completo | **hecho** |
-| `05-catalogos.md` | Los 12 `*-table.tsx` + sus `page.tsx` | pendiente |
+| `05-catalogos.md` | Los 12 `*-table.tsx` (configs de `DataTable`) | **hecho** |
 | `06-visita-ciclo.md` | `visita-lifecycle-view.tsx` + `visitas/[id]/page.tsx` | pendiente |
 | `07-visita-form.md` | `visita-form.tsx`, `exam-grupo-block.tsx`, páginas nueva/editar | pendiente |
 | `08-cotizaciones.md` | `cotizacion-lifecycle-view.tsx`, `cotizacion-form.tsx` | pendiente |
 | `09-pacientes.md` | `paciente-form.tsx`, `historial-paciente.tsx`, `file-upload.tsx` | pendiente |
 | `10-dashboard.md` | Sacar glassmorphism; cards y gráficos desde tokens DS | pendiente |
-| `11-operacion.md` | `asignacion-*`, `pagos-enfermeras`, `reportes-visitas` | pendiente |
+| `11-operacion.md` | `asignacion-*`, `pagos-enfermeras-table.tsx` + `[enfermeraId]/page.tsx`, `precios-visitas-table.tsx`, `reportes-visitas` | pendiente |
 | `12-limpieza.md` | Alias de compatibilidad, `.dark`, `tailwind.config.ts`, oklch sueltos | pendiente |
 
 Se implementa **un paso a la vez**, commiteando al cerrar cada uno. Este directorio es el

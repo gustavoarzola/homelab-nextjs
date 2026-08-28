@@ -1,6 +1,7 @@
 'use client'
 
 import { DataTable, type ColumnDef, type FilterDef, type FormFieldDef, type Result, type SearchParams } from './data-table'
+import { StatusDot } from './ui/status-dot'
 import type { PrevisionRow } from '@/lib/actions/catalogos'
 import { PREVISION_CATEGORIA_LABELS, PREVISION_CATEGORIA_OPTIONS, type PrevisionCategoria } from '@/lib/previsiones'
 
@@ -32,24 +33,15 @@ const columns: ColumnDef<PrevisionRow>[] = [
     header: 'Categoría',
     cell: ({ row }) => {
       const cat = row.original.categoria
-      if (!cat) return <span style={{ color: 'var(--muted-foreground)' }}>—</span>
-      return <span style={{ color: 'var(--foreground)' }}>{formatCategoriaLabel(cat)}</span>
+      if (!cat) return <span style={{ color: 'var(--color-fg-muted)' }}>—</span>
+      return <span>{formatCategoriaLabel(cat)}</span>
     },
   },
   {
     id: 'activo',
     header: 'Estado',
     cell: ({ row }) => (
-      <span
-        className="rounded-full px-2 py-0.5 text-xs font-medium"
-        style={
-          row.original.activo
-            ? { backgroundColor: 'oklch(0.6 0.118 184.704 / 12%)', color: 'oklch(0.45 0.118 184.704)' }
-            : { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }
-        }
-      >
-        {row.original.activo ? 'Activa' : 'Inactiva'}
-      </span>
+      <StatusDot active={row.original.activo}>{row.original.activo ? 'Activa' : 'Inactiva'}</StatusDot>
     ),
   },
 ]

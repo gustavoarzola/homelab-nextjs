@@ -1,6 +1,8 @@
 'use client'
 
 import { DataTable, type ColumnDef, type FilterDef, type FormFieldDef, type Result, type SearchParams } from './data-table'
+import { StatusDot } from './ui/status-dot'
+import { Chip } from './ui/chip'
 import type { ProcedimientoRow } from '@/lib/actions/catalogos'
 
 type Props = {
@@ -27,17 +29,13 @@ const columns: ColumnDef<ProcedimientoRow>[] = [
     id: 'codigo',
     header: 'Código',
     enableSorting: true,
-    cell: ({ row }) => (
-      <span className="font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
-        {row.original.codigo}
-      </span>
-    ),
+    cell: ({ row }) => <Chip>{row.original.codigo}</Chip>,
   },
   {
     id: 'categoria',
     header: 'Categoría',
     cell: ({ row }) => (
-      <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+      <span style={{ color: 'var(--color-fg-muted)' }}>
         {CATEGORIAS[row.original.categoria] ?? row.original.categoria}
       </span>
     ),
@@ -46,10 +44,10 @@ const columns: ColumnDef<ProcedimientoRow>[] = [
     id: 'precio',
     header: 'Precio',
     cell: ({ row }) => (
-      <span className="text-sm tabular-nums">
+      <span className="hl-tnum block text-right">
         {row.original.precio > 0
           ? `$${row.original.precio.toLocaleString('es-CL')}`
-          : <span style={{ color: 'var(--muted-foreground)' }}>—</span>
+          : <span style={{ color: 'var(--color-fg-muted)' }}>—</span>
         }
       </span>
     ),
@@ -58,16 +56,7 @@ const columns: ColumnDef<ProcedimientoRow>[] = [
     id: 'activo',
     header: 'Estado',
     cell: ({ row }) => (
-      <span
-        className="rounded-full px-2 py-0.5 text-xs font-medium"
-        style={
-          row.original.activo
-            ? { backgroundColor: 'oklch(0.6 0.118 184.704 / 12%)', color: 'oklch(0.45 0.118 184.704)' }
-            : { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }
-        }
-      >
-        {row.original.activo ? 'Activo' : 'Inactivo'}
-      </span>
+      <StatusDot active={row.original.activo}>{row.original.activo ? 'Activo' : 'Inactivo'}</StatusDot>
     ),
   },
 ]

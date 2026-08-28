@@ -1,6 +1,7 @@
 'use client'
 
 import { DataTable, type ColumnDef, type FilterDef, type SearchParams, type Result } from './data-table'
+import { Badge } from './ui/badge'
 import { formatDateTime } from '@/lib/format'
 import type { VisitaRow } from '@/lib/actions/visitas'
 import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
@@ -28,7 +29,7 @@ const columns: ColumnDef<VisitaRow>[] = [
     header: 'Paciente',
     enableSorting: true,
     cell: ({ row }) => (
-      <span style={{ color: row.original.paciente ? 'inherit' : 'var(--muted-foreground)' }}>
+      <span style={{ color: row.original.paciente ? 'inherit' : 'var(--color-fg-muted)' }}>
         {row.original.paciente ?? '—'}
       </span>
     ),
@@ -38,20 +39,16 @@ const columns: ColumnDef<VisitaRow>[] = [
     accessorKey: 'estado',
     header: 'Estado',
     enableSorting: true,
-    cell: ({ row }) => (
-      <span
-        className="rounded-full px-2 py-0.5 text-xs font-medium"
-        style={(() => { const s = ESTADO_VISITA_STYLES[row.original.estado]; return s ? { backgroundColor: s.bg, color: s.color } : {} })()}
-      >
-        {ESTADO_VISITA_STYLES[row.original.estado]?.label ?? row.original.estado}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const cfg = ESTADO_VISITA_STYLES[row.original.estado]
+      return <Badge badgeClass={cfg?.badgeClass ?? 'is-cancelada'}>{cfg?.label ?? row.original.estado}</Badge>
+    },
   },
   {
     id: 'enfermera',
     header: 'Enfermera',
     cell: ({ row }) => (
-      <span style={{ color: row.original.enfermera ? 'inherit' : 'var(--muted-foreground)' }}>
+      <span style={{ color: row.original.enfermera ? 'inherit' : 'var(--color-fg-muted)' }}>
         {row.original.enfermera ?? '—'}
       </span>
     ),
@@ -61,7 +58,7 @@ const columns: ColumnDef<VisitaRow>[] = [
     accessorKey: 'costo',
     header: 'Costo',
     enableSorting: true,
-    cell: ({ row }) => `$${row.original.costo.toLocaleString('es-CL')}`,
+    cell: ({ row }) => <span className="hl-tnum block text-right">${row.original.costo.toLocaleString('es-CL')}</span>,
   },
   {
     id: 'actions',

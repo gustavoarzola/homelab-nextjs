@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Calendar, ClipboardList } from 'lucide-react'
 import { DataTable, type ColumnDef, type SearchParams, type Result } from '@/components/data-table'
+import { Button } from '@/components/ui/button'
 import type { PacienteRow } from '@/lib/actions/pacientes'
 import { formatNombre } from '@/lib/paciente'
 import { formatRut } from '@/lib/rut'
@@ -97,22 +98,16 @@ export function PacientesTable({ initialData, previsiones, search, onDelete }: P
       onDelete={onDelete}
       extraRowActions={(row) => (
         <>
-          <Link
-            href={`/pacientes/${row.id}/historial`}
-            title="Historial de atenciones"
-            className="rounded p-1.5 hover:opacity-80 transition-opacity"
-            style={{ color: 'var(--muted-foreground)' }}
-          >
-            <ClipboardList className="h-3.5 w-3.5" />
-          </Link>
-          <Link
-            href={`/visitas/nueva?pacienteId=${row.id}`}
-            title="Nueva visita"
-            className="rounded p-1.5 hover:opacity-80 transition-opacity"
-            style={{ color: 'var(--muted-foreground)' }}
-          >
-            <Calendar className="h-3.5 w-3.5" />
-          </Link>
+          <Button variant="ghost" size="icon" asChild>
+            <Link href={`/pacientes/${row.id}/historial`} title="Historial de atenciones">
+              <ClipboardList />
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon" asChild>
+            <Link href={`/visitas/nueva?pacienteId=${row.id}`} title="Nueva visita">
+              <Calendar />
+            </Link>
+          </Button>
         </>
       )}
       entityLabel="paciente"

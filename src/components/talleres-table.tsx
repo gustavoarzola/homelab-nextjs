@@ -1,6 +1,8 @@
 'use client'
 
 import { DataTable, type ColumnDef, type FilterDef, type FormFieldDef, type Result, type SearchParams } from './data-table'
+import { StatusDot } from './ui/status-dot'
+import { Chip } from './ui/chip'
 import type { TallerRow } from '@/lib/actions/catalogos'
 
 type Props = {
@@ -22,26 +24,13 @@ const columns: ColumnDef<TallerRow>[] = [
     id: 'codigo',
     header: 'Código',
     enableSorting: true,
-    cell: ({ row }) => (
-      <span className="font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
-        {row.original.codigo}
-      </span>
-    ),
+    cell: ({ row }) => <Chip>{row.original.codigo}</Chip>,
   },
   {
     id: 'activo',
     header: 'Estado',
     cell: ({ row }) => (
-      <span
-        className="rounded-full px-2 py-0.5 text-xs font-medium"
-        style={
-          row.original.activo
-            ? { backgroundColor: 'oklch(0.6 0.118 184.704 / 12%)', color: 'oklch(0.45 0.118 184.704)' }
-            : { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }
-        }
-      >
-        {row.original.activo ? 'Activo' : 'Inactivo'}
-      </span>
+      <StatusDot active={row.original.activo}>{row.original.activo ? 'Activo' : 'Inactivo'}</StatusDot>
     ),
   },
 ]

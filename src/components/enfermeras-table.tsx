@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { DataTable, type ColumnDef, type FilterDef, type FormFieldDef, type Result, type SearchParams } from './data-table'
+import { StatusDot } from './ui/status-dot'
 import type { NurseRow } from '@/lib/actions/enfermeras'
 import { formatRut } from '@/lib/rut'
 
@@ -77,16 +78,7 @@ const columns: ColumnDef<NurseRow>[] = [
     id: 'activo',
     header: 'Estado',
     cell: ({ row }) => (
-      <span
-        className="rounded-full px-2 py-0.5 text-xs font-medium"
-        style={
-          row.original.activo
-            ? { backgroundColor: 'oklch(0.6 0.118 184.704 / 12%)', color: 'oklch(0.45 0.118 184.704)' }
-            : { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }
-        }
-      >
-        {row.original.activo ? 'Activa' : 'Inactiva'}
-      </span>
+      <StatusDot active={row.original.activo}>{row.original.activo ? 'Activa' : 'Inactiva'}</StatusDot>
     ),
   },
 ]
