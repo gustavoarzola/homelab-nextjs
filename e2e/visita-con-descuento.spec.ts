@@ -49,7 +49,10 @@ test('crea una visita con descuento en procedimiento + insumos y el costo se ref
   await page.waitForURL(/\/visitas\/\d+$/)
 
   // ── El costo persistido debe coincidir con el preview ──
-  const totalPersistido = page.getByText('Total', { exact: true }).locator('xpath=following-sibling::span')
+  // Vista de ciclo de vida (post-guardado): fila "Total" como <dt>/<dd> dentro
+  // de .hl-kv--total (design-system paso 06), no un par de <span> como en el
+  // formulario de creación.
+  const totalPersistido = page.locator('.hl-kv--total dd')
   await expect(totalPersistido).toBeVisible()
   const persisted = parseCLP((await totalPersistido.textContent()) ?? '')
   expect(persisted).toBe(totalAfter)
