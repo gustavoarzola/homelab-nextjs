@@ -10,7 +10,7 @@ export default async function AsignacionPage() {
   ])
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="page-full">
       <AsignacionBoard
         initialFecha={today}
         initialVisitas={visitas}
