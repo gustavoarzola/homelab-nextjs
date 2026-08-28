@@ -1,0 +1,86 @@
+/* ============================================================================
+   Visita — ciclo de vida (page-specific)
+   ----------------------------------------------------------------------------
+   Origen: proyecto de diseño Claude Design (f20b3901-7c86-452d-854e-3c51dd890562),
+   archivo `Visita Ciclo de Vida DS.html`. Subconjunto de su bloque <style> —
+   solo las clases que consume visita-lifecycle-view.tsx (paso 06 del plan de
+   migración). Se omiten las clases del modo "cierre en la columna principal"
+   (.mode-bar, .backlink, .bulkbar, .selbar, .ex-table, .edit-*) porque ese
+   modo no se implementa en este paso — el cierre sigue siendo el acordeón
+   compacto del rail, solo re-skinneado con tokens DS.
+   Requiere homelab-tokens.css (ya importado globalmente desde el paso 01).
+   ========================================================================== */
+
+/* ── Barra de ciclo de vida ── */
+.lifebar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); padding: 11px 32px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.fork { display: flex; align-items: center; gap: 6px; }
+.fork__opt { display: flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--radius-full); border: 1px dashed var(--color-border); font-size: var(--text-sm); color: var(--color-fg-muted); white-space: nowrap; opacity: .55; transition: opacity var(--dur) var(--ease-io); }
+.fork.is-live .fork__opt { opacity: 1; }
+.fork__opt .d { width: 5px; height: 5px; border-radius: 50%; background: var(--color-border); }
+.fork__opt svg { width: 11px; height: 11px; }
+.fork__opt.is-on { border-style: solid; border-color: transparent; font-weight: 600; }
+.fork__opt.is-on.ok { background: var(--cot-aceptada-bg); color: var(--cot-aceptada-fg); }
+.fork__opt.is-on.bad { background: var(--estado-norealizada-bg); color: var(--estado-norealizada-fg); }
+.fork__opt.is-on.gray { background: var(--neutral-200); color: var(--color-fg-muted); }
+.fork .bar { color: var(--color-border); font-size: 11px; }
+
+/* ── Cards de detalle ── */
+.dcard { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--card-p); }
+.dcard__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.dcard__head .hl-label { margin: 0; }
+.patient { display: flex; align-items: flex-start; gap: 13px; padding: 13px; border-radius: var(--radius-md); background: var(--color-surface-muted); }
+.patient b { display: block; font-size: var(--text-md); font-weight: 600; }
+.patient .lines { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: var(--text-sm); color: var(--color-fg-muted); }
+.patient .lines span { display: flex; align-items: center; gap: 5px; }
+.patient .lines svg { width: 12px; height: 12px; }
+
+.svcgroup { margin-bottom: 16px; }
+.svcgroup:last-child { margin-bottom: 0; }
+.svcgroup__head { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+.svcgroup__head .d { width: 6px; height: 6px; border-radius: 50%; }
+.svclist { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+.svclist__row { display: flex; align-items: center; gap: 11px; padding: 9px 13px; font-size: var(--text-base); border-top: 1px solid var(--color-border); }
+.svclist__row:first-child { border-top: 0; }
+.svclist__row .nm { flex: 1; min-width: 0; }
+.svclist__row .nm small { display: block; font-size: var(--text-xs); color: var(--color-fg-muted); margin-top: 2px; }
+.svclist__row .pr { font-variant-numeric: tabular-nums; color: var(--color-fg-muted); flex-shrink: 0; }
+.lineitem { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 13px; border-radius: var(--radius-md); background: var(--color-surface-muted); font-size: var(--text-base); margin-bottom: 8px; }
+.lineitem .pr { font-variant-numeric: tabular-nums; }
+.lineitem svg { width: 13px; height: 13px; color: var(--color-fg-muted); }
+
+/* ── Rail: tarjeta de acción por estado ── */
+.act__head { padding: 14px 18px; border-bottom: 1px solid var(--color-border); }
+.act__head h3 { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.act__head p { margin: 3px 0 0; font-size: var(--text-sm); color: var(--color-fg-muted); line-height: 1.5; }
+.act__body { padding: 16px 18px; display: grid; gap: 11px; }
+.wfull { width: 100%; justify-content: center; }
+
+/* ── Secciones del cierre (acordeón de facturación/pago/exámenes) ── */
+.cs { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 8px; transition: border-color var(--dur) var(--ease-io); }
+.cs__head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; user-select: none; transition: background var(--dur-fast) var(--ease-io); border: 0; width: 100%; text-align: left; background: var(--color-surface); }
+.cs__head:hover { background: var(--neutral-50); }
+.cs__num { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font: 600 var(--text-xs)/1 var(--font-sans); background: var(--neutral-200); color: var(--color-fg-muted); transition: background var(--dur) var(--ease-io), color var(--dur) var(--ease-io); }
+.cs.is-completo .cs__num { background: var(--ok-fg); color: #fff; }
+.cs__title { flex: 1; min-width: 0; font-size: var(--text-base); font-weight: 500; }
+.cs__chev { color: var(--color-fg-subtle); display: inline-flex; flex-shrink: 0; transition: transform var(--dur) var(--ease-io); }
+.cs.is-open .cs__chev { transform: rotate(180deg); }
+.cs__summary { padding: 0 12px 10px; padding-left: 44px; font-size: var(--text-xs); color: var(--color-fg-muted); line-height: 1.4; }
+.cs__body { padding: 12px; display: grid; gap: 12px; border-top: 1px solid var(--color-border); }
+.cs.is-completo { border-color: color-mix(in oklch, var(--ok-fg) 30%, var(--color-border)); }
+
+/* ── Checklist del rail (panel "realizada") ── */
+.chk { display: grid; gap: 2px; }
+.chk__row { display: flex; align-items: center; gap: 9px; padding: 7px 0; font-size: var(--text-base); border-top: 1px solid var(--color-border); }
+.chk__row:first-child { border-top: 0; }
+.chk__ico { width: 19px; height: 19px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--neutral-200); color: #fff; }
+.chk__ico.ok { background: var(--ok-fg); }
+.chk__ico.part { background: var(--warn-fg); }
+.chk__ico svg { width: 11px; height: 11px; }
+.chk__txt { flex: 1; min-width: 0; }
+.chk__txt b { display: block; font-weight: 500; }
+.chk__txt span { display: block; font-size: var(--text-xs); color: var(--color-fg-muted); margin-top: 1px; }
+
+/* ── Toggle de pago (card clickeable) ── */
+.pay-toggle { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; padding: 13px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-surface-muted); transition: background var(--dur) var(--ease-io), border-color var(--dur) var(--ease-io); }
+.pay-toggle.is-on { background: var(--ok-bg); border-color: color-mix(in oklch, var(--ok-fg) 28%, transparent); }
+.pay-toggle b { display: block; font-size: var(--text-base); font-weight: 500; }
