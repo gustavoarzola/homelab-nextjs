@@ -28,8 +28,14 @@
 .app-side__user span { font-size: var(--text-xs); color: var(--color-fg-muted); }
 
 /* ── Contenido ──────────────────────────────────────────────────────────── */
-.app-main { min-width: 0; display: flex; flex-direction: column; }
-.app-body { padding: 28px 32px 48px; }
+.app-main { min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.app-body { padding: 28px 32px 48px; flex: 1 0 auto; }
+
+/* Páginas de alto completo (board de asignación): el shell no scrollea, el
+   contenido gestiona su propio scroll interno. */
+.app:has(.page-full) { height: 100vh; overflow: hidden; }
+.app:has(.page-full) .app-body { flex: 1 1 auto; min-height: 0; overflow: hidden; padding-bottom: 28px; }
+.page-full { height: 100%; display: flex; flex-direction: column; min-height: 0; }
 
 /* Page header */
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
