@@ -23,7 +23,7 @@ No tiene interfaz pública — todo está detrás de autenticación.
 | Tablas | @tanstack/react-table 8 (componente genérico `DataTable`) |
 | Formularios | Controlados con useState (sin react-hook-form) |
 | Notificaciones | Sonner (toast) |
-| Tema | next-themes (dark/light/system) |
+| Tema | HomeLab Design System (`src/app/homelab-tokens.css`), solo modo claro |
 | Gráficos | Recharts 3 |
 | Fechas | date-fns 4, react-day-picker 9 |
 | Email | Resend |
@@ -367,7 +367,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 7. **RUT se valida con `validateRut()`** de `src/lib/rut.ts`
 8. **Formateo de nombres con `formatNombre()`** de `src/lib/paciente.ts`
 9. **Notificaciones con `toast` de sonner** (toast.success, toast.error)
-10. **Estilos con CSS variables** para colores del tema (`var(--foreground)`, `var(--muted-foreground)`, etc.)
+10. **Estilos con los tokens del HomeLab Design System** (`var(--color-fg)`, `var(--color-fg-muted)`, `var(--color-primary)`, etc. — ver sección "Design System")
 11. **Server actions con FormData usan Zod** — `parseFormData` para campos escalares, `parseFormDataWithArrays` para forms con arrays (`procedure_ids`, `exam_ids`, etc.), ambos en `src/lib/validation.ts`. Campos reutilizables en `fields` (nullableStr, nullableId, bool, fechaRequerida, ids). Validación cruzada con `.superRefine()`. Claves dinámicas (`taller_precio_${id}`, `phone_${i}`) siguen extrayéndose manualmente después del parse.
 
 ### Patrones de UI
@@ -376,7 +376,27 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 - Catálogos simples: `DataTable` genérico con modal inline
 - Select con búsqueda: `<SelectCombobox>` (wraps Popover + Command-like)
 - Date picker: `<FormDatePicker>` (wraps react-day-picker)
-- Todas las páginas dentro de `(admin)/` usan `<div className="p-8">` como contenedor
+- Todas las páginas dentro de `(admin)/` viven dentro de la estructura de shell `.app` /
+  `.app-main` / `.app-body` (`src/app/homelab-shell.css`) — no agregar wrappers propios de
+  padding (`p-8`, `min-h-screen`, etc.), ya lo provee el layout.
+
+### Design System (HomeLab DS)
+- Tokens en `src/app/homelab-tokens.css` (`@theme`, namespaces `--color-*`, `--space-*`,
+  `--radius-*`, `--text-*`, `--control-*` para densidad) + primitivos CSS `.hl-*` (botón,
+  input, card, tabla, badge, tag, modal, etc.). `src/app/homelab-shell.css` define el shell
+  (`.app`, `.app-side`, `.page-head`, `.toolbar`).
+- Componentes React en `src/components/ui/*` envuelven las clases `.hl-*` (`Button`,
+  `Badge`, `Tag`, `Chip`, `StatusDot`, `Avatar`, `Callout`, `MetaGrid`/`MetaTile`,
+  `EmptyState`, etc.) — usarlos en vez de reescribir markup con estilos inline.
+  `src/app/(admin)/playground/page.tsx` tiene un showcase de todos ellos.
+  `<PageHeader>` (`src/components/page-header.tsx`) reemplaza el header manual de cada página.
+- Solo modo claro — no hay paleta oscura ni toggle de tema.
+- Densidad parametrizada en un solo lugar: `<html data-density="medium">` (`--control-h`,
+  `--row-py`, `--cell-px`, etc. en `homelab-tokens.css`); cambiar el atributo reescala toda
+  la app.
+- Origen: proyecto de diseño Claude Design "HomeLab Design System"
+  (`f20b3901-7c86-452d-854e-3c51dd890562`). El plan de migración completo (paso a paso,
+  con verificación) vive en `docs/plan-design-system/`.
 
 ### Conexión a base de datos
 - En Vercel: Neon serverless (WebSocket via `@neondatabase/serverless` Pool)
@@ -410,32 +430,26 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 ### Alta prioridad
 
-1. **`visita-form.tsx.bak` existe en components** — archivo backup que debería eliminarse del repositorio.
+1. **`PricingDb` tipado como `any`** en `src/lib/pricing/visitas.ts:25` — la conexión de DB se pasa como `any` para aceptar tanto Neon como postgres.js. Debería tener un tipo compartido o usar el tipo de Drizzle.
 
-2. **`PricingDb` tipado como `any`** en `src/lib/pricing/visitas.ts:25` — la conexión de DB se pasa como `any` para aceptar tanto Neon como postgres.js. Debería tener un tipo compartido o usar el tipo de Drizzle.
+2. **Duplicación de lógica HTML entre cotización y cotización-standalone** — Ambos route handlers (`/api/cotizacion/[id]` y `/api/cotizacion-standalone/[id]`) tienen funciones `buildHTML` casi idénticas con cientos de líneas de HTML inline. Deberían compartir un template.
 
-3. **Duplicación de lógica HTML entre cotización y cotización-standalone** — Ambos route handlers (`/api/cotizacion/[id]` y `/api/cotizacion-standalone/[id]`) tienen funciones `buildHTML` casi idénticas con cientos de líneas de HTML inline. Deberían compartir un template.
-
-4. **`SimpleDatePicker` solo se usa en playground** — El componente existe pero no se usa en producción. Evaluar si eliminarlo o adoptarlo.
+3. **`SimpleDatePicker` solo se usa en playground** — El componente existe pero no se usa en producción. Evaluar si eliminarlo o adoptarlo.
 
 ### Media prioridad
 
-6. **No hay middleware/proxy.ts para protección de rutas** — La protección está solo en el layout de `(admin)`. Un middleware sería más seguro para proteger API routes y evitar que se rendericen parcialmente páginas protegidas.
+4. **Catálogos siguen un patrón repetitivo** — `catalogos.ts` tiene ~500 líneas con CRUD casi idéntico para 6 entidades. Podría abstraerse en un factory genérico.
 
-7. **Catálogos siguen un patrón repetitivo** — `catalogos.ts` tiene ~500 líneas con CRUD casi idéntico para 6 entidades. Podría abstraerse en un factory genérico.
+5. **Formularios sin react-hook-form** — Los formularios complejos (visita, cotización, paciente) manejan estado manualmente con muchos `useState`. Esto es funcional pero verboso. Considerar migrar a react-hook-form para gestión de estado en el cliente (la validación server-side con Zod ya está en place).
 
-8. **Formularios sin react-hook-form** — Los formularios complejos (visita, cotización, paciente) manejan estado manualmente con muchos `useState`. Esto es funcional pero verboso. Considerar migrar a react-hook-form para gestión de estado en el cliente (la validación server-side con Zod ya está en place).
+6. **Tests limitados** — Existen tests en `src/lib/actions/__tests__/` para catalogos, enfermeras, laboratorios y pricing, pero faltan tests para las funcionalidades más críticas (visitas CRUD, cotizaciones, asignación, email).
 
-9. **Tests limitados** — Existen tests en `src/lib/actions/__tests__/` para catalogos, enfermeras, laboratorios y pricing, pero faltan tests para las funcionalidades más críticas (visitas CRUD, cotizaciones, asignación, email).
-
-10. **NextAuth en versión beta** — `next-auth@5.0.0-beta.30` puede tener breaking changes. Monitorear para actualizar a la versión estable cuando salga.
+7. **NextAuth en versión beta** — `next-auth@5.0.0-beta.30` puede tener breaking changes. Monitorear para actualizar a la versión estable cuando salga.
 
 ### Baja prioridad
 
-11. **Google Maps API key expuesta al cliente** — `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` es pública por necesidad (se usa en el browser), pero debería tener restricciones de dominio configuradas en la consola de Google Cloud.
+8. **Google Maps API key expuesta al cliente** — `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` es pública por necesidad (se usa en el browser), pero debería tener restricciones de dominio configuradas en la consola de Google Cloud.
 
-12. **No hay rate limiting en API routes** — Los endpoints de upload y archivos no tienen rate limiting.
+9. **No hay rate limiting en API routes** — Los endpoints de upload y archivos no tienen rate limiting.
 
-13. **No hay manejo de errores centralizado en server actions** — Cada action tiene su propio try/catch con `{ success: false, error }`. Un wrapper genérico reduciría la repetición.
-
-14. **Falta página de configuración** — El sidebar tiene link a `/configuracion` pero no se verificó si existe la página.
+10. **No hay manejo de errores centralizado en server actions** — Cada action tiene su propio try/catch con `{ success: false, error }`. Un wrapper genérico reduciría la repetición.

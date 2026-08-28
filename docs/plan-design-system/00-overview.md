@@ -76,7 +76,7 @@ Trampas a manejar en el paso 01:
 | `09-pacientes.md` | `paciente-form.tsx`, `historial-paciente.tsx`, `file-upload.tsx` | **hecho** |
 | `10-dashboard.md` | Sacar glassmorphism; cards y gráficos desde tokens DS | **hecho** |
 | `11-operacion.md` | `asignacion-*`, `pagos-enfermeras-table.tsx` + `[enfermeraId]/page.tsx`, `precios-visitas-table.tsx`, `reportes-visitas` | **hecho** |
-| `12-limpieza.md` | Alias de compatibilidad, `.dark`, `tailwind.config.ts`, oklch sueltos | pendiente |
+| `12-limpieza.md` | Alias de compatibilidad, `.dark`, `tailwind.config.ts`, oklch sueltos | **hecho** |
 
 Se implementa **un paso a la vez**, commiteando al cerrar cada uno. Este directorio es el
 estado persistente del avance — si la sesión se corta, se retoma leyendo el estado de

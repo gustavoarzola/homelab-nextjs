@@ -130,14 +130,14 @@ export function DashboardVisitsChart({
               strokeWidth={2.5}
               dot={{
                 r: 4.5,
-                fill: 'var(--background)',
+                fill: 'var(--color-surface)',
                 stroke: 'var(--color-visits)',
                 strokeWidth: 2,
               }}
               activeDot={{
                 r: 6,
                 fill: 'var(--color-visits)',
-                stroke: 'var(--background)',
+                stroke: 'var(--color-surface)',
                 strokeWidth: 2,
               }}
             />

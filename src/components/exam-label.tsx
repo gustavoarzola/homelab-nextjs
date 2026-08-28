@@ -13,13 +13,13 @@ export function ExamLabel({
 }) {
   const grupo = grupoExamen as ExamGrupo
   const groupLabel = EXAM_GRUPO_LABELS[grupo] ?? grupoExamen
-  const colors = EXAM_GRUPO_COLORS[grupo] ?? { bg: 'var(--muted)', color: 'var(--muted-foreground)' }
+  const colors = EXAM_GRUPO_COLORS[grupo] ?? { bg: 'var(--color-surface-muted)', color: 'var(--color-fg-muted)' }
 
   return (
     <div className="flex items-center gap-2">
       <span
         className="shrink-0 flex items-center justify-center rounded px-1.5 py-0.5 font-mono text-[11px] overflow-hidden text-ellipsis whitespace-nowrap"
-        style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', width: '10ch' }}
+        style={{ backgroundColor: 'var(--color-surface-muted)', color: 'var(--color-fg-muted)', width: '10ch' }}
       >
         {codigo}
       </span>
@@ -29,7 +29,7 @@ export function ExamLabel({
       >
         {groupLabel}
       </span>
-      <span style={{ color: 'var(--foreground)' }}>{nombre}</span>
+      <span style={{ color: 'var(--color-fg)' }}>{nombre}</span>
     </div>
   )
 }

@@ -9,6 +9,15 @@ import { SimpleCalendar } from '@/components/simple-calendar'
 import { SimpleDatePicker } from '@/components/simple-date-picker'
 import { BirthDatePicker } from '@/components/birth-date-picker'
 import { FormDatePicker } from '@/components/form-date-picker'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Tag } from '@/components/ui/tag'
+import { Chip } from '@/components/ui/chip'
+import { StatusDot } from '@/components/ui/status-dot'
+import { Avatar } from '@/components/ui/avatar'
+import { Callout } from '@/components/ui/callout'
+import { MetaGrid, MetaTile } from '@/components/ui/meta'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const EXAMENES = [
   { id: 1,  label: 'Hemograma completo' },
@@ -28,7 +37,7 @@ const EXAMENES = [
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted-foreground)' }}>
+      <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-fg-muted)' }}>
         {title}
       </h2>
       {children}
@@ -39,7 +48,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid items-start gap-3" style={{ gridTemplateColumns: '160px 1fr' }}>
-      <span className="pt-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>{label}</span>
+      <span className="pt-2 text-sm" style={{ color: 'var(--color-fg-muted)' }}>{label}</span>
       <div className="max-w-sm">{children}</div>
     </div>
   )
@@ -63,14 +72,69 @@ export default function PlaygroundPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-8 py-10">
-      <h1 className="mb-1 text-xl font-semibold" style={{ color: 'var(--foreground)' }}>
+      <h1 className="mb-1 text-xl font-semibold" style={{ color: 'var(--color-fg)' }}>
         Playground
       </h1>
-      <p className="mb-10 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+      <p className="mb-10 text-sm" style={{ color: 'var(--color-fg-muted)' }}>
         Prueba de componentes UI
       </p>
 
       <div className="flex flex-col gap-10">
+
+        {/* Primitivos DS */}
+        <Section title="Botones">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button>Primario</Button>
+            <Button variant="secondary">Secundario</Button>
+            <Button variant="ghost">Ghost</Button>
+            <Button variant="destructive">Destructivo</Button>
+            <Button size="sm">Chico</Button>
+            <Button disabled>Deshabilitado</Button>
+          </div>
+        </Section>
+
+        <Section title="Badge / Tag / Chip / StatusDot">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge badgeClass="is-creada">Creada</Badge>
+            <Badge badgeClass="is-confirmada">Confirmada</Badge>
+            <Badge badgeClass="is-realizada">Realizada</Badge>
+            <Badge badgeClass="is-cot-rechazada">Rechazada</Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Tag tone="blue">Imalab</Tag>
+            <Tag tone="green">Procedimiento</Tag>
+            <Tag tone="amber">Taller</Tag>
+            <Tag tone="violet">Recargo</Tag>
+            <Tag noDot>Sin dot</Tag>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Chip>#1042</Chip>
+            <StatusDot active>Activo</StatusDot>
+            <StatusDot active={false}>Inactivo</StatusDot>
+            <Avatar name="Gustavo Arzola" />
+          </div>
+        </Section>
+
+        <Section title="Callout">
+          <div className="flex flex-col gap-2">
+            <Callout tone="info">Aviso informativo.</Callout>
+            <Callout tone="warn">Aviso de advertencia.</Callout>
+            <Callout tone="ok">Operación exitosa.</Callout>
+            <Callout tone="bad">Ocurrió un error.</Callout>
+          </div>
+        </Section>
+
+        <Section title="MetaGrid / EmptyState">
+          <div className="hl-card">
+            <MetaGrid>
+              <MetaTile label="Visitas" value={42} />
+              <MetaTile label="Pagado" value="$120.000" />
+            </MetaGrid>
+          </div>
+          <div className="hl-card hl-card--flush">
+            <EmptyState title="Sin resultados para mostrar" />
+          </div>
+        </Section>
 
         {/* SelectCombobox */}
         <Section title="SelectCombobox">
@@ -81,7 +145,7 @@ export default function PlaygroundPage() {
               onChange={setMultiSelected}
               placeholder="Buscar examen…"
             />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-fg-muted)' }}>
               Seleccionados: {multiSelected.length > 0
                 ? multiSelected.map(id => EXAMENES.find(e => e.id === id)?.label).join(', ')
                 : '—'}
@@ -95,7 +159,7 @@ export default function PlaygroundPage() {
               onChange={setSingleSelected}
               placeholder="Buscar examen…"
             />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-fg-muted)' }}>
               Seleccionado: {singleSelected ? EXAMENES.find(e => e.id === singleSelected)?.label : '—'}
             </p>
           </Row>
@@ -114,7 +178,7 @@ export default function PlaygroundPage() {
         <Section title="TimePicker">
           <Row label="Con valor">
             <TimePicker value={time} onChange={setTime} className="w-full" />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-fg-muted)' }}>
               Valor: {time ?? '—'}
             </p>
           </Row>
@@ -197,7 +261,7 @@ export default function PlaygroundPage() {
               name="fecha"
               placeholder="Seleccionar fecha"
             />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-fg-muted)' }}>
               Valor real: {formSingle ?? '—'}
             </p>
           </Row>
@@ -213,7 +277,7 @@ export default function PlaygroundPage() {
               nameTo="fechaFin"
               placeholder="Seleccionar rango"
             />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-fg-muted)' }}>
               Desde: {formRange?.from ?? '—'} · Hasta: {formRange?.to ?? '—'}
             </p>
           </Row>
@@ -226,7 +290,7 @@ export default function PlaygroundPage() {
               onChange={setBirthDate}
               name="fechaNacimiento"
             />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-fg-muted)' }}>
               Valor real: {birthDate ?? '—'}
             </p>
           </Row>
@@ -235,7 +299,7 @@ export default function PlaygroundPage() {
               value={birthDatePreset}
               onChange={setBirthDatePreset}
             />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-fg-muted)' }}>
               Valor real: {birthDatePreset ?? '—'}
             </p>
           </Row>
