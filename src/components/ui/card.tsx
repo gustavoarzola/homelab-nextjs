@@ -9,10 +9,7 @@ export function Card({
   return (
     <div
       data-slot="card"
-      className={cn(
-        'rounded-2xl border bg-card text-card-foreground shadow-sm',
-        className,
-      )}
+      className={cn('hl-card', className)}
       {...props}
     />
   )
@@ -25,7 +22,7 @@ export function CardHeader({
   return (
     <div
       data-slot="card-header"
-      className={cn('flex flex-col gap-1.5 p-6', className)}
+      className={cn('flex flex-col gap-1.5 mb-4', className)}
       {...props}
     />
   )
@@ -38,7 +35,8 @@ export function CardTitle({
   return (
     <div
       data-slot="card-title"
-      className={cn('text-lg font-semibold tracking-tight', className)}
+      className={className}
+      style={{ fontSize: 'var(--text-md)', fontWeight: 600, letterSpacing: '-0.01em' }}
       {...props}
     />
   )
@@ -51,7 +49,8 @@ export function CardDescription({
   return (
     <div
       data-slot="card-description"
-      className={cn('text-sm text-muted-foreground', className)}
+      className={className}
+      style={{ fontSize: 'var(--text-sm)', color: 'var(--color-fg-muted)' }}
       {...props}
     />
   )
@@ -64,7 +63,7 @@ export function CardContent({
   return (
     <div
       data-slot="card-content"
-      className={cn('px-6 pb-6', className)}
+      className={className}
       {...props}
     />
   )
@@ -77,7 +76,7 @@ export function CardFooter({
   return (
     <div
       data-slot="card-footer"
-      className={cn('flex items-center px-6 pb-6', className)}
+      className={cn('flex items-center mt-4', className)}
       {...props}
     />
   )

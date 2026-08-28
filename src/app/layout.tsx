@@ -22,7 +22,20 @@ export default function RootLayout({
       <body>
         <NextTopLoader color="#1F7AB8" showSpinner={false} height={2} />
         {children}
-        <Toaster richColors closeButton />
+        <Toaster
+          closeButton
+          toastOptions={{
+            style: {
+              background: 'var(--neutral-900)',
+              color: 'var(--neutral-0)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-lg)',
+              fontSize: 'var(--text-base)',
+              fontWeight: 500,
+            },
+          }}
+        />
       </body>
     </html>
   )
