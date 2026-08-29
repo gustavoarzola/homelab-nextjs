@@ -172,7 +172,7 @@ export function BirthDatePicker({
             setYear('')
           }}
           disabled={disabled || !hasValue}
-          className="flex h-10 w-8 items-center justify-center text-muted-foreground transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex h-[var(--control-h)] w-8 items-center justify-center text-[var(--color-fg-muted)] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
           aria-label="Limpiar fecha de nacimiento"
         >
           <X className="h-4 w-4" />

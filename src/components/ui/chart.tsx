@@ -77,9 +77,9 @@ export function ChartTooltipContent({
   )
 
   return (
-    <div className="min-w-[180px] rounded-xl border border-border bg-popover px-3 py-2.5 text-sm text-popover-foreground shadow-lg">
+    <div className="min-w-[180px] rounded-xl border border-border bg-[var(--color-surface)] px-3 py-2.5 text-sm text-[var(--color-fg)] shadow-lg">
       {label ? (
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--color-fg-muted)]">
           {String(label)}
         </div>
       ) : null}
@@ -98,9 +98,9 @@ export function ChartTooltipContent({
                   )}
                   style={{ backgroundColor: color }}
                 />
-                <span className="text-muted-foreground">{labelText}</span>
+                <span className="text-[var(--color-fg-muted)]">{labelText}</span>
               </div>
-              <span className="font-medium text-foreground">
+              <span className="font-medium text-[var(--color-fg)]">
                 {item.value}
               </span>
             </div>

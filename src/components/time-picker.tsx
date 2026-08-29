@@ -1,13 +1,18 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Clock } from 'lucide-react'
+
+import { ControlTrigger } from '@/components/ui/control-trigger'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const START_HOUR = 7
 const END_HOUR = 22
 const INTERVAL_MINUTES = 30
+const DROPDOWN_WIDTH = 140
+const DROPDOWN_MAX_HEIGHT = 300
 
 // ─── Slots ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +39,8 @@ type TimePickerProps = {
   className?: string
 }
 
+type DropdownPos = { top?: number; bottom?: number; left: number }
+
 export function TimePicker({
   value,
   onChange,
@@ -42,13 +49,49 @@ export function TimePicker({
   className,
 }: TimePickerProps) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<DropdownPos>({ top: 0, left: 0 })
+  const [mounted, setMounted] = useState(false)
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const selectedRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => { setMounted(true) }, [])
+
+  // El dropdown se porta a document.body (position: fixed) en vez de vivir como
+  // hijo normal del trigger: `.fcard` (contenedor del form) tiene `overflow:
+  // hidden` para redondear sus esquinas, y clipeaba el dropdown al vuelo. Mismo
+  // patrón que ya usa SelectCombobox.
+  const updatePos = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const spaceBelow = window.innerHeight - rect.bottom
+    if (spaceBelow >= DROPDOWN_MAX_HEIGHT || spaceBelow >= rect.top) {
+      setPos({ top: rect.bottom + 6, left: rect.left })
+    } else {
+      setPos({ bottom: window.innerHeight - rect.top + 6, left: rect.left })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    updatePos()
+    window.addEventListener('scroll', updatePos, true)
+    window.addEventListener('resize', updatePos)
+    return () => {
+      window.removeEventListener('scroll', updatePos, true)
+      window.removeEventListener('resize', updatePos)
+    }
+  }, [open, updatePos])
 
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      const inContainer = containerRef.current?.contains(target)
+      const inDropdown = dropdownRef.current?.contains(target)
+      if (!inContainer && !inDropdown) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -61,80 +104,81 @@ export function TimePicker({
     }
   }, [open])
 
-  return (
-    <div ref={ref} className={`relative inline-block${className ? ` ${className}` : ''}`}>
-      <button
-        type="button"
-        onClick={() => !disabled && setOpen((o) => !o)}
-        disabled={disabled}
-        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          border: '1px solid var(--color-border-strong)',
-          color: value ? 'var(--color-fg)' : 'var(--color-fg-muted)',
-        }}
-      >
-        <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-fg-muted)' }} />
-        <span className="flex-1 text-left">{value ?? placeholder}</span>
-      </button>
-
-      {open && (
-        <div
-          className="absolute left-0 top-full z-50 mt-1.5 rounded-2xl border shadow-lg"
+  const dropdown = open && mounted ? createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed z-50 rounded-2xl border shadow-lg"
+      style={{
+        ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+        left: pos.left,
+        width: DROPDOWN_WIDTH,
+        backgroundColor: 'var(--color-surface)',
+        borderColor: 'var(--color-border)',
+        color: 'var(--color-fg)',
+      }}
+    >
+      <div className="flex flex-col py-1.5" style={{ maxHeight: DROPDOWN_MAX_HEIGHT, overflowY: 'auto' }}>
+        {/* Clear option */}
+        <button
+          ref={value === null ? selectedRef : undefined}
+          type="button"
+          onClick={() => { onChange(null); setOpen(false) }}
+          className="mx-1.5 rounded-xl px-3 py-1.5 text-sm text-left transition-colors hover:bg-[var(--color-surface-muted)] cursor-pointer"
           style={{
-            backgroundColor: 'var(--color-surface)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-fg)',
-            width: '140px',
+            color: value === null ? 'var(--color-primary)' : 'var(--color-fg-muted)',
+            fontWeight: value === null ? 500 : undefined,
           }}
         >
-          <div className="flex flex-col py-1.5" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            {/* Clear option */}
+          Sin hora
+        </button>
+
+        {/* Divider */}
+        <div className="my-1 mx-3 border-t" style={{ borderColor: 'var(--color-border)' }} />
+
+        {/* Slots */}
+        {SLOTS.map((slot) => {
+          const isSelected = slot === value
+          return (
             <button
-              ref={value === null ? selectedRef : undefined}
+              key={slot}
+              ref={isSelected ? selectedRef : undefined}
               type="button"
-              onClick={() => { onChange(null); setOpen(false) }}
-              className="mx-1.5 rounded-xl px-3 py-1.5 text-sm text-left transition-colors hover:bg-[var(--color-surface-muted)] cursor-pointer"
-              style={{
-                color: value === null ? 'var(--color-primary)' : 'var(--color-fg-muted)',
-                fontWeight: value === null ? 500 : undefined,
+              onClick={() => { onChange(slot); setOpen(false) }}
+              className="mx-1.5 rounded-xl px-3 py-1.5 text-sm text-left transition-colors cursor-pointer"
+              style={
+                isSelected
+                  ? { backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-fg)' }
+                  : { color: 'var(--color-fg)' }
+              }
+              onMouseEnter={(e) => {
+                if (!isSelected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface-muted)'
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''
               }}
             >
-              Sin hora
+              {slot}
             </button>
+          )
+        })}
+      </div>
+    </div>,
+    document.body,
+  ) : null
 
-            {/* Divider */}
-            <div className="my-1 mx-3 border-t" style={{ borderColor: 'var(--color-border)' }} />
+  return (
+    <div ref={containerRef} className={`relative inline-block${className ? ` ${className}` : ''}`}>
+      <ControlTrigger
+        ref={triggerRef}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        disabled={disabled}
+        icon={<Clock className="hl-affix" />}
+        label={value ?? placeholder}
+        isPlaceholder={!value}
+        className="transition-colors hover:opacity-80"
+      />
 
-            {/* Slots */}
-            {SLOTS.map((slot) => {
-              const isSelected = slot === value
-              return (
-                <button
-                  key={slot}
-                  ref={isSelected ? selectedRef : undefined}
-                  type="button"
-                  onClick={() => { onChange(slot); setOpen(false) }}
-                  className="mx-1.5 rounded-xl px-3 py-1.5 text-sm text-left transition-colors cursor-pointer"
-                  style={
-                    isSelected
-                      ? { backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-fg)' }
-                      : { color: 'var(--color-fg)' }
-                  }
-                  onMouseEnter={(e) => {
-                    if (!isSelected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface-muted)'
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''
-                  }}
-                >
-                  {slot}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {dropdown}
     </div>
   )
 }

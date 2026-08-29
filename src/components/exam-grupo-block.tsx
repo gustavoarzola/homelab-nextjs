@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { Plus, Trash2, X, Search, AlertCircle, ChevronDown } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+import { Plus, Trash2, Search, AlertCircle, ChevronDown } from 'lucide-react'
 import { EXAM_GRUPO_META, EXAM_GRUPOS } from '@/lib/exam-grupos'
 import type { ExamGrupo } from '@/lib/exam-grupos'
 import type { ExamenRow } from '@/lib/actions/catalogos'
 import type { IsaprePrevisionRow } from '@/lib/actions/catalogos'
+import { ServiceItems, ServiceItem, ServiceEmpty } from '@/components/form-servicios'
+import './form-shared.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,14 +39,47 @@ export type ExamGroup = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function useClickOutside(ref: React.RefObject<HTMLElement | null>, onOut: () => void) {
+function useClickOutside(refs: React.RefObject<HTMLElement | null>[], onOut: () => void) {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onOut()
+      const target = e.target as Node
+      if (refs.some((r) => r.current?.contains(target))) return
+      onOut()
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [ref, onOut])
+  }, [refs, onOut])
+}
+
+function useMounted() {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  return mounted
+}
+
+// Los dropdowns de este archivo se portan a document.body (position: fixed) en
+// vez de vivir como hijos normales del trigger: el `.fcard` que envuelve el
+// formulario de visita/cotización tiene `overflow: hidden` (redondea sus
+// esquinas) y clipeaba estos dropdowns al vuelo. Mismo patrón que ya usa
+// SelectCombobox.
+function useDropdownPosition(triggerRef: React.RefObject<HTMLElement | null>, open: boolean) {
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
+  const updatePos = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+  }, [triggerRef])
+  useEffect(() => {
+    if (!open) return
+    updatePos()
+    window.addEventListener('scroll', updatePos, true)
+    window.addEventListener('resize', updatePos)
+    return () => {
+      window.removeEventListener('scroll', updatePos, true)
+      window.removeEventListener('resize', updatePos)
+    }
+  }, [open, updatePos])
+  return pos
 }
 
 const formatCLP = (n: number) =>
@@ -61,15 +97,15 @@ function formatThousands(raw: string): string {
 function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="flex items-center gap-1.5 shrink-0">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <span className="flex items-center gap-1 rounded-md pl-2 pr-1.5 h-8 border border-input bg-background">
-        <span className="text-[12px] text-muted-foreground">$</span>
+      <span className="text-[11px] text-[var(--color-fg-muted)]">{label}</span>
+      <span className="flex items-center gap-1 rounded-md pl-2 pr-1.5 h-8 border border-[var(--color-border)] bg-[var(--color-surface)]">
+        <span className="text-[12px] text-[var(--color-fg-muted)]">$</span>
         <input
           value={formatThousands(value)}
           onChange={(e) => onChange(String(parseNum(e.target.value) || ''))}
           placeholder="0"
           inputMode="numeric"
-          className="w-[72px] bg-transparent text-right text-[13px] tabular-nums outline-none text-foreground"
+          className="w-[72px] bg-transparent text-right text-[13px] tabular-nums outline-none text-[var(--color-fg)]"
         />
       </span>
     </label>
@@ -91,8 +127,11 @@ function ExamPicker({
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
-  useClickOutside(ref, () => setOpen(false))
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const mounted = useMounted()
+  const pos = useDropdownPosition(containerRef, open)
+  useClickOutside([containerRef, dropdownRef], () => setOpen(false))
 
   const meta = EXAM_GRUPO_META[grupoId]
   const groupExams = allExams.filter((e) => e.grupoExamen === grupoId && !takenIds.includes(e.id))
@@ -101,47 +140,54 @@ function ExamPicker({
     ? groupExams.filter((e) => e.nombre.toLowerCase().includes(ql) || e.codigo.toLowerCase().includes(ql))
     : groupExams
 
+  const dropdown = open && mounted ? createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed z-20 max-h-64 overflow-auto rounded-lg py-1 border border-border bg-[var(--color-surface)] shadow-lg"
+      style={{ top: pos.top, left: pos.left, width: pos.width }}
+    >
+      {list.length === 0 ? (
+        <div className="px-3 py-3 text-[12px] text-[var(--color-fg-muted)]">
+          {groupExams.length === 0 ? 'No hay exámenes en este grupo.' : 'Sin resultados.'}
+        </div>
+      ) : (
+        list.map((e) => (
+          <button
+            key={e.id}
+            type="button"
+            onClick={() => { onPick(e); setQ(''); setOpen(false) }}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--neutral-50)] transition-colors"
+          >
+            <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px] bg-[var(--color-surface-muted)] text-[var(--color-fg-muted)]">{e.codigo}</span>
+            <span className="flex-1 text-[13px] text-[var(--color-fg)]">{e.nombre}</span>
+            {meta.tipo === 'catalogo' && e.precio > 0 ? (
+              <span className="tabular-nums text-[12px] text-[var(--color-fg-muted)]">{formatCLP(e.precio)}</span>
+            ) : (
+              <span className="text-[11px]" style={{ color: EXAM_GRUPO_META['imalab isapre'].color }}>precio manual</span>
+            )}
+          </button>
+        ))
+      )}
+    </div>,
+    document.body,
+  ) : null
+
   return (
-    <div ref={ref} className="relative">
+    <div ref={containerRef} className="relative">
       <div
-        className="flex cursor-text items-center gap-2 rounded-lg px-3 h-9 border border-input bg-background"
+        className="flex cursor-text items-center gap-2 rounded-lg px-3 h-9 border border-[var(--color-border)] bg-[var(--color-surface)]"
         onClick={() => setOpen(true)}
       >
-        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <Search className="h-3.5 w-3.5 text-[var(--color-fg-muted)] shrink-0" />
         <input
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
           placeholder={`Buscar examen en ${meta.label}…`}
-          className="flex-1 bg-transparent text-[13px] outline-none text-foreground"
+          className="flex-1 bg-transparent text-[13px] outline-none text-[var(--color-fg)]"
         />
       </div>
-      {open && (
-        <div className="absolute left-0 right-0 z-20 mt-1 max-h-64 overflow-auto rounded-lg py-1 border border-border bg-card shadow-lg">
-          {list.length === 0 ? (
-            <div className="px-3 py-3 text-[12px] text-muted-foreground">
-              {groupExams.length === 0 ? 'No hay exámenes en este grupo.' : 'Sin resultados.'}
-            </div>
-          ) : (
-            list.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                onClick={() => { onPick(e); setQ(''); setOpen(false) }}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
-              >
-                <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px] bg-muted text-muted-foreground">{e.codigo}</span>
-                <span className="flex-1 text-[13px] text-foreground">{e.nombre}</span>
-                {meta.tipo === 'catalogo' && e.precio > 0 ? (
-                  <span className="tabular-nums text-[12px] text-muted-foreground">{formatCLP(e.precio)}</span>
-                ) : (
-                  <span className="text-[11px]" style={{ color: EXAM_GRUPO_META['imalab isapre'].color }}>precio manual</span>
-                )}
-              </button>
-            ))
-          )}
-        </div>
-      )}
+      {dropdown}
     </div>
   )
 }
@@ -158,47 +204,57 @@ function IsapreSelector({
   options: IsaprePrevisionRow[]
 }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useClickOutside(ref, () => setOpen(false))
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const mounted = useMounted()
+  const pos = useDropdownPosition(containerRef, open)
+  useClickOutside([containerRef, dropdownRef], () => setOpen(false))
 
   const selected = options.find((o) => o.id === value)
 
+  const dropdown = open && mounted ? createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed z-20 min-w-[200px] rounded-lg py-1 border border-border bg-[var(--color-surface)] shadow-lg"
+      style={{ top: pos.top, left: pos.left }}
+    >
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => { onChange(o.id); setOpen(false) }}
+          className="flex w-full items-center px-3 py-2 text-[13px] text-left hover:bg-[var(--neutral-50)] transition-colors text-[var(--color-fg)]"
+        >
+          {o.nombre}
+        </button>
+      ))}
+      {value && (
+        <button
+          type="button"
+          onClick={() => { onChange(null); setOpen(false) }}
+          className="flex w-full items-center px-3 py-2 text-[12px] text-left hover:bg-[var(--neutral-50)] transition-colors text-[var(--color-fg-muted)] border-t border-border mt-1"
+        >
+          Quitar selección
+        </button>
+      )}
+    </div>,
+    document.body,
+  ) : null
+
   return (
-    <div ref={ref} className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-md px-2.5 h-[30px] border text-[13px] bg-card"
+        className="flex items-center gap-1.5 rounded-md px-2.5 h-[30px] border text-[13px] bg-[var(--color-surface)]"
         style={{ borderColor: value ? 'var(--color-border-strong)' : EXAM_GRUPO_META['imalab isapre'].color, minWidth: 180 }}
       >
-        <span className="flex-1 text-left truncate text-foreground">
-          {selected ? selected.nombre : <span className="text-muted-foreground">Seleccionar isapre…</span>}
+        <span className="flex-1 text-left truncate text-[var(--color-fg)]">
+          {selected ? selected.nombre : <span className="text-[var(--color-fg-muted)]">Seleccionar isapre…</span>}
         </span>
-        <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+        <ChevronDown className="h-3 w-3 text-[var(--color-fg-muted)] shrink-0" />
       </button>
-      {open && (
-        <div className="absolute left-0 z-20 mt-1 min-w-[200px] rounded-lg py-1 border border-border bg-card shadow-lg">
-          {options.map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              onClick={() => { onChange(o.id); setOpen(false) }}
-              className="flex w-full items-center px-3 py-2 text-[13px] text-left hover:bg-muted/50 transition-colors text-foreground"
-            >
-              {o.nombre}
-            </button>
-          ))}
-          {value && (
-            <button
-              type="button"
-              onClick={() => { onChange(null); setOpen(false) }}
-              className="flex w-full items-center px-3 py-2 text-[12px] text-left hover:bg-muted/50 transition-colors text-muted-foreground border-t border-border mt-1"
-            >
-              Quitar selección
-            </button>
-          )}
-        </div>
-      )}
+      {dropdown}
     </div>
   )
 }
@@ -268,7 +324,7 @@ function GrupoLabBlock({
         </span>
         {isIsapre && (
           <span
-            className="rounded px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-wide bg-card"
+            className="rounded px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-wide bg-[var(--color-surface)]"
             style={{ color: meta.color }}
           >
             precio manual
@@ -284,7 +340,7 @@ function GrupoLabBlock({
             />
           </div>
         )}
-        <span className="ml-auto tabular-nums text-[13px] font-semibold text-foreground">
+        <span className="ml-auto tabular-nums text-[13px] font-semibold text-[var(--color-fg)]">
           {group.exams.length ? formatCLP(subtotal) : '—'}
         </span>
         <button
@@ -299,7 +355,7 @@ function GrupoLabBlock({
       </div>
 
       {/* Body */}
-      <div className="space-y-3 p-3.5 bg-card rounded-b-xl">
+      <div className="space-y-3 p-3.5 bg-[var(--color-surface)] rounded-b-xl">
         <ExamPicker grupoId={group.grupoId} allExams={allExams} takenIds={takenIds} onPick={addExam} />
 
         {isIsapre && !group.idPrevision && (
@@ -310,22 +366,20 @@ function GrupoLabBlock({
         )}
 
         {group.exams.length === 0 ? (
-          <div
-            className="rounded-lg border border-dashed py-6 text-center text-[12.5px] text-muted-foreground"
-          >
-            Busca y agrega exámenes de <strong className="text-foreground">{meta.label}</strong>.
-          </div>
+          <ServiceEmpty>
+            Busca y agrega exámenes de <strong style={{ color: 'var(--color-fg)' }}>{meta.label}</strong>.
+          </ServiceEmpty>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border">
-            {group.exams.map((e, i) => (
-              <div
+          <ServiceItems>
+            {group.exams.map((e) => (
+              <ServiceItem
                 key={e.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-2.5 text-[13px] bg-card"
-                style={{ borderTop: i === 0 ? 'none' : '1px solid var(--color-border)' }}
+                codigo={e.codigo}
+                nombre={e.nombre}
+                price={e.tipo === 'catalogo' ? formatCLP(e.precio) : null}
+                onRemove={() => removeExam(e.id)}
               >
-                <span className="rounded px-1.5 py-0.5 font-mono text-[10.5px] bg-muted text-muted-foreground">{e.codigo}</span>
-                <span className="min-w-[180px] flex-1 text-foreground">{e.nombre}</span>
-                {e.tipo === 'isapre' ? (
+                {e.tipo === 'isapre' && (
                   <div className="flex items-center gap-2.5">
                     <MoneyField
                       label="Valor examen"
@@ -338,29 +392,18 @@ function GrupoLabBlock({
                       onChange={(v) => patchIsapreExam(e.id, { valorPagar: v })}
                     />
                   </div>
-                ) : (
-                  <span className="tabular-nums text-foreground text-right" style={{ minWidth: 84 }}>
-                    {formatCLP(e.precio)}
-                  </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => removeExam(e.id)}
-                  className="rounded p-1 hover:opacity-70 transition-opacity text-muted-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
+              </ServiceItem>
             ))}
-          </div>
+          </ServiceItems>
         )}
 
         {isIsapre && bonifica > 0 && (
-          <p className="text-[12px] text-muted-foreground">
+          <p className="text-[12px] text-[var(--color-fg-muted)]">
             {previsionName ?? 'La isapre'} bonifica{' '}
-            <span className="tabular-nums font-medium text-foreground">{formatCLP(bonifica)}</span>{' '}
+            <span className="tabular-nums font-medium text-[var(--color-fg)]">{formatCLP(bonifica)}</span>{' '}
             · el paciente paga{' '}
-            <span className="tabular-nums font-medium text-foreground">{formatCLP(subtotal)}</span>
+            <span className="tabular-nums font-medium text-[var(--color-fg)]">{formatCLP(subtotal)}</span>
           </p>
         )}
       </div>
@@ -380,28 +423,66 @@ function AddGroupMenu({
   empty?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useClickOutside(ref, () => setOpen(false))
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const mounted = useMounted()
+  const pos = useDropdownPosition(containerRef, open)
+  useClickOutside([containerRef, dropdownRef], () => setOpen(false))
 
   if (available.length === 0) return null
 
+  const dropdown = open && mounted ? createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed z-20 w-80 rounded-lg py-1 border border-border bg-[var(--color-surface)] shadow-lg"
+      style={
+        empty
+          ? { top: pos.top, left: pos.left + pos.width / 2, transform: 'translateX(-50%)' }
+          : { top: pos.top, left: pos.left }
+      }
+    >
+      {available.map((grupoId) => {
+        const m = EXAM_GRUPO_META[grupoId]
+        return (
+          <button
+            key={grupoId}
+            type="button"
+            onClick={() => { onAdd(grupoId); setOpen(false) }}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--neutral-50)] transition-colors"
+          >
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
+            <span className="flex-1">
+              <span className="block text-[13px] font-medium text-[var(--color-fg)]">{m.label}</span>
+              <span className="block text-[11.5px] text-[var(--color-fg-muted)]">
+                {m.tipo === 'isapre'
+                  ? 'Sin precio de catálogo · valor, copago e isapre manuales'
+                  : 'Precios desde el catálogo del laboratorio'}
+              </span>
+            </span>
+          </button>
+        )
+      })}
+    </div>,
+    document.body,
+  ) : null
+
   return (
-    <div ref={ref} className={empty ? 'relative' : 'relative'}>
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={
           empty
-            ? 'flex w-full flex-col items-center gap-1 rounded-xl border border-dashed py-7 text-center hover:bg-muted/30 transition-colors'
-            : 'inline-flex items-center gap-1.5 rounded-lg px-3 h-9 text-[13px] font-medium border border-dashed border-border bg-card hover:bg-muted/30 transition-colors text-foreground'
+            ? 'flex w-full flex-col items-center gap-1 rounded-xl border border-dashed py-7 text-center hover:bg-[var(--neutral-50)] transition-colors'
+            : 'inline-flex items-center gap-1.5 rounded-lg px-3 h-9 text-[13px] font-medium border border-dashed border-border bg-[var(--color-surface)] hover:bg-[var(--neutral-50)] transition-colors text-[var(--color-fg)]'
         }
       >
         {empty ? (
           <>
-            <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-foreground">
+            <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[var(--color-fg)]">
               <Plus className="h-3.5 w-3.5" /> Seleccionar laboratorio
             </span>
-            <span className="text-[12px] text-muted-foreground">
+            <span className="text-[12px] text-[var(--color-fg-muted)]">
               Elige primero un laboratorio para ver y filtrar sus exámenes.
             </span>
           </>
@@ -411,34 +492,7 @@ function AddGroupMenu({
           </>
         )}
       </button>
-      {open && (
-        <div
-          className="absolute z-20 mt-1 w-80 rounded-lg py-1 border border-border bg-card shadow-lg"
-          style={empty ? { left: '50%', transform: 'translateX(-50%)' } : { left: 0 }}
-        >
-          {available.map((grupoId) => {
-            const m = EXAM_GRUPO_META[grupoId]
-            return (
-              <button
-                key={grupoId}
-                type="button"
-                onClick={() => { onAdd(grupoId); setOpen(false) }}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
-              >
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
-                <span className="flex-1">
-                  <span className="block text-[13px] font-medium text-foreground">{m.label}</span>
-                  <span className="block text-[11.5px] text-muted-foreground">
-                    {m.tipo === 'isapre'
-                      ? 'Sin precio de catálogo · valor, copago e isapre manuales'
-                      : 'Precios desde el catálogo del laboratorio'}
-                  </span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      )}
+      {dropdown}
     </div>
   )
 }

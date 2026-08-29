@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Loader2, Pencil, FileText, AlertTriangle,
-  ChevronRight, Stethoscope, FlaskConical, BookOpen, X, MapPin,
+  ChevronRight, Stethoscope, FlaskConical, BookOpen, MapPin,
 } from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { cn } from '@/lib/utils'
@@ -13,7 +13,6 @@ import { SelectCombobox } from '@/components/select-combobox'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Chip } from '@/components/ui/chip'
 import { FieldGroup } from '@/components/ui/field'
 import { MetaGrid, MetaTile } from '@/components/ui/meta'
 import { FileUpload } from '@/components/file-upload'
@@ -33,7 +32,18 @@ import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
 import { toast } from 'sonner'
 import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
 import { calcularCostoVisitaPreview, type VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
-import './visita-form.css'
+import {
+  CLP,
+  ServiceTabs,
+  ServiceItems,
+  ServiceItem,
+  DiscountInput,
+  PriceInput,
+  ServiceEmpty,
+  Segmented,
+  SummaryGroup,
+} from '@/components/form-servicios'
+import './form-shared.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,8 +84,6 @@ type Props = {
 }
 
 type ServiceTab = 'procedimientos' | 'examenes' | 'talleres'
-
-const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
 
 // ─── ProcedimientoPriceWarning ────────────────────────────────────────────────
 
@@ -271,44 +279,6 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
   )
 }
 
-// ─── SummaryGroup ─────────────────────────────────────────────────────────────
-
-function SummaryGroup({
-  label, tone, items, subtotal,
-}: {
-  label: string
-  tone: 'blue' | 'green' | 'violet' | 'amber'
-  items: { name: string; price: number }[]
-  subtotal: number
-}) {
-  if (!items.length || subtotal === 0) {
-    return (
-      <div className="rail-g__item" style={{ paddingLeft: 0 }}>
-        <span>{label}</span>
-        <span>—</span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rail-g">
-      <div className="rail-g__head">
-        <span>
-          <span className="d" style={{ background: `var(--tag-${tone}-dot)` }} />
-          {label}
-        </span>
-        <b className="hl-tnum">{CLP(subtotal)}</b>
-      </div>
-      {items.filter((i) => i.price !== 0).map((item, idx) => (
-        <div key={idx} className="rail-g__item" style={item.price < 0 ? { color: 'var(--color-destructive)' } : undefined}>
-          <span className="truncate">{item.name}</span>
-          <span>{item.price < 0 ? `-${CLP(Math.abs(item.price))}` : CLP(item.price)}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // ─── VisitaForm ────────────────────────────────────────────────────────────────
 
 export function VisitaForm({
@@ -415,7 +385,7 @@ export function VisitaForm({
 
   // Options
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
-  const talleresOptions = talleres.map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
+  const talleresOptions = talleres.filter((t) => t.activo).map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
   const enfermerasOptions = enfermeras.map((e) => ({ id: e.id, label: formatNombre(e) }))
   const origenesContactoOptions = origenesContacto.map((o) => ({ id: o.id, label: o.nombre }))
   const regularExamIds = examGroups
@@ -624,22 +594,7 @@ export function VisitaForm({
 
             <div className="fcard__body">
               {/* Tab strip */}
-              <div className="ed-tabs">
-                {tabs.map(({ id, label, count, hasWarning, Icon: TabIcon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setActiveTab(id)}
-                    aria-selected={activeTab === id}
-                    style={{ position: 'relative' }}
-                  >
-                    <TabIcon style={{ width: 14, height: 14 }} />
-                    {label}
-                    {count > 0 && <span className="count">{count}</span>}
-                    {hasWarning && activeTab !== id && <span className="ed-tab-dot" />}
-                  </button>
-                ))}
-              </div>
+              <ServiceTabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
               {/* Tab: Procedimientos */}
               {activeTab === 'procedimientos' && (
@@ -662,9 +617,9 @@ export function VisitaForm({
                     />
                   </div>
                   {selectedProcedures.length === 0 ? (
-                    <div className="ed-empty">Sin procedimientos seleccionados.</div>
+                    <ServiceEmpty>Sin procedimientos seleccionados.</ServiceEmpty>
                   ) : (
-                    <div className="ed-items">
+                    <ServiceItems>
                       {selectedProcedures.map((id) => {
                         const proc = procedimientos.find((p) => p.id === id)
                         if (!proc) return null
@@ -673,40 +628,24 @@ export function VisitaForm({
                         const priceChanged = savedEntry && savedEntry.precio !== proc.precio && !dismissedPriceWarnings.has(id)
                         const descuento = Math.min(parseInt(procedureDiscountMap[id] ?? '0') || 0, precio)
                         return (
-                          <div key={id} className="ed-item">
-                            <div className="ed-item__main">
-                              <Chip>{proc.codigo}</Chip>
-                              <span className="ed-item__nm">{proc.nombre}</span>
-                              {priceChanged && <AlertTriangle style={{ width: 14, height: 14, color: 'var(--warn-fg)', flexShrink: 0 }} />}
-                            </div>
-                            <span className="ed-item__pr">
-                              {descuento > 0 && <s>{CLP(precio)}</s>}
-                              {CLP(precio - descuento)}
-                            </span>
-                            <div className="ed-dcto">
-                              <span>Desc. $</span>
-                              <input
-                                type="number"
-                                min="0"
-                                max={precio}
-                                value={procedureDiscountMap[id] ?? '0'}
-                                onChange={(e) => setProcedureDiscountMap((prev) => ({ ...prev, [id]: e.target.value }))}
-                                placeholder="0"
-                                disabled={isPending}
-                              />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setSelectedProcedures((prev) => prev.filter((x) => x !== id))}
-                            >
-                              <X />
-                            </Button>
-                          </div>
+                          <ServiceItem
+                            key={id}
+                            codigo={proc.codigo}
+                            nombre={proc.nombre}
+                            warning={priceChanged && <AlertTriangle style={{ width: 14, height: 14, color: 'var(--warn-fg)', flexShrink: 0 }} />}
+                            price={<>{descuento > 0 && <s>{CLP(precio)}</s>}{CLP(precio - descuento)}</>}
+                            onRemove={() => setSelectedProcedures((prev) => prev.filter((x) => x !== id))}
+                          >
+                            <DiscountInput
+                              value={procedureDiscountMap[id] ?? '0'}
+                              max={precio}
+                              onChange={(v) => setProcedureDiscountMap((prev) => ({ ...prev, [id]: v }))}
+                              disabled={isPending}
+                            />
+                          </ServiceItem>
                         )
                       })}
-                    </div>
+                    </ServiceItems>
                   )}
                   {costoPreview.montoDescuentoProcedimientos > 0 && (
                     <div className="mt-3 flex items-start gap-3 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
@@ -796,41 +735,29 @@ export function VisitaForm({
                     />
                   </div>
                   {selectedTallers.length === 0 ? (
-                    <div className="ed-empty">Sin talleres seleccionados.</div>
+                    <ServiceEmpty>Sin talleres seleccionados.</ServiceEmpty>
                   ) : (
-                    <div className="ed-items">
+                    <ServiceItems>
                       {selectedTallers.map((id) => {
                         const taller = talleres.find((t) => t.id === id)
                         if (!taller) return null
                         return (
-                          <div key={id} className="ed-item">
-                            <div className="ed-item__main">
-                              <Chip>{taller.codigo}</Chip>
-                              <span className="ed-item__nm">{taller.nombre}</span>
-                            </div>
-                            <div className="ed-dcto">
-                              <span>$</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={tallerPriceMap[id] ?? ''}
-                                onChange={(e) => setTallerPriceMap((prev) => ({ ...prev, [id]: e.target.value }))}
-                                placeholder="0"
-                                disabled={isPending}
-                              />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setSelectedTallers((prev) => prev.filter((x) => x !== id))}
-                            >
-                              <X />
-                            </Button>
-                          </div>
+                          <ServiceItem
+                            key={id}
+                            codigo={taller.codigo}
+                            nombre={taller.nombre}
+                            price={null}
+                            onRemove={() => setSelectedTallers((prev) => prev.filter((x) => x !== id))}
+                          >
+                            <PriceInput
+                              value={tallerPriceMap[id] ?? ''}
+                              onChange={(v) => setTallerPriceMap((prev) => ({ ...prev, [id]: v }))}
+                              disabled={isPending}
+                            />
+                          </ServiceItem>
                         )
                       })}
-                    </div>
+                    </ServiceItems>
                   )}
                 </div>
               )}
@@ -847,7 +774,7 @@ export function VisitaForm({
             <div className="fcard__body">
               <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
                 {/* Visita */}
-                <div className="rounded-lg p-4" style={{ background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+                <div className="fpanel">
                   <div className="flex items-start gap-3">
                     <Checkbox
                       id="cobraVisita"
@@ -906,10 +833,11 @@ export function VisitaForm({
                       {aplicaDescuento && (
                         <div className="mt-3 space-y-3 pl-7">
                           <div className="ed-dcto-row">
-                            <div className="segm">
-                              <button type="button" aria-pressed={descuentoTipo === 'monto'} onClick={() => setDescuentoTipo('monto')}>Monto fijo</button>
-                              <button type="button" aria-pressed={descuentoTipo === 'porcentaje'} onClick={() => setDescuentoTipo('porcentaje')}>Porcentaje</button>
-                            </div>
+                            <Segmented
+                              options={[{ value: 'monto', label: 'Monto fijo' }, { value: 'porcentaje', label: 'Porcentaje' }]}
+                              value={descuentoTipo}
+                              onChange={setDescuentoTipo}
+                            />
                             <div className="hl-input flex-1">
                               <span className="hl-affix" style={{ width: 'auto', height: 'auto' }}>
                                 {descuentoTipo === 'porcentaje' ? '%' : '$'}
@@ -945,7 +873,7 @@ export function VisitaForm({
                 </div>
 
                 {/* Recargos */}
-                <div className="rounded-lg p-4" style={{ background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+                <div className="fpanel">
                   <div className="mb-2.5 flex items-center justify-between">
                     <span style={{ fontSize: 'var(--text-base)', fontWeight: 500 }}>Recargos</span>
                     {costoPreview.subtotalRecargos > 0 && (
@@ -964,33 +892,29 @@ export function VisitaForm({
                     showPills={false}
                   />
                   {selectedSurcharges.length > 0 && (
-                    <div className="ed-items mt-2">
-                      {selectedSurcharges.map((id) => {
-                        const tipo = tiposRecargos.find((t) => t.id === id)
-                        if (!tipo) return null
-                        const precio = visita?.surchargePrices.find((s) => s.idTipoRecargo === id)?.precio ?? tipo.precio
-                        return (
-                          <div key={id} className="ed-item">
-                            <span className="ed-item__nm" style={{ flex: 1 }}>{tipo.label}</span>
-                            <span className="ed-item__pr">{CLP(precio)}</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setSelectedSurcharges((prev) => prev.filter((x) => x !== id))}
+                    <div className="mt-2">
+                      <ServiceItems>
+                        {selectedSurcharges.map((id) => {
+                          const tipo = tiposRecargos.find((t) => t.id === id)
+                          if (!tipo) return null
+                          const precio = visita?.surchargePrices.find((s) => s.idTipoRecargo === id)?.precio ?? tipo.precio
+                          return (
+                            <ServiceItem
+                              key={id}
+                              nombre={tipo.label}
+                              price={CLP(precio)}
+                              onRemove={() => setSelectedSurcharges((prev) => prev.filter((x) => x !== id))}
                               disabled={isPending}
-                            >
-                              <X />
-                            </Button>
-                          </div>
-                        )
-                      })}
+                            />
+                          )
+                        })}
+                      </ServiceItems>
                     </div>
                   )}
                 </div>
 
                 {/* Insumos */}
-                <div className="col-span-2 rounded-lg p-4" style={{ background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+                <div className="col-span-2 fpanel">
                   <label htmlFor="montoInsumosInput" style={{ display: 'block', marginBottom: 10, fontSize: 'var(--text-base)', fontWeight: 500 }}>
                     Monto de insumos
                   </label>

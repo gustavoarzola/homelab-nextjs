@@ -6,28 +6,38 @@ import {
   Loader2,
   AlertCircle,
   Printer,
+  ChevronRight,
   Stethoscope,
   FlaskConical,
   BookOpen,
-  X,
   MapPin,
   Sparkles,
 } from 'lucide-react'
 import { SelectCombobox } from '@/components/select-combobox'
-import { ExamLabel } from '@/components/exam-label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Chip } from '@/components/ui/chip'
-import { Tag } from '@/components/ui/tag'
 import { ExamenesPorGrupo, buildInitialGroups, appendExamGroupsToFormData } from '@/components/exam-grupo-block'
 import type { ExamGroup } from '@/components/exam-grupo-block'
 import { formatNombre } from '@/lib/paciente'
 import { EXAM_GRUPO_META } from '@/lib/exam-grupos'
+import { ESTADO_COTIZACION_STYLES } from '@/lib/estado-colors'
 import type { CotizacionDetalle } from '@/lib/actions/cotizaciones'
 import { resolverMontoDescuento } from '@/lib/pricing/descuento'
 import type { TallerRow, IsaprePrevisionRow, ExamenRow } from '@/lib/actions/catalogos'
 import { toast } from 'sonner'
-import './cotizacion-form.css'
+import {
+  CLP,
+  ServiceTabs,
+  ServiceItems,
+  ServiceItem,
+  DiscountInput,
+  PriceInput,
+  ServiceEmpty,
+  Segmented,
+  SummaryGroup,
+} from '@/components/form-servicios'
+import './form-shared.css'
 
 export type PacienteOption = {
   id: number
@@ -62,8 +72,6 @@ type Props = {
   comunas: ComunaOption[]
   onSubmit: (fd: FormData) => Promise<{ success: true; data: { id: number } } | { success: false; error: string }>
 }
-
-const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
 
 function getInitials(p: PacienteOption): string {
   const first = p.nombres?.charAt(0) ?? ''
@@ -270,6 +278,7 @@ export function CotizacionForm({
   }
 
   const procedimientosOptions = procedimientos.map((p) => ({ id: p.id, label: p.nombre, code: p.codigo }))
+  const talleresOptions = talleres.filter((t) => t.activo).map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
   const pacientesOptions = pacientes.map((p) => ({ id: p.id, label: formatNombre(p) }))
   const comunasOptions = comunas.map((c) => ({ id: c.id, label: c.nombre }))
   const totalExamCount = examGroups.reduce((s, g) => s + g.exams.length, 0)
@@ -279,49 +288,53 @@ export function CotizacionForm({
     { id: 'talleres', label: 'Talleres', count: selectedTallers.length, Icon: BookOpen },
   ]
 
+  const estadoCfg = isEdit && cotizacion.estado
+    ? (ESTADO_COTIZACION_STYLES[cotizacion.estado] ?? ESTADO_COTIZACION_STYLES.creada!)
+    : null
+
   return (
     <>
       {/* ── Sticky header ── */}
-      <div className="form-bar">
-        <div>
-          <div className="form-bar__crumb">
-            <button
-              type="button"
-              onClick={() => router.push('/cotizaciones')}
-              style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit' }}
-            >
-              Cotizaciones
-            </button>
-          </div>
-          <h1>
-            {isEdit ? `Cotización #${cotizacion!.id}` : 'Nueva cotización'}
-            {isEdit && <Chip>{cotizacion?.estado ?? 'creada'}</Chip>}
-          </h1>
+      <div className="edit-bar">
+        <div className="edit-bar__crumb">
+          <button
+            type="button"
+            onClick={() => router.push('/cotizaciones')}
+            style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit' }}
+          >
+            Cotizaciones
+          </button>
+          <ChevronRight style={{ width: 14, height: 14 }} />
         </div>
-        <div className="form-bar__actions">
-          <Button type="button" variant="ghost" onClick={() => router.push('/cotizaciones')} disabled={isPending}>
-            Cancelar
+        <h1>
+          {isEdit ? `Cotización #${cotizacion!.id}` : 'Nueva cotización'}
+          {isEdit && estadoCfg && <Badge badgeClass={estadoCfg.badgeClass}>{estadoCfg.label}</Badge>}
+        </h1>
+
+        <span className="edit-bar__spacer" />
+
+        <Button type="button" variant="ghost" onClick={() => router.push('/cotizaciones')} disabled={isPending}>
+          Cancelar
+        </Button>
+        {isEdit && (
+          <Button variant="secondary" asChild>
+            <a href={`/api/cotizacion-standalone/${cotizacion!.id}`} target="_blank" rel="noopener noreferrer">
+              <Printer />
+              Imprimir
+            </a>
           </Button>
-          {isEdit && (
-            <Button variant="secondary" asChild>
-              <a href={`/api/cotizacion-standalone/${cotizacion!.id}`} target="_blank" rel="noopener noreferrer">
-                <Printer />
-                Imprimir
-              </a>
-            </Button>
-          )}
-          <Button type="submit" form="cotizacion-form" disabled={isPending}>
-            {isPending && <Loader2 className="animate-spin" />}
-            {isEdit ? 'Guardar cambios' : 'Crear cotización'}
-          </Button>
-        </div>
+        )}
+        <Button type="submit" form="cotizacion-form" disabled={isPending}>
+          {isPending && <Loader2 className="animate-spin" />}
+          {isEdit ? 'Guardar cambios' : 'Crear cotización'}
+        </Button>
       </div>
 
       {/* ── Error banner ── */}
       {error && (
-        <div ref={errorRef} className="hl-callout hl-callout--bad" style={{ margin: '16px 32px 0' }}>
+        <div ref={errorRef} className="hl-callout hl-callout--bad mx-8 mt-4">
           <AlertCircle />
-          {error}
+          <div>{error}</div>
         </div>
       )}
 
@@ -482,56 +495,70 @@ export function CotizacionForm({
                 <p>Procedimientos y exámenes usan precios del catálogo. Los talleres permiten precio personalizado.</p>
               </div>
               {(totalProcedimientos + totalExamenes + totalTalleres) > 0 && (
-                <span className="hl-tnum" style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>
-                  {CLP(totalProcedimientos + totalExamenes + totalTalleres)}
+                <span style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)', flexShrink: 0 }}>
+                  Subtotal{' '}
+                  <span className="hl-tnum" style={{ fontWeight: 600, color: 'var(--color-fg)' }}>
+                    {CLP(totalProcedimientos + totalExamenes + totalTalleres)}
+                  </span>
                 </span>
               )}
             </div>
 
-            {/* Tab strip */}
-            <div className="tabs" role="tablist">
-              {tabs.map(({ id, label, count, Icon: TabIcon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === id}
-                  onClick={() => setActiveTab(id)}
-                >
-                  <TabIcon />
-                  {label}
-                  {count > 0 && <span className="count">{count}</span>}
-                </button>
-              ))}
-            </div>
-
             <div className="fcard__body">
+              {/* Tab strip */}
+              <ServiceTabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+
+              {/* Tab: Procedimientos */}
               {activeTab === 'procedimientos' && (
-                <>
-                  <ServiceTabContent
-                    label="procedimiento"
-                    options={procedimientosOptions}
-                    selected={selectedProcedures}
-                    onChange={(ids) => {
-                      setSelectedProcedures(ids)
-                      setProcedureDiscountMap((prev) => {
-                        const next = { ...prev }
-                        for (const key of Object.keys(next)) {
-                          if (!ids.includes(Number(key))) delete next[Number(key)]
-                        }
-                        return next
-                      })
-                    }}
-                    items={selectedProcedures.map((id) => {
-                      const p = procedimientos.find((x) => x.id === id)!
-                      return { id, nombre: p.nombre, codigo: p.codigo, precio: p.precio }
-                    })}
-                    disabled={isPending}
-                    discountMap={procedureDiscountMap}
-                    onDiscountChange={(id, val) => setProcedureDiscountMap((prev) => ({ ...prev, [id]: val }))}
-                  />
+                <div>
+                  <div className="mb-4">
+                    <SelectCombobox
+                      options={procedimientosOptions}
+                      selected={selectedProcedures}
+                      onChange={(ids) => {
+                        setSelectedProcedures(ids)
+                        setProcedureDiscountMap((prev) => {
+                          const next = { ...prev }
+                          for (const key of Object.keys(next)) {
+                            if (!ids.includes(Number(key))) delete next[Number(key)]
+                          }
+                          return next
+                        })
+                      }}
+                      placeholder="Buscar procedimiento…"
+                      disabled={isPending}
+                      showPills={false}
+                    />
+                  </div>
+                  {selectedProcedures.length === 0 ? (
+                    <ServiceEmpty>Sin procedimientos seleccionados.</ServiceEmpty>
+                  ) : (
+                    <ServiceItems>
+                      {selectedProcedures.map((id) => {
+                        const proc = procedimientos.find((p) => p.id === id)
+                        if (!proc) return null
+                        const descuento = Math.min(parseInt(procedureDiscountMap[id] ?? '0') || 0, proc.precio)
+                        return (
+                          <ServiceItem
+                            key={id}
+                            codigo={proc.codigo}
+                            nombre={proc.nombre}
+                            price={<>{descuento > 0 && <s>{CLP(proc.precio)}</s>}{CLP(proc.precio - descuento)}</>}
+                            onRemove={() => setSelectedProcedures((prev) => prev.filter((x) => x !== id))}
+                          >
+                            <DiscountInput
+                              value={procedureDiscountMap[id] ?? '0'}
+                              max={proc.precio}
+                              onChange={(v) => setProcedureDiscountMap((prev) => ({ ...prev, [id]: v }))}
+                              disabled={isPending}
+                            />
+                          </ServiceItem>
+                        )
+                      })}
+                    </ServiceItems>
+                  )}
                   {montoDescuentoProcedimientos > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                    <div className="mt-3 flex items-start gap-3 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
                       <Checkbox
                         id="descuentoProcedimientosAfectaPagoEnfermera"
                         checked={descuentoProcedimientosAfectaPagoEnfermera}
@@ -541,43 +568,79 @@ export function CotizacionForm({
                       />
                       <label
                         htmlFor="descuentoProcedimientosAfectaPagoEnfermera"
-                        style={{ cursor: 'pointer', fontSize: 'var(--text-sm)', lineHeight: 1.4, color: 'var(--color-fg-muted)' }}
+                        className="cursor-pointer"
+                        style={{ fontSize: 'var(--text-sm)', lineHeight: 1.4, color: 'var(--color-fg-muted)' }}
                       >
                         Descuento de procedimientos afecta el pago de la enfermera (si no está marcado, la enfermera cobra sobre el valor original de los procedimientos)
                       </label>
                     </div>
                   )}
-                </>
+                </div>
               )}
+
+              {/* Tab: Exámenes */}
               {activeTab === 'examenes' && (
-                <ExamenesPorGrupo
-                  groups={examGroups}
-                  setGroups={setExamGroups}
-                  allExams={examenes}
-                  isaprePrevisiones={isaprePrevisiones}
-                />
+                <div className="space-y-3">
+                  <ExamenesPorGrupo
+                    groups={examGroups}
+                    setGroups={setExamGroups}
+                    allExams={examenes}
+                    isaprePrevisiones={isaprePrevisiones}
+                  />
+                </div>
               )}
+
+              {/* Tab: Talleres */}
               {activeTab === 'talleres' && (
-                <TalleresTabContent
-                  talleres={talleres}
-                  selected={selectedTallers}
-                  priceMap={tallerPriceMap}
-                  onChange={(ids) => {
-                    setSelectedTallers(ids)
-                    setTallerPriceMap((prev) => {
-                      const next = { ...prev }
-                      for (const key of Object.keys(next)) {
-                        if (!ids.includes(Number(key))) delete next[Number(key)]
-                      }
-                      for (const id of ids) {
-                        if (!(id in next)) next[id] = '0'
-                      }
-                      return next
-                    })
-                  }}
-                  onPriceChange={(id, val) => setTallerPriceMap((prev) => ({ ...prev, [id]: val }))}
-                  disabled={isPending}
-                />
+                <div>
+                  <div className="mb-4">
+                    <SelectCombobox
+                      options={talleresOptions}
+                      selected={selectedTallers}
+                      onChange={(ids) => {
+                        setSelectedTallers(ids)
+                        setTallerPriceMap((prev) => {
+                          const next = { ...prev }
+                          for (const key of Object.keys(next)) {
+                            if (!ids.includes(Number(key))) delete next[Number(key)]
+                          }
+                          for (const id of ids) {
+                            if (!(id in next)) next[id] = '0'
+                          }
+                          return next
+                        })
+                      }}
+                      placeholder="Buscar taller…"
+                      disabled={isPending}
+                      showPills={false}
+                    />
+                  </div>
+                  {selectedTallers.length === 0 ? (
+                    <ServiceEmpty>Sin talleres seleccionados.</ServiceEmpty>
+                  ) : (
+                    <ServiceItems>
+                      {selectedTallers.map((id) => {
+                        const taller = talleres.find((t) => t.id === id)
+                        if (!taller) return null
+                        return (
+                          <ServiceItem
+                            key={id}
+                            codigo={taller.codigo}
+                            nombre={taller.nombre}
+                            price={null}
+                            onRemove={() => setSelectedTallers((prev) => prev.filter((x) => x !== id))}
+                          >
+                            <PriceInput
+                              value={tallerPriceMap[id] ?? ''}
+                              onChange={(v) => setTallerPriceMap((prev) => ({ ...prev, [id]: v }))}
+                              disabled={isPending}
+                            />
+                          </ServiceItem>
+                        )
+                      })}
+                    </ServiceItems>
+                  )}
+                </div>
               )}
             </div>
           </section>
@@ -589,7 +652,7 @@ export function CotizacionForm({
             </div>
             <div className="fcard__body" style={{ gridTemplateColumns: '1fr 1fr' }}>
               {/* Visita */}
-              <div style={{ borderRadius: 'var(--radius-md)', padding: 14, background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+              <div className="fpanel">
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                   <Checkbox
                     id="cobraVisita"
@@ -624,7 +687,7 @@ export function CotizacionForm({
                 </div>
 
                 {cobraVisita && (
-                  <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                  <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                       <Checkbox
                         id="aplicaDescuento"
@@ -639,25 +702,31 @@ export function CotizacionForm({
                     </div>
 
                     {aplicaDescuento && (
-                      <div style={{ marginTop: 12, display: 'grid', gap: 12, paddingLeft: 28 }}>
-                        <div className="segm" style={{ width: 'fit-content' }}>
-                          <button type="button" aria-pressed={descuentoTipo === 'monto'} onClick={() => setDescuentoTipo('monto')} disabled={isPending}>Monto fijo</button>
-                          <button type="button" aria-pressed={descuentoTipo === 'porcentaje'} onClick={() => setDescuentoTipo('porcentaje')} disabled={isPending}>Porcentaje</button>
-                        </div>
-                        <div className="hl-input" style={{ maxWidth: 160 }}>
-                          <span className="hl-affix" style={{ width: 'auto', height: 'auto' }}>{descuentoTipo === 'porcentaje' ? '%' : '$'}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max={descuentoTipo === 'porcentaje' ? 100 : undefined}
-                            value={descuentoValor}
-                            onChange={(e) => setDescuentoValor(e.target.value)}
-                            placeholder="0"
+                      <div className="mt-3 space-y-3 pl-7">
+                        <div className="ed-dcto-row">
+                          <Segmented
+                            options={[{ value: 'monto', label: 'Monto fijo' }, { value: 'porcentaje', label: 'Porcentaje' }]}
+                            value={descuentoTipo}
+                            onChange={setDescuentoTipo}
                             disabled={isPending}
-                            className="hl-tnum"
                           />
+                          <div className="hl-input flex-1">
+                            <span className="hl-affix" style={{ width: 'auto', height: 'auto' }}>
+                              {descuentoTipo === 'porcentaje' ? '%' : '$'}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              max={descuentoTipo === 'porcentaje' ? 100 : undefined}
+                              value={descuentoValor}
+                              onChange={(e) => setDescuentoValor(e.target.value)}
+                              placeholder="0"
+                              disabled={isPending}
+                              className="hl-tnum"
+                            />
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        <div className="flex items-start gap-3">
                           <Checkbox
                             id="descuentoAfectaPagoEnfermera"
                             checked={descuentoAfectaPagoEnfermera}
@@ -676,7 +745,7 @@ export function CotizacionForm({
               </div>
 
               {/* Recargos */}
-              <div style={{ borderRadius: 'var(--radius-md)', padding: 14, background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+              <div className="fpanel">
                 <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 'var(--text-base)', fontWeight: 500 }}>Recargos</span>
                   {totalRecargos > 0 && (
@@ -693,27 +762,29 @@ export function CotizacionForm({
                   showPills={false}
                 />
                 {selectedSurcharges.length > 0 && (
-                  <div className="picked" style={{ marginTop: 8 }}>
-                    {selectedSurcharges.map((id) => {
-                      const tipo = tiposRecargos.find((t) => t.id === id)
-                      if (!tipo) return null
-                      const precio = cotizacion?.surchargePrices?.find((s) => s.idTipoRecargo === id)?.precio ?? tipo.precio
-                      return (
-                        <div key={id} className="picked__row">
-                          <div className="picked__name"><Tag tone="amber" noDot>{tipo.label}</Tag></div>
-                          <span className="picked__price hl-tnum">{CLP(precio)}</span>
-                          <button type="button" onClick={() => setSelectedSurcharges((prev) => prev.filter((x) => x !== id))} disabled={isPending} className="picked__del">
-                            <X />
-                          </button>
-                        </div>
-                      )
-                    })}
+                  <div className="mt-2">
+                    <ServiceItems>
+                      {selectedSurcharges.map((id) => {
+                        const tipo = tiposRecargos.find((t) => t.id === id)
+                        if (!tipo) return null
+                        const precio = cotizacion?.surchargePrices?.find((s) => s.idTipoRecargo === id)?.precio ?? tipo.precio
+                        return (
+                          <ServiceItem
+                            key={id}
+                            nombre={tipo.label}
+                            price={CLP(precio)}
+                            onRemove={() => setSelectedSurcharges((prev) => prev.filter((x) => x !== id))}
+                            disabled={isPending}
+                          />
+                        )
+                      })}
+                    </ServiceItems>
                   </div>
                 )}
               </div>
 
               {/* Insumos */}
-              <div style={{ gridColumn: '1 / -1', borderRadius: 'var(--radius-md)', padding: 14, background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+              <div className="col-span-2 fpanel">
                 <label htmlFor="montoInsumosInput" style={{ display: 'block', marginBottom: 10, fontSize: 'var(--text-base)', fontWeight: 500 }}>
                   Monto de insumos
                 </label>
@@ -756,7 +827,7 @@ export function CotizacionForm({
         </div>
 
         {/* ── RIGHT — sticky summary rail ── */}
-        <aside className="hl-rail" style={{ position: 'sticky', top: 80 }}>
+        <aside className="hl-rail" style={{ position: 'sticky', top: 76 }}>
           <div className="hl-rail__card">
             {/* Header */}
             <div className="hl-rail__head">
@@ -859,198 +930,5 @@ export function CotizacionForm({
         </aside>
       </form>
     </>
-  )
-}
-
-// ── Sub-components ──
-
-type ServiceItem = { id: number; nombre: string; codigo: string; precio: number }
-
-function ServiceTabContent({
-  label,
-  options,
-  selected,
-  onChange,
-  items,
-  disabled,
-  discountMap,
-  onDiscountChange,
-}: {
-  label: string
-  options: { id: number; label: string }[]
-  selected: number[]
-  onChange: (ids: number[]) => void
-  items: ServiceItem[]
-  disabled: boolean
-  discountMap?: Record<number, string>
-  onDiscountChange?: (id: number, val: string) => void
-}) {
-  return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
-        <SelectCombobox
-          mode="multi"
-          placeholder={`Buscar ${label}…`}
-          options={options}
-          selected={selected}
-          onChange={onChange}
-          disabled={disabled}
-          showPills={false}
-        />
-      </div>
-
-      {items.length === 0 ? (
-        <div className="hl-empty" style={{ border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-          <p>Sin {label}s seleccionados.</p>
-        </div>
-      ) : (
-        <div className="picked">
-          {items.map((item) => {
-            const descuento = discountMap ? Math.min(parseInt(discountMap[item.id] ?? '0') || 0, item.precio) : 0
-            return (
-              <div key={item.id} className="picked__row">
-                <div className="picked__name">
-                  <Chip>{item.codigo}</Chip>
-                  <span>{item.nombre}</span>
-                </div>
-                <span className="picked__price hl-tnum" style={{ minWidth: 80, textAlign: 'right' }}>
-                  {descuento > 0 && (
-                    <span style={{ marginRight: 6, fontWeight: 400, textDecoration: 'line-through', color: 'var(--color-fg-muted)' }}>
-                      {CLP(item.precio)}
-                    </span>
-                  )}
-                  {CLP(item.precio - descuento)}
-                </span>
-                {discountMap && onDiscountChange && (
-                  <div className="ed-dcto">
-                    <span>Desc. $</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max={item.precio}
-                      value={discountMap[item.id] ?? '0'}
-                      onChange={(e) => onDiscountChange(item.id, e.target.value)}
-                      placeholder="0"
-                      disabled={disabled}
-                    />
-                  </div>
-                )}
-                <button type="button" onClick={() => onChange(items.filter((x) => x.id !== item.id).map((x) => x.id))} className="picked__del">
-                  <X />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function TalleresTabContent({
-  talleres,
-  selected,
-  priceMap,
-  onChange,
-  onPriceChange,
-  disabled,
-}: {
-  talleres: TallerRow[]
-  selected: number[]
-  priceMap: Record<number, string>
-  onChange: (ids: number[]) => void
-  onPriceChange: (id: number, val: string) => void
-  disabled: boolean
-}) {
-  const options = talleres.filter((t) => t.activo).map((t) => ({ id: t.id, label: t.nombre, code: t.codigo }))
-  const items = selected.map((id) => talleres.find((t) => t.id === id)!).filter(Boolean)
-
-  return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
-        <SelectCombobox
-          mode="multi"
-          placeholder="Buscar taller…"
-          options={options}
-          selected={selected}
-          onChange={onChange}
-          disabled={disabled}
-          showPills={false}
-        />
-      </div>
-
-      {items.length === 0 ? (
-        <div className="hl-empty" style={{ border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-          <p>Sin talleres seleccionados.</p>
-        </div>
-      ) : (
-        <div className="picked">
-          {items.map((taller) => (
-            <div key={taller.id} className="picked__row">
-              <Chip>{taller.codigo}</Chip>
-              <span className="picked__name">{taller.nombre}</span>
-              <div className="hl-input" style={{ width: 110, height: 32 }}>
-                <span className="hl-affix" style={{ width: 'auto', height: 'auto' }}>$</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={priceMap[taller.id] ?? ''}
-                  onChange={(e) => onPriceChange(taller.id, e.target.value)}
-                  placeholder="0"
-                  disabled={disabled}
-                  className="hl-tnum"
-                />
-              </div>
-              <button type="button" onClick={() => onChange(selected.filter((id) => id !== taller.id))} className="picked__del">
-                <X />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function SummaryGroup({
-  label,
-  tone,
-  items,
-  subtotal,
-}: {
-  label: string
-  tone: 'blue' | 'green' | 'violet' | 'amber'
-  items: (
-    | { name: string; price: number }
-    | { code: string; nombre: string; grupoExamen: string; price: number }
-  )[]
-  subtotal: number
-}) {
-  if (!items.length || subtotal === 0) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'var(--text-sm)', color: 'var(--color-fg-muted)' }}>
-        <span>{label}</span>
-        <span>—</span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rail-group">
-      <div className="rail-group__head">
-        <span><span className="dot" style={{ background: `var(--tag-${tone}-dot)` }} />{label}</span>
-        <b className="hl-tnum">{CLP(subtotal)}</b>
-      </div>
-      {items.filter((i) => i.price !== 0).map((item, idx) => (
-        <div key={idx} className="rail-group__item" style={item.price < 0 ? { color: 'var(--color-destructive)' } : undefined}>
-          {'code' in item ? (
-            <ExamLabel codigo={item.code} nombre={item.nombre} grupoExamen={item.grupoExamen} />
-          ) : (
-            <span className="truncate">{item.name}</span>
-          )}
-          <span>{item.price < 0 ? `-${CLP(Math.abs(item.price))}` : CLP(item.price)}</span>
-        </div>
-      ))}
-    </div>
   )
 }

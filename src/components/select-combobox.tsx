@@ -245,13 +245,8 @@ export function SelectCombobox(props: Props) {
       {/* Input */}
       <div
         ref={triggerRef}
-        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm relative"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          border: '1px solid var(--color-border-strong)',
-          color: 'var(--color-fg)',
-          opacity: props.disabled ? 0.5 : 1,
-        }}
+        className="hl-input relative"
+        style={{ opacity: props.disabled ? 0.5 : 1 }}
       >
         <input
           ref={inputRef}
@@ -262,20 +257,20 @@ export function SelectCombobox(props: Props) {
           onClick={openDropdown}
           placeholder=''
           disabled={props.disabled}
-          className="flex-1 bg-transparent pr-6 outline-none"
+          className="pr-6"
         />
         {displayValue ? (
           <span
-            className="absolute left-3 right-8 pointer-events-none text-sm truncate"
-            style={{ color: 'var(--color-fg)' }}
+            className="absolute pointer-events-none truncate"
+            style={{ left: 'var(--control-px)', right: 'calc(var(--control-px) + 20px)', color: 'var(--color-fg)' }}
             title={displayValue}
           >
             {displayValue}
           </span>
         ) : !open && !query && props.placeholder && selectedOptions.length === 0 ? (
           <span
-            className="absolute left-3 right-8 pointer-events-none text-sm truncate"
-            style={{ color: 'var(--color-fg-muted)' }}
+            className="absolute pointer-events-none truncate"
+            style={{ left: 'var(--control-px)', right: 'calc(var(--control-px) + 20px)', color: 'var(--color-fg-subtle)' }}
           >
             {props.placeholder}
           </span>
@@ -299,8 +294,8 @@ export function SelectCombobox(props: Props) {
             }
           }}
           disabled={props.disabled || (isSingleMode && isClearable && selectedOptions.length === 0)}
-          className="absolute right-3 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded hover:opacity-70 disabled:opacity-30 disabled:cursor-default"
-          style={{ color: 'var(--color-fg-muted)' }}
+          className="absolute top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded hover:opacity-70 disabled:opacity-30 disabled:cursor-default"
+          style={{ right: 'var(--control-px)', color: 'var(--color-fg-muted)' }}
         >
           {isSingleMode && isClearable && selectedOptions.length > 0 ? (
             <X className="h-4 w-4" />

@@ -5,8 +5,8 @@ import { CalendarIcon } from 'lucide-react'
 import { type DateRange, type DayPickerProps } from 'react-day-picker'
 
 import { formatDate, parseDateLocal } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import { SimpleCalendar } from '@/components/simple-calendar'
+import { ControlTrigger } from '@/components/ui/control-trigger'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 type CommonProps = {
@@ -112,19 +112,13 @@ export function FormDatePicker(props: FormDatePickerProps) {
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <button
-            type="button"
+          <ControlTrigger
             disabled={disabled}
-            className={cn(
-              'flex h-10 w-full items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm shadow-xs',
-              props.value ? 'text-foreground' : 'text-muted-foreground',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-              className,
-            )}
-          >
-            <CalendarIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{label}</span>
-          </button>
+            icon={<CalendarIcon className="hl-affix" />}
+            label={label}
+            isPlaceholder={!props.value}
+            className={className}
+          />
         </PopoverTrigger>
         <PopoverContent
           className="w-auto border-0 bg-transparent p-0 shadow-none"
@@ -185,19 +179,13 @@ export function FormDatePicker(props: FormDatePickerProps) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
+        <ControlTrigger
           disabled={disabled}
-          className={cn(
-            'flex h-10 w-full items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm shadow-xs',
-            props.value?.from ? 'text-foreground' : 'text-muted-foreground',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-            className,
-          )}
-        >
-          <CalendarIcon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{label}</span>
-        </button>
+          icon={<CalendarIcon className="hl-affix" />}
+          label={label}
+          isPlaceholder={!props.value?.from}
+          className={className}
+        />
       </PopoverTrigger>
       <PopoverContent
         className="w-auto border-0 bg-transparent p-0 shadow-none"
