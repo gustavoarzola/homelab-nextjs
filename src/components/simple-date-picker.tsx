@@ -4,8 +4,8 @@ import * as React from 'react'
 import { CalendarIcon } from 'lucide-react'
 import { type DayPickerProps } from 'react-day-picker'
 
-import { cn } from '@/lib/utils'
 import { SimpleCalendar } from '@/components/simple-calendar'
+import { ControlTrigger } from '@/components/ui/control-trigger'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 type SimpleDatePickerProps = {
@@ -27,18 +27,13 @@ export function SimpleDatePicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
+        <ControlTrigger
           disabled={disabled}
-          className={cn(
-            'flex h-10 w-full items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm text-muted-foreground shadow-xs',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-            className,
-          )}
-        >
-          <CalendarIcon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{placeholder}</span>
-        </button>
+          icon={<CalendarIcon className="hl-affix" />}
+          label={placeholder}
+          isPlaceholder
+          className={className}
+        />
       </PopoverTrigger>
       <PopoverContent
         className="w-auto border-0 bg-transparent p-0 shadow-none"

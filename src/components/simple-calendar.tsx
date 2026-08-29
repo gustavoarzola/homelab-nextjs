@@ -14,7 +14,7 @@ export function SimpleCalendar({ className, ...props }: SimpleCalendarProps) {
     <div className={cn('inline-block', className)}>
       <div
         className={cn(
-          'w-fit rounded-md border border-black/8 bg-background p-2 text-[0.78rem] shadow-sm',
+          'w-fit rounded-md border border-black/8 bg-[var(--color-surface)] p-2 text-[0.78rem] shadow-sm',
           '[&_.rdp-day]:text-[0.78rem] [&_.rdp-day_button]:text-[0.78rem]',
           '[&_.rdp-range_start_.rdp-day_button]:rounded-full',
           '[&_.rdp-range_end_.rdp-day_button]:rounded-full',

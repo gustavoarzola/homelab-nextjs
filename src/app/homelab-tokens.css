@@ -517,8 +517,13 @@
   border-color: var(--color-primary);
 }
 
-.hl-popover {
-  z-index: 60; width: 18rem; padding: var(--space-4);
-  background: var(--color-surface); border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); outline: none;
+/* En @layer components para que las utilities de Tailwind (ej. el
+   `border-0 bg-transparent p-0 shadow-none` que usan los date pickers para
+   dejar que SimpleCalendar dibuje su propio marco) puedan sobreescribirla. */
+@layer components {
+  .hl-popover {
+    z-index: 60; width: 18rem; padding: var(--space-4);
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); outline: none;
+  }
 }

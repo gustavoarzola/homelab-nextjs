@@ -78,6 +78,13 @@ Trampas a manejar en el paso 01:
 | `11-operacion.md` | `asignacion-*`, `pagos-enfermeras-table.tsx` + `[enfermeraId]/page.tsx`, `precios-visitas-table.tsx`, `reportes-visitas` | **hecho** |
 | `12-limpieza.md` | Alias de compatibilidad, `.dark`, `tailwind.config.ts`, oklch sueltos | **hecho** |
 
+El plan de 12 pasos cierra acá. Un paso adicional, fuera del plan original, corrigió una
+divergencia que el propio plan había introducido a propósito:
+
+| Archivo | Alcance | Estado |
+|---|---|---|
+| `13-homologacion-formularios.md` | Unificar `visita-form.tsx`/`cotizacion-form.tsx` sobre CSS y componentes compartidos (`form-shared.css`, `form-servicios.tsx`) | **hecho** |
+
 Se implementa **un paso a la vez**, commiteando al cerrar cada uno. Este directorio es el
 estado persistente del avance — si la sesión se corta, se retoma leyendo el estado de
 cada archivo.

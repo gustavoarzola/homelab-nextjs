@@ -1,12 +1,15 @@
 /* ============================================================================
-   Visita — formulario (crear/editar) (page-specific)
+   Formularios de visita/cotización — piezas comunes (compartido)
    ----------------------------------------------------------------------------
-   Origen: proyecto de diseño Claude Design (f20b3901-7c86-452d-854e-3c51dd890562),
-   archivo `Visita Ciclo de Vida DS.html`, sección "Modo edición" de su <style>.
-   Subconjunto de esas clases — solo las que consume visita-form.tsx (paso 07
-   del plan de migración). El "dirty-dot" del mockup (indicador de cambios sin
-   guardar) no se incluye: este formulario no tiene guardado incremental por
-   sección como el acordeón de cierre del paso 06, se envía completo de una vez.
+   Origen: proyecto de diseño Claude Design (f20b3901-7c86-452d-854e-3c51dd890562).
+   Hasta el paso 08 del plan de migración, `visita-form.css` y `cotizacion-form.css`
+   definían estas mismas clases por separado — con nombres distintos a propósito
+   (`.edit-bar` vs `.form-bar`, `.ed-tabs` vs `.tabs`, `.ed-items` vs `.picked`,
+   `.rail-g` vs `.rail-group`) y en algún caso byte-idénticas (`.fcard*`,
+   `.ed-dcto`). El paso 13 (homologación) unificó ambos formularios sobre el
+   render de `visita-form.tsx`, que había quedado mejor implementado, y esta
+   hoja es la única fuente de esas clases desde entonces — ver
+   docs/plan-design-system/13-homologacion-formularios.md.
    Requiere homelab-tokens.css (ya importado globalmente desde el paso 01).
    ========================================================================== */
 
@@ -32,6 +35,10 @@
 .fhint { font-size: var(--text-xs); color: var(--color-fg-muted); }
 .ed-grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
 
+/* Panel de "cargo" (cobrar visita / recargos / insumos) — reemplaza el objeto
+   de estilo inline que ambos formularios repetían en cada panel. */
+.fpanel { border-radius: var(--radius-md); padding: 14px; background: var(--color-surface-muted); border: 1px solid var(--color-border); }
+
 /* ── Segmented control genérico ── */
 .segm { display: inline-flex; width: fit-content; padding: 3px; gap: 2px; background: var(--neutral-100); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 .segm button { border: 0; background: transparent; cursor: pointer; font: 500 var(--text-base) var(--font-sans); color: var(--color-fg-muted); padding: 6px 13px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; transition: background var(--dur) var(--ease-io), color var(--dur) var(--ease-io); }
@@ -46,16 +53,24 @@
 .ed-tabs button[aria-selected="true"] .count { background: var(--brand-blue); color: #fff; }
 .ed-tab-dot { position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--brand-orange); }
 
-/* ── Filas de ítem seleccionado (procedimiento/examen/taller) ── */
+/* ── Filas de ítem seleccionado (procedimiento/examen/taller/recargo) ── */
 .ed-items { display: grid; }
-.ed-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+/* `flex-wrap: wrap` + un `min-width` real en `.ed-item__main`: cuando el
+   contenido a la derecha del nombre es ancho (p.ej. los dos `MoneyField` de
+   un examen isapre), sin esto el nombre se comprime hasta un ancho mínimo de
+   0 y el texto hace wrap interno de línea — con `align-items:center` eso
+   termina superponiendo la segunda línea del nombre con las etiquetas del
+   contenido siguiente. Con el wrap a nivel de fila, lo que no cabe baja de
+   línea completo en vez de aplastar el nombre. */
+.ed-item { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .ed-item:last-child { border-bottom: 0; }
-.ed-item__main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; }
+.ed-item__main { flex: 1; min-width: 180px; display: flex; align-items: center; gap: 9px; }
 .ed-item__nm { min-width: 0; }
 .ed-item__pr { font-variant-numeric: tabular-nums; font-weight: 500; flex-shrink: 0; }
 .ed-item__pr s { color: var(--color-fg-subtle); font-weight: 400; margin-right: 4px; }
 .ed-dcto { display: flex; align-items: center; gap: 7px; font-size: var(--text-xs); color: var(--color-fg-muted); flex-shrink: 0; background: var(--color-surface-muted); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 4px 8px; }
 .ed-dcto input { width: 60px; background: transparent; border: 0; outline: 0; text-align: right; font: inherit; color: var(--color-fg); font-variant-numeric: tabular-nums; }
+.ed-dcto-row { display: flex; align-items: center; gap: 10px; }
 .ed-neg { color: var(--color-destructive); font-size: var(--text-sm); }
 .ed-empty { border: 1px dashed var(--color-border); border-radius: var(--radius-md); padding: 28px; text-align: center; font-size: var(--text-base); color: var(--color-fg-muted); }
 
@@ -80,3 +95,10 @@
 .hl-rail__body .hl-kv { min-width: 0; }
 .hl-rail__body .hl-kv > dt { flex-shrink: 0; }
 .hl-rail__body .hl-kv > dd { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Total — solo lo usa cotización (visita muestra el total en `.hl-kv--total`
+   dentro del rail, junto al resto del estado); vive acá para no reintroducir
+   una hoja page-specific por un único bloque. ── */
+.rail-total { padding: 16px 18px; border-top: 1px solid var(--color-border); background: var(--color-surface-muted); }
+.rail-total__row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rail-total__row b { font-size: var(--text-2xl); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }

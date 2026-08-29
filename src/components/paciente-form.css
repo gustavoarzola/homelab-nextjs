@@ -4,9 +4,9 @@
    Sin mockup dedicado en el proyecto de diseño (Claude Design
    f20b3901-7c86-452d-854e-3c51dd890562) — paso 09 del plan de migración,
    "extender el DS por analogía". Header sticky con el mismo lenguaje visual
-   que .edit-bar (visita-form.css) / .form-bar (cotizacion-form.css), nombre
-   propio por el mismo criterio de no compartir clases entre stylesheets
-   page-specific (ver docs/plan-design-system/07-visita-form.md).
+   que `.edit-bar` (form-shared.css, usado por visita/cotización desde el
+   paso 13), nombre propio porque este formulario no comparte el resto de la
+   sección Servicios con aquellos (ver docs/plan-design-system/13-homologacion-formularios.md).
    Requiere homelab-tokens.css (ya importado globalmente desde el paso 01).
    ========================================================================== */
 
