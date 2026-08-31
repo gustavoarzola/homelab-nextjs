@@ -146,7 +146,7 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
   <title>Cotización ${esc(data.numeroDoc)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <style>
     ${DOC_TOKENS_CSS}
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -198,8 +198,8 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
       gap: 38px;
     }
     .notes {
+      /* Espejo de .hl-callout--warn (homelab-tokens.css), que es sin borde. */
       background: var(--brand-orange-soft);
-      border: 1px solid var(--brand-orange-soft);
       border-radius: var(--radius-md);
       padding: 14px 18px;
       font-size: var(--text-sm);
@@ -217,7 +217,9 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
     @media print {
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { background: #ffffff; }
-      .page { margin: 0; padding: 1.4cm 1.65cm; box-shadow: none; border: none; border-radius: 0; max-width: none; }
+      /* overflow visible: con overflow:hidden Chrome recorta el contenido a
+         partir de la segunda página al imprimir cotizaciones largas. */
+      .page { margin: 0; padding: 1.4cm 1.65cm; box-shadow: none; border: none; border-radius: 0; max-width: none; overflow: visible; }
       .print-bar { display: none; }
       @page { margin: 0; }
     }
