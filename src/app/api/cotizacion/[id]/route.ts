@@ -60,7 +60,7 @@ function mapToHTMLData(data: CotizacionVisita): CotizacionHTMLData {
       ? { label: 'Fecha de nacimiento', value: esc(formatDate(data.paciente.fechaNacimiento)) }
       : null,
     data.paciente.prevision
-      ? { label: 'Previsión', value: `${esc(data.paciente.prevision)} <span style="font-size:11px;color:#94a3b8;">(${PREVISION_LABELS[data.tipoPrevision] ?? ''})</span>` }
+      ? { label: 'Previsión', value: `${esc(data.paciente.prevision)} <span style="font-size:var(--text-xs);color:var(--color-fg-subtle);">(${PREVISION_LABELS[data.tipoPrevision] ?? ''})</span>` }
       : null,
     data.paciente.direccion
       ? { label: 'Dirección', value: esc(data.paciente.direccion), small: true as const }
@@ -71,7 +71,7 @@ function mapToHTMLData(data: CotizacionVisita): CotizacionHTMLData {
     { label: 'Fecha', value: esc(data.fecha) },
     data.hora ? { label: 'Hora', value: esc(data.hora.slice(0, 5)) } : null,
     data.enfermera ? { label: 'Enfermera', value: esc(data.enfermera) } : null,
-    { label: 'N° de referencia', value: `<span style="font-family:monospace;font-size:12px;">${esc(visitaRef)}</span>` },
+    { label: 'N° de referencia', value: `<span style="font-family:var(--font-mono);font-size:var(--text-sm);">${esc(visitaRef)}</span>` },
   ].filter(Boolean) as CotizacionHTMLData['rightCard']['fields']
 
   const grupos: CotizacionHTMLData['grupos'] = []

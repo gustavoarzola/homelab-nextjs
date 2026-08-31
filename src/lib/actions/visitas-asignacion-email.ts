@@ -13,8 +13,13 @@ import { formatDateFull, formatDateLong, formatDate, parseDateLocal } from '@/li
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 import { getR2Object } from '@/lib/r2'
+import { BRAND_HEX, LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT } from '@/lib/brand'
+import { emailLogoAttachment, EMAIL_LOGO_CID } from '@/lib/email-logo'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type EmailAttachment = { filename: string; content: Buffer; contentId?: string }
+
 
 export type VisitaConDetalles = {
   id: number
@@ -330,8 +335,8 @@ export async function sendScheduledVisitsEmail(
     const nombreEnfermera = formatNombre(enfermera)
     const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
 
-    // Adjuntar órdenes médicas si existen
-    const attachments: { filename: string; content: Buffer }[] = []
+    // Logo inline (CID) + órdenes médicas si existen
+    const attachments: EmailAttachment[] = [emailLogoAttachment()]
     for (const visita of enfermera.visitas) {
       if (visita.keyOrdenMedica) {
         try {
@@ -349,7 +354,7 @@ export async function sendScheduledVisitsEmail(
       to: enfermera.correo,
       subject,
       html: htmlContent,
-      ...(attachments.length > 0 && { attachments }),
+      attachments,
     })
 
     if (error) {
@@ -390,7 +395,7 @@ export async function sendAllScheduledVisitsEmails(
       const firstFecha = enfermera.visitas[0]?.fecha ?? ''
       const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
 
-      const attachments: { filename: string; content: Buffer }[] = []
+      const attachments: EmailAttachment[] = [emailLogoAttachment()]
       for (const visita of enfermera.visitas) {
         if (visita.keyOrdenMedica) {
           try {
@@ -408,7 +413,7 @@ export async function sendAllScheduledVisitsEmails(
         to: enfermera.correo,
         subject,
         html: htmlContent,
-        ...(attachments.length > 0 && { attachments }),
+        attachments,
       })
 
       if (sendError) {
@@ -447,12 +452,12 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
     return '<p>Sin visitas asignadas.</p>'
   }
 
-  const font = '-apple-system,BlinkMacSystemFont,Arial,sans-serif'
-  const labelColStyle = `width:150px;min-width:150px;padding:8px 12px;background:#f1f5f9;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;vertical-align:middle;border:1px solid #e8ecf0;font-family:${font};`
-  const dataColStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:#1e2835;vertical-align:middle;border:1px solid #e8ecf0;font-family:${font};`
-  const headerColStyle = `min-width:180px;padding:10px 12px;background:#1e2835;font-size:12px;font-weight:700;color:#ffffff;text-align:center;border:1px solid #1e2835;font-family:${font};`
-  const costoLabelStyle = `width:150px;min-width:150px;padding:8px 12px;background:#f1f5f9;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;vertical-align:middle;border:1px solid #e8ecf0;font-weight:700;font-family:${font};`
-  const costoDataStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:#1e2835;font-weight:700;vertical-align:middle;border:1px solid #e8ecf0;font-family:${font};`
+  const font = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif"
+  const labelColStyle = `width:150px;min-width:150px;padding:8px 12px;background:${BRAND_HEX.surfaceMuted};font-size:11px;font-weight:600;color:${BRAND_HEX.fgMuted};text-transform:uppercase;letter-spacing:0.06em;vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-family:${font};`
+  const dataColStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:${BRAND_HEX.fg};vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-family:${font};`
+  const headerColStyle = `min-width:180px;padding:10px 12px;background:${BRAND_HEX.surfaceMuted};font-size:12px;font-weight:600;color:${BRAND_HEX.fg};text-align:center;border:1px solid ${BRAND_HEX.border};font-family:${font};`
+  const costoLabelStyle = `width:150px;min-width:150px;padding:8px 12px;background:${BRAND_HEX.surfaceMuted};font-size:11px;color:${BRAND_HEX.fgMuted};text-transform:uppercase;letter-spacing:0.06em;vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-weight:700;font-family:${font};`
+  const costoDataStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:${BRAND_HEX.fg};font-weight:700;text-align:right;vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-family:${font};`
 
   // Helper to get cell value for each row
   const getValue = (v: VisitaConDetalles, rowIndex: number): string => {
@@ -463,14 +468,14 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
       case 3: return v.paciente.fechaNacimiento ? formatDate(v.paciente.fechaNacimiento) : '—'
       case 4: return v.telefonos.join(' / ') || '—'
       case 5: return v.paciente.correo
-          ? `<a href="mailto:${v.paciente.correo}" style="color:#2a5fad;text-decoration:none;">${v.paciente.correo}</a>`
+          ? `<a href="mailto:${v.paciente.correo}" style="color:${BRAND_HEX.blue};text-decoration:none;">${v.paciente.correo}</a>`
           : '—'
       case 6: {
           const query = encodeURIComponent(
             [v.dirección.dirección, v.dirección.comuna].filter(Boolean).join(', '),
           )
           const mapsUrl = `https://maps.google.com/?q=${query}`
-          return `${v.dirección.dirección} <a href="${mapsUrl}" style="color:#2a5fad;text-decoration:none;font-size:14px;" title="Abrir en Maps">📍</a>`
+          return `${v.dirección.dirección} <a href="${mapsUrl}" style="color:${BRAND_HEX.blue};text-decoration:none;font-size:14px;" title="Abrir en Maps">📍</a>`
         }
       case 7: return v.dirección.comuna ?? '—'
       case 8: return v.paciente.previsión ?? '—'
@@ -485,21 +490,21 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
   }
 
   const rowLabels = [
-    'Hora de atencion',
-    'Nombre Completo',
+    'Hora de atención',
+    'Nombre completo',
     'RUT / Identificador',
-    'Fecha de Nacimiento',
-    'Telefono(s)',
-    'Correo electronico',
-    'Direccion',
+    'Fecha de nacimiento',
+    'Teléfono(s)',
+    'Correo electrónico',
+    'Dirección',
     'Comuna',
-    'Prevision de Salud',
+    'Previsión de salud',
     'Residencia',
     'Procedimiento(s)',
     'Examen(es)',
     'Taller(es)',
     'Notas paciente',
-    'Informacion adicional',
+    'Información adicional',
   ]
 
   // Header row: "Visita #ID", one per visit
@@ -542,7 +547,7 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
     <div style="overflow-x:auto;">
       <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:${font};">
         <tr>
-          <td style="width:150px;min-width:150px;padding:10px 12px;background:#1e2835;border:1px solid #1e2835;"></td>
+          <td style="width:150px;min-width:150px;padding:10px 12px;background:${BRAND_HEX.surfaceMuted};border:1px solid ${BRAND_HEX.border};"></td>
           ${headerCells}
         </tr>
         ${dataRows}
@@ -554,22 +559,25 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
   `
 
   return `
-    <div style="max-width:100%;margin:0 auto;background:#ffffff;font-family:${font};">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e2835;margin-bottom:16px;">
+    <div style="max-width:100%;margin:0 auto;background:${BRAND_HEX.surface};font-family:${font};">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND_HEX.surface};border-bottom:2px solid ${BRAND_HEX.blue};margin-bottom:16px;">
         <tr>
-          <td style="padding:20px 24px;">
-            <p style="margin:0 0 4px 0;font-size:18px;font-weight:700;color:#ffffff;font-family:Georgia,serif;">Programacion de Visitas</p>
-            <p style="margin:0;font-size:12px;color:#94a3b8;letter-spacing:0.5px;">${formatDateFull(visitas[0]?.fecha ?? '')}</p>
+          <td style="padding:20px 24px;vertical-align:middle;">
+            <img src="cid:${EMAIL_LOGO_CID}" alt="HomeLab" width="${LOGO_RENDER_WIDTH}" height="${LOGO_RENDER_HEIGHT}" style="display:block;height:${LOGO_RENDER_HEIGHT}px;width:auto;border:0;" />
+          </td>
+          <td style="padding:20px 24px;vertical-align:middle;text-align:right;">
+            <p style="margin:0 0 4px 0;font-size:16px;font-weight:600;color:${BRAND_HEX.fg};letter-spacing:-0.01em;">Programación de Visitas</p>
+            <p style="margin:0;font-size:12px;color:${BRAND_HEX.fgMuted};">${formatDateFull(visitas[0]?.fecha ?? '')}</p>
           </td>
         </tr>
       </table>
 
       ${table}
 
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #e8ecf0;margin-top:16px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid ${BRAND_HEX.border};margin-top:16px;">
         <tr>
-          <td style="padding:16px;font-size:11px;color:#94a3b8;text-align:center;">
-            <p style="margin:0 0 4px 0;">Este es un correo automatico de programacion de visitas.</p>
+          <td style="padding:16px;font-size:11px;color:${BRAND_HEX.fgSubtle};text-align:center;">
+            <p style="margin:0 0 4px 0;">Este es un correo automático de programación de visitas.</p>
             <p style="margin:0;">Por favor, no responda a este correo.</p>
           </td>
         </tr>

@@ -432,7 +432,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 1. **`PricingDb` tipado como `any`** en `src/lib/pricing/visitas.ts:25` — la conexión de DB se pasa como `any` para aceptar tanto Neon como postgres.js. Debería tener un tipo compartido o usar el tipo de Drizzle.
 
-2. **Duplicación de lógica HTML entre cotización y cotización-standalone** — Ambos route handlers (`/api/cotizacion/[id]` y `/api/cotizacion-standalone/[id]`) tienen funciones `buildHTML` casi idénticas con cientos de líneas de HTML inline. Deberían compartir un template.
+2. ~~Duplicación de lógica HTML entre cotización y cotización-standalone~~ — **Resuelto.** Ambos route handlers son mappers delgados sobre `buildCotizacionHTML()` en `src/lib/cotizacion-html.ts`; los tokens de marca del documento imprimible viven en `src/lib/brand.ts` (`DOC_TOKENS_CSS`, espejo de `homelab-tokens.css`).
 
 3. **`SimpleDatePicker` solo se usa en playground** — El componente existe pero no se usa en producción. Evaluar si eliminarlo o adoptarlo.
 
