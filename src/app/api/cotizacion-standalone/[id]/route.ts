@@ -128,7 +128,7 @@ function mapToHTMLData({
 
   const rightFields: CotizacionHTMLData['rightCard']['fields'] = [
     { label: 'Fecha de emisión', value: esc(formatDateLong(emisionDate)) },
-    { label: 'N° de cotización', value: `<span style="font-family:monospace;font-size:12px;">${esc(numeroDoc)}</span>` },
+    { label: 'N° de cotización', value: `<span style="font-family:var(--font-mono);font-size:var(--text-sm);">${esc(numeroDoc)}</span>` },
   ]
 
   const grupos: CotizacionHTMLData['grupos'] = []

@@ -1,4 +1,5 @@
 import { formatDateLong } from '@/lib/format'
+import { DOC_TOKENS_CSS, LOGO_PATH, LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT } from '@/lib/brand'
 
 // ─── Public helpers ───────────────────────────────────────────────────────────
 
@@ -53,17 +54,24 @@ export type CotizacionHTMLData = {
 
 // ─── Builder ──────────────────────────────────────────────────────────────────
 
+const NUM = 'font-variant-numeric:tabular-nums;'
+
 function infoField(f: CotizacionInfoField): string {
   return `<div style="margin-bottom:12px;">
-    <div style="font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#8894a3;">${f.label.toUpperCase()}</div>
-    <div style="font-size:${f.small ? 12.5 : 15}px;font-weight:600;color:#16202b;margin-top:3px;">${f.value}</div>
+    <div style="font-size:var(--text-xs);font-weight:600;letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--color-fg-muted);">${f.label.toUpperCase()}</div>
+    <div style="font-size:${f.small ? 'var(--text-sm)' : 'var(--text-md)'};font-weight:500;color:var(--color-fg);margin-top:3px;">${f.value}</div>
   </div>`
 }
 
 function groupHeader(label: string): string {
   return `<tr>
-    <td colspan="4" style="padding:12px 0 8px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#a05a1e;border-bottom:1px solid #eef1f4;">${label}</td>
+    <td colspan="4" style="padding:14px 0 8px;font-size:var(--text-xs);font-weight:600;text-transform:uppercase;letter-spacing:var(--tracking-label);color:var(--color-fg-muted);border-bottom:1px solid var(--color-border);">${label}</td>
   </tr>`
+}
+
+function codeChip(codigo: string | null): string {
+  if (!codigo) return ''
+  return `<span style="display:inline-block;padding:2px 6px;border-radius:var(--radius-sm);background:var(--color-surface-muted);border:1px solid var(--color-border);font-family:var(--font-mono);font-size:var(--text-xs);letter-spacing:.02em;color:var(--color-fg-muted);">${esc(codigo)}</span>`
 }
 
 function itemRow(
@@ -71,24 +79,24 @@ function itemRow(
   n: number,
 ): string {
   const precioCell = item.noPrice
-    ? `<span style="font-size:12px;color:#8894a3;">incluido</span>`
+    ? `<span style="font-size:var(--text-sm);color:var(--color-fg-subtle);">incluido</span>`
     : item.precio !== null
-      ? `<strong style="font-size:15px;font-weight:600;color:#16202b;">${esc(pesos(item.precio))}</strong>`
-      : `<span style="font-size:12px;color:#8894a3;">Sin precio configurado</span>`
-  return `<tr style="border-bottom:1px solid #eef1f4;">
-    <td style="padding:12px 0;color:#8894a3;font-weight:600;font-size:13px;">${n}</td>
-    <td style="padding:12px 14px 12px 0;color:#16202b;font-size:15px;">${esc(item.descripcion)}</td>
-    <td style="padding:12px 14px 12px 0;color:#5b6b7c;font-size:13.5px;font-family:'IBM Plex Mono',monospace;">${esc(item.codigo)}</td>
-    <td style="padding:12px 0;text-align:right;font-variant-numeric:tabular-nums;">${precioCell}</td>
+      ? `<strong style="font-size:var(--text-md);font-weight:600;color:var(--color-fg);${NUM}">${esc(pesos(item.precio))}</strong>`
+      : `<span style="font-size:var(--text-sm);color:var(--color-fg-subtle);">Sin precio configurado</span>`
+  return `<tr style="border-bottom:1px solid var(--color-border);">
+    <td style="padding:var(--row-py) 0;color:var(--color-fg-subtle);font-weight:600;font-size:var(--text-sm);${NUM}">${n}</td>
+    <td style="padding:var(--row-py) 14px var(--row-py) 0;color:var(--color-fg);font-size:var(--text-base);">${esc(item.descripcion)}</td>
+    <td style="padding:var(--row-py) 14px var(--row-py) 0;">${codeChip(item.codigo)}</td>
+    <td style="padding:var(--row-py) 0;text-align:right;${NUM}">${precioCell}</td>
   </tr>`
 }
 
 function subtotalRow(label: string, amount: number, isLast: boolean): string {
-  const border = isLast ? 'border-bottom:1.5px solid #163f63;' : ''
-  const color = amount < 0 ? '#c8631f' : '#16202b'
+  const border = isLast ? 'border-bottom:1.5px solid var(--color-primary);' : ''
+  const color = amount < 0 ? 'var(--brand-orange-fg)' : 'var(--color-fg)'
   return `<tr>
-    <td colspan="3" style="padding:10px 0;font-size:14px;color:#4b5b6b;${border}">${label}</td>
-    <td style="padding:10px 0;text-align:right;font-weight:600;font-size:14px;color:${color};${border}">${amount < 0 ? '-' : ''}${pesos(Math.abs(amount))}</td>
+    <td colspan="3" style="padding:10px 0;font-size:var(--text-md);color:var(--color-fg-muted);${border}">${label}</td>
+    <td style="padding:10px 0;text-align:right;font-weight:600;font-size:var(--text-md);color:${color};${NUM}${border}">${amount < 0 ? '-' : ''}${pesos(Math.abs(amount))}</td>
   </tr>`
 }
 
@@ -109,14 +117,14 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
     itemsHTML += subtotalRow(sub.label, sub.amount, i === data.subtotales.length - 1)
   })
 
-  const totalBorder = data.subtotales.length === 0 ? 'border-top:1.5px solid #163f63;' : ''
+  const totalBorder = data.subtotales.length === 0 ? 'border-top:1.5px solid var(--color-primary);' : ''
   const totalCell =
     data.total > 0
-      ? `<span style="font-size:22px;font-weight:600;color:#163f63;font-family:'IBM Plex Mono',monospace;">${pesos(data.total)}</span>`
-      : `<span style="font-size:13px;font-weight:400;color:#8894a3;">Sin precios configurados</span>`
+      ? `<span style="font-size:var(--text-xl);font-weight:600;color:var(--color-primary);font-family:var(--font-mono);${NUM}">${pesos(data.total)}</span>`
+      : `<span style="font-size:var(--text-base);font-weight:400;color:var(--color-fg-subtle);">Sin precios configurados</span>`
 
   itemsHTML += `<tr>
-    <td colspan="3" style="padding:14px 0;font-size:15px;font-weight:700;color:#163f63;${totalBorder}">Total cotización</td>
+    <td colspan="3" style="padding:14px 0;font-size:var(--text-base);font-weight:700;color:var(--color-primary);${totalBorder}">Total cotización</td>
     <td style="padding:14px 0;text-align:right;${totalBorder}">${totalCell}</td>
   </tr>`
 
@@ -137,45 +145,52 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Cotización ${esc(data.numeroDoc)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <style>
+    ${DOC_TOKENS_CSS}
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-      font-size: 13px;
-      color: #16202b;
-      background: #f0f2f5;
+      font-family: var(--font-sans);
+      font-size: var(--text-base);
+      color: var(--color-fg);
+      background: var(--color-bg);
       line-height: 1.5;
     }
     .print-bar {
       position: sticky;
       top: 0;
       z-index: 50;
-      background: #163f63;
+      background: var(--color-primary);
       padding: 10px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .print-bar p { font-size: 12px; color: #b7c4d4; }
+    .print-bar p { font-size: var(--text-sm); color: rgba(255,255,255,0.75); }
     .print-bar button {
       display: flex;
       align-items: center;
       gap: 6px;
-      background: #ffffff;
-      color: #163f63;
+      height: 36px;
+      background: var(--color-surface);
+      color: var(--color-primary);
       border: none;
-      border-radius: 8px;
-      padding: 8px 16px;
-      font-size: 13px;
-      font-weight: 600;
+      border-radius: var(--radius-md);
+      padding: 0 16px;
+      font-size: var(--text-base);
+      font-weight: 500;
+      font-family: var(--font-sans);
       cursor: pointer;
     }
     .page {
       max-width: 800px;
       margin: 32px auto;
-      background: #ffffff;
-      box-shadow: 0 4px 32px rgba(0,0,0,0.10);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
     }
     .info-grid {
       display: grid;
@@ -183,26 +198,26 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
       gap: 38px;
     }
     .notes {
-      background: #fdf6ee;
-      border: 1px solid #f0d9c0;
-      border-radius: 8px;
+      background: var(--brand-orange-soft);
+      border: 1px solid var(--brand-orange-soft);
+      border-radius: var(--radius-md);
       padding: 14px 18px;
-      font-size: 11.5px;
-      color: #8a4a1d;
+      font-size: var(--text-sm);
+      color: var(--brand-orange-fg);
       line-height: 1.6;
     }
     .disclaimer {
-      border-top: 1px solid #e1e7ed;
+      border-top: 1px solid var(--color-border);
       padding-top: 18px;
-      font-size: 12.5px;
+      font-size: var(--text-sm);
       line-height: 1.55;
-      color: #5b6b7c;
+      color: var(--color-fg-muted);
       font-style: italic;
     }
     @media print {
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { background: #ffffff; }
-      .page { margin: 0; padding: 1.4cm 1.65cm; box-shadow: none; max-width: none; }
+      .page { margin: 0; padding: 1.4cm 1.65cm; box-shadow: none; border: none; border-radius: 0; max-width: none; }
       .print-bar { display: none; }
       @page { margin: 0; }
     }
@@ -211,7 +226,6 @@ export function buildCotizacionHTML(data: CotizacionHTMLData): string {
     }
   </style>
 </head>
-${autoPrintScript}
 <body>
   <div class="print-bar">
     <p>Cotización ${esc(data.numeroDoc)} &middot; ${esc(data.recipientLabel)}</p>
@@ -226,44 +240,40 @@ ${autoPrintScript}
   </div>
 
   <div class="page">
-    <div style="padding:34px 44px 22px;border-bottom:2px solid #163f63;display:flex;justify-content:space-between;align-items:flex-start;">
-      <div style="display:flex;align-items:center;gap:16px;">
-        <div style="position:relative;width:32px;height:32px;flex-shrink:0;">
-          <div style="position:absolute;left:11px;top:0;width:10px;height:32px;background:#c8631f;border-radius:2px;"></div>
-          <div style="position:absolute;top:11px;left:0;width:32px;height:10px;background:#163f63;border-radius:2px;"></div>
-        </div>
-        <div>
-          <div style="font-size:22px;font-weight:700;color:#163f63;letter-spacing:-0.01em;">Homelab</div>
-          <div style="font-size:12.5px;color:#5b6b7c;margin-top:2px;">Atención de Enfermería a Domicilio</div>
+    <div style="padding:34px 44px 22px;border-bottom:2px solid var(--color-primary);display:flex;justify-content:space-between;align-items:flex-start;gap:24px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <img src="${LOGO_PATH}" alt="HomeLab" width="${LOGO_RENDER_WIDTH}" height="${LOGO_RENDER_HEIGHT}" style="display:block;height:${LOGO_RENDER_HEIGHT}px;width:auto;flex-shrink:0;" />
+        <div style="padding-left:14px;border-left:1px solid var(--color-border);font-size:var(--text-base);color:var(--color-fg-muted);">
+          Atención de Enfermería a Domicilio
         </div>
       </div>
-      <div style="text-align:right;">
-        <div style="font-size:11px;font-weight:600;letter-spacing:0.12em;color:#8894a3;">COTIZACIÓN N°</div>
-        <div style="font-size:22px;font-weight:600;color:#163f63;margin-top:4px;font-family:'IBM Plex Mono',monospace;">${esc(data.numeroDoc)}</div>
-        <div style="font-size:12px;color:#8894a3;margin-top:4px;">Emitida el ${esc(formatDateLong(data.emisionDate))}</div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:var(--text-xs);font-weight:600;letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--color-fg-muted);">Cotización N°</div>
+        <div style="font-size:var(--text-xl);font-weight:600;color:var(--color-primary);margin-top:4px;font-family:var(--font-mono);${NUM}">${esc(data.numeroDoc)}</div>
+        <div style="font-size:var(--text-sm);color:var(--color-fg-subtle);margin-top:4px;">Emitida el ${esc(formatDateLong(data.emisionDate))}</div>
       </div>
     </div>
 
     <div style="padding:28px 44px 34px;">
 
-      <div class="info-grid" style="padding-bottom:24px;margin-bottom:28px;border-bottom:1px solid #e1e7ed;">
+      <div class="info-grid" style="padding-bottom:24px;margin-bottom:28px;border-bottom:1px solid var(--color-border);">
         <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:0.1em;color:#5b6b7c;margin-bottom:12px;">${data.leftCard.title.toUpperCase()}</div>
+          <div style="font-size:var(--text-xs);font-weight:600;letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--color-fg-muted);margin-bottom:12px;">${data.leftCard.title.toUpperCase()}</div>
           ${leftFields}
         </div>
         <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:0.1em;color:#5b6b7c;margin-bottom:12px;">${data.rightCard.title.toUpperCase()}</div>
+          <div style="font-size:var(--text-xs);font-weight:600;letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--color-fg-muted);margin-bottom:12px;">${data.rightCard.title.toUpperCase()}</div>
           ${rightFields}
         </div>
       </div>
 
       <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
         <thead>
-          <tr style="border-bottom:1.5px solid #163f63;">
-            <th style="padding:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#163f63;text-align:left;width:32px;">#</th>
-            <th style="padding:0 14px 8px 0;font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#163f63;text-align:left;">DESCRIPCIÓN</th>
-            <th style="padding:0 14px 8px 0;font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#163f63;text-align:left;width:100px;">CÓDIGO</th>
-            <th style="padding:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:0.08em;color:#163f63;text-align:right;width:120px;">PRECIO</th>
+          <tr style="border-bottom:1px solid var(--color-border);">
+            <th style="padding:0 0 8px;font-size:var(--text-xs);font-weight:600;letter-spacing:var(--tracking-label);color:var(--color-fg-muted);text-align:left;width:32px;">#</th>
+            <th style="padding:0 14px 8px 0;font-size:var(--text-xs);font-weight:600;letter-spacing:var(--tracking-label);color:var(--color-fg-muted);text-align:left;">DESCRIPCIÓN</th>
+            <th style="padding:0 14px 8px 0;font-size:var(--text-xs);font-weight:600;letter-spacing:var(--tracking-label);color:var(--color-fg-muted);text-align:left;width:100px;">CÓDIGO</th>
+            <th style="padding:0 0 8px;font-size:var(--text-xs);font-weight:600;letter-spacing:var(--tracking-label);color:var(--color-fg-muted);text-align:right;width:120px;">PRECIO</th>
           </tr>
         </thead>
         <tbody>
@@ -277,13 +287,14 @@ ${autoPrintScript}
         ${esc(data.disclaimer)}
       </div>
 
-      <div style="margin-top:28px;padding-top:14px;border-top:1px solid #e1e7ed;display:flex;justify-content:space-between;align-items:center;">
-        <p style="font-size:12px;color:#8894a3;"><span style="color:#1f5f8f;font-weight:600;">Homelab</span> &middot; Atención de Enfermería a Domicilio</p>
-        <p style="font-size:12px;color:#8894a3;">Emitida el ${esc(formatDateLong(data.emisionDate))}</p>
+      <div style="margin-top:28px;padding-top:14px;border-top:1px solid var(--color-border);display:flex;justify-content:space-between;align-items:center;">
+        <p style="font-size:var(--text-sm);color:var(--color-fg-subtle);"><span style="color:var(--color-primary);font-weight:600;">HomeLab</span> &middot; Atención de Enfermería a Domicilio</p>
+        <p style="font-size:var(--text-sm);color:var(--color-fg-subtle);">Emitida el ${esc(formatDateLong(data.emisionDate))}</p>
       </div>
 
     </div>
   </div>
+  ${autoPrintScript}
 </body>
 </html>`
 }
