@@ -20,7 +20,6 @@ import { emailLogoAttachment, EMAIL_LOGO_CID } from '@/lib/email-logo'
 
 type EmailAttachment = { filename: string; content: Buffer; contentId?: string }
 
-
 export type VisitaConDetalles = {
   id: number
   idEnfermera: number | null
@@ -374,6 +373,8 @@ export async function sendScheduledVisitsEmail(
 export async function sendAllScheduledVisitsEmails(
   enfermeras: EnfermeraConVisitas[],
 ): Promise<Result> {
+  await requireSession()
+
   const resend = new Resend(process.env.RESEND_API_KEY)
   let successCount = 0
   const errors: string[] = []
