@@ -19,9 +19,12 @@ type ResultadosProps = {
   total: number
 }
 
-// Subtítulo: cuando el total supera lo que se muestra, aclarar que es un quickview.
-function quickviewCaption(shown: number, total: number, fallback: string) {
-  return total > shown ? `Primeros ${shown} de ${total} pendientes` : fallback
+// Subtítulo: siempre muestra el total de pendientes del mes y, si la lista está
+// truncada, aclara que es un quickview.
+function quickviewCaption(shown: number, total: number, noun: [string, string]) {
+  if (total === 0) return 'Sin pendientes este mes'
+  const label = `${total} ${total === 1 ? noun[0] : noun[1]}`
+  return total > shown ? `${label} · mostrando los primeros ${shown}` : label
 }
 
 function grupoLabel(grupo: string) {
@@ -34,7 +37,7 @@ export function DashboardCobrosTable({ items, total }: CobrosProps) {
       <CardHeader className="pb-2">
         <CardTitle>Cobros pendientes</CardTitle>
         <CardDescription>
-          {quickviewCaption(items.length, total, 'Visitas realizadas sin pago registrado')}
+          {quickviewCaption(items.length, total, ['cobro pendiente', 'cobros pendientes'])}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -83,7 +86,7 @@ export function DashboardResultadosTable({ items, total }: ResultadosProps) {
       <CardHeader className="pb-2">
         <CardTitle>Resultados pendientes</CardTitle>
         <CardDescription>
-          {quickviewCaption(items.length, total, 'Exámenes por enviar de visitas realizadas')}
+          {quickviewCaption(items.length, total, ['examen por enviar', 'exámenes por enviar'])}
         </CardDescription>
       </CardHeader>
       <CardContent>
