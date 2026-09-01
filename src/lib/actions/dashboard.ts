@@ -1,9 +1,9 @@
 'use server'
 
-import { and, asc, count, desc, eq, gte, lte, sql, sum } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, lte, sql, sum } from 'drizzle-orm'
 
 import { db } from '@/db'
-import { nurses, patients, visits } from '@/db/schema'
+import { nurses, patients, visitExams, visitProcedures, visits, visitWorkshops } from '@/db/schema'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 
@@ -34,6 +34,10 @@ type RankingItem = {
   label: string
   visits: number
 }
+
+// Una visita "efectiva" es la que realmente ocurrió; `completada` es el estado
+// final posterior a `realizada` (ver ciclo de vida de visitas).
+const ESTADOS_VISITA_EFECTIVA = ['realizada', 'completada']
 
 export async function getDashboardVisitsByDay(month: number, year: number) {
   await requireSession()
@@ -70,7 +74,11 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
     chartData[0] ?? { day: 1, label: '', visits: 0, date: start },
   )
 
-  const [visitsByNurseRaw] = await Promise.all([
+  const tieneExamenes = sql`exists (select 1 from ${visitExams} where ${visitExams.idVisita} = ${visits.id})`
+  const tieneProcedimientos = sql`exists (select 1 from ${visitProcedures} where ${visitProcedures.idVisita} = ${visits.id})`
+  const tieneTalleres = sql`exists (select 1 from ${visitWorkshops} where ${visitWorkshops.idVisita} = ${visits.id})`
+
+  const [visitsByNurseRaw, composicionRows] = await Promise.all([
     db
       .select({
         label: sql<string>`trim(concat(${nurses.nombres}, ' ', ${nurses.apellidoPaterno}))`,
@@ -80,14 +88,38 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
       .innerJoin(nurses, sql`${visits.idEnfermera} = ${nurses.id}`)
       .where(and(gte(visits.fecha, start), lte(visits.fecha, end)))
       .groupBy(nurses.id, nurses.nombres, nurses.apellidoPaterno)
-      .orderBy(desc(count()), asc(nurses.apellidoPaterno), asc(nurses.nombres))
-      .limit(6),
+      .orderBy(desc(count()), asc(nurses.apellidoPaterno), asc(nurses.nombres)),
+
+    db
+      .select({
+        soloExamenes: sql<number>`count(*) filter (where ${tieneExamenes} and not ${tieneProcedimientos} and not ${tieneTalleres})`,
+        soloProcedimientos: sql<number>`count(*) filter (where ${tieneProcedimientos} and not ${tieneExamenes} and not ${tieneTalleres})`,
+        soloTalleres: sql<number>`count(*) filter (where ${tieneTalleres} and not ${tieneExamenes} and not ${tieneProcedimientos})`,
+        ambos: sql<number>`count(*) filter (where ${tieneExamenes} and ${tieneProcedimientos})`,
+      })
+      .from(visits)
+      .where(and(
+        gte(visits.fecha, start),
+        lte(visits.fecha, end),
+        inArray(visits.estado, ESTADOS_VISITA_EFECTIVA),
+      )),
   ])
 
   const visitsByNurse: RankingItem[] = visitsByNurseRaw.map((item) => ({
     label: item.label,
     visits: Number(item.total),
   }))
+
+  const composicionRow = composicionRows[0]
+  const composicionRaw: RankingItem[] = [
+    { label: 'Solo exámenes', visits: Number(composicionRow?.soloExamenes ?? 0) },
+    { label: 'Solo procedimientos', visits: Number(composicionRow?.soloProcedimientos ?? 0) },
+    { label: 'Solo talleres', visits: Number(composicionRow?.soloTalleres ?? 0) },
+    { label: 'Exámenes y procedimientos', visits: Number(composicionRow?.ambos ?? 0) },
+  ]
+  // Si el mes no tiene ninguna visita realizada, devolver [] para que la card
+  // muestre su EmptyState en vez de 4 barras al mínimo con valor 0.
+  const visitsByComposicion = composicionRaw.some((item) => item.visits > 0) ? composicionRaw : []
 
   return {
     chartData,
@@ -97,6 +129,7 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
     averageVisits: chartData.length ? totalVisits / chartData.length : 0,
     monthLabel: MONTHS[month - 1] ?? '',
     visitsByNurse,
+    visitsByComposicion,
     year,
     month,
   }
