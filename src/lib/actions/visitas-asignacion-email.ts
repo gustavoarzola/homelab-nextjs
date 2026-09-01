@@ -12,11 +12,7 @@ import { Resend } from 'resend'
 import { formatDate } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
-import {
-  calcNursePaymentBreakdown,
-  DEFAULT_PORCENTAJE_PAGO,
-  type NursePaymentBreakdown,
-} from '@/lib/pricing/nurse-payment'
+import { calcNursePaymentConcepts, type NursePaymentConcepts } from '@/lib/pricing/nurse-payment'
 import { generateScheduledVisitsHTML } from '@/lib/emails/scheduled-visits-email-html'
 import { getR2Object } from '@/lib/r2'
 import { emailLogoAttachment } from '@/lib/email-logo'
@@ -62,10 +58,9 @@ export type VisitaConDetalles = {
   residenciaAdultoMayor: string | null
   informacionAdicional: string | null
   costo: number
-  costoTraslado: number
   recargos: { nombre: string; precio: number }[]
-  /** Desglose del pago estimado a la enfermera para esta visita. */
-  pago: NursePaymentBreakdown
+  /** Conceptos que componen el pago a la enfermera para esta visita (sin monto final). */
+  pago: NursePaymentConcepts
 }
 
 export type EnfermeraConVisitas = {
@@ -73,7 +68,6 @@ export type EnfermeraConVisitas = {
   nombres: string
   apellidoPaterno: string
   correo: string | null
-  porcentajePago: number
   visitas: VisitaConDetalles[]
 }
 
@@ -108,23 +102,20 @@ export async function getVisitasAsignadasPorEnfermera(
 
   const nurseIds = nursesWithVisits.map((n) => n.id)
 
-  const nursesData = await db
-    .select({
-      id: nurses.id,
-      nombres: nurses.nombres,
-      apellidoPaterno: nurses.apellidoPaterno,
-      correo: nurses.correo,
-      porcentajePago: nurses.porcentajePago,
-    })
-    .from(nurses)
-    .where(inArray(nurses.id, nurseIds))
-    .orderBy(asc(nurses.apellidoPaterno))
-
-  const porcentajePorEnfermera = new Map(
-    nursesData.map((n) => [n.id, Number(n.porcentajePago ?? DEFAULT_PORCENTAJE_PAGO)]),
-  )
-
-  const visitasDetalladas = await getVisitasConDetalles(fecha, nurseIds, porcentajePorEnfermera)
+  // Obtener datos de enfermeras y visitas detalladas en paralelo
+  const [nursesData, visitasDetalladas] = await Promise.all([
+    db
+      .select({
+        id: nurses.id,
+        nombres: nurses.nombres,
+        apellidoPaterno: nurses.apellidoPaterno,
+        correo: nurses.correo,
+      })
+      .from(nurses)
+      .where(inArray(nurses.id, nurseIds))
+      .orderBy(asc(nurses.apellidoPaterno)),
+    getVisitasConDetalles(fecha, nurseIds),
+  ])
 
   // Agrupar visitas por idEnfermera directamente (sin query extra)
   const visitasPorEnfermera = new Map<number, VisitaConDetalles[]>()
@@ -139,7 +130,6 @@ export async function getVisitasAsignadasPorEnfermera(
     nombres: nurse.nombres,
     apellidoPaterno: nurse.apellidoPaterno,
     correo: nurse.correo,
-    porcentajePago: porcentajePorEnfermera.get(nurse.id) ?? DEFAULT_PORCENTAJE_PAGO,
     visitas: visitasPorEnfermera.get(nurse.id) ?? [],
   }))
 }
@@ -181,7 +171,6 @@ export async function getVisitasSinAsignarPorFecha(fecha: string): Promise<Visit
 async function getVisitasConDetalles(
   fecha: string,
   nurseIds: number[],
-  porcentajePorEnfermera: Map<number, number>,
 ): Promise<VisitaConDetalles[]> {
   const rawVisitas = await db
     .select({
@@ -189,7 +178,6 @@ async function getVisitasConDetalles(
       fecha: visits.fecha,
       hora: visits.hora,
       costo: visits.costo,
-      costoTraslado: visits.costoTraslado,
       montoDescuento: visits.montoDescuento,
       montoVisitaOriginal: visits.montoVisitaOriginal,
       descuentoAfectaPagoEnfermera: visits.descuentoAfectaPagoEnfermera,
@@ -355,9 +343,8 @@ async function getVisitasConDetalles(
     residenciaAdultoMayor: v.residenciaAdultoMayor || null,
     informacionAdicional: v.informacionAdicional || null,
     costo: v.costo,
-    costoTraslado: v.costoTraslado ?? 0,
     recargos: surchargesByVisita.get(v.visitaId) ?? [],
-    pago: calcNursePaymentBreakdown({
+    pago: calcNursePaymentConcepts({
       procSum: procPrecioByVisita.get(v.visitaId) ?? 0,
       surchargeSum: surchargePrecioByVisita.get(v.visitaId) ?? 0,
       montoVisitaOriginal: v.montoVisitaOriginal,
@@ -365,9 +352,6 @@ async function getVisitasConDetalles(
       descuentoAfectaPagoEnfermera: v.descuentoAfectaPagoEnfermera,
       montoDescuentoProcedimientos: v.montoDescuentoProcedimientos,
       descuentoProcedimientosAfectaPagoEnfermera: v.descuentoProcedimientosAfectaPagoEnfermera,
-      porcentaje: v.idEnfermera != null
-        ? (porcentajePorEnfermera.get(v.idEnfermera) ?? DEFAULT_PORCENTAJE_PAGO)
-        : DEFAULT_PORCENTAJE_PAGO,
     }),
   }))
 }
