@@ -1245,9 +1245,14 @@ async function upsertExamResults(
       })
   }
 
-  const [stdCount] = await tx.select({ c: count() }).from(visitExams).where(eq(visitExams.idVisita, idVisita))
-  const [isCount] = await tx.select({ c: count() }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, idVisita))
-  const total = Number(stdCount?.c ?? 0) + Number(isCount?.c ?? 0)
+  // Deduplicado por idExamen: un mismo examen puede estar en la tabla regular y en la de
+  // isapre, y `visitExamResults` es único por (visita, examen). Contar sin deduplicar
+  // dejaría `enviados < total` para siempre. Mismo criterio que `getExamenesEsperados`.
+  const [stdExams, isapreExams] = await Promise.all([
+    tx.select({ idExamen: visitExams.idExamen }).from(visitExams).where(eq(visitExams.idVisita, idVisita)),
+    tx.select({ idExamen: visitIsapreExams.idExamen }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, idVisita)),
+  ])
+  const total = new Set([...stdExams, ...isapreExams].map((ex: { idExamen: number }) => ex.idExamen)).size
 
   const [resultRows] = await tx.select({ c: count() }).from(visitExamResults).where(and(eq(visitExamResults.idVisita, idVisita), eq(visitExamResults.enviado, true)))
   const enviados = Number(resultRows?.c ?? 0)

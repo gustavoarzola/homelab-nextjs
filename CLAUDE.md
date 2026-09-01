@@ -447,6 +447,8 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 7. **NextAuth en versión beta** — `next-auth@5.0.0-beta.30` puede tener breaking changes. Monitorear para actualizar a la versión estable cuando salga.
 
+8. **Los cuadros de pendientes del dashboard son un quickview, no un reporte.** "Cobros pendientes" y "Resultados pendientes" (`getDashboardFinanciero`) muestran solo las primeras 20 filas del mes seleccionado (el subtítulo indica el total real). Falta una página de reporte dedicada, con filtros propios (rango de fechas, enfermera, laboratorio, grupo de examen), paginación y export a Excel vía `src/lib/excel/build-excel.ts`, tanto para cobros pendientes como para exámenes con resultado por enviar.
+
 ### Baja prioridad
 
 8. **Google Maps API key expuesta al cliente** — `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` es pública por necesidad (se usa en el browser), pero debería tener restricciones de dominio configuradas en la consola de Google Cloud.

@@ -6,22 +6,36 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { formatDate } from '@/lib/format'
+import { EXAM_GRUPO_META, type ExamGrupo } from '@/lib/exam-grupos'
 import type { CobroPendienteRow, ResultadoPendienteRow } from '@/lib/actions/dashboard'
 
 type CobrosProps = {
   items: CobroPendienteRow[]
+  total: number
 }
 
 type ResultadosProps = {
   items: ResultadoPendienteRow[]
+  total: number
 }
 
-export function DashboardCobrosTable({ items }: CobrosProps) {
+// Subtítulo: cuando el total supera lo que se muestra, aclarar que es un quickview.
+function quickviewCaption(shown: number, total: number, fallback: string) {
+  return total > shown ? `Primeros ${shown} de ${total} pendientes` : fallback
+}
+
+function grupoLabel(grupo: string) {
+  return EXAM_GRUPO_META[grupo as ExamGrupo]?.label ?? grupo
+}
+
+export function DashboardCobrosTable({ items, total }: CobrosProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle>Cobros pendientes</CardTitle>
-        <CardDescription>Visitas realizadas sin pago registrado</CardDescription>
+        <CardDescription>
+          {quickviewCaption(items.length, total, 'Visitas realizadas sin pago registrado')}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (
@@ -63,12 +77,14 @@ export function DashboardCobrosTable({ items }: CobrosProps) {
   )
 }
 
-export function DashboardResultadosTable({ items }: ResultadosProps) {
+export function DashboardResultadosTable({ items, total }: ResultadosProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle>Resultados pendientes</CardTitle>
-        <CardDescription>Visitas realizadas con resultados por enviar</CardDescription>
+        <CardDescription>
+          {quickviewCaption(items.length, total, 'Exámenes por enviar de visitas realizadas')}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (
@@ -80,17 +96,24 @@ export function DashboardResultadosTable({ items }: ResultadosProps) {
                 <tr>
                   <th>Fecha</th>
                   <th>Paciente</th>
+                  <th>Examen</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.id}>
+                  <tr key={`${item.idVisita}-${item.idExamen}`}>
                     <td className="hl-mono hl-tnum" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)', whiteSpace: 'nowrap' }}>{formatDate(item.fecha)}</td>
                     <td>{item.paciente ?? '—'}</td>
+                    <td>
+                      <div>{item.examenNombre}</div>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
+                        {item.examenCodigo} · {grupoLabel(item.examenGrupo)}
+                      </div>
+                    </td>
                     <td style={{ textAlign: 'right' }}>
                       <Button variant="ghost" size="icon" asChild>
-                        <Link href={`/visitas/${item.id}`}>
+                        <Link href={`/visitas/${item.idVisita}`}>
                           <ExternalLink />
                         </Link>
                       </Button>

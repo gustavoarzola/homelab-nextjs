@@ -69,8 +69,14 @@ export default async function DashboardPage({ searchParams }: Props) {
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <DashboardCobrosTable items={financiero.cobrosPendientes} />
-        <DashboardResultadosTable items={financiero.resultadosPendientes} />
+        <DashboardCobrosTable
+          items={financiero.cobrosPendientes}
+          total={financiero.totalCobrosPendientes}
+        />
+        <DashboardResultadosTable
+          items={financiero.resultadosPendientes}
+          total={financiero.totalResultadosPendientes}
+        />
       </div>
     </div>
   )
