@@ -65,7 +65,7 @@ const columns: ColumnDef<CotizacionRow>[] = [
 ]
 
 const ESTADO_OPTIONS = [
-  { value: '', label: 'Todos los estados' },
+  { value: '', label: '— Todos —' },
   { value: 'creada', label: 'Creada' },
   { value: 'enviada', label: 'Enviada' },
   { value: 'aceptada', label: 'Aceptada' },

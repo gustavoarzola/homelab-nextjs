@@ -25,7 +25,7 @@
 .fork .bar { color: var(--color-border); font-size: 11px; }
 
 /* ── Cards de detalle ── */
-.dcard { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--card-p); }
+.dcard { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--card-p); box-shadow: var(--shadow-card); }
 .dcard__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .dcard__head .hl-label { margin: 0; }
 .patient { display: flex; align-items: flex-start; gap: 13px; padding: 13px; border-radius: var(--radius-md); background: var(--color-surface-muted); }

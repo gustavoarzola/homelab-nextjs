@@ -2,8 +2,9 @@
 // que no pueden leer src/app/homelab-tokens.css.
 //
 //  - DOC_TOKENS_CSS: bloque :root para el <style> de un documento HTML autónomo.
-//    Valores oklch copiados literalmente de homelab-tokens.css (§1–§9) para que
-//    el impreso quede idéntico a la app por construcción.
+//    Valores oklch copiados de homelab-tokens.css (§1–§9). Excepción deliberada
+//    (paso 15): el fondo/borde de pantalla llevan un croma frío mínimo que un
+//    documento imprimible NO debe tener — acá se mantienen los neutrales puros.
 //  - BRAND_HEX: equivalentes sRGB para el correo (los clientes de correo no
 //    soportan oklch() ni var()).
 

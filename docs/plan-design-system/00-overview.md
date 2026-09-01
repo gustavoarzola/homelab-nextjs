@@ -78,12 +78,14 @@ Trampas a manejar en el paso 01:
 | `11-operacion.md` | `asignacion-*`, `pagos-enfermeras-table.tsx` + `[enfermeraId]/page.tsx`, `precios-visitas-table.tsx`, `reportes-visitas` | **hecho** |
 | `12-limpieza.md` | Alias de compatibilidad, `.dark`, `tailwind.config.ts`, oklch sueltos | **hecho** |
 
-El plan de 12 pasos cierra acá. Un paso adicional, fuera del plan original, corrigió una
-divergencia que el propio plan había introducido a propósito:
+El plan de 12 pasos cierra acá. Pasos adicionales, fuera del plan original, corrigieron
+defectos que la migración dejó:
 
 | Archivo | Alcance | Estado |
 |---|---|---|
 | `13-homologacion-formularios.md` | Unificar `visita-form.tsx`/`cotizacion-form.tsx` sobre CSS y componentes compartidos (`form-shared.css`, `form-servicios.tsx`) | **hecho** |
+| `14-superficies-y-alineacion.md` | `.toolbar` como panel + alineación de controles; homologar filtro de envío de correos (su §3, oscurecer `--color-bg`, lo reemplazó el paso 15) | **hecho** |
+| `15-fondo-y-elevacion.md` | Tinte frío (hue 250) en fondo/muted/bordes; `--shadow-card` en cards de nivel página; patrón de puntos en `.app-body`; sidebar con sombra; cabecera de tabla en blanco | **hecho** |
 
 Se implementa **un paso a la vez**, commiteando al cerrar cada uno. Este directorio es el
 estado persistente del avance — si la sesión se corta, se retoma leyendo el estado de

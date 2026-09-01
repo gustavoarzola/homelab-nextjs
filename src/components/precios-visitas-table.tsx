@@ -166,10 +166,10 @@ export function PreciosVisitasTable({ initialRows, comunas, onCreate, onUpdate, 
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div>
       {/* Filters */}
       <div className="toolbar">
-        <div className="flex flex-col gap-1">
+        <div className="toolbar__field">
           <label className="hl-label">Buscar comuna</label>
           <div className="hl-input" style={{ width: 208 }}>
             <input
@@ -199,8 +199,7 @@ export function PreciosVisitasTable({ initialRows, comunas, onCreate, onUpdate, 
               applyFilters({ mostrarInactivos: next })
             }
           }}
-          className="flex cursor-pointer items-center gap-2 select-none"
-          style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}
+          className="toolbar__check"
         >
           <span className="hl-checkbox" data-checked={filterMostrarInactivos ? '' : undefined}>
             {filterMostrarInactivos && <Check style={{ width: 12, height: 12 }} strokeWidth={3} />}

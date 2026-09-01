@@ -62,7 +62,7 @@ const columns: ColumnDef<ProcedimientoRow>[] = [
 ]
 
 const CATEGORIA_FILTER_OPTIONS = [
-  { value: '', label: 'Todas las categorías' },
+  { value: '', label: '— Todas —' },
   { value: 'curaciones', label: 'Curaciones' },
   { value: 'otros', label: 'Otros procedimientos' },
 ]

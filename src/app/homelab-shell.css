@@ -8,7 +8,8 @@
 
 /* ── Sidebar ────────────────────────────────────────────────────────────── */
 .app-side {
-  background: var(--color-surface); border-right: 1px solid var(--color-border);
+  background: var(--color-surface); border-right: 0;
+  box-shadow: 1px 0 0 var(--color-border), 4px 0 16px oklch(0.3 0.02 250 / 0.03);
   display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0;
 }
 .app-side__logo { height: 84px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--color-border); flex-shrink: 0; }
@@ -29,7 +30,14 @@
 
 /* ── Contenido ──────────────────────────────────────────────────────────── */
 .app-main { min-width: 0; display: flex; flex-direction: column; min-height: 0; }
-.app-body { padding: 28px 32px 48px; flex: 1 0 auto; }
+/* Patrón de puntos muy tenue — solo el área de contenido, nunca body/sidebar/cards.
+   A 22px no se lee como textura; solo le quita el plano muerto al fondo. */
+.app-body {
+  padding: 28px 32px 48px; flex: 1 0 auto;
+  background-image: radial-gradient(oklch(0.55 0.04 250 / 0.13) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}
 
 /* Páginas de alto completo (board de asignación): el shell no scrollea, el
    contenido gestiona su propio scroll interno. */
@@ -47,9 +55,28 @@
 .page-head__meta { margin: 5px 0 0; font-size: var(--text-base); color: var(--color-fg-muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .page-head__actions { display: flex; align-items: center; gap: 10px; }
 
-/* Toolbar de filtros */
-.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+/* Toolbar de filtros — panel con superficie propia (igual que la card de la
+   tabla que le sigue). `align-items: flex-end` porque cada campo es una pila
+   label+control: alineando por el borde inferior, botones y checkboxes quedan
+   a ras de la fila de inputs (con `center` se centraban contra la pila
+   completa y subían ~8px). */
+.toolbar {
+  display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 16px; padding: var(--space-4);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+}
 .toolbar__spacer { flex: 1; }
+/* Campo: label (.hl-label) arriba, control abajo. */
+.toolbar__field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.toolbar > .hl-btn { flex-shrink: 0; }
+/* Checkbox suelto: ocupa el alto de un control y centra su contenido, para que
+   su centro coincida con el del input de al lado. */
+.toolbar__check {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  min-height: var(--control-h); cursor: pointer; user-select: none;
+  font-size: var(--text-base); color: var(--color-fg-muted);
+}
 
 /* Grid de dos columnas: contenido + rail */
 .split { display: grid; grid-template-columns: minmax(0,1fr) 330px; gap: 20px; align-items: start; }
