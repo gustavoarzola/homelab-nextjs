@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import { visits } from '@/db/schema'
-import { and, asc, count, countDistinct, eq, gte, inArray, isNotNull, lte, sum } from 'drizzle-orm'
+import { and, asc, count, countDistinct, eq, gte, inArray, isNotNull, lte, sql, sum } from 'drizzle-orm'
 
 vi.mock('@/auth', () => ({
   auth: vi.fn(async () => ({ user: { id: 'test-user' } })),
@@ -86,6 +86,35 @@ describe('getDashboardVisitsByDay — marzo 2026 (seed determinista)', () => {
     expect(composicionSum).toBeLessThanOrEqual(Number(row?.total ?? 0))
     expect(composicionSum).toBeGreaterThan(0)
   })
+
+  it('la composición considera exámenes de isapre (SQL independiente, nombres de tabla explícitos)', async () => {
+    const independiente = await db.execute(sql`
+      select
+        count(*) filter (where has_exam and not has_proc and not has_ws)::int as solo_examenes,
+        count(*) filter (where has_proc and not has_exam and not has_ws)::int as solo_procedimientos,
+        count(*) filter (where has_ws and not has_exam and not has_proc)::int as solo_talleres,
+        count(*) filter (where has_exam and has_proc)::int as ambos
+      from (
+        select
+          (exists (select 1 from examenes_visitas ev where ev.id_visita = v.id)
+            or exists (select 1 from examenes_isapre_visitas eiv where eiv.id_visita = v.id)) as has_exam,
+          exists (select 1 from procedimientos_visitas pv where pv.id_visita = v.id) as has_proc,
+          exists (select 1 from talleres_visitas tv where tv.id_visita = v.id) as has_ws
+        from visitas v
+        where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
+          and v.estado in ('realizada', 'completada')
+      ) t
+    `)
+    const ind = independiente[0]
+
+    const result = await getDashboardVisitsByDay(3, 2026)
+    const byLabel = Object.fromEntries(result.visitsByComposicion.map((r) => [r.label, r.visits]))
+
+    expect(byLabel['Solo exámenes']).toBe(Number(ind.solo_examenes))
+    expect(byLabel['Solo procedimientos']).toBe(Number(ind.solo_procedimientos))
+    expect(byLabel['Solo talleres']).toBe(Number(ind.solo_talleres))
+    expect(byLabel['Exámenes y procedimientos']).toBe(Number(ind.ambos))
+  })
 })
 
 describe('getDashboardFinanciero — marzo 2026 (seed determinista)', () => {
@@ -106,6 +135,63 @@ describe('getDashboardFinanciero — marzo 2026 (seed determinista)', () => {
 
     expect(result.cobrosEnPendiente).toBe(Number(row?.total ?? 0))
     expect(result.cobrosEnPendiente).toBeGreaterThan(0)
+  })
+
+  it('cobros pendientes: total independiente y quickview acotado a 20', async () => {
+    const [row] = await db
+      .select({ total: count() })
+      .from(visits)
+      .where(
+        and(
+          gte(visits.fecha, MARCH_START),
+          lte(visits.fecha, MARCH_END),
+          eq(visits.estado, 'realizada'),
+          eq(visits.pagado, false),
+        ),
+      )
+
+    const result = await getDashboardFinanciero(3, 2026)
+
+    expect(result.totalCobrosPendientes).toBe(Number(row?.total ?? 0))
+    expect(result.cobrosPendientes.length).toBeLessThanOrEqual(20)
+    expect(result.cobrosPendientes.length).toBeLessThanOrEqual(result.totalCobrosPendientes)
+  })
+
+  it('resultados pendientes: 1 fila por (visita, examen) sin envío, incluye isapre', async () => {
+    const result = await getDashboardFinanciero(3, 2026)
+    const rows = result.resultadosPendientes
+
+    // quickview acotado
+    expect(rows.length).toBeLessThanOrEqual(20)
+    expect(rows.length).toBeLessThanOrEqual(result.totalResultadosPendientes)
+
+    // pares (visita, examen) únicos
+    const keys = rows.map((r) => `${r.idVisita}-${r.idExamen}`)
+    expect(new Set(keys).size).toBe(keys.length)
+
+    // cada fila trae metadatos del examen
+    for (const r of rows) {
+      expect(typeof r.examenNombre).toBe('string')
+      expect(r.examenNombre.length).toBeGreaterThan(0)
+    }
+
+    // SQL independiente: pares de exámenes (regular ∪ isapre) de visitas realizadas de
+    // marzo sin fila enviado=true en examenes_visitas_resultados
+    const independiente = await db.execute(sql`
+      select count(*)::int as total from (
+        select ev.id_visita, ev.id_examen from examenes_visitas ev
+        union
+        select eiv.id_visita, eiv.id_examen from examenes_isapre_visitas eiv
+      ) x
+      join visitas v on v.id = x.id_visita
+      left join examenes_visitas_resultados r
+        on r.id_visita = x.id_visita and r.id_examen = x.id_examen
+      where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
+        and v.estado = 'realizada'
+        and r.enviado is not true
+    `)
+    expect(result.totalResultadosPendientes).toBe(Number(independiente[0].total))
+    expect(result.totalResultadosPendientes).toBeGreaterThan(0)
   })
 
   it('el costo de cada visita en cobros pendientes refleja descuentos e insumos (recompute == persistido)', async () => {

@@ -1,9 +1,20 @@
 'use server'
 
 import { and, asc, count, desc, eq, gte, inArray, lte, sql, sum } from 'drizzle-orm'
+import { union } from 'drizzle-orm/pg-core'
 
 import { db } from '@/db'
-import { nurses, patients, visitExams, visitProcedures, visits, visitWorkshops } from '@/db/schema'
+import {
+  exams,
+  nurses,
+  patients,
+  visitExamResults,
+  visitExams,
+  visitIsapreExams,
+  visitProcedures,
+  visits,
+  visitWorkshops,
+} from '@/db/schema'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
 
@@ -74,7 +85,9 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
     chartData[0] ?? { day: 1, label: '', visits: 0, date: start },
   )
 
-  const tieneExamenes = sql`exists (select 1 from ${visitExams} where ${visitExams.idVisita} = ${visits.id})`
+  // Envuelto en paréntesis: se interpola dentro de `filter (where ... and not ...)`
+  // y contiene un `or`, así que sin los paréntesis la precedencia se rompería.
+  const tieneExamenes = sql`(exists (select 1 from ${visitExams} where ${visitExams.idVisita} = ${visits.id}) or exists (select 1 from ${visitIsapreExams} where ${visitIsapreExams.idVisita} = ${visits.id}))`
   const tieneProcedimientos = sql`exists (select 1 from ${visitProcedures} where ${visitProcedures.idVisita} = ${visits.id})`
   const tieneTalleres = sql`exists (select 1 from ${visitWorkshops} where ${visitWorkshops.idVisita} = ${visits.id})`
 
@@ -145,75 +158,105 @@ export type CobroPendienteRow = {
 }
 
 export type ResultadoPendienteRow = {
-  id: number
+  idVisita: number
+  idExamen: number
   fecha: string
   paciente: string | null
+  examenNombre: string
+  examenCodigo: string
+  examenGrupo: string
 }
+
+const LIMITE_QUICKVIEW = 20
 
 export async function getDashboardFinanciero(month: number, year: number) {
   await requireSession()
 
   const { start, end } = getMonthRange(year, month)
 
-  const [cobrosRaw, cobrosPendientesRaw, resultadosPendientesRaw] = await Promise.all([
-    // Cobros pendientes (realizadas + no pagadas)
-    db
-      .select({ total: sum(visits.costo) })
-      .from(visits)
-      .where(
-        and(
-          gte(visits.fecha, start),
-          lte(visits.fecha, end),
-          eq(visits.estado, 'realizada'),
-          eq(visits.pagado, false),
-        ),
-      ),
+  // Cobros pendientes: visitas realizadas del mes sin pago registrado.
+  const cobrosWhere = and(
+    gte(visits.fecha, start),
+    lte(visits.fecha, end),
+    eq(visits.estado, 'realizada'),
+    eq(visits.pagado, false),
+  )
 
-    // Lista cobros pendientes
-    db
+  // Resultado pendiente = par (visita, examen) de una visita realizada del mes sin fila
+  // `enviado = true` en `examenes_visitas_resultados` (las filas solo existen tras guardar
+  // un envío). Los exámenes de una visita son la unión —deduplicada— de los regulares y
+  // los de isapre, que viven en tablas puente distintas pero apuntan al mismo catálogo.
+  // Factory: cada llamada devuelve un builder nuevo (los de Drizzle son mutables al
+  // encadenar `.orderBy`/`.limit`, así que no se puede compartir la instancia).
+  function resultadosPendientesBase() {
+    const examenesDeVisita = union(
+      db.select({ idVisita: visitExams.idVisita, idExamen: visitExams.idExamen }).from(visitExams),
+      db.select({ idVisita: visitIsapreExams.idVisita, idExamen: visitIsapreExams.idExamen }).from(visitIsapreExams),
+    ).as('examenes_de_visita')
+
+    return db
       .select({
-        id: visits.id,
+        idVisita: examenesDeVisita.idVisita,
+        idExamen: examenesDeVisita.idExamen,
         fecha: visits.fecha,
-        costo: visits.costo,
+        examenNombre: exams.nombre,
+        examenCodigo: exams.codigo,
+        examenGrupo: exams.grupoExamen,
         pacienteNombres: patients.nombres,
         pacienteApellido: patients.apellidoPaterno,
         pacienteApellidoMaterno: patients.apellidoMaterno,
       })
-      .from(visits)
+      .from(examenesDeVisita)
+      .innerJoin(visits, eq(examenesDeVisita.idVisita, visits.id))
+      .innerJoin(exams, eq(examenesDeVisita.idExamen, exams.id))
       .leftJoin(patients, eq(visits.idPaciente, patients.id))
+      .leftJoin(
+        visitExamResults,
+        and(
+          eq(visitExamResults.idVisita, examenesDeVisita.idVisita),
+          eq(visitExamResults.idExamen, examenesDeVisita.idExamen),
+        ),
+      )
       .where(
         and(
           gte(visits.fecha, start),
           lte(visits.fecha, end),
           eq(visits.estado, 'realizada'),
-          eq(visits.pagado, false),
+          sql`${visitExamResults.enviado} is not true`,
         ),
       )
-      .orderBy(desc(visits.fecha))
-      .limit(20),
+  }
 
-    // Lista resultados pendientes
-    db
-      .select({
-        id: visits.id,
-        fecha: visits.fecha,
-        pacienteNombres: patients.nombres,
-        pacienteApellido: patients.apellidoPaterno,
-        pacienteApellidoMaterno: patients.apellidoMaterno,
-      })
-      .from(visits)
-      .leftJoin(patients, eq(visits.idPaciente, patients.id))
-      .where(
-        and(
-          gte(visits.fecha, start),
-          lte(visits.fecha, end),
-          eq(visits.estado, 'realizada'),
-          sql`${visits.resultadosEnviadosCount} < ${visits.resultadosTotalCount}`,
-        ),
-      )
-      .orderBy(desc(visits.fecha))
-      .limit(20),
-  ])
+  const [cobrosRaw, totalCobrosRaw, cobrosPendientesRaw, resultadosPendientesRaw, totalResultadosRaw] =
+    await Promise.all([
+      // Total $ en pendiente de cobro
+      db.select({ total: sum(visits.costo) }).from(visits).where(cobrosWhere),
+
+      // Total de visitas con cobro pendiente (para el subtítulo del quickview)
+      db.select({ total: count() }).from(visits).where(cobrosWhere),
+
+      // Lista cobros pendientes (primeras N, 1 fila por visita)
+      db
+        .select({
+          id: visits.id,
+          fecha: visits.fecha,
+          costo: visits.costo,
+          pacienteNombres: patients.nombres,
+          pacienteApellido: patients.apellidoPaterno,
+          pacienteApellidoMaterno: patients.apellidoMaterno,
+        })
+        .from(visits)
+        .leftJoin(patients, eq(visits.idPaciente, patients.id))
+        .where(cobrosWhere)
+        .orderBy(desc(visits.fecha))
+        .limit(LIMITE_QUICKVIEW),
+
+      // Lista resultados pendientes (primeras N, 1 fila por examen)
+      resultadosPendientesBase().orderBy(desc(visits.fecha), asc(exams.nombre)).limit(LIMITE_QUICKVIEW),
+
+      // Total de exámenes con resultado pendiente (para el subtítulo del quickview)
+      db.select({ total: count() }).from(resultadosPendientesBase().as('resultados_pendientes')),
+    ])
 
   const cobrosPendientes: CobroPendienteRow[] = cobrosPendientesRaw.map((r) => ({
     id: r.id,
@@ -228,8 +271,12 @@ export async function getDashboardFinanciero(month: number, year: number) {
   }))
 
   const resultadosPendientes: ResultadoPendienteRow[] = resultadosPendientesRaw.map((r) => ({
-    id: r.id,
+    idVisita: r.idVisita,
+    idExamen: r.idExamen,
     fecha: r.fecha,
+    examenNombre: r.examenNombre,
+    examenCodigo: r.examenCodigo,
+    examenGrupo: r.examenGrupo,
     paciente:
       formatNombre({
         nombres: r.pacienteNombres,
@@ -241,6 +288,8 @@ export async function getDashboardFinanciero(month: number, year: number) {
   return {
     cobrosEnPendiente: Number(cobrosRaw[0]?.total ?? 0),
     cobrosPendientes,
+    totalCobrosPendientes: Number(totalCobrosRaw[0]?.total ?? 0),
     resultadosPendientes,
+    totalResultadosPendientes: Number(totalResultadosRaw[0]?.total ?? 0),
   }
 }
