@@ -34,7 +34,6 @@ export default async function LoginPage({ searchParams }: Props) {
         {/* Logo / título */}
         <div className="mb-8 text-center">
           <Image src="/homelab-logo.png" alt="HomeLab" height={64} width={124} style={{ margin: '0 auto 16px' }} priority />
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>Homelab</h1>
           <p style={{ marginTop: 4, fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
             Gestión de visitas de enfermería
           </p>
