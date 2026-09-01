@@ -90,10 +90,10 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
   const tfootCellStyle: React.CSSProperties = { padding: 'var(--row-py) var(--cell-px)', color: 'var(--color-fg)', fontWeight: 600 }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div>
       {/* Filtros */}
       <div className="toolbar">
-        <div className="flex flex-col gap-1">
+        <div className="toolbar__field">
           <label className="hl-label">Mes</label>
           <div className="w-[200px] min-w-0">
             <SelectCombobox
@@ -106,7 +106,7 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
             />
           </div>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="toolbar__field">
           <label className="hl-label">Año</label>
           <div className="w-[140px] min-w-0">
             <SelectCombobox
@@ -119,7 +119,7 @@ export function PagosEnfermerasTable({ rows, month, year, enfermeraId, enfermera
             />
           </div>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="toolbar__field">
           <label className="hl-label">Enfermera</label>
           <div className="w-[220px] min-w-0">
             <SelectCombobox

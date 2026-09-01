@@ -50,14 +50,19 @@
   --brand-orange-fg:     oklch(0.530 0.150 47);    /* texto sobre tinte       */
 
   /* ── 3 · Tokens semánticos (lo que consumen los componentes) ───────────── */
-  --color-bg:            var(--neutral-100);   /* fondo app (gris muy claro)  */
-  --color-surface:       var(--neutral-0);     /* cards / superficies         */
-  --color-surface-muted: var(--neutral-100);   /* headers de tabla, zebras    */
-  --color-fg:            var(--neutral-950);   /* texto primario              */
-  --color-fg-muted:      var(--neutral-500);   /* texto secundario            */
-  --color-fg-subtle:     var(--neutral-400);   /* placeholders, hints         */
-  --color-border:        var(--neutral-200);   /* bordes / divisores          */
-  --color-border-strong: var(--neutral-300);   /* bordes de input             */
+  /* Fondo, superficie-muted y bordes llevan un croma frío mínimo (hue 250,
+     0.004–0.008): imperceptible como "azul", pero saca al gris de la ceniza.
+     Estos 4 se declaran como literal oklch en vez de derivarse de la escala
+     neutral (que es acromática por diseño). No subir el croma — a partir de
+     ~0.01 se lee como celeste. Ver docs/plan-design-system/15-fondo-y-elevacion.md. */
+  --color-bg:            oklch(0.968 0.005 250);  /* fondo app                */
+  --color-surface:       var(--neutral-0);        /* cards / superficies      */
+  --color-surface-muted: oklch(0.976 0.004 250);  /* zebra, MetaTile, fpanel  */
+  --color-fg:            var(--neutral-950);       /* texto primario          */
+  --color-fg-muted:      var(--neutral-500);       /* texto secundario        */
+  --color-fg-subtle:     var(--neutral-400);       /* placeholders, hints     */
+  --color-border:        oklch(0.918 0.006 250);  /* bordes / divisores       */
+  --color-border-strong: oklch(0.868 0.008 250);  /* bordes de control        */
   --color-ring:          var(--brand-blue);    /* foco accesible              */
 
   --color-primary:       var(--brand-blue);        /* acción primaria         */
@@ -137,11 +142,14 @@
   --radius-xl:   14px;
   --radius-full: 9999px;
 
-  /* ── 9 · Elevación (sutil; las cards usan borde, no sombra) ─────────────── */
+  /* ── 9 · Elevación ────────────────────────────────────────────────────────
+     Las cards de nivel página llevan borde + `--shadow-card` (sombra fría y
+     sutil, no negro puro). Las capas flotantes usan `--shadow-lg`. */
   --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.04);
   --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.07), 0 1px 2px oklch(0 0 0 / 0.04);
   --shadow-md: 0 4px 12px oklch(0 0 0 / 0.08), 0 2px 4px oklch(0 0 0 / 0.04);
   --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.12);   /* popovers, dropdowns */
+  --shadow-card: 0 1px 2px oklch(0.3 0.02 250 / 0.05), 0 2px 6px oklch(0.3 0.02 250 / 0.045);
 
   /* ── 10 · Densidad (PARAMETRIZABLE) ────────────────────────────────────
      Cambiar el modo en un solo lugar reescala controles y filas en toda la
@@ -300,6 +308,7 @@
 .hl-card {
   background: var(--color-surface); border: 1px solid var(--color-border);
   border-radius: var(--radius-lg); padding: var(--card-p);
+  box-shadow: var(--shadow-card);
 }
 .hl-card--flush { padding: 0; overflow: hidden; }
 
@@ -321,7 +330,7 @@
 .hl-table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
 .hl-table thead th {
   text-align: left; padding: 10px var(--cell-px);
-  background: var(--color-surface-muted); border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface); border-bottom: 1px solid var(--color-border-strong);
   font: 600 var(--text-xs)/1 var(--font-sans); letter-spacing: var(--tracking-label);
   text-transform: uppercase; color: var(--color-fg-muted);
 }
@@ -415,7 +424,8 @@
 
 /* ── Rail de acciones (panel derecho del ciclo de vida) ──────────────────── */
 .hl-rail { display: grid; gap: 14px; align-content: start; }
-.hl-rail__card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+.hl-rail__card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-card); }
+.hl-rail__card .dcard { box-shadow: none; }
 .hl-rail__head { padding: 14px 18px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .hl-rail__head h3 { margin: 0; font-size: var(--text-md); font-weight: 600; }
 .hl-rail__body { padding: 18px; display: grid; gap: 14px; }

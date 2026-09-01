@@ -296,30 +296,31 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
   return (
     <div>
       {/* Filters */}
+      {filterDefs.length > 0 && (
       <div className="toolbar">
-        {filterDefs.map((f) => (
-          <div key={f.type === 'date-range' ? `${f.keyFrom}-${f.keyTo}` : f.key} className="flex flex-col gap-1">
-            {f.type === 'checkbox' ? (
-              <label
-                role="checkbox"
-                aria-checked={draft[f.key] as boolean}
-                tabIndex={0}
-                onClick={() => setDraft((d) => ({ ...d, [f.key]: !d[f.key] }))}
-                onKeyDown={(e) => {
-                  if (e.key === ' ' || e.key === 'Enter') {
-                    e.preventDefault()
-                    setDraft((d) => ({ ...d, [f.key]: !d[f.key] }))
-                  }
-                }}
-                className="flex cursor-pointer items-center gap-2 select-none"
-                style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}
-              >
-                <span className="hl-checkbox" data-checked={draft[f.key] ? '' : undefined}>
-                  {(draft[f.key] as boolean) && <Check style={{ width: 12, height: 12 }} strokeWidth={3} />}
-                </span>
-                {f.label}
-              </label>
-            ) : f.type === 'select' ? (
+        {filterDefs.map((f) => f.type === 'checkbox' ? (
+          <label
+            key={f.key}
+            role="checkbox"
+            aria-checked={draft[f.key] as boolean}
+            tabIndex={0}
+            onClick={() => setDraft((d) => ({ ...d, [f.key]: !d[f.key] }))}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault()
+                setDraft((d) => ({ ...d, [f.key]: !d[f.key] }))
+              }
+            }}
+            className="toolbar__check"
+          >
+            <span className="hl-checkbox" data-checked={draft[f.key] ? '' : undefined}>
+              {(draft[f.key] as boolean) && <Check style={{ width: 12, height: 12 }} strokeWidth={3} />}
+            </span>
+            {f.label}
+          </label>
+        ) : (
+          <div key={f.type === 'date-range' ? `${f.keyFrom}-${f.keyTo}` : f.key} className="toolbar__field">
+            {f.type === 'select' ? (
               <>
                 <label className="hl-label">{f.label}</label>
                 <div className="hl-input hl-input--select" style={{ width: '208px' }}>
@@ -335,8 +336,9 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
               </>
             ) : f.type === 'select-single' ? (() => {
               const opts = f.options ?? []
+              const hasAllOption = opts.some((o) => o.value === '')
               const comboOptions = opts.map((opt, idx) => ({ id: idx, label: opt.label }))
-              const selectedIdx = opts.findIndex((o) => o.value !== '' && o.value === (draft[f.key] as string))
+              const selectedIdx = opts.findIndex((o) => o.value === (draft[f.key] as string))
               return (
                 <>
                   <label className="hl-label">{f.label}</label>
@@ -347,6 +349,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
                       selected={selectedIdx >= 0 ? selectedIdx : null}
                       onChange={(idx) => setDraft((d) => ({ ...d, [f.key]: idx !== null ? (opts[idx]?.value ?? '') : '' }))}
                       placeholder={f.placeholder}
+                      clearable={!hasAllOption}
                     />
                   </div>
                 </>
@@ -407,6 +410,7 @@ export function DataTable<T extends { id: number; activo?: boolean }>({
           <Button variant="ghost" onClick={handleClear} disabled={isPending}>Limpiar</Button>
         )}
       </div>
+      )}
 
       {/* Toolbar */}
       <div className="mb-2 flex items-center justify-between">

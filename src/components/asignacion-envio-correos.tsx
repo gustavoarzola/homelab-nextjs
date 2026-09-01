@@ -90,14 +90,14 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
   const totalVisitas = enfermeras.reduce((sum, e) => sum + e.visitas.length, 0)
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <PageHeader title="Envío de Programación" meta="Envíe las programaciones de visitas a las enfermeras por correo" />
 
       {/* Busqueda */}
-      <div className="hl-card">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-          <div className="hl-fieldgroup flex-1">
-            <label>Seleccione una fecha</label>
+      <div className="toolbar">
+        <div className="toolbar__field">
+          <label className="hl-label">Fecha</label>
+          <div style={{ width: '208px' }}>
             <FormDatePicker
               mode="single"
               value={fecha}
@@ -105,14 +105,13 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
               disabled={loading}
               weekStartsOn={1}
               placeholder="Seleccionar fecha"
-              className="w-full"
             />
           </div>
-          <Button onClick={handleBuscar} disabled={loading || isPending}>
-            {loading ? <Loader2 className="animate-spin" /> : <Calendar />}
-            Buscar
-          </Button>
         </div>
+        <Button onClick={handleBuscar} disabled={loading || isPending}>
+          {loading ? <Loader2 className="animate-spin" /> : <Calendar />}
+          Buscar
+        </Button>
       </div>
 
       {/* Visitas sin asignar */}
@@ -140,11 +139,13 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
 
       {/* Resumen */}
       {enfermeras.length > 0 && (
-        <MetaGrid>
-          <MetaTile label="Enfermeras" value={enfermeras.length} />
-          <MetaTile label="Visitas" value={totalVisitas} />
-          <MetaTile label="Fecha" value={formatDateLong(fechaBuscada)} />
-        </MetaGrid>
+        <div className="hl-card">
+          <MetaGrid>
+            <MetaTile label="Enfermeras" value={enfermeras.length} />
+            <MetaTile label="Visitas" value={totalVisitas} />
+            <MetaTile label="Fecha" value={formatDateLong(fechaBuscada)} />
+          </MetaGrid>
+        </div>
       )}
 
       {/* Tabla de enfermeras */}

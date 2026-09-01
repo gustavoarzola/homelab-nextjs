@@ -27,7 +27,7 @@
 .edit-bar__spacer { flex: 1; }
 
 /* ── Card de sección de formulario ── */
-.fcard { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+.fcard { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-card); }
 .fcard__head { padding: 14px 18px; border-bottom: 1px solid var(--color-border); display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .fcard__head h2 { margin: 0; font-size: var(--text-md); font-weight: 600; }
 .fcard__head p { margin: 3px 0 0; font-size: var(--text-sm); color: var(--color-fg-muted); }

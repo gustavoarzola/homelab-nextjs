@@ -70,19 +70,23 @@ export function SelectCombobox(props: Props) {
     }
   }, [open, updatePos])
 
+  const closeDropdown = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+  }, [])
+
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       const target = e.target as Node
       const inContainer = containerRef.current?.contains(target)
       const inDropdown = dropdownRef.current?.contains(target)
       if (!inContainer && !inDropdown) {
-        setOpen(false)
-        setQuery('')
+        closeDropdown()
       }
     }
     document.addEventListener('mousedown', handleMouseDown)
     return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [])
+  }, [closeDropdown])
 
   const normalize = (s: string) =>
     s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -278,22 +282,28 @@ export function SelectCombobox(props: Props) {
         <button
           type="button"
           onClick={(e) => {
+            e.stopPropagation()
             if (isSingleMode && isClearable && selectedOptions.length > 0) {
-              e.stopPropagation()
               props.onChange(null)
               return
             }
 
-            e.stopPropagation()
-            const nextOpen = !open
-            setOpen(nextOpen)
-            if (nextOpen) {
-              requestAnimationFrame(() => {
-                inputRef.current?.focus()
-              })
+            if (open) {
+              closeDropdown()
+              return
             }
+            setOpen(true)
+            requestAnimationFrame(() => {
+              inputRef.current?.focus()
+            })
           }}
-          disabled={props.disabled || (isSingleMode && isClearable && selectedOptions.length === 0)}
+          disabled={props.disabled}
+          aria-expanded={open}
+          aria-label={
+            isSingleMode && isClearable && selectedOptions.length > 0
+              ? 'Limpiar selección'
+              : 'Abrir opciones'
+          }
           className="absolute top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded hover:opacity-70 disabled:opacity-30 disabled:cursor-default"
           style={{ right: 'var(--control-px)', color: 'var(--color-fg-muted)' }}
         >
