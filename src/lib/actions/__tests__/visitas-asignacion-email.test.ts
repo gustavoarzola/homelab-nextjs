@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
-import { addresses, nurses, patients, visits } from '@/db/schema'
-import { inArray } from 'drizzle-orm'
+import { addresses, exams, nurses, patients, visitExams, visitIsapreExams, visits } from '@/db/schema'
+import { asc, inArray } from 'drizzle-orm'
 import { P } from './helpers'
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -111,5 +111,32 @@ describe('getVisitasAsignadasPorEnfermera', () => {
     expect(result).toHaveLength(1)
     expect(result[0]!.id).toBe(nurse.id)
     expect(result[0]!.visitas.map((v) => v.id)).toEqual([confirmedVisit.id])
+  })
+
+  it('incluye exámenes regulares e isapre con código y precio, con los isapre al final', async () => {
+    const nurse = await seedNurse('ConExamenes')
+    const visit = await seedVisit({ estado: 'confirmada', idEnfermera: nurse.id })
+
+    const [examRegular, examIsapre] = await db
+      .select({ id: exams.id, codigo: exams.codigo, nombre: exams.nombre })
+      .from(exams)
+      .orderBy(asc(exams.id))
+      .limit(2)
+
+    await db.insert(visitExams).values({ idVisita: visit.id, idExamen: examRegular!.id, precio: 12500 })
+    await db.insert(visitIsapreExams).values({
+      idVisita: visit.id,
+      idExamen: examIsapre!.id,
+      valorCompleto: 20000,
+      valorPagar: 9400,
+    })
+
+    const result = await getVisitasAsignadasPorEnfermera(TEST_FECHA)
+    const examenes = result.find((e) => e.id === nurse.id)!.visitas[0]!.exámenes
+
+    expect(examenes).toEqual([
+      { nombre: examRegular!.nombre, codigo: examRegular!.codigo, precio: 12500, isapre: false },
+      { nombre: examIsapre!.nombre, codigo: examIsapre!.codigo, precio: 9400, isapre: true },
+    ])
   })
 })
