@@ -1,6 +1,6 @@
 'use client'
 
-import { Building2, Stethoscope } from 'lucide-react'
+import { Building2, FlaskConical, Stethoscope } from 'lucide-react'
 
 import {
   Card,
@@ -20,8 +20,14 @@ type Props = {
   title: string
   description: string
   items: RankingItem[]
-  icon?: 'laboratory' | 'nurse'
+  icon?: 'laboratory' | 'nurse' | 'composicion'
 }
+
+const ICONS = {
+  laboratory: Building2,
+  nurse: Stethoscope,
+  composicion: FlaskConical,
+} as const
 
 export function DashboardRankingCard({
   title,
@@ -30,7 +36,7 @@ export function DashboardRankingCard({
   icon = 'laboratory',
 }: Props) {
   const maxVisits = Math.max(...items.map((item) => item.visits), 1)
-  const Icon = icon === 'nurse' ? Stethoscope : Building2
+  const Icon = ICONS[icon]
 
   return (
     <Card>
@@ -52,11 +58,11 @@ export function DashboardRankingCard({
         {items.length === 0 ? (
           <EmptyState title="No hay datos para este período." />
         ) : (
-          items.map((item) => {
+          items.map((item, index) => {
             const width = `${Math.max((item.visits / maxVisits) * 100, 10)}%`
 
             return (
-              <div key={item.label} className="space-y-2">
+              <div key={`${index}-${item.label}`} className="space-y-2">
                 <div className="flex items-center justify-between gap-4">
                   <span className="min-w-0 flex-1 break-words" style={{ fontSize: 'var(--text-base)', fontWeight: 500 }}>
                     {item.label}

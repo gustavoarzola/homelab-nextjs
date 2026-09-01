@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import { visits } from '@/db/schema'
-import { and, asc, count, eq, gte, lte, sum } from 'drizzle-orm'
+import { and, asc, count, countDistinct, eq, gte, inArray, isNotNull, lte, sum } from 'drizzle-orm'
 
 vi.mock('@/auth', () => ({
   auth: vi.fn(async () => ({ user: { id: 'test-user' } })),
@@ -45,12 +45,46 @@ describe('getDashboardVisitsByDay — marzo 2026 (seed determinista)', () => {
     expect(result.peakVisits).toBe(maxFromChart)
   })
 
-  it('el ranking de enfermeras nunca excede el total de visitas del mes ni supera 6 filas', async () => {
+  it('el ranking incluye a todas las enfermeras con visitas del mes y su suma no excede el total', async () => {
+    const [row] = await db
+      .select({ total: countDistinct(visits.idEnfermera) })
+      .from(visits)
+      .where(and(gte(visits.fecha, MARCH_START), lte(visits.fecha, MARCH_END), isNotNull(visits.idEnfermera)))
+
     const result = await getDashboardVisitsByDay(3, 2026)
     const rankingSum = result.visitsByNurse.reduce((s, r) => s + r.visits, 0)
-    expect(result.visitsByNurse.length).toBeLessThanOrEqual(6)
+
+    expect(result.visitsByNurse.length).toBe(Number(row?.total ?? 0))
     expect(rankingSum).toBeLessThanOrEqual(result.totalVisits)
     expect(rankingSum).toBeGreaterThan(0) // el seed asigna enfermera a buena parte de las visitas
+  })
+
+  it('la composición de visitas cuenta solo visitas realizadas y sus categorías son excluyentes', async () => {
+    const [row] = await db
+      .select({ total: count() })
+      .from(visits)
+      .where(
+        and(
+          gte(visits.fecha, MARCH_START),
+          lte(visits.fecha, MARCH_END),
+          inArray(visits.estado, ['realizada', 'completada']),
+        ),
+      )
+
+    const result = await getDashboardVisitsByDay(3, 2026)
+    const labels = result.visitsByComposicion.map((r) => r.label)
+
+    expect(labels).toEqual([
+      'Solo exámenes',
+      'Solo procedimientos',
+      'Solo talleres',
+      'Exámenes y procedimientos',
+    ])
+
+    const composicionSum = result.visitsByComposicion.reduce((s, r) => s + r.visits, 0)
+    // Una visita sin ítems no cae en ninguna categoría → la suma nunca supera el total realizado.
+    expect(composicionSum).toBeLessThanOrEqual(Number(row?.total ?? 0))
+    expect(composicionSum).toBeGreaterThan(0)
   })
 })
 
