@@ -9,13 +9,17 @@ import {
 } from '@/db/schema'
 import { eq, and, inArray, asc, isNull } from 'drizzle-orm'
 import { Resend } from 'resend'
-import { formatDateFull, formatDateLong, formatDate, parseDateLocal } from '@/lib/format'
+import { formatDate } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
-import { esc, pesos } from '@/lib/cotizacion-html'
+import {
+  calcNursePaymentBreakdown,
+  DEFAULT_PORCENTAJE_PAGO,
+  type NursePaymentBreakdown,
+} from '@/lib/pricing/nurse-payment'
+import { generateScheduledVisitsHTML } from '@/lib/emails/scheduled-visits-email-html'
 import { getR2Object } from '@/lib/r2'
-import { BRAND_HEX, LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT } from '@/lib/brand'
-import { emailLogoAttachment, EMAIL_LOGO_CID } from '@/lib/email-logo'
+import { emailLogoAttachment } from '@/lib/email-logo'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,6 +64,8 @@ export type VisitaConDetalles = {
   costo: number
   costoTraslado: number
   recargos: { nombre: string; precio: number }[]
+  /** Desglose del pago estimado a la enfermera para esta visita. */
+  pago: NursePaymentBreakdown
 }
 
 export type EnfermeraConVisitas = {
@@ -67,6 +73,7 @@ export type EnfermeraConVisitas = {
   nombres: string
   apellidoPaterno: string
   correo: string | null
+  porcentajePago: number
   visitas: VisitaConDetalles[]
 }
 
@@ -101,20 +108,23 @@ export async function getVisitasAsignadasPorEnfermera(
 
   const nurseIds = nursesWithVisits.map((n) => n.id)
 
-  // Obtener datos de enfermeras y visitas detalladas en paralelo
-  const [nursesData, visitasDetalladas] = await Promise.all([
-    db
-      .select({
-        id: nurses.id,
-        nombres: nurses.nombres,
-        apellidoPaterno: nurses.apellidoPaterno,
-        correo: nurses.correo,
-      })
-      .from(nurses)
-      .where(inArray(nurses.id, nurseIds))
-      .orderBy(asc(nurses.apellidoPaterno)),
-    getVisitasConDetalles(fecha, nurseIds),
-  ])
+  const nursesData = await db
+    .select({
+      id: nurses.id,
+      nombres: nurses.nombres,
+      apellidoPaterno: nurses.apellidoPaterno,
+      correo: nurses.correo,
+      porcentajePago: nurses.porcentajePago,
+    })
+    .from(nurses)
+    .where(inArray(nurses.id, nurseIds))
+    .orderBy(asc(nurses.apellidoPaterno))
+
+  const porcentajePorEnfermera = new Map(
+    nursesData.map((n) => [n.id, Number(n.porcentajePago ?? DEFAULT_PORCENTAJE_PAGO)]),
+  )
+
+  const visitasDetalladas = await getVisitasConDetalles(fecha, nurseIds, porcentajePorEnfermera)
 
   // Agrupar visitas por idEnfermera directamente (sin query extra)
   const visitasPorEnfermera = new Map<number, VisitaConDetalles[]>()
@@ -129,6 +139,7 @@ export async function getVisitasAsignadasPorEnfermera(
     nombres: nurse.nombres,
     apellidoPaterno: nurse.apellidoPaterno,
     correo: nurse.correo,
+    porcentajePago: porcentajePorEnfermera.get(nurse.id) ?? DEFAULT_PORCENTAJE_PAGO,
     visitas: visitasPorEnfermera.get(nurse.id) ?? [],
   }))
 }
@@ -170,6 +181,7 @@ export async function getVisitasSinAsignarPorFecha(fecha: string): Promise<Visit
 async function getVisitasConDetalles(
   fecha: string,
   nurseIds: number[],
+  porcentajePorEnfermera: Map<number, number>,
 ): Promise<VisitaConDetalles[]> {
   const rawVisitas = await db
     .select({
@@ -178,6 +190,11 @@ async function getVisitasConDetalles(
       hora: visits.hora,
       costo: visits.costo,
       costoTraslado: visits.costoTraslado,
+      montoDescuento: visits.montoDescuento,
+      montoVisitaOriginal: visits.montoVisitaOriginal,
+      descuentoAfectaPagoEnfermera: visits.descuentoAfectaPagoEnfermera,
+      montoDescuentoProcedimientos: visits.montoDescuentoProcedimientos,
+      descuentoProcedimientosAfectaPagoEnfermera: visits.descuentoProcedimientosAfectaPagoEnfermera,
       informacionAdicional: visits.informacionAdicional,
       idEnfermera: visits.idEnfermera,
       keyOrdenMedica: visits.keyOrdenMedica,
@@ -229,7 +246,7 @@ async function getVisitasConDetalles(
   // Obtener procedimientos, exámenes, talleres y recargos
   const [procRows, examRows, isapreExamRows, workshopRows, surchargeRows] = await Promise.all([
     db
-      .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre })
+      .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre, precio: visitProcedures.precio })
       .from(visitProcedures)
       .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
       .where(inArray(visitProcedures.idVisita, visitaIds)),
@@ -263,10 +280,16 @@ async function getVisitasConDetalles(
   const surchargesByVisita = new Map<number, { nombre: string; precio: number }[]>()
   const phonesByPaciente = new Map<number, string[]>()
 
+  // Subtotales para el desglose del pago a la enfermera
+  const procPrecioByVisita = new Map<number, number>()
+  const surchargePrecioByVisita = new Map<number, number>()
+  const add = (m: Map<number, number>, k: number, n: number) => m.set(k, (m.get(k) ?? 0) + n)
+
   for (const p of procRows) {
     const arr = procsByVisita.get(p.idVisita) ?? []
     arr.push(p.nombre)
     procsByVisita.set(p.idVisita, arr)
+    add(procPrecioByVisita, p.idVisita, p.precio)
   }
 
   for (const e of examRows) {
@@ -292,6 +315,7 @@ async function getVisitasConDetalles(
     const arr = surchargesByVisita.get(s.idVisita) ?? []
     arr.push({ nombre: s.nombre, precio: s.precio })
     surchargesByVisita.set(s.idVisita, arr)
+    add(surchargePrecioByVisita, s.idVisita, s.precio)
   }
 
   for (const phone of phonesData) {
@@ -333,6 +357,18 @@ async function getVisitasConDetalles(
     costo: v.costo,
     costoTraslado: v.costoTraslado ?? 0,
     recargos: surchargesByVisita.get(v.visitaId) ?? [],
+    pago: calcNursePaymentBreakdown({
+      procSum: procPrecioByVisita.get(v.visitaId) ?? 0,
+      surchargeSum: surchargePrecioByVisita.get(v.visitaId) ?? 0,
+      montoVisitaOriginal: v.montoVisitaOriginal,
+      montoDescuento: v.montoDescuento,
+      descuentoAfectaPagoEnfermera: v.descuentoAfectaPagoEnfermera,
+      montoDescuentoProcedimientos: v.montoDescuentoProcedimientos,
+      descuentoProcedimientosAfectaPagoEnfermera: v.descuentoProcedimientosAfectaPagoEnfermera,
+      porcentaje: v.idEnfermera != null
+        ? (porcentajePorEnfermera.get(v.idEnfermera) ?? DEFAULT_PORCENTAJE_PAGO)
+        : DEFAULT_PORCENTAJE_PAGO,
+    }),
   }))
 }
 
@@ -471,159 +507,4 @@ export async function sendAllScheduledVisitsEmails(
         ? `Se enviaron ${successCount} correos. Errores: ${errors.join(', ')}`
         : undefined,
   }
-}
-
-// ─── generateScheduledVisitsHTML ──────────────────────────────────────────────
-
-function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
-  if (!visitas.length) {
-    return '<p>Sin visitas asignadas.</p>'
-  }
-
-  const font = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif"
-  const labelColStyle = `width:150px;min-width:150px;padding:8px 12px;background:${BRAND_HEX.surfaceMuted};font-size:11px;font-weight:600;color:${BRAND_HEX.fgMuted};text-transform:uppercase;letter-spacing:0.06em;vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-family:${font};`
-  const dataColStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:${BRAND_HEX.fg};vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-family:${font};`
-  const headerColStyle = `min-width:180px;padding:10px 12px;background:${BRAND_HEX.surfaceMuted};font-size:12px;font-weight:600;color:${BRAND_HEX.fg};text-align:center;border:1px solid ${BRAND_HEX.border};font-family:${font};`
-  const costoLabelStyle = `width:150px;min-width:150px;padding:8px 12px;background:${BRAND_HEX.surfaceMuted};font-size:11px;color:${BRAND_HEX.fgMuted};text-transform:uppercase;letter-spacing:0.06em;vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-weight:700;font-family:${font};`
-  const costoDataStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:${BRAND_HEX.fg};font-weight:700;text-align:right;vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-family:${font};`
-  const codeChipStyle = `display:inline-block;padding:1px 5px;border-radius:4px;background:${BRAND_HEX.surfaceMuted};border:1px solid ${BRAND_HEX.border};font-family:'JetBrains Mono',ui-monospace,'SF Mono',monospace;font-size:11px;color:${BRAND_HEX.fgMuted};`
-  const examLineStyle = `margin:0 0 3px 0;font-size:13px;color:${BRAND_HEX.fg};`
-  const examMutedStyle = `color:${BRAND_HEX.fgMuted};white-space:nowrap;`
-
-  // Helper to get cell value for each row
-  const getValue = (v: VisitaConDetalles, rowIndex: number): string => {
-    switch (rowIndex) {
-      case 0: return v.hora ?? '—'
-      case 1: return formatNombre(v.paciente)
-      case 2: return v.paciente.identificador ?? '—'
-      case 3: return v.paciente.fechaNacimiento ? formatDate(v.paciente.fechaNacimiento) : '—'
-      case 4: return v.telefonos.join(' / ') || '—'
-      case 5: return v.paciente.correo
-          ? `<a href="mailto:${v.paciente.correo}" style="color:${BRAND_HEX.blue};text-decoration:none;">${v.paciente.correo}</a>`
-          : '—'
-      case 6: {
-          const query = encodeURIComponent(
-            [v.dirección.dirección, v.dirección.comuna].filter(Boolean).join(', '),
-          )
-          const mapsUrl = `https://maps.google.com/?q=${query}`
-          return `${v.dirección.dirección} <a href="${mapsUrl}" style="color:${BRAND_HEX.blue};text-decoration:none;font-size:14px;" title="Abrir en Maps">📍</a>`
-        }
-      case 7: return v.dirección.comuna ?? '—'
-      case 8: return v.paciente.previsión ?? '—'
-      case 9: return v.residenciaAdultoMayor ?? '—'
-      case 10: return v.procedimientos.join(', ') || '—'
-      case 11: {
-          if (!v.exámenes.length) return '—'
-          return v.exámenes
-            .map((e) =>
-              `<div style="${examLineStyle}">`
-              + `<span style="${codeChipStyle}">${esc(e.codigo)}</span> `
-              + `${esc(e.nombre)}${e.isapre ? ` <span style="${examMutedStyle}">(isapre)</span>` : ''} `
-              + `<span style="${examMutedStyle}">— ${pesos(e.precio)}</span>`
-              + `</div>`,
-            )
-            .join('')
-        }
-      case 12: return v.talleres.join(', ') || '—'
-      case 13: return v.paciente.informacionAdicional || '—'
-      case 14: return v.informacionAdicional || '—'
-      default: return '—'
-    }
-  }
-
-  const rowLabels = [
-    'Hora de atención',
-    'Nombre completo',
-    'RUT / Identificador',
-    'Fecha de nacimiento',
-    'Teléfono(s)',
-    'Correo electrónico',
-    'Dirección',
-    'Comuna',
-    'Previsión de salud',
-    'Residencia',
-    'Procedimiento(s)',
-    'Examen(es)',
-    'Taller(es)',
-    'Notas paciente',
-    'Información adicional',
-  ]
-
-  // Header row: "Visita #ID", one per visit
-  const headerCells = visitas
-    .map((v) => `<td style="${headerColStyle}">Visita #${v.id}</td>`)
-    .join('')
-
-  // Data rows
-  const dataRows = rowLabels
-    .map((label, rowIndex) => {
-      const dataCells = visitas
-        .map((v) => `<td style="${dataColStyle}">${getValue(v, rowIndex)}</td>`)
-        .join('')
-      return `<tr><td style="${labelColStyle}">${label}</td>${dataCells}</tr>`
-    })
-    .join('')
-
-  // Filas de costos (bold, distinct style)
-  const costoCells = visitas
-    .map((v) => `<td style="${costoDataStyle}">$${v.costo.toLocaleString('es-CL')}</td>`)
-    .join('')
-  const costoRow = `<tr><td style="${costoLabelStyle}">Costo</td>${costoCells}</tr>`
-
-  const trasladoCells = visitas
-    .map((v) => `<td style="${costoDataStyle}">${v.costoTraslado > 0 ? `$${v.costoTraslado.toLocaleString('es-CL')}` : '—'}</td>`)
-    .join('')
-  const trasladoRow = `<tr><td style="${costoLabelStyle}">Traslado</td>${trasladoCells}</tr>`
-
-  const recargoCells = visitas
-    .map((v) => {
-      if (!v.recargos.length) return `<td style="${costoDataStyle}">—</td>`
-      const total = v.recargos.reduce((s, r) => s + r.precio, 0)
-      const names = v.recargos.map((r) => r.nombre).join(', ')
-      return `<td style="${costoDataStyle}">$${total.toLocaleString('es-CL')} (${names})</td>`
-    })
-    .join('')
-  const recargoRow = `<tr><td style="${costoLabelStyle}">Recargo</td>${recargoCells}</tr>`
-
-  const table = `
-    <div style="overflow-x:auto;">
-      <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:${font};">
-        <tr>
-          <td style="width:150px;min-width:150px;padding:10px 12px;background:${BRAND_HEX.surfaceMuted};border:1px solid ${BRAND_HEX.border};"></td>
-          ${headerCells}
-        </tr>
-        ${dataRows}
-        ${costoRow}
-        ${trasladoRow}
-        ${recargoRow}
-      </table>
-    </div>
-  `
-
-  return `
-    <div style="max-width:100%;margin:0 auto;background:${BRAND_HEX.surface};font-family:${font};">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND_HEX.surface};border-bottom:2px solid ${BRAND_HEX.blue};margin-bottom:16px;">
-        <tr>
-          <td style="padding:20px 24px;vertical-align:middle;">
-            <img src="cid:${EMAIL_LOGO_CID}" alt="HomeLab" width="${LOGO_RENDER_WIDTH}" height="${LOGO_RENDER_HEIGHT}" style="display:block;height:${LOGO_RENDER_HEIGHT}px;width:auto;border:0;" />
-          </td>
-          <td style="padding:20px 24px;vertical-align:middle;text-align:right;">
-            <p style="margin:0 0 4px 0;font-size:16px;font-weight:600;color:${BRAND_HEX.fg};letter-spacing:-0.01em;">Programación de Visitas</p>
-            <p style="margin:0;font-size:12px;color:${BRAND_HEX.fgMuted};">${formatDateFull(visitas[0]?.fecha ?? '')}</p>
-          </td>
-        </tr>
-      </table>
-
-      ${table}
-
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid ${BRAND_HEX.border};margin-top:16px;">
-        <tr>
-          <td style="padding:16px;font-size:11px;color:${BRAND_HEX.fgSubtle};text-align:center;">
-            <p style="margin:0 0 4px 0;">Este es un correo automático de programación de visitas.</p>
-            <p style="margin:0;">Por favor, no responda a este correo.</p>
-          </td>
-        </tr>
-      </table>
-    </div>
-  `
 }
