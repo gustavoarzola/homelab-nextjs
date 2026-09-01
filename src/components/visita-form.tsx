@@ -231,16 +231,16 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
   const hasMap = !!(paciente.latitud && paciente.longitud)
 
   return (
-    <div className="dcard">
-      <div className="dcard__head" style={{ marginBottom: 16, alignItems: 'flex-start' }}>
+    <section className="fcard">
+      <div className="fcard__head">
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <span className="hl-avatar" style={{ width: 44, height: 44, fontSize: 'var(--text-md)' }}>
+          <span className="hl-avatar" style={{ width: 40, height: 40, fontSize: 'var(--text-md)' }}>
             {(paciente.nombres?.charAt(0) ?? '') + (paciente.apellidoPaterno?.charAt(0) ?? '')}
           </span>
           <div>
-            <p style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>{nombreDisplay}</p>
+            <h2>{nombreDisplay}</h2>
             {paciente.identificador && (
-              <p className="hl-mono" style={{ marginTop: 2, fontSize: 'var(--text-sm)', color: 'var(--color-fg-muted)' }}>
+              <p className="hl-mono">
                 {paciente.tipoIdentificador === 'rut' && formatRut(paciente.identificador)}
                 {paciente.tipoIdentificador === 'pasaporte' && `Pasaporte ${paciente.identificador}`}
                 {!paciente.tipoIdentificador && paciente.identificador}
@@ -256,26 +256,28 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
         </Button>
       </div>
 
-      <div className="flex" style={{ minHeight: 130, gap: 20 }}>
-        <div className="flex-1">
-          {fields.length > 0 ? (
-            <MetaGrid>
-              {fields.map(({ label, value }) => (
-                <MetaTile key={label} label={label} value={value} />
-              ))}
-            </MetaGrid>
-          ) : (
-            <p style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>Sin datos adicionales registrados.</p>
+      <div className="fcard__body">
+        <div className="flex" style={{ gap: 20 }}>
+          <div className="flex-1 min-w-0">
+            {fields.length > 0 ? (
+              <MetaGrid>
+                {fields.map(({ label, value }) => (
+                  <MetaTile key={label} label={label} value={value} />
+                ))}
+              </MetaGrid>
+            ) : (
+              <p style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>Sin datos adicionales registrados.</p>
+            )}
+          </div>
+
+          {hasMap && (
+            <div style={{ width: 200, minHeight: 130, flexShrink: 0, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+              <MapPreview lat={paciente.latitud!} lng={paciente.longitud!} />
+            </div>
           )}
         </div>
-
-        {hasMap && (
-          <div style={{ width: 200, flexShrink: 0, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-            <MapPreview lat={paciente.latitud!} lng={paciente.longitud!} />
-          </div>
-        )}
       </div>
-    </div>
+    </section>
   )
 }
 
