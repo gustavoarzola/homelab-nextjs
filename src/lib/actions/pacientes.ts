@@ -68,7 +68,13 @@ const pacienteBaseSchema = z
     apellidoMaterno: z.string().trim().optional().transform((v) => v ?? ''),
     tipoIdentificador: z.enum(['rut', 'pasaporte']).optional().transform((v) => v ?? null),
     identificador: fields.nullableStr,
-    serieDocumento: z.string().trim().regex(/^\d*$/, 'El número de serie solo puede contener dígitos').optional().transform((v) => v || null),
+    serieDocumento: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[A-Z0-9]*$/, 'El número de serie solo puede contener letras y dígitos')
+      .optional()
+      .transform((v) => v || null),
     fechaNacimiento: fields.nullableStr,
     correo: fields.nullableStr,
     informacionAdicional: fields.nullableStr,
