@@ -441,14 +441,13 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
                 <input
                   name="serieDocumento"
                   type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="012345678"
+                  autoCapitalize="characters"
+                  placeholder="A012345678"
                   defaultValue={paciente?.serieDocumento ?? ''}
                   disabled={isPending}
                   onInput={(e) => {
                     const t = e.currentTarget
-                    t.value = t.value.replace(/\D/g, '')
+                    t.value = t.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
                   }}
                 />
               </div>
