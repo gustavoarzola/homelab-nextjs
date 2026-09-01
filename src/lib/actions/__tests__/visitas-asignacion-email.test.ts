@@ -146,9 +146,8 @@ describe('getVisitasAsignadasPorEnfermera', () => {
     ])
   })
 
-  it('adjunta el desglose de pago a la enfermera y excluye exámenes del monto', async () => {
+  it('adjunta el desglose de conceptos de pago y excluye exámenes de la base', async () => {
     const nurse = await seedNurse('ConPago')
-    await db.update(nurses).set({ porcentajePago: '70' }).where(inArray(nurses.id, [nurse.id]))
 
     // fee visita 40000 + procedimiento 10000 + examen regular 15000 → costo 65000
     const visit = await seedVisit({
@@ -167,11 +166,11 @@ describe('getVisitasAsignadasPorEnfermera', () => {
     const result = await getVisitasAsignadasPorEnfermera(TEST_FECHA)
     const enfermera = result.find((e) => e.id === nurse.id)!
 
-    expect(enfermera.porcentajePago).toBe(70)
     const pago = enfermera.visitas[0]!.pago
     expect(pago.feeVisita).toBe(40000)
     expect(pago.procedimientos).toBe(10000)
     expect(pago.base).toBe(50000) // excluye el examen de 15000
-    expect(pago.pago).toBe(35000) // 50000 * 70%
+    // el desglose del correo no expone un monto final (base × porcentaje)
+    expect('pago' in pago).toBe(false)
   })
 })

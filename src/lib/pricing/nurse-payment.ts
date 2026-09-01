@@ -31,7 +31,7 @@ export function calcNursePayment(base: number, porcentaje: number): number {
 
 // ─── Desglose por visita ──────────────────────────────────────────────────────
 
-export type NursePaymentBreakdownInput = {
+export type NursePaymentConceptsInput = {
   /** Σ `procedimientos_visitas.precio` (bruto, sin descuento). */
   procSum: number
   surchargeSum: number
@@ -43,10 +43,9 @@ export type NursePaymentBreakdownInput = {
   /** `visits.montoDescuentoProcedimientos` — suma de descuentos por procedimiento. */
   montoDescuentoProcedimientos: number
   descuentoProcedimientosAfectaPagoEnfermera: boolean
-  porcentaje: number
 }
 
-export type NursePaymentBreakdown = {
+export type NursePaymentConcepts = {
   /** Fee de visita bruto reconocido a la enfermera (`montoVisitaOriginal`). */
   feeVisita: number
   /** Descuento de visita que efectivamente le baja el pago (>0 solo si afecta). */
@@ -57,14 +56,16 @@ export type NursePaymentBreakdown = {
   descuentoProcedimientos: number
   recargos: number
   base: number
+}
+
+export type NursePaymentBreakdown = NursePaymentConcepts & {
   porcentaje: number
   pago: number
 }
 
 /**
- * Desglose canónico del pago a la enfermera para una visita. Único lugar donde
- * se resuelve el par revertir-descuento / derivar-base — lo consumen la página
- * `/pagos-enfermeras` y el correo de programación.
+ * Conceptos que componen el pago a la enfermera para una visita. Único lugar
+ * donde se resuelve el par revertir-descuento / derivar-base.
  *
  * La base se arma sumando sus componentes (fee + procedimientos + recargos, cada
  * uno neto solo del descuento que le afecta) para que las líneas del desglose
@@ -72,7 +73,7 @@ export type NursePaymentBreakdown = {
  * `calcNursePaymentBase(costo, examSum, workshopSum, insumosSum, revert)` cuando
  * `costo` viene de `computeCostoVisita()` (siempre, en producción).
  */
-export function calcNursePaymentBreakdown(i: NursePaymentBreakdownInput): NursePaymentBreakdown {
+export function calcNursePaymentConcepts(i: NursePaymentConceptsInput): NursePaymentConcepts {
   const descuentoVisita = i.descuentoAfectaPagoEnfermera ? i.montoDescuento : 0
   const descuentoProcedimientos = i.descuentoProcedimientosAfectaPagoEnfermera ? i.montoDescuentoProcedimientos : 0
   const base =
@@ -86,7 +87,21 @@ export function calcNursePaymentBreakdown(i: NursePaymentBreakdownInput): NurseP
     descuentoProcedimientos,
     recargos: i.surchargeSum,
     base,
+  }
+}
+
+/**
+ * Desglose completo con el monto final a pagar (`base × porcentaje`). Lo consume
+ * la página `/pagos-enfermeras` y el reporte Excel. El correo de programación usa
+ * solo `calcNursePaymentConcepts` — no muestra el monto final.
+ */
+export function calcNursePaymentBreakdown(
+  i: NursePaymentConceptsInput & { porcentaje: number },
+): NursePaymentBreakdown {
+  const concepts = calcNursePaymentConcepts(i)
+  return {
+    ...concepts,
     porcentaje: i.porcentaje,
-    pago: calcNursePayment(base, i.porcentaje),
+    pago: calcNursePayment(concepts.base, i.porcentaje),
   }
 }

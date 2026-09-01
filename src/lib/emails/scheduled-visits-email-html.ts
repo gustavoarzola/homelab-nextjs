@@ -111,11 +111,6 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
     .join('')
   const costoRow = `<tr><td style="${costoLabelStyle}">Total paciente</td>${costoCells}</tr>`
 
-  const trasladoCells = visitas
-    .map((v) => `<td style="${costoDataStyle}">${v.costoTraslado > 0 ? money(v.costoTraslado) : '—'}</td>`)
-    .join('')
-  const trasladoRow = `<tr><td style="${costoLabelStyle}">Traslado</td>${trasladoCells}</tr>`
-
   const recargoCells = visitas
     .map((v) => {
       if (!v.recargos.length) return `<td style="${costoDataStyle}">—</td>`
@@ -155,15 +150,6 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
     .join('')
   const desglosePagoRow = `<tr><td style="${labelColStyle}">Detalle pago</td>${desglosePagoCells}</tr>`
 
-  const porcentaje = visitas[0]?.pago.porcentaje ?? 0
-  const porcentajeLabel = porcentaje.toLocaleString('es-CL', { maximumFractionDigits: 2 })
-  const pagoCells = visitas
-    .map((v) => `<td style="${costoDataStyle}">${money(v.pago.pago)}</td>`)
-    .join('')
-  const pagoRow = `<tr><td style="${costoLabelStyle}">Pago estimado (${porcentajeLabel}%)</td>${pagoCells}</tr>`
-
-  const totalPagoDia = visitas.reduce((s, v) => s + v.pago.pago, 0)
-
   const table = `
     <div style="overflow-x:auto;">
       <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:${font};">
@@ -173,10 +159,8 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
         </tr>
         ${dataRows}
         ${costoRow}
-        ${trasladoRow}
         ${recargoRow}
         ${desglosePagoRow}
-        ${pagoRow}
       </table>
     </div>
   `
@@ -197,20 +181,11 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
 
       ${table}
 
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;background:${BRAND_HEX.surfaceMuted};border:1px solid ${BRAND_HEX.border};border-radius:6px;">
-        <tr>
-          <td style="padding:14px 16px;">
-            <p style="margin:0 0 4px 0;font-size:14px;font-weight:700;color:${BRAND_HEX.fg};">
-              Total estimado a recibir: ${money(totalPagoDia)}
-            </p>
-            <p style="margin:0;font-size:11px;color:${BRAND_HEX.fgMuted};line-height:1.5;">
-              Monto <strong>estimado</strong>: las visitas aún no se realizan y el total puede cambiar si
-              se agregan o quitan ítems. Se calcula sobre el valor de visita, procedimientos y recargos
-              (${porcentajeLabel}%); no incluye exámenes, talleres ni insumos.
-            </p>
-          </td>
-        </tr>
-      </table>
+      <p style="margin:8px 0 0 0;font-size:11px;color:${BRAND_HEX.fgMuted};line-height:1.5;">
+        <strong>Detalle pago</strong>: conceptos considerados para tu pago (valor de visita,
+        procedimientos y recargos, netos de los descuentos que te aplican). No incluye exámenes,
+        talleres ni insumos. Puede variar si la visita cambia antes de realizarse.
+      </p>
 
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid ${BRAND_HEX.border};margin-top:16px;">
         <tr>

@@ -307,10 +307,13 @@ total = subtotalExámenes + subtotalProcedimientos + subtotalTalleres
   neto solo del descuento que le afecta (`descuentoAfectaPagoEnfermera` /
   `descuentoProcedimientosAfectaPagoEnfermera`).
 - `pago = round(base * porcentajePago / 100)`
-- Lógica centralizada en `src/lib/pricing/nurse-payment.ts`: `calcNursePaymentBreakdown()` devuelve el
-  desglose por visita (fee, descuentos, procedimientos, recargos, base, pago). La consumen
-  `getPagoEnfermeraDetalle` (`/pagos-enfermeras`), el reporte Excel de visitas y el correo de
-  programación (`generateScheduledVisitsHTML` en `src/lib/emails/scheduled-visits-email-html.ts`).
+- Lógica centralizada en `src/lib/pricing/nurse-payment.ts`:
+  - `calcNursePaymentConcepts()` — desglose de conceptos por visita (fee, descuentos, procedimientos,
+    recargos, base), **sin** el monto final. Lo usa el correo de programación
+    (`generateScheduledVisitsHTML` en `src/lib/emails/scheduled-visits-email-html.ts`), que muestra el
+    detalle pero no un monto de pago.
+  - `calcNursePaymentBreakdown()` — lo anterior + `porcentaje` + `pago` final. Lo usan
+    `getPagoEnfermeraDetalle` (`/pagos-enfermeras`) y el reporte Excel de visitas.
 - El resumen mensual agregado (`searchPagosEnfermerasMensual`) usa `calcNursePaymentBase()` con sumas
   SQL — mismo resultado, distinta forma.
 
