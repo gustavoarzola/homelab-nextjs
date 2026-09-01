@@ -346,6 +346,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 - `sendScheduledVisitsEmail()` envía a una enfermera
 - `sendAllScheduledVisitsEmails()` envío masivo del día
 - Archivos adjuntos se descargan de R2 y se incluyen inline en el email
+- Todos los correos de salida llevan `cc` a `contacto@homelab.cl` (constante `CC_CORREOS_SALIDA`, override con `RESEND_CC_EMAIL`)
 
 ---
 

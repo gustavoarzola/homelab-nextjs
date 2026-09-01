@@ -3,7 +3,7 @@
 import { db } from '@/db'
 import {
   visits, patients, addresses, nurses,
-  visitProcedures, visitExams, procedures, exams,
+  visitProcedures, visitExams, visitIsapreExams, procedures, exams,
   healthInsurances, patientPhones,
   visitWorkshops, workshops, visitSurcharges, elderlyResidences, surchargeTypes,
 } from '@/db/schema'
@@ -12,6 +12,7 @@ import { Resend } from 'resend'
 import { formatDateFull, formatDateLong, formatDate, parseDateLocal } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
+import { esc, pesos } from '@/lib/cotizacion-html'
 import { getR2Object } from '@/lib/r2'
 import { BRAND_HEX, LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT } from '@/lib/brand'
 import { emailLogoAttachment, EMAIL_LOGO_CID } from '@/lib/email-logo'
@@ -19,6 +20,13 @@ import { emailLogoAttachment, EMAIL_LOGO_CID } from '@/lib/email-logo'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type EmailAttachment = { filename: string; content: Buffer; contentId?: string }
+
+export type ExamenCorreo = {
+  nombre: string
+  codigo: string
+  precio: number
+  isapre: boolean
+}
 
 export type VisitaConDetalles = {
   id: number
@@ -45,7 +53,7 @@ export type VisitaConDetalles = {
     areaAdministrativa2: string | null
   }
   procedimientos: string[]
-  exámenes: string[]
+  exámenes: ExamenCorreo[]
   talleres: string[]
   residenciaAdultoMayor: string | null
   informacionAdicional: string | null
@@ -71,6 +79,9 @@ export type VisitaSinAsignar = {
 export type Result = { success: boolean; error?: string }
 
 const ESTADO_VISITA_ENVIO_CORREO = 'confirmada'
+
+// CC en todos los correos de salida (registro interno)
+const CC_CORREOS_SALIDA = process.env.RESEND_CC_EMAIL ?? 'contacto@homelab.cl'
 
 // ─── getVisitasAsignadasPorEnfermera ──────────────────────────────────────────
 
@@ -216,17 +227,24 @@ async function getVisitasConDetalles(
     : []
 
   // Obtener procedimientos, exámenes, talleres y recargos
-  const [procRows, examRows, workshopRows, surchargeRows] = await Promise.all([
+  const [procRows, examRows, isapreExamRows, workshopRows, surchargeRows] = await Promise.all([
     db
       .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre })
       .from(visitProcedures)
       .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
       .where(inArray(visitProcedures.idVisita, visitaIds)),
     db
-      .select({ idVisita: visitExams.idVisita, nombre: exams.nombre })
+      .select({ idVisita: visitExams.idVisita, nombre: exams.nombre, codigo: exams.codigo, precio: visitExams.precio })
       .from(visitExams)
       .innerJoin(exams, eq(visitExams.idExamen, exams.id))
-      .where(inArray(visitExams.idVisita, visitaIds)),
+      .where(inArray(visitExams.idVisita, visitaIds))
+      .orderBy(asc(exams.nombre)),
+    db
+      .select({ idVisita: visitIsapreExams.idVisita, nombre: exams.nombre, codigo: exams.codigo, precio: visitIsapreExams.valorPagar })
+      .from(visitIsapreExams)
+      .innerJoin(exams, eq(visitIsapreExams.idExamen, exams.id))
+      .where(inArray(visitIsapreExams.idVisita, visitaIds))
+      .orderBy(asc(exams.nombre)),
     db
       .select({ idVisita: visitWorkshops.idVisita, nombre: workshops.nombre })
       .from(visitWorkshops)
@@ -240,7 +258,7 @@ async function getVisitasConDetalles(
   ])
 
   const procsByVisita = new Map<number, string[]>()
-  const examsByVisita = new Map<number, string[]>()
+  const examsByVisita = new Map<number, ExamenCorreo[]>()
   const workshopsByVisita = new Map<number, string[]>()
   const surchargesByVisita = new Map<number, { nombre: string; precio: number }[]>()
   const phonesByPaciente = new Map<number, string[]>()
@@ -253,7 +271,14 @@ async function getVisitasConDetalles(
 
   for (const e of examRows) {
     const arr = examsByVisita.get(e.idVisita) ?? []
-    arr.push(e.nombre)
+    arr.push({ nombre: e.nombre, codigo: e.codigo, precio: e.precio, isapre: false })
+    examsByVisita.set(e.idVisita, arr)
+  }
+
+  // Los exámenes isapre van al final de la lista de cada visita
+  for (const e of isapreExamRows) {
+    const arr = examsByVisita.get(e.idVisita) ?? []
+    arr.push({ nombre: e.nombre, codigo: e.codigo, precio: e.precio, isapre: true })
     examsByVisita.set(e.idVisita, arr)
   }
 
@@ -351,6 +376,7 @@ export async function sendScheduledVisitsEmail(
     const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',
       to: enfermera.correo,
+      cc: CC_CORREOS_SALIDA,
       subject,
       html: htmlContent,
       attachments,
@@ -412,6 +438,7 @@ export async function sendAllScheduledVisitsEmails(
       const { error: sendError } = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',
         to: enfermera.correo,
+        cc: CC_CORREOS_SALIDA,
         subject,
         html: htmlContent,
         attachments,
@@ -459,6 +486,9 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
   const headerColStyle = `min-width:180px;padding:10px 12px;background:${BRAND_HEX.surfaceMuted};font-size:12px;font-weight:600;color:${BRAND_HEX.fg};text-align:center;border:1px solid ${BRAND_HEX.border};font-family:${font};`
   const costoLabelStyle = `width:150px;min-width:150px;padding:8px 12px;background:${BRAND_HEX.surfaceMuted};font-size:11px;color:${BRAND_HEX.fgMuted};text-transform:uppercase;letter-spacing:0.06em;vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-weight:700;font-family:${font};`
   const costoDataStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:${BRAND_HEX.fg};font-weight:700;text-align:right;vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-family:${font};`
+  const codeChipStyle = `display:inline-block;padding:1px 5px;border-radius:4px;background:${BRAND_HEX.surfaceMuted};border:1px solid ${BRAND_HEX.border};font-family:'JetBrains Mono',ui-monospace,'SF Mono',monospace;font-size:11px;color:${BRAND_HEX.fgMuted};`
+  const examLineStyle = `margin:0 0 3px 0;font-size:13px;color:${BRAND_HEX.fg};`
+  const examMutedStyle = `color:${BRAND_HEX.fgMuted};white-space:nowrap;`
 
   // Helper to get cell value for each row
   const getValue = (v: VisitaConDetalles, rowIndex: number): string => {
@@ -482,7 +512,18 @@ function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
       case 8: return v.paciente.previsión ?? '—'
       case 9: return v.residenciaAdultoMayor ?? '—'
       case 10: return v.procedimientos.join(', ') || '—'
-      case 11: return v.exámenes.join(', ') || '—'
+      case 11: {
+          if (!v.exámenes.length) return '—'
+          return v.exámenes
+            .map((e) =>
+              `<div style="${examLineStyle}">`
+              + `<span style="${codeChipStyle}">${esc(e.codigo)}</span> `
+              + `${esc(e.nombre)}${e.isapre ? ` <span style="${examMutedStyle}">(isapre)</span>` : ''} `
+              + `<span style="${examMutedStyle}">— ${pesos(e.precio)}</span>`
+              + `</div>`,
+            )
+            .join('')
+        }
       case 12: return v.talleres.join(', ') || '—'
       case 13: return v.paciente.informacionAdicional || '—'
       case 14: return v.informacionAdicional || '—'
