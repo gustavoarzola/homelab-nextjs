@@ -3,10 +3,15 @@
 import { and, asc, count, desc, eq, gte, lte, sql, sum } from 'drizzle-orm'
 
 import { db } from '@/db'
-import { nurses, patients, visitExams, visitProcedures, visits, visitSurcharges, visitWorkshops } from '@/db/schema'
+import { nurses, patients, visitExams, visitIsapreExams, visitProcedures, visits, visitSurcharges, visitWorkshops } from '@/db/schema'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
-import { calcNursePayment, calcNursePaymentBase } from '@/lib/pricing/nurse-payment'
+import {
+  calcNursePayment,
+  calcNursePaymentBase,
+  calcNursePaymentBreakdown,
+  DEFAULT_PORCENTAJE_PAGO,
+} from '@/lib/pricing/nurse-payment'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +63,14 @@ export async function searchPagosEnfermerasMensual(
     .groupBy(visitExams.idVisita)
     .as('sq_exams')
 
+  // Exámenes isapre: `valor_pagar` va al laboratorio, no a la enfermera → se
+  // resta de la base igual que los exámenes regulares.
+  const sqIsapreExams = db
+    .select({ idVisita: visitIsapreExams.idVisita, total: sum(visitIsapreExams.valorPagar).as('isapre_exam_total') })
+    .from(visitIsapreExams)
+    .groupBy(visitIsapreExams.idVisita)
+    .as('sq_isapre_exams')
+
   const sqProcs = db
     .select({ idVisita: visitProcedures.idVisita, total: sum(visitProcedures.precio).as('proc_total') })
     .from(visitProcedures)
@@ -83,6 +96,7 @@ export async function searchPagosEnfermerasMensual(
       cantidadVisitas: count(),
       sumCosto: sql<string>`SUM(${visits.costo})`,
       sumExams: sql<string>`SUM(COALESCE(${sqExams.total}, 0))`,
+      sumIsapreExams: sql<string>`SUM(COALESCE(${sqIsapreExams.total}, 0))`,
       sumProcs: sql<string>`SUM(COALESCE(${sqProcs.total}, 0))`,
       sumWorkshops: sql<string>`SUM(COALESCE(${sqWorkshops.total}, 0))`,
       sumSurcharges: sql<string>`SUM(COALESCE(${sqSurcharges.total}, 0))`,
@@ -95,6 +109,7 @@ export async function searchPagosEnfermerasMensual(
     .from(visits)
     .innerJoin(nurses, eq(visits.idEnfermera, nurses.id))
     .leftJoin(sqExams, eq(visits.id, sqExams.idVisita))
+    .leftJoin(sqIsapreExams, eq(visits.id, sqIsapreExams.idVisita))
     .leftJoin(sqProcs, eq(visits.id, sqProcs.idVisita))
     .leftJoin(sqWorkshops, eq(visits.id, sqWorkshops.idVisita))
     .leftJoin(sqSurcharges, eq(visits.id, sqSurcharges.idVisita))
@@ -104,7 +119,7 @@ export async function searchPagosEnfermerasMensual(
 
   const rows: PagoEnfermeraResumenRow[] = rowsRaw.map((r) => {
     const costo = Number(r.sumCosto)
-    const examSum = Number(r.sumExams)
+    const examSum = Number(r.sumExams) + Number(r.sumIsapreExams)
     const procSum = Number(r.sumProcs)
     const workshopSum = Number(r.sumWorkshops)
     const surchargeSum = Number(r.sumSurcharges)
@@ -113,7 +128,7 @@ export async function searchPagosEnfermerasMensual(
     const sumMontoDescProc = Number(r.sumMontoDescProc)
     const sumProcDescRevertido = Number(r.sumProcDescRevertido)
     const base = calcNursePaymentBase(costo, examSum, workshopSum, insumosSum, descuentoRevertido + sumProcDescRevertido, false)
-    const porcentaje = Number(r.porcentaje ?? 67.5)
+    const porcentaje = Number(r.porcentaje ?? DEFAULT_PORCENTAJE_PAGO)
     const montoVisitas = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum - insumosSum + descuentoRevertido + sumMontoDescProc)
 
     return {
@@ -168,23 +183,11 @@ export async function getPagoEnfermeraDetalle(
   const endDate = new Date(year, month, 0).getDate()
   const end = `${year}-${String(month).padStart(2, '0')}-${String(endDate).padStart(2, '0')}`
 
-  const sqExams = db
-    .select({ idVisita: visitExams.idVisita, total: sum(visitExams.precio).as('exam_total') })
-    .from(visitExams)
-    .groupBy(visitExams.idVisita)
-    .as('sq_exams_det')
-
   const sqProcs = db
     .select({ idVisita: visitProcedures.idVisita, total: sum(visitProcedures.precio).as('proc_total') })
     .from(visitProcedures)
     .groupBy(visitProcedures.idVisita)
     .as('sq_procs_det')
-
-  const sqWorkshops = db
-    .select({ idVisita: visitWorkshops.idVisita, total: sum(visitWorkshops.precio).as('ws_total') })
-    .from(visitWorkshops)
-    .groupBy(visitWorkshops.idVisita)
-    .as('sq_workshops_det')
 
   const sqSurcharges = db
     .select({ idVisita: visitSurcharges.idVisita, total: sum(visitSurcharges.precio).as('sc_total') })
@@ -201,12 +204,8 @@ export async function getPagoEnfermeraDetalle(
         pacienteNombres: patients.nombres,
         pacienteApellido: patients.apellidoPaterno,
         pacienteApellidoMaterno: patients.apellidoMaterno,
-        costo: visits.costo,
-        examSum: sql<string>`COALESCE(${sqExams.total}, 0)`,
         procSum: sql<string>`COALESCE(${sqProcs.total}, 0)`,
-        workshopSum: sql<string>`COALESCE(${sqWorkshops.total}, 0)`,
         surchargeSum: sql<string>`COALESCE(${sqSurcharges.total}, 0)`,
-        insumosSum: visits.montoInsumos,
         montoDescuento: visits.montoDescuento,
         montoVisitaOriginal: visits.montoVisitaOriginal,
         descuentoAfectaPagoEnfermera: visits.descuentoAfectaPagoEnfermera,
@@ -217,9 +216,7 @@ export async function getPagoEnfermeraDetalle(
       .from(visits)
       .innerJoin(nurses, eq(visits.idEnfermera, nurses.id))
       .leftJoin(patients, eq(visits.idPaciente, patients.id))
-      .leftJoin(sqExams, eq(visits.id, sqExams.idVisita))
       .leftJoin(sqProcs, eq(visits.id, sqProcs.idVisita))
-      .leftJoin(sqWorkshops, eq(visits.id, sqWorkshops.idVisita))
       .leftJoin(sqSurcharges, eq(visits.id, sqSurcharges.idVisita))
       .where(
         and(
@@ -243,26 +240,19 @@ export async function getPagoEnfermeraDetalle(
 
   if (!nurseRow[0]) return null
 
-  const porcentaje = Number(nurseRow[0].porcentaje ?? 67.5)
+  const porcentaje = Number(nurseRow[0].porcentaje ?? DEFAULT_PORCENTAJE_PAGO)
 
   const rows: PagoVisitaDetalleRow[] = rowsRaw.map((r) => {
-    const costo = Number(r.costo)
-    const examSum = Number(r.examSum)
-    const procSum = Number(r.procSum)
-    const workshopSum = Number(r.workshopSum)
-    const surchargeSum = Number(r.surchargeSum)
-    const insumosSum = Number(r.insumosSum)
-    const montoDescuento = Number(r.montoDescuento)
-    const montoVisitaOriginal = Number(r.montoVisitaOriginal)
-    const descuentoAfectaPagoEnfermera = r.descuentoAfectaPagoEnfermera
-    const montoDescuentoProcedimientos = Number(r.montoDescuentoProcedimientos)
-    const descuentoProcedimientosAfectaPagoEnfermera = r.descuentoProcedimientosAfectaPagoEnfermera
-    const visitRevert = descuentoAfectaPagoEnfermera ? 0 : montoDescuento
-    const procRevert = descuentoProcedimientosAfectaPagoEnfermera ? 0 : montoDescuentoProcedimientos
-    const base = calcNursePaymentBase(costo, examSum, workshopSum, insumosSum, visitRevert + procRevert, false)
-    const feeVisitaNeto = Math.max(0, costo - examSum - procSum - workshopSum - surchargeSum - insumosSum + montoDescuentoProcedimientos)
-    const feeVisita = descuentoAfectaPagoEnfermera ? feeVisitaNeto : montoVisitaOriginal
-    const procedimientos = procSum - (descuentoProcedimientosAfectaPagoEnfermera ? montoDescuentoProcedimientos : 0)
+    const bd = calcNursePaymentBreakdown({
+      procSum: Number(r.procSum),
+      surchargeSum: Number(r.surchargeSum),
+      montoVisitaOriginal: Number(r.montoVisitaOriginal),
+      montoDescuento: Number(r.montoDescuento),
+      descuentoAfectaPagoEnfermera: r.descuentoAfectaPagoEnfermera,
+      montoDescuentoProcedimientos: Number(r.montoDescuentoProcedimientos),
+      descuentoProcedimientosAfectaPagoEnfermera: r.descuentoProcedimientosAfectaPagoEnfermera,
+      porcentaje,
+    })
 
     return {
       id: r.id,
@@ -274,12 +264,12 @@ export async function getPagoEnfermeraDetalle(
           apellidoPaterno: r.pacienteApellido,
           apellidoMaterno: r.pacienteApellidoMaterno,
         }) || null,
-      feeVisita,
-      procedimientos,
-      recargos: surchargeSum,
-      base,
+      feeVisita: bd.feeVisita - bd.descuentoVisita,
+      procedimientos: bd.procedimientos - bd.descuentoProcedimientos,
+      recargos: bd.recargos,
+      base: bd.base,
       porcentaje,
-      pagoEstimado: calcNursePayment(base, porcentaje),
+      pagoEstimado: bd.pago,
     }
   })
 

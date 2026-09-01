@@ -301,8 +301,18 @@ total = subtotalExámenes + subtotalProcedimientos + subtotalTalleres
 - Se actualiza en tiempo real al modificar ítems del formulario
 
 ### Pago a enfermeras
-- Cada enfermera tiene `porcentajePago` (default 67.5%)
-- El dashboard calcula el pago como: costo visita * porcentaje
+- Cada enfermera tiene `porcentajePago` (default `DEFAULT_PORCENTAJE_PAGO` = 67.5%)
+- **La base excluye exámenes (regulares e isapre), talleres e insumos** — esos montos van al
+  laboratorio / terceros. La base es: `fee de visita + procedimientos + recargos`, cada componente
+  neto solo del descuento que le afecta (`descuentoAfectaPagoEnfermera` /
+  `descuentoProcedimientosAfectaPagoEnfermera`).
+- `pago = round(base * porcentajePago / 100)`
+- Lógica centralizada en `src/lib/pricing/nurse-payment.ts`: `calcNursePaymentBreakdown()` devuelve el
+  desglose por visita (fee, descuentos, procedimientos, recargos, base, pago). La consumen
+  `getPagoEnfermeraDetalle` (`/pagos-enfermeras`), el reporte Excel de visitas y el correo de
+  programación (`generateScheduledVisitsHTML` en `src/lib/emails/scheduled-visits-email-html.ts`).
+- El resumen mensual agregado (`searchPagosEnfermerasMensual`) usa `calcNursePaymentBase()` con sumas
+  SQL — mismo resultado, distinta forma.
 
 ---
 

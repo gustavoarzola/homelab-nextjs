@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
-import { addresses, exams, nurses, patients, visitExams, visitIsapreExams, visits } from '@/db/schema'
+import { addresses, exams, nurses, patients, procedures, visitExams, visitIsapreExams, visitProcedures, visits } from '@/db/schema'
 import { asc, inArray } from 'drizzle-orm'
 import { P } from './helpers'
 
@@ -13,6 +13,7 @@ const created = {
   addresses: [] as number[],
   nurses: [] as number[],
   patients: [] as number[],
+  procedures: [] as number[],
   visits: [] as number[],
 }
 const TEST_FECHA = '2099-07-17'
@@ -24,6 +25,7 @@ afterAll(async () => {
   ])
   await Promise.all([
     created.patients.length ? db.delete(patients).where(inArray(patients.id, created.patients)) : null,
+    created.procedures.length ? db.delete(procedures).where(inArray(procedures.id, created.procedures)) : null,
   ])
   await Promise.all([
     created.nurses.length ? db.delete(nurses).where(inArray(nurses.id, created.nurses)) : null,
@@ -74,6 +76,8 @@ async function seedVisit(params: {
   estado: string
   idEnfermera: number
   fecha?: string
+  costo?: number
+  montoVisitaOriginal?: number
 }) {
   const patient = await seedPatient(params.estado)
   const [visit] = await db
@@ -84,6 +88,8 @@ async function seedVisit(params: {
       estado: params.estado,
       idPaciente: patient.id,
       idEnfermera: params.idEnfermera,
+      costo: params.costo ?? 0,
+      montoVisitaOriginal: params.montoVisitaOriginal ?? 0,
     })
     .returning()
   created.visits.push(visit!.id)
@@ -138,5 +144,34 @@ describe('getVisitasAsignadasPorEnfermera', () => {
       { nombre: examRegular!.nombre, codigo: examRegular!.codigo, precio: 12500, isapre: false },
       { nombre: examIsapre!.nombre, codigo: examIsapre!.codigo, precio: 9400, isapre: true },
     ])
+  })
+
+  it('adjunta el desglose de pago a la enfermera y excluye exámenes del monto', async () => {
+    const nurse = await seedNurse('ConPago')
+    await db.update(nurses).set({ porcentajePago: '70' }).where(inArray(nurses.id, [nurse.id]))
+
+    // fee visita 40000 + procedimiento 10000 + examen regular 15000 → costo 65000
+    const visit = await seedVisit({
+      estado: 'confirmada', idEnfermera: nurse.id, costo: 65000, montoVisitaOriginal: 40000,
+    })
+    const [proc] = await db
+      .insert(procedures)
+      .values({ nombre: `${P}ProcPago`, codigo: `${P}PP`, precio: 10000 })
+      .returning()
+    created.procedures.push(proc!.id)
+    await db.insert(visitProcedures).values({ idVisita: visit.id, idProcedimiento: proc!.id, precio: 10000 })
+
+    const [examRegular] = await db.select({ id: exams.id }).from(exams).orderBy(asc(exams.id)).limit(1)
+    await db.insert(visitExams).values({ idVisita: visit.id, idExamen: examRegular!.id, precio: 15000 })
+
+    const result = await getVisitasAsignadasPorEnfermera(TEST_FECHA)
+    const enfermera = result.find((e) => e.id === nurse.id)!
+
+    expect(enfermera.porcentajePago).toBe(70)
+    const pago = enfermera.visitas[0]!.pago
+    expect(pago.feeVisita).toBe(40000)
+    expect(pago.procedimientos).toBe(10000)
+    expect(pago.base).toBe(50000) // excluye el examen de 15000
+    expect(pago.pago).toBe(35000) // 50000 * 70%
   })
 })

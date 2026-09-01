@@ -11,7 +11,7 @@ import { requireSession } from '@/lib/auth-guard'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 import { formatNombre } from '@/lib/paciente'
 import { actualizarCostoVisitaPersistida, resolverPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
-import { calcNursePayment, calcNursePaymentBase } from '@/lib/pricing/nurse-payment'
+import { calcNursePaymentBreakdown, DEFAULT_PORCENTAJE_PAGO } from '@/lib/pricing/nurse-payment'
 import type { VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
 import { parseFormDataWithArrays, fields } from '@/lib/validation'
 
@@ -466,13 +466,19 @@ export async function listVisitasForReport(
       const subtotalExamenes = examSubtotalByVisita.get(r.id) ?? 0
       const subtotalTalleres = workshopSubtotalByVisita.get(r.id) ?? 0
 
-      // Mismo cálculo que getPagoEnfermeraDetalle (src/lib/actions/pagos-enfermeras.ts):
-      // la base excluye exámenes/talleres/insumos e incluye fee visita + procedimientos + recargos;
-      // si un descuento no afecta el pago de la enfermera, se revierte sumándolo de vuelta.
-      const visitRevert = r.descuentoAfectaPagoEnfermera ? 0 : r.montoDescuento
-      const procRevert = r.descuentoProcedimientosAfectaPagoEnfermera ? 0 : r.montoDescuentoProcedimientos
-      const base = calcNursePaymentBase(r.totalBoleta, subtotalExamenes, subtotalTalleres, r.montoInsumos, visitRevert + procRevert, false)
-      const porcentajePago = Number(r.porcentajePago ?? 67.5)
+      // Exámenes (regulares e isapre), talleres e insumos no entran al pago de
+      // la enfermera: la base es fee de visita + procedimientos + recargos.
+      const porcentajePago = Number(r.porcentajePago ?? DEFAULT_PORCENTAJE_PAGO)
+      const pagoEnfermera = calcNursePaymentBreakdown({
+        procSum: procSubtotalByVisita.get(r.id) ?? 0,
+        surchargeSum: surchargeSubtotalByVisita.get(r.id) ?? 0,
+        montoVisitaOriginal: r.montoVisita,
+        montoDescuento: r.montoDescuento,
+        descuentoAfectaPagoEnfermera: r.descuentoAfectaPagoEnfermera,
+        montoDescuentoProcedimientos: r.montoDescuentoProcedimientos,
+        descuentoProcedimientosAfectaPagoEnfermera: r.descuentoProcedimientosAfectaPagoEnfermera,
+        porcentaje: porcentajePago,
+      }).pago
 
       return {
         id: r.id,
@@ -511,7 +517,7 @@ export async function listVisitasForReport(
         totalBoleta: r.totalBoleta,
         pagado: r.pagado,
         fechaPago: r.fechaPago,
-        pagoEnfermera: r.enfermeraNombres ? calcNursePayment(base, porcentajePago) : 0,
+        pagoEnfermera: r.enfermeraNombres ? pagoEnfermera : 0,
         hogar: r.hogar,
         isapre: r.isapre,
         imedFonasa: imedFonasaByVisita.get(r.id) ?? 0,

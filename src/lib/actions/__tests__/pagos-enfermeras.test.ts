@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
-import { addresses, healthInsurances, nurses, patients, procedures, visitProcedures, visits } from '@/db/schema'
-import { inArray } from 'drizzle-orm'
+import { addresses, exams, healthInsurances, nurses, patients, procedures, visitExams, visitIsapreExams, visitProcedures, visits } from '@/db/schema'
+import { asc, inArray } from 'drizzle-orm'
 import { P } from './helpers'
 
 vi.mock('@/auth', () => ({
@@ -125,6 +125,11 @@ async function seedVisitaPagable(opts: {
 
 async function addProc(idVisita: number, idProcedimiento: number, precio: number) {
   await db.insert(visitProcedures).values({ idVisita, idProcedimiento, precio })
+}
+
+async function twoExamIds() {
+  const rows = await db.select({ id: exams.id }).from(exams).orderBy(asc(exams.id)).limit(2)
+  return [rows[0]!.id, rows[1]!.id] as const
 }
 
 describe('pagos-enfermeras con descuento de procedimientos', () => {
@@ -261,6 +266,56 @@ describe('pagos-enfermeras con descuento de visita + descuento de procedimiento 
       expect(resumenRow.base).toBe(expectedBase)
     },
   )
+})
+
+describe('pagos-enfermeras excluye exámenes del pago (regulares e isapre)', () => {
+  // fee visita 40000 (sin descuento) + procedimiento 10000 + examen regular 15000
+  // + examen isapre valor_pagar 8000 → costo = 73000.
+  // La enfermera solo cobra sobre fee + procedimientos + recargos = 50000.
+  async function seedVisitaConExamenes(estado = 'completada') {
+    const nurse = await seedNurse(60)
+    const patient = await seedPaciente()
+    const proc = await seedProcedimiento(10000)
+    const [examRegularId, examIsapreId] = await twoExamIds()
+
+    const visit = await seedVisitaPagable({
+      idPaciente: patient.id,
+      idEnfermera: nurse.id,
+      costo: 73000,
+      montoVisitaOriginal: 40000,
+      estado,
+    })
+    await addProc(visit.id, proc.id, 10000)
+    await db.insert(visitExams).values({ idVisita: visit.id, idExamen: examRegularId, precio: 15000 })
+    await db.insert(visitIsapreExams).values({
+      idVisita: visit.id, idExamen: examIsapreId, valorCompleto: 20000, valorPagar: 8000,
+    })
+    return { nurse, visit }
+  }
+
+  it('detalle: la base excluye el examen regular Y el bono isapre', async () => {
+    const { nurse, visit } = await seedVisitaConExamenes()
+
+    const detalle = await getPagoEnfermeraDetalle(nurse.id, 6, 2026)
+    const row = detalle!.rows.find((r) => r.id === visit.id)!
+
+    expect(row.feeVisita).toBe(40000)
+    expect(row.procedimientos).toBe(10000)
+    expect(row.base).toBe(50000)
+    expect(row.base).toBe(row.feeVisita + row.procedimientos + row.recargos)
+    expect(row.pagoEstimado).toBe(30000) // 50000 * 60%
+  })
+
+  it('resumen mensual: la base excluye el examen regular Y el bono isapre', async () => {
+    const { nurse } = await seedVisitaConExamenes()
+
+    const { rows } = await searchPagosEnfermerasMensual({ month: 6, year: 2026, enfermeraId: String(nurse.id) })
+    const row = rows.find((r) => r.enfermeraId === nurse.id)!
+
+    expect(row.base).toBe(50000)
+    expect(row.base).toBe(row.montoVisitas + row.montoProcs + row.montoRecargos)
+    expect(row.montoVisitas).toBe(40000)
+  })
 })
 
 describe('pagos-enfermeras filtra por estado', () => {
