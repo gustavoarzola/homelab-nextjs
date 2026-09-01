@@ -59,7 +59,9 @@ export function DashboardRankingCard({
           <EmptyState title="No hay datos para este período." />
         ) : (
           items.map((item, index) => {
-            const width = `${Math.max((item.visits / maxVisits) * 100, 10)}%`
+            const width = item.visits === 0
+              ? '0%'
+              : `${Math.max((item.visits / maxVisits) * 100, 10)}%`
 
             return (
               <div key={`${index}-${item.label}`} className="space-y-2">
