@@ -55,10 +55,11 @@ export default async function DashboardPage({ searchParams }: Props) {
           icon="nurse"
         />
         <DashboardRankingCard
-          title="Composición de visitas"
-          description="Qué se atiende en cada visita realizada del período"
-          items={dashboard.visitsByComposicion}
+          title="Ítems atendidos"
+          description="Exámenes, procedimientos y talleres realizados en el período"
+          items={dashboard.itemsAtendidos}
           icon="composicion"
+          unit={null}
         />
       </div>
 

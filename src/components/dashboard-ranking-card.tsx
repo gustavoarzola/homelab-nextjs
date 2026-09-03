@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 
 type RankingItem = {
   label: string
-  visits: number
+  value: number
 }
 
 type Props = {
@@ -21,6 +21,9 @@ type Props = {
   description: string
   items: RankingItem[]
   icon?: 'laboratory' | 'nurse' | 'composicion'
+  // Sufijo por fila: `{ one: 'visita', many: 'visitas' }` → "3 visitas".
+  // `null` muestra solo el número (útil cuando el label ya nombra la unidad).
+  unit?: { one: string; many: string } | null
 }
 
 const ICONS = {
@@ -34,8 +37,9 @@ export function DashboardRankingCard({
   description,
   items,
   icon = 'laboratory',
+  unit = { one: 'visita', many: 'visitas' },
 }: Props) {
-  const maxVisits = Math.max(...items.map((item) => item.visits), 1)
+  const maxValue = Math.max(...items.map((item) => item.value), 1)
   const Icon = ICONS[icon]
 
   return (
@@ -59,9 +63,9 @@ export function DashboardRankingCard({
           <EmptyState title="No hay datos para este período." />
         ) : (
           items.map((item, index) => {
-            const width = item.visits === 0
+            const width = item.value === 0
               ? '0%'
-              : `${Math.max((item.visits / maxVisits) * 100, 10)}%`
+              : `${Math.max((item.value / maxValue) * 100, 10)}%`
 
             return (
               <div key={`${index}-${item.label}`} className="space-y-2">
@@ -70,7 +74,9 @@ export function DashboardRankingCard({
                     {item.label}
                   </span>
                   <span className="shrink-0 whitespace-nowrap" style={{ fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
-                    {item.visits} visita{item.visits === 1 ? '' : 's'}
+                    {unit
+                      ? `${item.value} ${item.value === 1 ? unit.one : unit.many}`
+                      : item.value}
                   </span>
                 </div>
                 <div className="hl-progress">

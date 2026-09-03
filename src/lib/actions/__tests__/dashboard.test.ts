@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import { visits } from '@/db/schema'
-import { and, asc, count, countDistinct, eq, gte, inArray, isNotNull, lte, sql, sum } from 'drizzle-orm'
+import { and, asc, count, countDistinct, eq, gte, isNotNull, lte, sql, sum } from 'drizzle-orm'
 
 vi.mock('@/auth', () => ({
   auth: vi.fn(async () => ({ user: { id: 'test-user' } })),
@@ -52,68 +52,60 @@ describe('getDashboardVisitsByDay — marzo 2026 (seed determinista)', () => {
       .where(and(gte(visits.fecha, MARCH_START), lte(visits.fecha, MARCH_END), isNotNull(visits.idEnfermera)))
 
     const result = await getDashboardVisitsByDay(3, 2026)
-    const rankingSum = result.visitsByNurse.reduce((s, r) => s + r.visits, 0)
+    const rankingSum = result.visitsByNurse.reduce((s, r) => s + r.value, 0)
 
     expect(result.visitsByNurse.length).toBe(Number(row?.total ?? 0))
     expect(rankingSum).toBeLessThanOrEqual(result.totalVisits)
     expect(rankingSum).toBeGreaterThan(0) // el seed asigna enfermera a buena parte de las visitas
   })
 
-  it('la composición de visitas cuenta solo visitas realizadas y sus categorías son excluyentes', async () => {
-    const [row] = await db
-      .select({ total: count() })
-      .from(visits)
-      .where(
-        and(
-          gte(visits.fecha, MARCH_START),
-          lte(visits.fecha, MARCH_END),
-          inArray(visits.estado, ['realizada', 'completada']),
-        ),
-      )
-
-    const result = await getDashboardVisitsByDay(3, 2026)
-    const labels = result.visitsByComposicion.map((r) => r.label)
-
-    expect(labels).toEqual([
-      'Solo exámenes',
-      'Solo procedimientos',
-      'Solo talleres',
-      'Exámenes y procedimientos',
-    ])
-
-    const composicionSum = result.visitsByComposicion.reduce((s, r) => s + r.visits, 0)
-    // Una visita sin ítems no cae en ninguna categoría → la suma nunca supera el total realizado.
-    expect(composicionSum).toBeLessThanOrEqual(Number(row?.total ?? 0))
-    expect(composicionSum).toBeGreaterThan(0)
-  })
-
-  it('la composición considera exámenes de isapre (SQL independiente, nombres de tabla explícitos)', async () => {
+  it('los ítems atendidos cuentan exámenes/procedimientos/talleres de visitas realizadas (SQL independiente, incluye isapre)', async () => {
     const independiente = await db.execute(sql`
       select
-        count(*) filter (where has_exam and not has_proc and not has_ws)::int as solo_examenes,
-        count(*) filter (where has_proc and not has_exam and not has_ws)::int as solo_procedimientos,
-        count(*) filter (where has_ws and not has_exam and not has_proc)::int as solo_talleres,
-        count(*) filter (where has_exam and has_proc)::int as ambos
-      from (
-        select
-          (exists (select 1 from examenes_visitas ev where ev.id_visita = v.id)
-            or exists (select 1 from examenes_isapre_visitas eiv where eiv.id_visita = v.id)) as has_exam,
-          exists (select 1 from procedimientos_visitas pv where pv.id_visita = v.id) as has_proc,
-          exists (select 1 from talleres_visitas tv where tv.id_visita = v.id) as has_ws
-        from visitas v
-        where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
-          and v.estado in ('realizada', 'completada')
-      ) t
+        (select count(*) from (
+           select ev.id_visita, ev.id_examen from examenes_visitas ev
+           union
+           select eiv.id_visita, eiv.id_examen from examenes_isapre_visitas eiv
+         ) x
+         join visitas v on v.id = x.id_visita
+         where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
+           and v.estado in ('realizada', 'completada'))::int as examenes,
+        (select count(*) from procedimientos_visitas pv
+           join visitas v on v.id = pv.id_visita
+           join procedimientos p on p.id = pv.id_procedimiento
+         where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
+           and v.estado in ('realizada', 'completada')
+           and p.categoria = 'curaciones')::int as curaciones,
+        (select count(*) from procedimientos_visitas pv
+           join visitas v on v.id = pv.id_visita
+           join procedimientos p on p.id = pv.id_procedimiento
+         where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
+           and v.estado in ('realizada', 'completada')
+           and p.categoria <> 'curaciones')::int as otros,
+        (select count(*) from talleres_visitas tv
+           join visitas v on v.id = tv.id_visita
+         where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
+           and v.estado in ('realizada', 'completada'))::int as talleres
     `)
     const ind = independiente[0]
 
     const result = await getDashboardVisitsByDay(3, 2026)
-    const byLabel = Object.fromEntries(result.visitsByComposicion.map((r) => [r.label, r.visits]))
 
-    expect(byLabel['Solo exámenes']).toBe(Number(ind.solo_examenes))
-    expect(byLabel['Solo procedimientos']).toBe(Number(ind.solo_procedimientos))
-    expect(byLabel['Solo talleres']).toBe(Number(ind.solo_talleres))
-    expect(byLabel['Exámenes y procedimientos']).toBe(Number(ind.ambos))
+    expect(result.itemsAtendidos.map((r) => r.label)).toEqual([
+      'Exámenes',
+      'Curaciones',
+      'Otros procedimientos',
+      'Talleres',
+    ])
+
+    const byLabel = Object.fromEntries(result.itemsAtendidos.map((r) => [r.label, r.value]))
+    expect(byLabel['Exámenes']).toBe(Number(ind.examenes))
+    expect(byLabel['Curaciones']).toBe(Number(ind.curaciones))
+    expect(byLabel['Otros procedimientos']).toBe(Number(ind.otros))
+    expect(byLabel['Talleres']).toBe(Number(ind.talleres))
+
+    const total = result.itemsAtendidos.reduce((s, r) => s + r.value, 0)
+    expect(total).toBeGreaterThan(0)
   })
 })
 
