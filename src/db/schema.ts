@@ -129,7 +129,6 @@ export const patients = pgTable(
     fechaNacimiento: date('fecha_nacimiento'),
     correo: varchar('correo', { length: 100 }),
     informacionAdicional: text('informacion_adicional'),
-    keyIdentificacion: varchar('key_identificacion', { length: 500 }),
     idDireccion: integer('id_direccion').notNull(),
     idCompaniaSeguro: integer('id_compania_seguro'),
     idResidenciaAdulto: integer('id_residencia_adulto'),
@@ -309,7 +308,6 @@ export const visits = pgTable(
     descuentoAfectaPagoEnfermera: boolean('descuento_afecta_pago_enfermera').notNull().default(false),
     montoDescuentoProcedimientos: integer('monto_descuento_procedimientos').notNull().default(0),
     descuentoProcedimientosAfectaPagoEnfermera: boolean('descuento_procedimientos_afecta_pago_enfermera').notNull().default(false),
-    keyOrdenMedica: varchar('key_orden_medica', { length: 500 }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -368,6 +366,54 @@ export const visitExams = pgTable(
     foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
       .onDelete('cascade'),
     index('examenes_visitas_id_visita_idx').on(table.idVisita),
+  ]
+)
+
+// ============================================================================
+// 16b. ArchivoVisita - Adjuntos de una visita (fotos de la orden médica)
+// ============================================================================
+export const visitFiles = pgTable(
+  'archivos_visitas',
+  {
+    id: serial('id').primaryKey(),
+    idVisita: integer('id_visita').notNull(),
+    key: varchar('key', { length: 500 }).notNull(),
+    nombreOriginal: varchar('nombre_original', { length: 255 }),
+    contentType: varchar('content_type', { length: 100 }).notNull(),
+    tamano: integer('tamano').notNull().default(0),
+    orden: integer('orden').notNull().default(1),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idVisita], foreignColumns: [visits.id] })
+      .onDelete('cascade'),
+    index('archivos_visitas_id_visita_idx').on(table.idVisita),
+    uniqueIndex('archivos_visitas_key_idx').on(table.key),
+  ]
+)
+
+// ============================================================================
+// 16c. ArchivoPaciente - Adjuntos de un paciente (fotos de la cédula, PDFs)
+// ============================================================================
+export const patientFiles = pgTable(
+  'archivos_pacientes',
+  {
+    id: serial('id').primaryKey(),
+    idPaciente: integer('id_paciente').notNull(),
+    key: varchar('key', { length: 500 }).notNull(),
+    nombreOriginal: varchar('nombre_original', { length: 255 }),
+    contentType: varchar('content_type', { length: 100 }).notNull(),
+    tamano: integer('tamano').notNull().default(0),
+    orden: integer('orden').notNull().default(1),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idPaciente], foreignColumns: [patients.id] })
+      .onDelete('cascade'),
+    index('archivos_pacientes_id_paciente_idx').on(table.idPaciente),
+    uniqueIndex('archivos_pacientes_key_idx').on(table.key),
   ]
 )
 

@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { FieldGroup } from '@/components/ui/field'
 import { MetaGrid, MetaTile } from '@/components/ui/meta'
-import { FileUpload } from '@/components/file-upload'
+import { FilesUpload, serializeArchivos, archivosFromDTO, type ArchivoItem } from '@/components/files-upload'
 import { TimePicker } from '@/components/time-picker'
 import { FormDatePicker } from '@/components/form-date-picker'
 import { formatDate } from '@/lib/format'
@@ -75,7 +75,6 @@ type Props = {
   tiposRecargos: { id: number; label: string; precio: number }[]
   pricingContext: VisitaFormPricingContext
   isaprePrevisiones: IsaprePrevisionRow[]
-  signedUrlOrdenMedica?: string | null
   onSubmit: (fd: FormData) => Promise<
     | { success: true; id: number }
     | { success: true; data: { id: number } }
@@ -294,7 +293,6 @@ export function VisitaForm({
   tiposRecargos,
   pricingContext,
   isaprePrevisiones,
-  signedUrlOrdenMedica,
   onSubmit,
 }: Props) {
   const router = useRouter()
@@ -345,7 +343,9 @@ export function VisitaForm({
   )
 
   // Orden médica
-  const [keyOrdenMedica, setKeyOrdenMedica] = useState<string | null>(visita?.keyOrdenMedica ?? null)
+  const [archivos, setArchivos] = useState<ArchivoItem[]>(
+    visita?.archivos ? archivosFromDTO(visita.archivos) : [],
+  )
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -369,6 +369,7 @@ export function VisitaForm({
     fd.set('descuentoTipo', descuentoTipo)
     fd.set('descuentoValor', aplicaDescuento ? descuentoValor : '0')
     fd.set('descuentoAfectaPagoEnfermera', String(descuentoAfectaPagoEnfermera))
+    fd.set('archivos', serializeArchivos(archivos))
 
     startTransition(async () => {
       const result = await onSubmit(fd)
@@ -943,17 +944,15 @@ export function VisitaForm({
             <div className="fcard__head">
               <div>
                 <h2>Orden médica</h2>
-                <p>Imagen de la orden original (JPG, PNG, WEBP). Máximo 10 MB. Se adjunta al correo de asignación.</p>
+                <p>Fotos de la orden original. Se comprimen automáticamente y se adjuntan al correo de asignación.</p>
               </div>
             </div>
             <div className="fcard__body">
-              <input type="hidden" name="keyOrdenMedica" value={keyOrdenMedica ?? ''} />
-              <FileUpload
+              <FilesUpload
                 folder="visitas"
                 accept="image/jpeg,image/png,image/webp,image/gif"
-                currentKey={keyOrdenMedica}
-                signedUrl={signedUrlOrdenMedica}
-                onUploaded={setKeyOrdenMedica}
+                value={archivos}
+                onChange={setArchivos}
                 disabled={isPending}
               />
             </div>

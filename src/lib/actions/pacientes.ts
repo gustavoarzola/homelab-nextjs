@@ -15,6 +15,10 @@ import {
   nurses,
   comunas,
 } from '@/db/schema'
+import { reconcileArchivos } from '@/lib/archivos/persist'
+import { syncArchivosPaciente, syncArchivosVisita } from '@/lib/archivos/sync'
+import { getArchivosPaciente, type ArchivoDTO } from '@/lib/archivos/query'
+import { deleteManyFromR2 } from '@/lib/r2'
 import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { validateRut, validatePasaporte } from '@/lib/rut'
@@ -78,7 +82,7 @@ const pacienteBaseSchema = z
     fechaNacimiento: fields.nullableStr,
     correo: fields.nullableStr,
     informacionAdicional: fields.nullableStr,
-    keyIdentificacion: fields.nullableStr,
+    archivos: fields.archivos,
     idCompaniaSeguro: fields.nullableId,
     idResidenciaAdulto: fields.nullableId,
   })
@@ -112,7 +116,7 @@ export type PacienteDetalle = {
   fechaNacimiento: string | null
   correo: string | null
   informacionAdicional: string | null
-  keyIdentificacion: string | null
+  archivos: ArchivoDTO[]
   idCompaniaSeguro: number | null
   idResidenciaAdulto: number | null
   // address
@@ -229,7 +233,6 @@ export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
       fechaNacimiento: patients.fechaNacimiento,
       correo: patients.correo,
       informacionAdicional: patients.informacionAdicional,
-      keyIdentificacion: patients.keyIdentificacion,
       idCompaniaSeguro: patients.idCompaniaSeguro,
       idResidenciaAdulto: patients.idResidenciaAdulto,
       // address fields
@@ -251,15 +254,18 @@ export async function getPaciente(id: number): Promise<PacienteDetalle | null> {
 
   if (!row) return null
 
-  const phoneRows = await db
-    .select({ id: patientPhones.id, telefono: patientPhones.telefono, descripcion: patientPhones.descripcion })
-    .from(patientPhones)
-    .where(eq(patientPhones.idPaciente, id))
+  const [phoneRows, archivos] = await Promise.all([
+    db
+      .select({ id: patientPhones.id, telefono: patientPhones.telefono, descripcion: patientPhones.descripcion })
+      .from(patientPhones)
+      .where(eq(patientPhones.idPaciente, id)),
+    getArchivosPaciente(id),
+  ])
 
   return {
     ...row,
     direccionFormateada: row.direccionFormateada ?? null,
-    keyIdentificacion: row.keyIdentificacion ?? null,
+    archivos,
     telefonos: phoneRows,
   }
   })
@@ -276,7 +282,7 @@ export async function createPaciente(
 
     const {
       nombres, apellidoPaterno, apellidoMaterno, tipoIdentificador, identificador: rawIdentificador,
-      serieDocumento, fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
+      serieDocumento, fechaNacimiento, correo, informacionAdicional, archivos, idCompaniaSeguro,
       idResidenciaAdulto, direccion, direccionFormateada, numero, calle, localidad,
       areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
     } = parsed.data
@@ -300,6 +306,8 @@ export async function createPaciente(
       phones.push({ telefono: tel, descripcion: desc })
     }
 
+    let orphanedKeys: string[] = []
+
     const id = await db.transaction(async (tx) => {
       const [addr] = await tx
         .insert(addresses)
@@ -316,7 +324,7 @@ export async function createPaciente(
         .insert(patients)
         .values({
           identificador, tipoIdentificador: tipoId, serieDocumento, nombres, apellidoPaterno, apellidoMaterno,
-          fechaNacimiento, correo, informacionAdicional, keyIdentificacion,
+          fechaNacimiento, correo, informacionAdicional,
           idDireccion, idCompaniaSeguro, idResidenciaAdulto,
         })
         .returning()
@@ -327,12 +335,32 @@ export async function createPaciente(
         await tx.insert(patientPhones).values(phones.map((p) => ({ ...p, idPaciente })))
       }
 
+      orphanedKeys = await reconcileArchivos({ tx, tipo: 'paciente', entidadId: idPaciente, incoming: archivos })
+
       return idPaciente
     })
+
+    await syncArchivosPacienteAfterCommit(id, orphanedKeys)
 
     revalidatePath('/pacientes')
     return { id }
   })
+}
+
+// Renombra los objetos de R2 del paciente a su key legible y borra huérfanos.
+// Corre DESPUÉS del commit; un fallo no debe tumbar la operación.
+async function syncArchivosPacienteAfterCommit(
+  idPaciente: number,
+  orphanedKeys: string[],
+  visitaIdsAResincronizar: number[] = [],
+): Promise<void> {
+  try {
+    if (orphanedKeys.length > 0) await deleteManyFromR2(orphanedKeys)
+    await syncArchivosPaciente(idPaciente)
+    for (const idVisita of visitaIdsAResincronizar) await syncArchivosVisita(idVisita)
+  } catch (err) {
+    console.error(`[archivos] sync paciente ${idPaciente} falló:`, err)
+  }
 }
 
 // ─── updatePaciente ───────────────────────────────────────────────────────────
@@ -344,7 +372,7 @@ export async function updatePaciente(formData: FormData): Promise<ActionResult> 
 
   const {
     id, nombres, apellidoPaterno, apellidoMaterno, tipoIdentificador, identificador: rawIdentificador,
-    serieDocumento, fechaNacimiento, correo, informacionAdicional, keyIdentificacion, idCompaniaSeguro,
+    serieDocumento, fechaNacimiento, correo, informacionAdicional, archivos, idCompaniaSeguro,
     idResidenciaAdulto, direccion, direccionFormateada, numero, calle, localidad,
     areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
   } = parsed.data
@@ -371,13 +399,24 @@ export async function updatePaciente(formData: FormData): Promise<ActionResult> 
     phones.push({ telefono: tel, descripcion: desc })
   }
 
+  let orphanedKeys: string[] = []
+  let nombreCambio = false
+
   await db.transaction(async (tx) => {
     const [existingPatient] = await tx
-      .select({ idDireccion: patients.idDireccion })
+      .select({
+        idDireccion: patients.idDireccion,
+        nombres: patients.nombres,
+        apellidoPaterno: patients.apellidoPaterno,
+      })
       .from(patients)
       .where(eq(patients.id, id))
 
     if (!existingPatient) throw new ActionError('Paciente no encontrado')
+
+    nombreCambio =
+      existingPatient.nombres !== nombres ||
+      (existingPatient.apellidoPaterno ?? '') !== (apellidoPaterno ?? '')
 
     await tx
       .update(addresses)
@@ -392,7 +431,7 @@ export async function updatePaciente(formData: FormData): Promise<ActionResult> 
       .update(patients)
       .set({
         identificador, tipoIdentificador: tipoId, serieDocumento, nombres, apellidoPaterno, apellidoMaterno,
-        fechaNacimiento, correo, informacionAdicional, keyIdentificacion,
+        fechaNacimiento, correo, informacionAdicional,
         idCompaniaSeguro, idResidenciaAdulto, updatedAt: new Date(),
       })
       .where(eq(patients.id, id))
@@ -402,7 +441,16 @@ export async function updatePaciente(formData: FormData): Promise<ActionResult> 
     if (phones.length > 0) {
       await tx.insert(patientPhones).values(phones.map((p) => ({ ...p, idPaciente: id })))
     }
+
+    orphanedKeys = await reconcileArchivos({ tx, tipo: 'paciente', entidadId: id, incoming: archivos })
   })
+
+  // Si cambió el nombre, las keys de los archivos de sus visitas también quedan desalineadas.
+  const visitaIds = nombreCambio
+    ? (await db.select({ id: visits.id }).from(visits).where(eq(visits.idPaciente, id))).map((v) => v.id)
+    : []
+
+  await syncArchivosPacienteAfterCommit(id, orphanedKeys, visitaIds)
 
   revalidatePath('/pacientes')
   })

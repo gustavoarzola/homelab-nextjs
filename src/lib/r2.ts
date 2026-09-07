@@ -1,4 +1,11 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  CopyObjectCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+} from '@aws-sdk/client-s3'
 import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const client = new S3Client({
@@ -38,4 +45,35 @@ export async function getR2Object(key: string): Promise<{ buffer: Buffer; conten
   const contentType = response.ContentType ?? 'application/octet-stream'
   const bytes = await response.Body!.transformToByteArray()
   return { buffer: Buffer.from(bytes), contentType }
+}
+
+export async function copyR2Object(fromKey: string, toKey: string): Promise<void> {
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: BUCKET,
+      Key: toKey,
+      CopySource: `${BUCKET}/${encodeURIComponent(fromKey)}`,
+    }),
+  )
+}
+
+export async function deleteFromR2(key: string): Promise<void> {
+  await client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }))
+}
+
+export async function deleteManyFromR2(keys: string[]): Promise<void> {
+  if (keys.length === 0) return
+  await client.send(
+    new DeleteObjectsCommand({
+      Bucket: BUCKET,
+      Delete: { Objects: keys.map((Key) => ({ Key })) },
+    }),
+  )
+}
+
+/** Copia y borra el original. No-op si `fromKey === toKey`. */
+export async function moveR2Object(fromKey: string, toKey: string): Promise<void> {
+  if (fromKey === toKey) return
+  await copyR2Object(fromKey, toKey)
+  await deleteFromR2(fromKey)
 }

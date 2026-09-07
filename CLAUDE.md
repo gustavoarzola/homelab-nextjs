@@ -150,6 +150,8 @@ src/
 | `cotizacion_examenes` | `quotationExams` | Exámenes de una cotización |
 | `cotizacion_procedimientos` | `quotationProcedures` | Procedimientos de una cotización |
 | `cotizacion_talleres` | `quotationWorkshops` | Talleres de una cotización |
+| `archivos_visitas` | `visitFiles` | Adjuntos de una visita (fotos de órdenes médicas), con `orden` |
+| `archivos_pacientes` | `patientFiles` | Adjuntos de un paciente (fotos de cédula, PDFs), con `orden` |
 
 ### Relaciones clave
 
@@ -343,22 +345,37 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 ## Archivos y Storage (R2)
 
-- Bucket privado en Cloudflare R2
-- Upload: `POST /api/upload?folder=pacientes|visitas` con FormData
-- Descarga: `GET /api/r2-file?key=...` → redirect a signed URL (1h)
-- Carpetas: `pacientes/` (identificación, imágenes, PDFs) y `visitas/` (órdenes médicas)
-- Límite: 10MB, tipos: JPEG, PNG, WebP, GIF + PDF (solo en pacientes)
-- Componente: `<FileUpload>` en `src/components/file-upload.tsx`
+- Bucket privado en Cloudflare R2. **Múltiples archivos** por visita y por paciente
+  (tablas `archivos_visitas` / `archivos_pacientes`, columna `orden`).
+- Componente UI: `<FilesUpload>` (`src/components/files-upload.tsx`) — drag & drop, N archivos,
+  reordenar, quitar. Comprime cada imagen **en el navegador** antes de subir
+  (`src/lib/images/resize.ts`, constantes `IMAGE_*` para calibrar: 1600px lado mayor, JPEG q0.72).
+- Upload: `POST /api/upload?folder=pacientes|visitas` → sube a `tmp/{uuid}.ext`, devuelve
+  `{ key, nombreOriginal, contentType, tamano }`. Límite 10MB; `visitas` solo imágenes,
+  `pacientes` imágenes + PDF.
+- El form manda la lista como **un hidden JSON** `name="archivos"` (`serializeArchivos`);
+  la server action reconcilia contra la DB (`src/lib/archivos/persist.ts`) y, tras el commit,
+  renombra los objetos de R2 a su key legible con `syncArchivos{Visita,Paciente}`
+  (`src/lib/archivos/sync.ts`): `visitas/v{idVisita}_{primerNombre}_{apellidoPaterno}_{n}.ext`
+  (nombre del paciente de la visita), `pacientes/p{idPaciente}_..._{n}.ext`. Slug en
+  `src/lib/slug.ts`, construcción de key en `src/lib/archivos/nombres.ts`.
+- Al cambiar el nombre de un paciente se resincronizan sus archivos y los de sus visitas.
+- Descarga/preview: signed URL (1h) generada en el server component (`getArchivos*` en
+  `src/lib/archivos/query.ts`). `GET /api/r2-file?key=...` valida prefijo `pacientes/|visitas/`.
+- Objetos abandonados en `tmp/` (formulario cancelado): limpiar con lifecycle rule del bucket.
+- Script de renombrado one-off tras deploy: `pnpm archivos:renombrar`.
 
 ---
 
 ## Email (Resend)
 
 - Se usa para enviar itinerario de visitas a enfermeras
-- El correo incluye detalle de cada visita: paciente, dirección, exámenes, procedimientos, talleres, adjuntos (órdenes médicas desde R2)
+- El correo incluye detalle de cada visita: paciente, dirección, exámenes, procedimientos, talleres, adjuntos (fotos de órdenes médicas desde R2)
 - `sendScheduledVisitsEmail()` envía a una enfermera
 - `sendAllScheduledVisitsEmails()` envío masivo del día
-- Archivos adjuntos se descargan de R2 y se incluyen inline en el email
+- Todos los archivos de la visita se adjuntan con su nombre legible (`v{id}_{nombre}_{n}.jpg`),
+  deduplicados por key y descargados en paralelo (`buildVisitAttachments`). El HTML lista los
+  nombres de archivo en la fila "Adjuntos" para mapear adjunto ↔ columna `Visita #N`.
 - Todos los correos de salida llevan `cc` a `contacto@homelab.cl` (constante `CC_CORREOS_SALIDA`, override con `RESEND_CC_EMAIL`)
 
 ---

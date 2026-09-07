@@ -1,6 +1,7 @@
 import { formatDate, formatDateFull } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { esc, pesos } from '@/lib/cotizacion-html'
+import { basename } from '@/lib/archivos/nombres'
 import { BRAND_HEX, LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT } from '@/lib/brand'
 import { EMAIL_LOGO_CID } from '@/lib/email-logo'
 import type { VisitaConDetalles } from '@/lib/actions/visitas-asignacion-email'
@@ -66,6 +67,12 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
       case 12: return v.talleres.join(', ') || '—'
       case 13: return v.paciente.informacionAdicional || '—'
       case 14: return v.informacionAdicional || '—'
+      case 15:
+        return v.archivos.length
+          ? v.archivos
+              .map((a) => `<div style="${examLineStyle}">${esc(basename(a.key))}</div>`)
+              .join('')
+          : '—'
       default: return '—'
     }
   }
@@ -86,6 +93,7 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
     'Taller(es)',
     'Notas paciente',
     'Información adicional',
+    'Adjuntos',
   ]
 
   // Header row: "Visita #ID", one per visit
