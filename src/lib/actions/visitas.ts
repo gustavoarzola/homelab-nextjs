@@ -14,6 +14,10 @@ import { actualizarCostoVisitaPersistida, resolverPrecioVisitaEnfermeria } from 
 import { calcNursePaymentBreakdown, DEFAULT_PORCENTAJE_PAGO } from '@/lib/pricing/nurse-payment'
 import type { VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
 import { parseFormDataWithArrays, fields } from '@/lib/validation'
+import { reconcileArchivos } from '@/lib/archivos/persist'
+import { syncArchivosVisita } from '@/lib/archivos/sync'
+import { getArchivosVisita, type ArchivoDTO } from '@/lib/archivos/query'
+import { deleteManyFromR2 } from '@/lib/r2'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
@@ -66,7 +70,7 @@ export type VisitaDetalle = {
   conceptoNoRealizada: string | null
   motivoCancelacion: string | null
   cobraVisita: boolean
-  keyOrdenMedica: string | null
+  archivos: ArchivoDTO[]
   procedureIds: number[]
   procedurePrices: { idProcedimiento: number; precio: number; descuento: number }[]
   examIds: number[]
@@ -572,12 +576,13 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
   const [visit] = await db.select().from(visits).where(eq(visits.id, id))
   if (!visit) return null
 
-  const [procs, exams_, isapre_, talleres_, surcharges_] = await Promise.all([
+  const [procs, exams_, isapre_, talleres_, surcharges_, archivos] = await Promise.all([
     db.select({ idProcedimiento: visitProcedures.idProcedimiento, precio: visitProcedures.precio, descuento: visitProcedures.descuento }).from(visitProcedures).where(eq(visitProcedures.idVisita, id)),
     db.select({ idExamen: visitExams.idExamen, precio: visitExams.precio }).from(visitExams).where(eq(visitExams.idVisita, id)),
     db.select({ idExamen: visitIsapreExams.idExamen, valorCompleto: visitIsapreExams.valorCompleto, valorPagar: visitIsapreExams.valorPagar, idPrevision: visitIsapreExams.idPrevision }).from(visitIsapreExams).where(eq(visitIsapreExams.idVisita, id)),
     db.select({ idTaller: visitWorkshops.idTaller, precio: visitWorkshops.precio }).from(visitWorkshops).where(eq(visitWorkshops.idVisita, id)),
     db.select({ idTipoRecargo: visitSurcharges.idTipoRecargo, precio: visitSurcharges.precio }).from(visitSurcharges).where(eq(visitSurcharges.idVisita, id)),
+    getArchivosVisita(id),
   ])
 
   return {
@@ -610,7 +615,7 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
     conceptoNoRealizada: visit.conceptoNoRealizada ?? null,
     motivoCancelacion: visit.motivoCancelacion ?? null,
     cobraVisita: visit.cobraVisita,
-    keyOrdenMedica: visit.keyOrdenMedica ?? null,
+    archivos,
     procedureIds: procs.map((p) => p.idProcedimiento),
     procedurePrices: procs.map((p) => ({ idProcedimiento: p.idProcedimiento, precio: p.precio, descuento: p.descuento })),
     examIds: exams_.map((e) => e.idExamen),
@@ -753,6 +758,19 @@ export async function deleteVisita(id: number): Promise<ActionResult> {
   })
 }
 
+// Renombra los objetos de R2 a su key legible y borra los huérfanos. Corre
+// DESPUÉS del commit: si la transacción hiciera rollback tras un copy en R2
+// quedarían objetos huérfanos. Un fallo aquí no debe tumbar la operación (la
+// visita ya está guardada; el script `archivos:renombrar` recupera el estado).
+async function syncArchivosAfterCommit(idVisita: number, orphanedKeys: string[]): Promise<void> {
+  try {
+    if (orphanedKeys.length > 0) await deleteManyFromR2(orphanedKeys)
+    await syncArchivosVisita(idVisita)
+  } catch (err) {
+    console.error(`[archivos] sync visita ${idVisita} falló:`, err)
+  }
+}
+
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const visitaSharedFields = {
@@ -771,6 +789,7 @@ const visitaSharedFields = {
   exam_ids: fields.ids,
   taller_ids: fields.ids,
   surcharge_ids: fields.ids,
+  archivos: fields.archivos,
 }
 
 const visitaCreateSchema = z.object({
@@ -780,7 +799,6 @@ const visitaCreateSchema = z.object({
 
 const visitaUpdateSchema = z.object({
   id: fields.id,
-  keyOrdenMedica: fields.nullableStr,
   ...visitaSharedFields,
 })
 
@@ -799,7 +817,7 @@ export async function updateVisita(
     idOrigenContacto, informacionAdicional, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     descuentoProcedimientosAfectaPagoEnfermera,
-    keyOrdenMedica,
+    archivos,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
@@ -826,6 +844,8 @@ export async function updateVisita(
     idPrevision: isaprePrevisionId,
   }))
 
+  let orphanedKeys: string[] = []
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -834,7 +854,7 @@ export async function updateVisita(
           fecha, hora, idEnfermera, idOrigenContacto, informacionAdicional, cobraVisita, montoInsumos,
           descuentoTipo, descuentoValor: descuentoValorFinal, descuentoAfectaPagoEnfermera,
           descuentoProcedimientosAfectaPagoEnfermera,
-          keyOrdenMedica, updatedAt: new Date(),
+          updatedAt: new Date(),
         })
         .where(eq(visits.id, id))
 
@@ -947,7 +967,11 @@ export async function updateVisita(
         .update(visits)
         .set({ resultadosTotalCount: examIds.length + isapreExamData.length })
         .where(eq(visits.id, id))
+
+      orphanedKeys = await reconcileArchivos({ tx, tipo: 'visita', entidadId: id, incoming: archivos })
     })
+
+    await syncArchivosAfterCommit(id, orphanedKeys)
 
     revalidatePath('/visitas')
     revalidatePath(`/visitas/${id}`)
@@ -973,6 +997,7 @@ export async function createVisita(
     idOrigenContacto, informacionAdicional, cobraVisita, montoInsumos,
     descuentoTipo, descuentoValor, descuentoAfectaPagoEnfermera,
     descuentoProcedimientosAfectaPagoEnfermera,
+    archivos,
     procedure_ids: procedureIds, exam_ids: examIds, taller_ids: tallerIds, surcharge_ids: surchargeIds,
   } = parsed.data
 
@@ -991,6 +1016,8 @@ export async function createVisita(
     valorPagar: Number(fd.get(`isapre_exam_valor_pagar_${examId}`)) || 0,
     idPrevision: isaprePrevisionId,
   }))
+
+  let orphanedKeys: string[] = []
 
   const visitId = await db.transaction(async (tx) => {
     const [visit] = await tx
@@ -1074,8 +1101,12 @@ export async function createVisita(
           .where(eq(visits.id, id))
       }
 
+      orphanedKeys = await reconcileArchivos({ tx, tipo: 'visita', entidadId: id, incoming: archivos })
+
       return id
     })
+
+  await syncArchivosAfterCommit(visitId, orphanedKeys)
 
   revalidatePath('/visitas')
   return { id: visitId }

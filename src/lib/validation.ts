@@ -28,6 +28,20 @@ export function parseFormDataWithArrays<T extends z.ZodType>(
   return { success: true, data: result.data }
 }
 
+export const archivoItemSchema = z.object({
+  key: z.string().trim().min(1).max(500),
+  nombreOriginal: z
+    .string()
+    .trim()
+    .max(255)
+    .optional()
+    .transform((v) => v || null),
+  contentType: z.string().trim().max(100),
+  tamano: z.coerce.number().int().min(0),
+})
+
+export type ArchivoItemInput = z.infer<typeof archivoItemSchema>
+
 export const fields = {
   id: z.coerce.number().positive('ID inválido'),
   nombre: z.string().trim().min(1, 'Nombre requerido'),
@@ -42,4 +56,17 @@ export const fields = {
   nullableStr: z.string().trim().optional().transform((v) => v || null),
   nullableId: z.coerce.number().int().optional().transform((v) => v || null),
   ids: z.array(z.coerce.number().int().positive()).default([]),
+  archivos: z
+    .string()
+    .optional()
+    .default('[]')
+    .transform((raw, ctx) => {
+      try {
+        return JSON.parse(raw) as unknown
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'Archivos inválidos' })
+        return z.NEVER
+      }
+    })
+    .pipe(z.array(archivoItemSchema).max(20)),
 }

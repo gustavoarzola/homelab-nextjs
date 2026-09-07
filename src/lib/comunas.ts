@@ -1,3 +1,5 @@
+import { stripDiacritics } from '@/lib/slug'
+
 /**
  * Normaliza un nombre de comuna para comparación case/acento-insensible
  * (minúsculas + sin diacríticos + espacios colapsados). Usar siempre que se
@@ -6,9 +8,7 @@
  * `lower(f_unaccent(...))` en SQL (ver `src/db/migrations/0017_comunas_catalogo_backfill.sql`).
  */
 export function normalizeComuna(nombre: string): string {
-  return nombre
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // diacríticos combinantes (tildes, etc.)
+  return stripDiacritics(nombre)
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase()

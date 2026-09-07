@@ -6,6 +6,7 @@ import {
   visitProcedures, visitExams, visitIsapreExams, procedures, exams,
   healthInsurances, patientPhones,
   visitWorkshops, workshops, visitSurcharges, elderlyResidences, surchargeTypes,
+  visitFiles,
 } from '@/db/schema'
 import { eq, and, inArray, asc, isNull } from 'drizzle-orm'
 import { Resend } from 'resend'
@@ -15,11 +16,37 @@ import { formatNombre } from '@/lib/paciente'
 import { calcNursePaymentConcepts, type NursePaymentConcepts } from '@/lib/pricing/nurse-payment'
 import { generateScheduledVisitsHTML } from '@/lib/emails/scheduled-visits-email-html'
 import { getR2Object } from '@/lib/r2'
+import { basename } from '@/lib/archivos/nombres'
 import { emailLogoAttachment } from '@/lib/email-logo'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type EmailAttachment = { filename: string; content: Buffer; contentId?: string }
+type EmailAttachment = { filename: string; content: Buffer; contentType?: string; contentId?: string }
+
+export type ArchivoCorreo = { key: string; contentType: string }
+
+/**
+ * Descarga (una sola vez por key) los adjuntos de todas las visitas y los
+ * devuelve listos para Resend. El `filename` es la key legible ya renombrada
+ * (`v123_gustavo_arzola_1.jpg`).
+ */
+export async function buildVisitAttachments(
+  visitas: { archivos: ArchivoCorreo[] }[],
+): Promise<EmailAttachment[]> {
+  const keys = [...new Set(visitas.flatMap((v) => v.archivos.map((a) => a.key)))]
+  const results = await Promise.all(
+    keys.map(async (key): Promise<EmailAttachment | null> => {
+      try {
+        const { buffer, contentType } = await getR2Object(key)
+        return { filename: basename(key), content: buffer, contentType }
+      } catch (err) {
+        console.error(`Error descargando adjunto ${key}:`, err)
+        return null
+      }
+    }),
+  )
+  return results.filter((r): r is EmailAttachment => r !== null)
+}
 
 export type ExamenCorreo = {
   nombre: string
@@ -31,7 +58,7 @@ export type ExamenCorreo = {
 export type VisitaConDetalles = {
   id: number
   idEnfermera: number | null
-  keyOrdenMedica: string | null
+  archivos: ArchivoCorreo[]
   fecha: string
   hora: string | null
   paciente: {
@@ -185,7 +212,6 @@ async function getVisitasConDetalles(
       descuentoProcedimientosAfectaPagoEnfermera: visits.descuentoProcedimientosAfectaPagoEnfermera,
       informacionAdicional: visits.informacionAdicional,
       idEnfermera: visits.idEnfermera,
-      keyOrdenMedica: visits.keyOrdenMedica,
       pacienteNombres: patients.nombres,
       pacienteApellidos: patients.apellidoPaterno,
       pacienteApellidoM: patients.apellidoMaterno,
@@ -231,8 +257,8 @@ async function getVisitasConDetalles(
         .where(inArray(patientPhones.idPaciente, pacienteIds))
     : []
 
-  // Obtener procedimientos, exámenes, talleres y recargos
-  const [procRows, examRows, isapreExamRows, workshopRows, surchargeRows] = await Promise.all([
+  // Obtener procedimientos, exámenes, talleres, recargos y adjuntos
+  const [procRows, examRows, isapreExamRows, workshopRows, surchargeRows, fileRows] = await Promise.all([
     db
       .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre, precio: visitProcedures.precio })
       .from(visitProcedures)
@@ -260,6 +286,11 @@ async function getVisitasConDetalles(
       .from(visitSurcharges)
       .innerJoin(surchargeTypes, eq(visitSurcharges.idTipoRecargo, surchargeTypes.id))
       .where(inArray(visitSurcharges.idVisita, visitaIds)),
+    db
+      .select({ idVisita: visitFiles.idVisita, key: visitFiles.key, contentType: visitFiles.contentType })
+      .from(visitFiles)
+      .where(inArray(visitFiles.idVisita, visitaIds))
+      .orderBy(asc(visitFiles.orden), asc(visitFiles.id)),
   ])
 
   const procsByVisita = new Map<number, string[]>()
@@ -267,6 +298,13 @@ async function getVisitasConDetalles(
   const workshopsByVisita = new Map<number, string[]>()
   const surchargesByVisita = new Map<number, { nombre: string; precio: number }[]>()
   const phonesByPaciente = new Map<number, string[]>()
+  const filesByVisita = new Map<number, ArchivoCorreo[]>()
+
+  for (const f of fileRows) {
+    const arr = filesByVisita.get(f.idVisita) ?? []
+    arr.push({ key: f.key, contentType: f.contentType })
+    filesByVisita.set(f.idVisita, arr)
+  }
 
   // Subtotales para el desglose del pago a la enfermera
   const procPrecioByVisita = new Map<number, number>()
@@ -316,7 +354,7 @@ async function getVisitasConDetalles(
   return rawVisitas.map((v) => ({
     id: v.visitaId,
     idEnfermera: v.idEnfermera ?? null,
-    keyOrdenMedica: v.keyOrdenMedica ?? null,
+    archivos: filesByVisita.get(v.visitaId) ?? [],
     fecha: v.fecha || '',
     hora: v.hora,
     paciente: {
@@ -379,19 +417,11 @@ export async function sendScheduledVisitsEmail(
     const nombreEnfermera = formatNombre(enfermera)
     const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
 
-    // Logo inline (CID) + órdenes médicas si existen
-    const attachments: EmailAttachment[] = [emailLogoAttachment()]
-    for (const visita of enfermera.visitas) {
-      if (visita.keyOrdenMedica) {
-        try {
-          const { buffer, contentType } = await getR2Object(visita.keyOrdenMedica)
-          const ext = visita.keyOrdenMedica.split('.').pop() ?? contentType.split('/')[1] ?? 'jpg'
-          attachments.push({ filename: `visita-${visita.id}.${ext}`, content: buffer })
-        } catch (err) {
-          console.error(`Error descargando orden médica para visita ${visita.id}:`, err)
-        }
-      }
-    }
+    // Logo inline (CID) + adjuntos de cada visita (fotos de órdenes médicas)
+    const attachments: EmailAttachment[] = [
+      emailLogoAttachment(),
+      ...(await buildVisitAttachments(enfermera.visitas)),
+    ]
 
     const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',
@@ -442,18 +472,10 @@ export async function sendAllScheduledVisitsEmails(
       const firstFecha = enfermera.visitas[0]?.fecha ?? ''
       const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
 
-      const attachments: EmailAttachment[] = [emailLogoAttachment()]
-      for (const visita of enfermera.visitas) {
-        if (visita.keyOrdenMedica) {
-          try {
-            const { buffer, contentType } = await getR2Object(visita.keyOrdenMedica)
-            const ext = visita.keyOrdenMedica.split('.').pop() ?? contentType.split('/')[1] ?? 'jpg'
-            attachments.push({ filename: `visita-${visita.id}.${ext}`, content: buffer })
-          } catch (err) {
-            console.error(`Error descargando orden médica para visita ${visita.id}:`, err)
-          }
-        }
-      }
+      const attachments: EmailAttachment[] = [
+        emailLogoAttachment(),
+        ...(await buildVisitAttachments(enfermera.visitas)),
+      ]
 
       const { error: sendError } = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',

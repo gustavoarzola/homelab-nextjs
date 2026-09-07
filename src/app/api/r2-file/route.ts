@@ -6,7 +6,9 @@ export async function GET(req: NextRequest) {
   await requireSession()
 
   const key = req.nextUrl.searchParams.get('key')
-  if (!key) return new NextResponse('Missing key', { status: 400 })
+  if (!key || !/^(pacientes|visitas)\//.test(key)) {
+    return new NextResponse('Invalid key', { status: 400 })
+  }
 
   const url = await getSignedUrl(key)
   return NextResponse.redirect(url)

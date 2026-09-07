@@ -10,7 +10,7 @@ import type { PacienteDetalle } from '@/lib/actions/pacientes'
 import { formatRut, validatePasaporte } from '@/lib/rut'
 import { BirthDatePicker } from '@/components/birth-date-picker'
 import { SelectCombobox } from '@/components/select-combobox'
-import { FileUpload } from '@/components/file-upload'
+import { FilesUpload, serializeArchivos, archivosFromDTO, type ArchivoItem } from '@/components/files-upload'
 import { Button } from '@/components/ui/button'
 import { Callout } from '@/components/ui/callout'
 import './paciente-form.css'
@@ -21,7 +21,6 @@ type Props = {
   paciente?: PacienteDetalle
   previsiones: { id: number; nombre: string }[]
   residencias: { id: number; nombre: string }[]
-  signedUrlIdentificacion?: string | null
 }
 
 type AddressState = {
@@ -203,13 +202,13 @@ const TIPO_IDENTIFICADOR_OPTIONS = [
   { id: 2, label: 'Pasaporte', value: 'pasaporte' },
 ]
 
-export function PacienteForm({ paciente, previsiones, residencias, signedUrlIdentificacion }: Props) {
+export function PacienteForm({ paciente, previsiones, residencias }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [createdId, setCreatedId] = useState<number | null>(null)
-  const [keyIdentificacion, setKeyIdentificacion] = useState<string | null>(
-    paciente?.keyIdentificacion ?? null,
+  const [archivos, setArchivos] = useState<ArchivoItem[]>(
+    paciente?.archivos ? archivosFromDTO(paciente.archivos) : [],
   )
 
   const getTipoIdOptionId = (value: string): number | null => {
@@ -289,6 +288,8 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
       fd.set(`phone_${i}`, p.telefono)
       fd.set(`phone_desc_${i}`, p.descripcion)
     })
+
+    fd.set('archivos', serializeArchivos(archivos))
 
     startTransition(async () => {
       const result = paciente ? await updatePaciente(fd) : await createPaciente(fd)
@@ -561,15 +562,13 @@ export function PacienteForm({ paciente, previsiones, residencias, signedUrlIden
             Documento de identificación
           </h2>
           <p style={{ marginBottom: 12, fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
-            Imagen (JPG, PNG, WEBP) o PDF. Máximo 10 MB.
+            Imágenes (JPG, PNG, WEBP) o PDF. Las imágenes se comprimen automáticamente.
           </p>
-          <input type="hidden" name="keyIdentificacion" value={keyIdentificacion ?? ''} />
-          <FileUpload
+          <FilesUpload
             folder="pacientes"
             accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
-            currentKey={keyIdentificacion}
-            signedUrl={signedUrlIdentificacion}
-            onUploaded={setKeyIdentificacion}
+            value={archivos}
+            onChange={setArchivos}
             disabled={isPending}
           />
         </section>

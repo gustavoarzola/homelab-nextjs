@@ -20,7 +20,7 @@ function visita(overrides: Partial<VisitaConDetalles> & { pagoInput?: Partial<Pa
   return {
     id: 1,
     idEnfermera: 10,
-    keyOrdenMedica: null,
+    archivos: [],
     fecha: '2026-09-15',
     hora: '09:00',
     paciente: {
@@ -88,6 +88,20 @@ describe('generateScheduledVisitsHTML — desglose de pago', () => {
     expect(html).toContain('−$3.000')
     expect(html).toContain('Procedimientos</td>')
     expect(html).toContain('Recargo (Recargo nocturno)')
+  })
+
+  it('lista los adjuntos de la visita por su nombre de archivo', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({
+        archivos: [
+          { key: 'visitas/v1_ana_perez_1.jpg', contentType: 'image/jpeg' },
+          { key: 'visitas/v1_ana_perez_2.jpg', contentType: 'image/jpeg' },
+        ],
+      }),
+    ])
+    expect(html).toContain('>Adjuntos</td>')
+    expect(html).toContain('v1_ana_perez_1.jpg')
+    expect(html).toContain('v1_ana_perez_2.jpg')
   })
 
   it('escapa los nombres de recargo', () => {
