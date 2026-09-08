@@ -162,6 +162,13 @@
       "when": 1788467463539,
       "tag": "0022_archivos_adjuntos",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788803807149,
+      "tag": "0023_procedimientos_codigo_no_unico",
+      "breakpoints": true
     }
   ]
 }

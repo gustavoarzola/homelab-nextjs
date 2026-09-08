@@ -112,6 +112,35 @@ describe('createProcedimiento', () => {
     const result = await createProcedimiento(fd({ nombre: 'Algo', codigo: '' }))
     expect(result.success).toBe(false)
   })
+
+  it('permite el mismo código con nombres distintos (curaciones)', async () => {
+    const codigo = `${P}CUR-01`
+    const n1 = `${P}Curación nivel 1`
+    const n2 = `${P}Curación nivel 2`
+
+    const r1 = await createProcedimiento(fd({ nombre: n1, codigo, precio: '5000' }))
+    const r2 = await createProcedimiento(fd({ nombre: n2, codigo, precio: '8000' }))
+    expect(r1.success).toBe(true)
+    expect(r2.success).toBe(true)
+
+    const rows = await db.select().from(procedures).where(eq(procedures.codigo, codigo))
+    expect(rows).toHaveLength(2)
+    expect(new Set(rows.map((r) => r.nombre))).toEqual(new Set([n1, n2]))
+    created.procedures.push(...rows.map((r) => r.id))
+  })
+
+  it('rechaza el mismo nombre y código repetidos', async () => {
+    const nombre = `${P}Curación avanzada`
+    const codigo = `${P}CUR-99`
+
+    const r1 = await createProcedimiento(fd({ nombre, codigo }))
+    expect(r1.success).toBe(true)
+    const [row] = await db.select().from(procedures).where(eq(procedures.nombre, nombre))
+    created.procedures.push(row!.id)
+
+    const r2 = await createProcedimiento(fd({ nombre, codigo }))
+    expect(r2.success).toBe(false)
+  })
 })
 
 describe('updateProcedimiento', () => {

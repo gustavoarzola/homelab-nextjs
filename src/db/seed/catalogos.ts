@@ -76,7 +76,7 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
 
   // ─── Procedimientos ──────────────────────────────────────────────────────
   console.log(`   Insertando ${procedimientosData.length} procedimientos...`)
-  await conn.insert(procedures).values(procedimientosData).onConflictDoNothing({ target: procedures.codigo })
+  await conn.insert(procedures).values(procedimientosData).onConflictDoNothing({ target: [procedures.nombre, procedures.codigo] })
 
   // ─── Exámenes (Imalab desde CSV + Imalab-Isapre) ────────────────────────
   console.log(`   Insertando ${examenesDataWithPrices.length} exámenes imalab...`)
