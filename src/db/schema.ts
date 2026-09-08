@@ -178,7 +178,11 @@ export const procedures = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('procedimientos_codigo_idx').on(table.codigo),
+    // El código NO es único por sí solo: varias curaciones (nivel 1, nivel 2,
+    // avanzada…) comparten el código estándar pero son servicios distintos.
+    // La clave natural es (nombre, codigo) — mismo patrón que `examenes`.
+    index('procedimientos_codigo_idx').on(table.codigo),
+    uniqueIndex('procedimientos_nombre_codigo_idx').on(table.nombre, table.codigo),
   ]
 )
 

@@ -80,7 +80,7 @@ const CATEGORIA_OPTIONS = [
 
 const formFields: FormFieldDef[] = [
   { name: 'nombre', label: 'Nombre', required: true },
-  { name: 'codigo', label: 'Código', required: true, placeholder: 'ej: PROC-001' },
+  { name: 'codigo', label: 'Código', required: true, placeholder: 'ej: ENF-001' },
   { name: 'categoria', label: 'Categoría', type: 'select-single', required: true, options: CATEGORIA_OPTIONS },
   { name: 'precio', label: 'Precio', type: 'number', placeholder: '0' },
 ]
