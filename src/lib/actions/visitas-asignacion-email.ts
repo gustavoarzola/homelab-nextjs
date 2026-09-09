@@ -53,6 +53,8 @@ export type ExamenCorreo = {
   codigo: string
   precio: number
   isapre: boolean
+  /** `examenes.grupo_examen` — el "laboratorio" al que se envía la muestra. */
+  grupoExamen: string
 }
 
 export type VisitaConDetalles = {
@@ -265,13 +267,13 @@ async function getVisitasConDetalles(
       .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
       .where(inArray(visitProcedures.idVisita, visitaIds)),
     db
-      .select({ idVisita: visitExams.idVisita, nombre: exams.nombre, codigo: exams.codigo, precio: visitExams.precio })
+      .select({ idVisita: visitExams.idVisita, nombre: exams.nombre, codigo: exams.codigo, precio: visitExams.precio, grupoExamen: exams.grupoExamen })
       .from(visitExams)
       .innerJoin(exams, eq(visitExams.idExamen, exams.id))
       .where(inArray(visitExams.idVisita, visitaIds))
       .orderBy(asc(exams.nombre)),
     db
-      .select({ idVisita: visitIsapreExams.idVisita, nombre: exams.nombre, codigo: exams.codigo, precio: visitIsapreExams.valorPagar })
+      .select({ idVisita: visitIsapreExams.idVisita, nombre: exams.nombre, codigo: exams.codigo, precio: visitIsapreExams.valorPagar, grupoExamen: exams.grupoExamen })
       .from(visitIsapreExams)
       .innerJoin(exams, eq(visitIsapreExams.idExamen, exams.id))
       .where(inArray(visitIsapreExams.idVisita, visitaIds))
@@ -320,14 +322,14 @@ async function getVisitasConDetalles(
 
   for (const e of examRows) {
     const arr = examsByVisita.get(e.idVisita) ?? []
-    arr.push({ nombre: e.nombre, codigo: e.codigo, precio: e.precio, isapre: false })
+    arr.push({ nombre: e.nombre, codigo: e.codigo, precio: e.precio, isapre: false, grupoExamen: e.grupoExamen })
     examsByVisita.set(e.idVisita, arr)
   }
 
   // Los exámenes isapre van al final de la lista de cada visita
   for (const e of isapreExamRows) {
     const arr = examsByVisita.get(e.idVisita) ?? []
-    arr.push({ nombre: e.nombre, codigo: e.codigo, precio: e.precio, isapre: true })
+    arr.push({ nombre: e.nombre, codigo: e.codigo, precio: e.precio, isapre: true, grupoExamen: e.grupoExamen })
     examsByVisita.set(e.idVisita, arr)
   }
 
