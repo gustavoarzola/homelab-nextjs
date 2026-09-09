@@ -127,3 +127,71 @@ describe('generateScheduledVisitsHTML — desglose de pago', () => {
     expect(html).not.toContain('$27.000') // no aparece base × porcentaje
   })
 })
+
+describe('generateScheduledVisitsHTML — exámenes por laboratorio', () => {
+  const examen = (o: Partial<VisitaConDetalles['exámenes'][number]> = {}) => ({
+    nombre: 'Hemograma', codigo: '0302019', precio: 5000, isapre: false, grupoExamen: 'imalab',
+    ...o,
+  })
+
+  it('agrupa exámenes del mismo laboratorio bajo un solo subtítulo', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({
+        exámenes: [
+          examen({ nombre: 'Hemograma', codigo: 'A1' }),
+          examen({ nombre: 'Perfil bioquímico', codigo: 'A2' }),
+        ],
+      }),
+    ])
+    expect(html.match(/>Imalab</g)?.length).toBe(1)
+    expect(html).toContain('Hemograma')
+    expect(html).toContain('Perfil bioquímico')
+  })
+
+  it('muestra los subtítulos en el orden de EXAM_GRUPOS (imalab antes que integramédica)', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({
+        exámenes: [
+          examen({ codigo: 'IM1', grupoExamen: 'integramédica', nombre: 'Vitamina D' }),
+          examen({ codigo: 'A1', grupoExamen: 'imalab', nombre: 'Hemograma' }),
+        ],
+      }),
+    ])
+    expect(html).toContain('>Imalab<')
+    expect(html).toContain('>Integramédica<')
+    expect(html.indexOf('>Imalab<')).toBeLessThan(html.indexOf('>Integramédica<'))
+  })
+
+  it('los exámenes isapre van al final y no repiten el sufijo (isapre)', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({
+        exámenes: [
+          examen({ codigo: 'ISA', grupoExamen: 'imalab isapre', nombre: 'TSH', isapre: true }),
+          examen({ codigo: 'A1', grupoExamen: 'imalab', nombre: 'Hemograma' }),
+        ],
+      }),
+    ])
+    expect(html).toContain('Imalab · Isapre')
+    expect(html.indexOf('>Imalab<')).toBeLessThan(html.indexOf('Imalab · Isapre'))
+    expect(html).not.toContain('(isapre)')
+  })
+
+  it('renderiza un grupoExamen desconocido con su valor crudo, al final', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({
+        exámenes: [
+          examen({ codigo: 'X1', grupoExamen: 'otro lab', nombre: 'Cultivo' }),
+          examen({ codigo: 'A1', grupoExamen: 'imalab', nombre: 'Hemograma' }),
+        ],
+      }),
+    ])
+    expect(html).toContain('otro lab')
+    expect(html.indexOf('>Imalab<')).toBeLessThan(html.indexOf('otro lab'))
+  })
+
+  it('sin exámenes la celda sigue siendo —', () => {
+    const html = generateScheduledVisitsHTML([visita({ exámenes: [] })])
+    const cell = html.split('>Examen(es)</td>')[1]?.split('</tr>')[0] ?? ''
+    expect(cell).toContain('—')
+  })
+})

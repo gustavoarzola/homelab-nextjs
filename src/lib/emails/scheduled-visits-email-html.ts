@@ -4,7 +4,8 @@ import { esc, pesos } from '@/lib/cotizacion-html'
 import { basename } from '@/lib/archivos/nombres'
 import { BRAND_HEX, LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT } from '@/lib/brand'
 import { EMAIL_LOGO_CID } from '@/lib/email-logo'
-import type { VisitaConDetalles } from '@/lib/actions/visitas-asignacion-email'
+import { EXAM_GRUPOS, EXAM_GRUPO_LABELS, EXAM_GRUPO_META, type ExamGrupo } from '@/lib/exam-grupos'
+import type { ExamenCorreo, VisitaConDetalles } from '@/lib/actions/visitas-asignacion-email'
 
 /**
  * HTML del correo de programación de visitas a una enfermera. La tabla está
@@ -27,6 +28,8 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
   const codeChipStyle = `display:inline-block;padding:1px 5px;border-radius:4px;background:${BRAND_HEX.surfaceMuted};border:1px solid ${BRAND_HEX.border};font-family:'JetBrains Mono',ui-monospace,'SF Mono',monospace;font-size:11px;color:${BRAND_HEX.fgMuted};`
   const examLineStyle = `margin:0 0 3px 0;font-size:13px;color:${BRAND_HEX.fg};`
   const examMutedStyle = `color:${BRAND_HEX.fgMuted};white-space:nowrap;`
+  const examGroupStyle = `margin:6px 0 2px 0;font-size:11px;font-weight:600;color:${BRAND_HEX.fgMuted};text-transform:uppercase;letter-spacing:0.06em;`
+  const examGroupFirstStyle = examGroupStyle.replace('margin:6px 0 2px 0', 'margin:0 0 2px 0')
   const pagoRowLabelStyle = `padding:1px 10px 1px 0;font-size:13px;color:${BRAND_HEX.fg};`
   const pagoRowAmountStyle = `padding:1px 0;font-size:13px;color:${BRAND_HEX.fgMuted};text-align:right;white-space:nowrap;`
 
@@ -54,14 +57,37 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
       case 10: return v.procedimientos.join(', ') || '—'
       case 11: {
           if (!v.exámenes.length) return '—'
-          return v.exámenes
-            .map((e) =>
-              `<div style="${examLineStyle}">`
-              + `<span style="${codeChipStyle}">${esc(e.codigo)}</span> `
-              + `${esc(e.nombre)}${e.isapre ? ` <span style="${examMutedStyle}">(isapre)</span>` : ''} `
-              + `<span style="${examMutedStyle}">— ${pesos(e.precio)}</span>`
-              + `</div>`,
-            )
+
+          // Agrupar por laboratorio (`grupoExamen`), preservando el orden de llegada.
+          const porGrupo = new Map<string, ExamenCorreo[]>()
+          for (const e of v.exámenes) {
+            const arr = porGrupo.get(e.grupoExamen) ?? []
+            arr.push(e)
+            porGrupo.set(e.grupoExamen, arr)
+          }
+
+          // Orden de grupos: el de EXAM_GRUPOS; los desconocidos van al final.
+          const grupoRank = (g: string) => {
+            const i = (EXAM_GRUPOS as readonly string[]).indexOf(g)
+            return i === -1 ? EXAM_GRUPOS.length : i
+          }
+          const grupos = [...porGrupo.keys()].sort((a, b) => grupoRank(a) - grupoRank(b))
+
+          const examLinea = (e: ExamenCorreo, grupoEsIsapre: boolean) =>
+            `<div style="${examLineStyle}">`
+            + `<span style="${codeChipStyle}">${esc(e.codigo)}</span> `
+            + `${esc(e.nombre)}${e.isapre && !grupoEsIsapre ? ` <span style="${examMutedStyle}">(isapre)</span>` : ''} `
+            + `<span style="${examMutedStyle}">— ${pesos(e.precio)}</span>`
+            + `</div>`
+
+          return grupos
+            .map((grupo, idx) => {
+              const label = EXAM_GRUPO_LABELS[grupo as ExamGrupo] ?? grupo
+              const grupoEsIsapre = EXAM_GRUPO_META[grupo as ExamGrupo]?.tipo === 'isapre'
+              const heading = `<div style="${idx === 0 ? examGroupFirstStyle : examGroupStyle}">${esc(label)}</div>`
+              const lineas = porGrupo.get(grupo)!.map((e) => examLinea(e, grupoEsIsapre)).join('')
+              return heading + lineas
+            })
             .join('')
         }
       case 12: return v.talleres.join(', ') || '—'
