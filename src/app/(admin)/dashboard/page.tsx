@@ -76,7 +76,8 @@ export default async function DashboardPage({ searchParams }: Props) {
         />
         <DashboardResultadosTable
           items={financiero.resultadosPendientes}
-          total={financiero.totalResultadosPendientes}
+          totalExamenes={financiero.totalResultadosPendientes}
+          totalVisitas={financiero.totalVisitasResultadosPendientes}
         />
       </div>
     </div>

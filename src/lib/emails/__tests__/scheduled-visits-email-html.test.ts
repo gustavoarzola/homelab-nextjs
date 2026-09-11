@@ -90,6 +90,32 @@ describe('generateScheduledVisitsHTML — desglose de pago', () => {
     expect(html).toContain('Recargo (Recargo nocturno)')
   })
 
+  it('formatea el RUT del paciente con puntos y guion', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({
+        paciente: {
+          nombres: 'Ana', apellidoPaterno: 'Pérez', apellidoMaterno: null,
+          tipoIdentificador: 'rut', identificador: '123456785', fechaNacimiento: null,
+          correo: null, informacionAdicional: null, previsión: null,
+        },
+      }),
+    ])
+    expect(html).toContain('12.345.678-5')
+  })
+
+  it('prefija el pasaporte del paciente', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({
+        paciente: {
+          nombres: 'Ana', apellidoPaterno: 'Pérez', apellidoMaterno: null,
+          tipoIdentificador: 'pasaporte', identificador: 'AB123456', fechaNacimiento: null,
+          correo: null, informacionAdicional: null, previsión: null,
+        },
+      }),
+    ])
+    expect(html).toContain('Pasaporte AB123456')
+  })
+
   it('lista los adjuntos de la visita por su nombre de archivo', () => {
     const html = generateScheduledVisitsHTML([
       visita({

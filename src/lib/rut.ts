@@ -45,6 +45,21 @@ export function formatRut(stored: string): string {
 }
 
 /**
+ * Formatea un identificador de paciente/enfermera para mostrar según su tipo:
+ * `rut` → '12.345.678-5', `pasaporte` → 'Pasaporte ABC12345', desconocido → el valor tal cual.
+ * Devuelve '' si no hay valor.
+ */
+export function formatIdentificador(
+  tipo: string | null | undefined,
+  valor: string | null | undefined,
+): string {
+  if (!valor) return ''
+  if (tipo === 'rut') return formatRut(valor)
+  if (tipo === 'pasaporte') return `Pasaporte ${valor}`
+  return valor
+}
+
+/**
  * Validates a passport number: alphanumeric, 8-16 characters.
  * Returns normalized (uppercase) or invalid.
  */

@@ -149,28 +149,31 @@ describe('getDashboardFinanciero — marzo 2026 (seed determinista)', () => {
     expect(result.cobrosPendientes.length).toBeLessThanOrEqual(result.totalCobrosPendientes)
   })
 
-  it('resultados pendientes: 1 fila por (visita, examen) sin envío, incluye isapre', async () => {
+  it('resultados pendientes: 1 fila por visita, con los nombres de exámenes agrupados', async () => {
     const result = await getDashboardFinanciero(3, 2026)
     const rows = result.resultadosPendientes
 
-    // quickview acotado
+    // quickview acotado (por visita)
     expect(rows.length).toBeLessThanOrEqual(20)
-    expect(rows.length).toBeLessThanOrEqual(result.totalResultadosPendientes)
+    expect(rows.length).toBeLessThanOrEqual(result.totalVisitasResultadosPendientes)
 
-    // pares (visita, examen) únicos
-    const keys = rows.map((r) => `${r.idVisita}-${r.idExamen}`)
-    expect(new Set(keys).size).toBe(keys.length)
+    // una fila por visita
+    const ids = rows.map((r) => r.idVisita)
+    expect(new Set(ids).size).toBe(ids.length)
 
-    // cada fila trae metadatos del examen
+    // cada fila trae los nombres de exámenes concatenados
     for (const r of rows) {
-      expect(typeof r.examenNombre).toBe('string')
-      expect(r.examenNombre.length).toBeGreaterThan(0)
+      expect(typeof r.examenes).toBe('string')
+      expect(r.examenes.length).toBeGreaterThan(0)
     }
 
     // SQL independiente: pares de exámenes (regular ∪ isapre) de visitas realizadas de
     // marzo sin fila enviado=true en examenes_visitas_resultados
     const independiente = await db.execute(sql`
-      select count(*)::int as total from (
+      select
+        count(*)::int as examenes,
+        count(distinct x.id_visita)::int as visitas
+      from (
         select ev.id_visita, ev.id_examen from examenes_visitas ev
         union
         select eiv.id_visita, eiv.id_examen from examenes_isapre_visitas eiv
@@ -182,8 +185,13 @@ describe('getDashboardFinanciero — marzo 2026 (seed determinista)', () => {
         and v.estado = 'realizada'
         and r.enviado is not true
     `)
-    expect(result.totalResultadosPendientes).toBe(Number(independiente[0].total))
+    expect(result.totalResultadosPendientes).toBe(Number(independiente[0].examenes))
     expect(result.totalResultadosPendientes).toBeGreaterThan(0)
+    expect(result.totalVisitasResultadosPendientes).toBe(Number(independiente[0].visitas))
+    expect(result.totalVisitasResultadosPendientes).toBeGreaterThan(0)
+    expect(result.totalVisitasResultadosPendientes).toBeLessThanOrEqual(
+      result.totalResultadosPendientes,
+    )
   })
 
   it('el costo de cada visita en cobros pendientes refleja descuentos e insumos (recompute == persistido)', async () => {

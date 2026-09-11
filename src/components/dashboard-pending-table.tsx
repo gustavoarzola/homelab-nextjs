@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { formatDate } from '@/lib/format'
-import { EXAM_GRUPO_META, type ExamGrupo } from '@/lib/exam-grupos'
 import type { CobroPendienteRow, ResultadoPendienteRow } from '@/lib/actions/dashboard'
 
 type CobrosProps = {
@@ -16,7 +15,8 @@ type CobrosProps = {
 
 type ResultadosProps = {
   items: ResultadoPendienteRow[]
-  total: number
+  totalExamenes: number
+  totalVisitas: number
 }
 
 // Subtítulo: siempre muestra el total de pendientes del mes y, si la lista está
@@ -27,8 +27,14 @@ function quickviewCaption(shown: number, total: number, noun: [string, string]) 
   return total > shown ? `${label} · mostrando los primeros ${shown}` : label
 }
 
-function grupoLabel(grupo: string) {
-  return EXAM_GRUPO_META[grupo as ExamGrupo]?.label ?? grupo
+// Subtítulo de "Resultados pendientes": dos magnitudes (exámenes por enviar y
+// visitas que los agrupan) más la aclaración de truncado del quickview.
+function resultadosCaption(shownVisitas: number, totalExamenes: number, totalVisitas: number) {
+  if (totalExamenes === 0) return 'Sin pendientes este mes'
+  const examenes = `${totalExamenes} ${totalExamenes === 1 ? 'examen por enviar' : 'exámenes por enviar'}`
+  const visitas = `${totalVisitas} ${totalVisitas === 1 ? 'visita' : 'visitas'}`
+  const label = `${examenes} en ${visitas}`
+  return totalVisitas > shownVisitas ? `${label} · mostrando las primeras ${shownVisitas}` : label
 }
 
 export function DashboardCobrosTable({ items, total }: CobrosProps) {
@@ -80,13 +86,13 @@ export function DashboardCobrosTable({ items, total }: CobrosProps) {
   )
 }
 
-export function DashboardResultadosTable({ items, total }: ResultadosProps) {
+export function DashboardResultadosTable({ items, totalExamenes, totalVisitas }: ResultadosProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle>Resultados pendientes</CardTitle>
         <CardDescription>
-          {quickviewCaption(items.length, total, ['examen por enviar', 'exámenes por enviar'])}
+          {resultadosCaption(items.length, totalExamenes, totalVisitas)}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -99,21 +105,16 @@ export function DashboardResultadosTable({ items, total }: ResultadosProps) {
                 <tr>
                   <th>Fecha</th>
                   <th>Paciente</th>
-                  <th>Examen</th>
+                  <th>Exámenes pendientes</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={`${item.idVisita}-${item.idExamen}`}>
+                  <tr key={item.idVisita}>
                     <td className="hl-mono hl-tnum" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)', whiteSpace: 'nowrap' }}>{formatDate(item.fecha)}</td>
                     <td>{item.paciente ?? '—'}</td>
-                    <td>
-                      <div>{item.examenNombre}</div>
-                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
-                        {item.examenCodigo} · {grupoLabel(item.examenGrupo)}
-                      </div>
-                    </td>
+                    <td>{item.examenes}</td>
                     <td style={{ textAlign: 'right' }}>
                       <Button variant="ghost" size="icon" asChild>
                         <Link href={`/visitas/${item.idVisita}`}>

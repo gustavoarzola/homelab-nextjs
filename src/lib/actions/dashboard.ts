@@ -176,12 +176,9 @@ export type CobroPendienteRow = {
 
 export type ResultadoPendienteRow = {
   idVisita: number
-  idExamen: number
   fecha: string
   paciente: string | null
-  examenNombre: string
-  examenCodigo: string
-  examenGrupo: string
+  examenes: string // nombres separados por ", ", ordenados alfabéticamente
 }
 
 const LIMITE_QUICKVIEW = 20
@@ -203,8 +200,10 @@ export async function getDashboardFinanciero(month: number, year: number) {
   // `enviado = true` en `examenes_visitas_resultados` (las filas solo existen tras guardar
   // un envío). Los exámenes de una visita son la unión —deduplicada— de los regulares y
   // los de isapre, que viven en tablas puente distintas pero apuntan al mismo catálogo.
+  // El resultado se agrupa por visita: una fila por visita con los nombres de exámenes
+  // pendientes concatenados, más `totalExamenes` para los conteos del quickview.
   // Factory: cada llamada devuelve un builder nuevo (los de Drizzle son mutables al
-  // encadenar `.orderBy`/`.limit`, así que no se puede compartir la instancia).
+  // encadenar `.limit`, así que no se puede compartir la instancia).
   function resultadosPendientesBase() {
     const examenesDeVisita = union(
       db.select({ idVisita: visitExams.idVisita, idExamen: visitExams.idExamen }).from(visitExams),
@@ -213,12 +212,10 @@ export async function getDashboardFinanciero(month: number, year: number) {
 
     return db
       .select({
-        idVisita: examenesDeVisita.idVisita,
-        idExamen: examenesDeVisita.idExamen,
+        idVisita: visits.id,
         fecha: visits.fecha,
-        examenNombre: exams.nombre,
-        examenCodigo: exams.codigo,
-        examenGrupo: exams.grupoExamen,
+        examenes: sql<string>`string_agg(${exams.nombre}, ', ' order by ${exams.nombre})`.as('examenes'),
+        totalExamenes: count().as('total_examenes'),
         pacienteNombres: patients.nombres,
         pacienteApellido: patients.apellidoPaterno,
         pacienteApellidoMaterno: patients.apellidoMaterno,
@@ -242,7 +239,11 @@ export async function getDashboardFinanciero(month: number, year: number) {
           sql`${visitExamResults.enviado} is not true`,
         ),
       )
+      .groupBy(visits.id, visits.fecha, patients.nombres, patients.apellidoPaterno, patients.apellidoMaterno)
+      .orderBy(desc(visits.fecha), desc(visits.id))
   }
+
+  const resultadosSub = resultadosPendientesBase().as('resultados_pendientes')
 
   const [cobrosRaw, totalCobrosRaw, cobrosPendientesRaw, resultadosPendientesRaw, totalResultadosRaw] =
     await Promise.all([
@@ -268,11 +269,16 @@ export async function getDashboardFinanciero(month: number, year: number) {
         .orderBy(desc(visits.fecha))
         .limit(LIMITE_QUICKVIEW),
 
-      // Lista resultados pendientes (primeras N, 1 fila por examen)
-      resultadosPendientesBase().orderBy(desc(visits.fecha), asc(exams.nombre)).limit(LIMITE_QUICKVIEW),
+      // Lista resultados pendientes (primeras N, 1 fila por visita)
+      resultadosPendientesBase().limit(LIMITE_QUICKVIEW),
 
-      // Total de exámenes con resultado pendiente (para el subtítulo del quickview)
-      db.select({ total: count() }).from(resultadosPendientesBase().as('resultados_pendientes')),
+      // Totales para el subtítulo del quickview: exámenes por enviar y visitas con pendientes
+      db
+        .select({
+          examenes: sql<number>`coalesce(sum(${resultadosSub.totalExamenes}), 0)`,
+          visitas: count(),
+        })
+        .from(resultadosSub),
     ])
 
   const cobrosPendientes: CobroPendienteRow[] = cobrosPendientesRaw.map((r) => ({
@@ -289,11 +295,8 @@ export async function getDashboardFinanciero(month: number, year: number) {
 
   const resultadosPendientes: ResultadoPendienteRow[] = resultadosPendientesRaw.map((r) => ({
     idVisita: r.idVisita,
-    idExamen: r.idExamen,
     fecha: r.fecha,
-    examenNombre: r.examenNombre,
-    examenCodigo: r.examenCodigo,
-    examenGrupo: r.examenGrupo,
+    examenes: r.examenes,
     paciente:
       formatNombre({
         nombres: r.pacienteNombres,
@@ -307,6 +310,7 @@ export async function getDashboardFinanciero(month: number, year: number) {
     cobrosPendientes,
     totalCobrosPendientes: Number(totalCobrosRaw[0]?.total ?? 0),
     resultadosPendientes,
-    totalResultadosPendientes: Number(totalResultadosRaw[0]?.total ?? 0),
+    totalResultadosPendientes: Number(totalResultadosRaw[0]?.examenes ?? 0),
+    totalVisitasResultadosPendientes: Number(totalResultadosRaw[0]?.visitas ?? 0),
   }
 }
