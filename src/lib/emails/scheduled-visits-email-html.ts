@@ -1,5 +1,6 @@
 import { formatDate, formatDateFull } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
+import { formatRut } from '@/lib/rut'
 import { esc, pesos } from '@/lib/cotizacion-html'
 import { basename } from '@/lib/archivos/nombres'
 import { BRAND_HEX, LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT } from '@/lib/brand'
@@ -38,7 +39,11 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
     switch (rowIndex) {
       case 0: return v.hora ?? '—'
       case 1: return formatNombre(v.paciente)
-      case 2: return v.paciente.identificador ?? '—'
+      case 2:
+        if (!v.paciente.identificador) return '—'
+        return v.paciente.tipoIdentificador === 'rut'
+          ? formatRut(v.paciente.identificador)
+          : v.paciente.identificador
       case 3: return v.paciente.fechaNacimiento ? formatDate(v.paciente.fechaNacimiento) : '—'
       case 4: return v.telefonos.join(' / ') || '—'
       case 5: return v.paciente.correo
