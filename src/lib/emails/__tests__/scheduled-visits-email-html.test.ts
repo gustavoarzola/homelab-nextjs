@@ -195,3 +195,13 @@ describe('generateScheduledVisitsHTML — exámenes por laboratorio', () => {
     expect(cell).toContain('—')
   })
 })
+
+describe('generateScheduledVisitsHTML — sin visitas', () => {
+  it('dice en el cuerpo que no hay visitas asignadas, con la fecha y el logo', () => {
+    const html = generateScheduledVisitsHTML([], '2099-07-17')
+    expect(html).toContain('No tienes visitas asignadas')
+    expect(html).toContain('cid:')
+    expect(html).not.toContain('Visita #')
+    expect(html).not.toContain('Detalle pago')
+  })
+})

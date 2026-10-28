@@ -2,7 +2,7 @@
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import { addresses, exams, nurses, patients, procedures, visitExams, visitIsapreExams, visitProcedures, visits } from '@/db/schema'
-import { asc, inArray } from 'drizzle-orm'
+import { asc, eq, inArray } from 'drizzle-orm'
 import { P } from './helpers'
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -114,9 +114,28 @@ describe('getVisitasAsignadasPorEnfermera', () => {
 
     const result = await getVisitasAsignadasPorEnfermera(TEST_FECHA)
 
-    expect(result).toHaveLength(1)
-    expect(result[0]!.id).toBe(nurse.id)
-    expect(result[0]!.visitas.map((v) => v.id)).toEqual([confirmedVisit.id])
+    const conVisitas = result.find((n) => n.id === nurse.id)!
+    expect(conVisitas.visitas.map((v) => v.id)).toEqual([confirmedVisit.id])
+    expect(conVisitas.fecha).toBe(TEST_FECHA)
+
+    // La enfermera con solo visitas no confirmadas aparece igual, sin visitas
+    const sinVisitas = result.find((n) => n.id === nurseOnlyProgramada.id)!
+    expect(sinVisitas.visitas).toEqual([])
+    expect(sinVisitas.fecha).toBe(TEST_FECHA)
+  })
+
+  it('excluye enfermeras inactivas y lista primero a las que tienen visitas', async () => {
+    const inactiva = await seedNurse('Inactiva')
+    await db.update(nurses).set({ activo: false }).where(eq(nurses.id, inactiva.id))
+    const sinVisitas = await seedNurse('AaaSinVisitas')
+    const conVisitas = await seedNurse('ZzzConVisitas')
+    await seedVisit({ estado: 'confirmada', idEnfermera: conVisitas.id })
+
+    const result = await getVisitasAsignadasPorEnfermera(TEST_FECHA)
+    const ids = result.map((n) => n.id)
+
+    expect(ids).not.toContain(inactiva.id)
+    expect(ids.indexOf(conVisitas.id)).toBeLessThan(ids.indexOf(sinVisitas.id))
   })
 
   it('incluye exámenes regulares e isapre con código y precio, con los isapre al final', async () => {
@@ -124,7 +143,7 @@ describe('getVisitasAsignadasPorEnfermera', () => {
     const visit = await seedVisit({ estado: 'confirmada', idEnfermera: nurse.id })
 
     const [examRegular, examIsapre] = await db
-      .select({ id: exams.id, codigo: exams.codigo, nombre: exams.nombre })
+      .select({ id: exams.id, codigo: exams.codigo, nombre: exams.nombre, grupoExamen: exams.grupoExamen })
       .from(exams)
       .orderBy(asc(exams.id))
       .limit(2)
@@ -141,8 +160,8 @@ describe('getVisitasAsignadasPorEnfermera', () => {
     const examenes = result.find((e) => e.id === nurse.id)!.visitas[0]!.exámenes
 
     expect(examenes).toEqual([
-      { nombre: examRegular!.nombre, codigo: examRegular!.codigo, precio: 12500, isapre: false },
-      { nombre: examIsapre!.nombre, codigo: examIsapre!.codigo, precio: 9400, isapre: true },
+      { nombre: examRegular!.nombre, codigo: examRegular!.codigo, precio: 12500, isapre: false, grupoExamen: examRegular!.grupoExamen },
+      { nombre: examIsapre!.nombre, codigo: examIsapre!.codigo, precio: 9400, isapre: true, grupoExamen: examIsapre!.grupoExamen },
     ])
   })
 

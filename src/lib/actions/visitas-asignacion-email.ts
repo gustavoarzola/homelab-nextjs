@@ -102,6 +102,8 @@ export type EnfermeraConVisitas = {
   nombres: string
   apellidoPaterno: string
   correo: string | null
+  /** Fecha consultada (YYYY-MM-DD); necesaria cuando no hay visitas de donde sacarla. */
+  fecha: string
   visitas: VisitaConDetalles[]
 }
 
@@ -125,31 +127,21 @@ export async function getVisitasAsignadasPorEnfermera(
 ): Promise<EnfermeraConVisitas[]> {
   await requireSession()
 
-  // Obtener todas las enfermeras con visitas en esa fecha
-  const nursesWithVisits = await db
-    .selectDistinct({ id: nurses.id })
+  // Todas las enfermeras activas: las que no tienen visitas también reciben correo
+  const nursesData = await db
+    .select({
+      id: nurses.id,
+      nombres: nurses.nombres,
+      apellidoPaterno: nurses.apellidoPaterno,
+      correo: nurses.correo,
+    })
     .from(nurses)
-    .innerJoin(visits, eq(nurses.id, visits.idEnfermera))
-    .where(and(eq(visits.fecha, fecha), eq(visits.estado, ESTADO_VISITA_ENVIO_CORREO)))
+    .where(eq(nurses.activo, true))
+    .orderBy(asc(nurses.apellidoPaterno))
 
-  if (!nursesWithVisits.length) return []
+  if (!nursesData.length) return []
 
-  const nurseIds = nursesWithVisits.map((n) => n.id)
-
-  // Obtener datos de enfermeras y visitas detalladas en paralelo
-  const [nursesData, visitasDetalladas] = await Promise.all([
-    db
-      .select({
-        id: nurses.id,
-        nombres: nurses.nombres,
-        apellidoPaterno: nurses.apellidoPaterno,
-        correo: nurses.correo,
-      })
-      .from(nurses)
-      .where(inArray(nurses.id, nurseIds))
-      .orderBy(asc(nurses.apellidoPaterno)),
-    getVisitasConDetalles(fecha, nurseIds),
-  ])
+  const visitasDetalladas = await getVisitasConDetalles(fecha, nursesData.map((n) => n.id))
 
   // Agrupar visitas por idEnfermera directamente (sin query extra)
   const visitasPorEnfermera = new Map<number, VisitaConDetalles[]>()
@@ -159,13 +151,17 @@ export async function getVisitasAsignadasPorEnfermera(
     visitasPorEnfermera.set(v.idEnfermera!, arr)
   }
 
-  return nursesData.map((nurse) => ({
+  const result = nursesData.map((nurse) => ({
     id: nurse.id,
     nombres: nurse.nombres,
     apellidoPaterno: nurse.apellidoPaterno,
     correo: nurse.correo,
+    fecha,
     visitas: visitasPorEnfermera.get(nurse.id) ?? [],
   }))
+
+  // Primero las con visitas, luego las sin visitas (sort estable: conserva el orden por apellido)
+  return result.sort((a, b) => Number(b.visitas.length > 0) - Number(a.visitas.length > 0))
 }
 
 // ─── getVisitasSinAsignarPorFecha ─────────────────────────────────────────────
@@ -407,6 +403,45 @@ async function getVisitasConDetalles(
 
 // ─── sendScheduledVisitsEmail ─────────────────────────────────────────────────
 
+type ResendClient = InstanceType<typeof Resend>
+
+/**
+ * Envía el correo de programación; sin visitas, envía el correo "sin asignaciones".
+ * Devuelve el mensaje de error (o `null` si se envió).
+ */
+async function sendProgramacionEmail(
+  resend: ResendClient,
+  enfermera: EnfermeraConVisitas & { correo: string },
+): Promise<string | null> {
+  const nombreEnfermera = formatNombre(enfermera)
+  const fechaFmt = formatDate(enfermera.fecha)
+  const sinVisitas = enfermera.visitas.length === 0
+  const subject = sinVisitas
+    ? `Programación del ${fechaFmt}: sin visitas asignadas para ${nombreEnfermera}`
+    : `Programación del ${fechaFmt} para ${nombreEnfermera}`
+
+  // Logo inline (CID) + adjuntos de cada visita (fotos de órdenes médicas)
+  const attachments: EmailAttachment[] = [
+    emailLogoAttachment(),
+    ...(await buildVisitAttachments(enfermera.visitas)),
+  ]
+
+  const resolved = resolveEmailEnvelope({ to: enfermera.correo, cc: CC_CORREOS_SALIDA, subject })
+  if (!resolved.ok) return resolved.error
+
+  const { error } = await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',
+    ...resolved.envelope,
+    html: generateScheduledVisitsHTML(enfermera.visitas, enfermera.fecha),
+    attachments,
+  })
+  if (error) {
+    console.error(`Resend error for ${enfermera.correo}:`, error)
+    return `Resend: ${error.message}`
+  }
+  return null
+}
+
 export async function sendScheduledVisitsEmail(
   enfermera: EnfermeraConVisitas,
 ): Promise<Result> {
@@ -416,39 +451,10 @@ export async function sendScheduledVisitsEmail(
     return { success: false, error: 'La enfermera no tiene correo registrado' }
   }
 
-  if (!enfermera.visitas.length) {
-    return { success: false, error: 'Sin visitas asignadas para esta fecha' }
-  }
-
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
-
-    const htmlContent = generateScheduledVisitsHTML(enfermera.visitas)
-    const firstFecha = enfermera.visitas[0]?.fecha ?? ''
-    const nombreEnfermera = formatNombre(enfermera)
-    const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
-
-    // Logo inline (CID) + adjuntos de cada visita (fotos de órdenes médicas)
-    const attachments: EmailAttachment[] = [
-      emailLogoAttachment(),
-      ...(await buildVisitAttachments(enfermera.visitas)),
-    ]
-
-    const resolved = resolveEmailEnvelope({ to: enfermera.correo, cc: CC_CORREOS_SALIDA, subject })
-    if (!resolved.ok) return { success: false, error: resolved.error }
-
-    const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',
-      ...resolved.envelope,
-      html: htmlContent,
-      attachments,
-    })
-
-    if (error) {
-      console.error('Resend error:', error)
-      return { success: false, error: `Resend: ${error.message}` }
-    }
-
+    const error = await sendProgramacionEmail(resend, { ...enfermera, correo: enfermera.correo })
+    if (error) return { success: false, error }
     return { success: true }
   } catch (error) {
     console.error('Error sending email:', error)
@@ -474,40 +480,12 @@ export async function sendAllScheduledVisitsEmails(
       continue
     }
 
-    if (!enfermera.visitas.length) {
-      errors.push(`${nombreEnfermera}: sin visitas asignadas`)
-      continue
-    }
-
     try {
-      const htmlContent = generateScheduledVisitsHTML(enfermera.visitas)
-      const firstFecha = enfermera.visitas[0]?.fecha ?? ''
-      const subject = `Programación del ${formatDate(firstFecha)} para ${nombreEnfermera}`
-
-      const attachments: EmailAttachment[] = [
-        emailLogoAttachment(),
-        ...(await buildVisitAttachments(enfermera.visitas)),
-      ]
-
-      const resolved = resolveEmailEnvelope({ to: enfermera.correo, cc: CC_CORREOS_SALIDA, subject })
-      if (!resolved.ok) {
-        errors.push(`${nombreEnfermera}: ${resolved.error}`)
-        continue
-      }
-
-      const { error: sendError } = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',
-        ...resolved.envelope,
-        html: htmlContent,
-        attachments,
-      })
-
+      const sendError = await sendProgramacionEmail(resend, { ...enfermera, correo: enfermera.correo })
       if (sendError) {
-        console.error(`Resend error for ${enfermera.correo}:`, sendError)
-        errors.push(`${nombreEnfermera}: ${sendError.message}`)
+        errors.push(`${nombreEnfermera}: ${sendError}`)
         continue
       }
-
       successCount++
     } catch (error) {
       console.error(`Error sending email to ${enfermera.correo}:`, error)

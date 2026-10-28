@@ -40,7 +40,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         setEnfermeras(result)
         setVisitasSinAsignar(sinAsignar)
         setFechaBuscada(fecha)
-        if (result.length === 0 && sinAsignar.length === 0) {
+        if (result.every((e) => e.visitas.length === 0) && sinAsignar.length === 0) {
           toast.info('No hay visitas para esta fecha')
         }
       } catch (error) {
@@ -67,16 +67,24 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
   }
 
   const handleEnviarTodos = () => {
-    if (enfermeras.length === 0) {
-      toast.warning('No hay enfermeras con visitas para enviar')
+    const conCorreo = enfermeras.filter((e) => e.correo)
+    if (conCorreo.length === 0) {
+      toast.warning('No hay enfermeras con correo para enviar')
       return
     }
+
+    const nSinVisitas = conCorreo.filter((e) => e.visitas.length === 0).length
+    const nConVisitas = conCorreo.length - nSinVisitas
+    const ok = window.confirm(
+      `Se enviarán ${nConVisitas} correo(s) con programación y ${nSinVisitas} correo(s) de "sin visitas asignadas". ¿Continuar?`,
+    )
+    if (!ok) return
 
     startTransition(async () => {
       try {
         const result = await sendAllScheduledVisitsEmails(enfermeras)
         if (result.success) {
-          toast.success(`Correos enviados a ${enfermeras.length} enfermera(s)`)
+          toast.success(`Correos enviados a ${conCorreo.length} enfermera(s)`)
         }
         if (result.error) {
           toast.info(result.error)
@@ -88,6 +96,9 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
   }
 
   const totalVisitas = enfermeras.reduce((sum, e) => sum + e.visitas.length, 0)
+  const conVisitas = enfermeras.filter((e) => e.visitas.length > 0).length
+  const sinVisitas = enfermeras.length - conVisitas
+  const totalConCorreo = enfermeras.filter((e) => e.correo).length
 
   return (
     <div className="flex flex-col gap-4">
@@ -141,7 +152,8 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
       {enfermeras.length > 0 && (
         <div className="hl-card">
           <MetaGrid>
-            <MetaTile label="Enfermeras" value={enfermeras.length} />
+            <MetaTile label="Con visitas" value={conVisitas} />
+            <MetaTile label="Sin visitas" value={sinVisitas} />
             <MetaTile label="Visitas" value={totalVisitas} />
             <MetaTile label="Fecha" value={formatDateLong(fechaBuscada)} />
           </MetaGrid>
@@ -184,13 +196,17 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
                       {enfermera.visitas.length}
                     </td>
                     <td>
-                      <div className="flex flex-col gap-1">
-                        {enfermera.visitas.map((v) => (
-                          <div key={v.id}>
-                            {formatNombre(v.paciente)}
-                          </div>
-                        ))}
-                      </div>
+                      {enfermera.visitas.length === 0 ? (
+                        <span style={{ color: 'var(--color-fg-muted)' }}>Sin asignaciones</span>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {enfermera.visitas.map((v) => (
+                            <div key={v.id}>
+                              {formatNombre(v.paciente)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <Button
@@ -211,7 +227,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         </div>
       ) : (
         <div className="hl-card">
-          <EmptyState title="Seleccione una fecha para ver las visitas asignadas" />
+          <EmptyState title="No hay enfermeras activas registradas" />
         </div>
       )}
 
@@ -220,7 +236,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         <div className="flex justify-end">
           <Button onClick={handleEnviarTodos} disabled={isPending}>
             {isPending ? <Loader2 className="animate-spin" /> : <Mail />}
-            Enviar a todos ({enfermeras.length})
+            Enviar a todos ({totalConCorreo})
           </Button>
         </div>
       )}

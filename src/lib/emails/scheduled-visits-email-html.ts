@@ -15,12 +15,51 @@ import type { ExamenCorreo, VisitaConDetalles } from '@/lib/actions/visitas-asig
  * Módulo puro (sin `'use server'`, sin acceso a BD) para poder testear el
  * markup y previsualizarlo — mismo patrón que `buildCotizacionHTML`.
  */
-export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): string {
-  if (!visitas.length) {
-    return '<p>Sin visitas asignadas.</p>'
-  }
-
+export function generateScheduledVisitsHTML(
+  visitas: VisitaConDetalles[],
+  fecha: string = visitas[0]?.fecha ?? '',
+): string {
   const font = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif"
+
+  const header = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND_HEX.surface};border-bottom:2px solid ${BRAND_HEX.blue};margin-bottom:16px;">
+        <tr>
+          <td style="padding:20px 24px;vertical-align:middle;">
+            <img src="cid:${EMAIL_LOGO_CID}" alt="HomeLab" width="${LOGO_RENDER_WIDTH}" height="${LOGO_RENDER_HEIGHT}" style="display:block;height:${LOGO_RENDER_HEIGHT}px;width:auto;border:0;" />
+          </td>
+          <td style="padding:20px 24px;vertical-align:middle;text-align:right;">
+            <p style="margin:0 0 4px 0;font-size:16px;font-weight:600;color:${BRAND_HEX.fg};letter-spacing:-0.01em;">Programación de Visitas</p>
+            <p style="margin:0;font-size:12px;color:${BRAND_HEX.fgMuted};">${formatDateFull(fecha)}</p>
+          </td>
+        </tr>
+      </table>`
+
+  const footer = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid ${BRAND_HEX.border};margin-top:16px;">
+        <tr>
+          <td style="padding:16px;font-size:11px;color:${BRAND_HEX.fgSubtle};text-align:center;">
+            <p style="margin:0 0 4px 0;">Este es un correo automático de programación de visitas.</p>
+            <p style="margin:0;">Por favor, no responda a este correo.</p>
+          </td>
+        </tr>
+      </table>`
+
+  if (!visitas.length) {
+    return `
+    <div style="max-width:100%;margin:0 auto;background:${BRAND_HEX.surface};font-family:${font};">
+      ${header}
+
+      <div style="padding:32px 24px;text-align:center;">
+        <p style="margin:0 0 8px 0;font-size:18px;font-weight:600;color:${BRAND_HEX.fg};">
+          No tienes visitas asignadas para el ${formatDateFull(fecha)}.
+        </p>
+        <p style="margin:0;font-size:13px;color:${BRAND_HEX.fgMuted};line-height:1.5;">
+          Si crees que es un error, comunícate con coordinación.
+        </p>
+      </div>
+
+      ${footer}
+    </div>
+  `
+  }
   const labelColStyle = `width:150px;min-width:150px;padding:8px 12px;background:${BRAND_HEX.surfaceMuted};font-size:11px;font-weight:600;color:${BRAND_HEX.fgMuted};text-transform:uppercase;letter-spacing:0.06em;vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-family:${font};`
   const dataColStyle = `min-width:180px;padding:8px 12px;font-size:13px;color:${BRAND_HEX.fg};vertical-align:middle;border:1px solid ${BRAND_HEX.border};font-family:${font};`
   const headerColStyle = `min-width:180px;padding:10px 12px;background:${BRAND_HEX.surfaceMuted};font-size:12px;font-weight:600;color:${BRAND_HEX.fg};text-align:center;border:1px solid ${BRAND_HEX.border};font-family:${font};`
@@ -205,17 +244,7 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
 
   return `
     <div style="max-width:100%;margin:0 auto;background:${BRAND_HEX.surface};font-family:${font};">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${BRAND_HEX.surface};border-bottom:2px solid ${BRAND_HEX.blue};margin-bottom:16px;">
-        <tr>
-          <td style="padding:20px 24px;vertical-align:middle;">
-            <img src="cid:${EMAIL_LOGO_CID}" alt="HomeLab" width="${LOGO_RENDER_WIDTH}" height="${LOGO_RENDER_HEIGHT}" style="display:block;height:${LOGO_RENDER_HEIGHT}px;width:auto;border:0;" />
-          </td>
-          <td style="padding:20px 24px;vertical-align:middle;text-align:right;">
-            <p style="margin:0 0 4px 0;font-size:16px;font-weight:600;color:${BRAND_HEX.fg};letter-spacing:-0.01em;">Programación de Visitas</p>
-            <p style="margin:0;font-size:12px;color:${BRAND_HEX.fgMuted};">${formatDateFull(visitas[0]?.fecha ?? '')}</p>
-          </td>
-        </tr>
-      </table>
+      ${header}
 
       ${table}
 
@@ -225,14 +254,7 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
         talleres ni insumos. Puede variar si la visita cambia antes de realizarse.
       </p>
 
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid ${BRAND_HEX.border};margin-top:16px;">
-        <tr>
-          <td style="padding:16px;font-size:11px;color:${BRAND_HEX.fgSubtle};text-align:center;">
-            <p style="margin:0 0 4px 0;">Este es un correo automático de programación de visitas.</p>
-            <p style="margin:0;">Por favor, no responda a este correo.</p>
-          </td>
-        </tr>
-      </table>
+      ${footer}
     </div>
   `
 }
