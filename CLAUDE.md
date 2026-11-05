@@ -59,8 +59,8 @@ src/
         page.tsx            # Board con mapa
         envio-correos/      # Envío masivo de correos a enfermeras
       pacientes/            # CRUD pacientes con historial
+      estado-resultados/    # EERR mensual (ingresos, costos, margen, gastos) + gastos del mes + tasa de retención
       enfermeras/           # CRUD enfermeras
-      laboratorios/         # CRUD laboratorios
       examenes/             # Catálogo de exámenes
       procedimientos/       # Catálogo de procedimientos
       talleres/             # Catálogo de talleres
@@ -124,6 +124,8 @@ src/
 | `telefonos_pacientes` | `patientPhones` | Múltiples teléfonos por paciente |
 | `visitas` | `visits` | Entidad central: visita programada |
 | `cotizaciones` | `quotations` | Cotización independiente (puede convertirse en visita) |
+| `gastos_mensuales` | `monthlyExpenses` | Costos y gastos del mes que no salen de las visitas (categoría + laboratorio opcional) |
+| `tasas_retencion_honorarios` | `feeRetentionRates` | Retención de boletas de honorarios con vigencia (`vigente_desde`); solo se agregan filas |
 
 ### Catálogos
 
@@ -132,7 +134,6 @@ src/
 | `examenes` | `exams` | Exámenes médicos (con grupo: imalab, etc.) |
 | `procedimientos` | `procedures` | Procedimientos de enfermería (con categoría) |
 | `talleres` | `workshops` | Talleres (precio libre por visita) |
-| `laboratorios` | `laboratories` | Redes de laboratorios |
 | `companias_seguros` | `healthInsurances` | Previsiones de salud (fonasa/isapre/particular) |
 | `residencias_adulto_mayor` | `elderlyResidences` | Residencias de adulto mayor |
 | `origenes_contacto` | `contactOrigins` | Origen del contacto |
@@ -161,7 +162,6 @@ src/
 - `patients` → `patientPhones` (1:N, cascade delete)
 - `visits` → `patients` (N:1, cascade delete)
 - `visits` → `nurses` (N:1, restrict delete)
-- `visits` → `laboratories` (N:1, restrict delete)
 - `visits` → `surchargeTypes` (N:1, restrict delete)
 - `quotations` → `patients` (N:1, set null — paciente opcional)
 - `quotations` → `visits` (N:1, set null — referencia a visita convertida)
@@ -228,9 +228,6 @@ Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al in
 - `searchEnfermeras(params)` — Listado paginado
 - `createEnfermera(formData)` / `updateEnfermera(formData)` / `toggleEnfermera(id, activo)` / `deleteEnfermera(id)`
 
-### laboratorios.ts
-- CRUD estándar: `searchLaboratorios`, `createLaboratorio`, `updateLaboratorio`, `toggleLaboratorio`
-
 ### catalogos.ts
 - CRUD para cada catálogo: procedimientos, exámenes, talleres, previsiones, residencias, comunas, tipos de recargos
 - Patrón: `search*`, `create*`, `update*`, `toggle*`
@@ -255,6 +252,12 @@ Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al in
 - `getDashboardVisitsByDay(month, year)` — Visitas por día del mes
 - `getDashboardFinanciero(month, year)` — Métricas financieras
 
+### estado-resultados.ts / gastos-mensuales.ts / tasas-retencion.ts
+- `getEstadoResultados(month, year)` — EERR del mes: filas en cascada, totales, indicadores y avisos
+- `searchGastosMensuales` / `createGastoMensual` / `updateGastoMensual` / `deleteGastoMensual` — CRUD de gastos del mes
+- `copiarGastosMesAnterior(month, year)` — copia los gastos del mes anterior sin duplicar
+- `getTasasRetencion()` / `createTasaRetencion(formData)` — tasa de retención de honorarios con vigencia
+
 ---
 
 ## API Routes (Route Handlers)
@@ -268,6 +271,7 @@ Solo se usan cuando se necesita controlar headers HTTP o servir contenido no-JSO
 | `/api/cotizacion-standalone/[id]` | GET | HTML imprimible de cotización independiente |
 | `/api/upload` | POST | Subir archivo a Cloudflare R2 |
 | `/api/r2-file` | GET | Redirect a signed URL de R2 |
+| `/api/estado-resultados/export` | GET | Descarga .xlsx del estado de resultados (`?month=&year=`): EERR, indicadores y honorarios por enfermera |
 | `/api/visitas/export` | GET | Descarga .xlsx con visitas filtradas (acepta los mismos filtros que `searchVisitas` como query params) |
 
 ---
@@ -340,6 +344,43 @@ Patrón de uso en páginas:
 const initialData = await searchEntidad({ filters: {}, sort: null, page: 1, pageSize: 10 })
 return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 ```
+
+---
+
+## Estado de resultados (EERR)
+
+Página `/estado-resultados` + Excel. Lógica pura en `src/lib/finanzas/estado-resultados.ts`
+(`buildEstadoResultados`, `buildIndicadores`); la action `getEstadoResultados` solo agrega datos.
+
+**Universo:** visitas `completada` del mes (mismo criterio que `/pagos-enfermeras`). Las `realizada`
+sin completar no entran; la página avisa cuántas son.
+
+**Cascada** (cada subtotal responde una pregunta distinta):
+```
+Ingresos brutos (por línea: fee visita, procedimientos por categoría, recargos, exámenes por
+                 laboratorio, talleres, insumos)
+− Descuentos (visita + procedimientos)          ← se restan de los ingresos, NO son un gasto
+= Ingresos netos  (= Σ visitas.costo)
+− Costos directos (honorarios enfermeras + laboratorios + insumos + otros)
+= Margen de contribución  (+ margen por línea de negocio)
+− Gastos operacionales (personal, marketing, administración, otros)
+= Resultado antes de impuesto
+```
+- **Honorarios** = `calcNursePaymentBreakdown().pago` por su monto BRUTO. Se obtienen llamando a
+  `searchPagosEnfermerasMensual`, así EERR y `/pagos-enfermeras` siempre coinciden.
+- **Retención de honorarios (SII)** es informativa: parte el costo de honorarios entre la enfermera
+  y el SII, no lo aumenta. La tasa vive en `tasas_retencion_honorarios` con vigencia histórica
+  (la de un mes es la de mayor `vigente_desde` ≤ fin de ese mes); nunca se edita una fila pasada.
+- **Exámenes** van por laboratorio (`examenes.grupo_examen`). Regulares = `examenes_visitas.precio`;
+  isapre = `examenes_isapre_visitas.valor_pagar` (copago). El costo de cada laboratorio es un gasto
+  manual `costo_laboratorio` con su `grupo_examen`, porque el flujo de plata varía por laboratorio.
+- **Gastos** (`gastos_mensuales`): categorías en `src/lib/finanzas/categorias-gasto.ts`; cada una cae en
+  costo directo o gasto operacional. Los fijos se repiten con "Copiar del mes anterior".
+- **Cuadratura:** si Σ `costo` ≠ componentes − descuentos aparece una fila "Ajuste de cuadratura" y un
+  aviso rojo (debería ser siempre 0; hay un test que lo verifica sobre los datos sembrados).
+- `costo_traslado` de visitas `no_realizada` se muestra como indicador pero no entra a ingresos.
+- Categorías de procedimiento (`src/lib/procedimiento-categorias.ts`): curaciones, vacunas,
+  endovenosos, inyectables, sondas, ecg, otros. Alimentan los indicadores (vacunas, curaciones, ECG).
 
 ---
 

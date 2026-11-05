@@ -22,6 +22,7 @@ import {
   BookOpen,
   Wallet,
   FileSpreadsheet,
+  Scale,
   Megaphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -35,6 +36,7 @@ const navItems = [
   { href: '/pacientes', label: 'Pacientes', icon: Users },
   { href: '/enfermeras', label: 'Enfermeras', icon: Stethoscope },
   { href: '/pagos-enfermeras', label: 'Pagos enfermeras', icon: Wallet },
+  { href: '/estado-resultados', label: 'Estado de resultados', icon: Scale },
 ]
 
 const catalogItems = [

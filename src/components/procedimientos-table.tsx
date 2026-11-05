@@ -4,6 +4,7 @@ import { DataTable, type ColumnDef, type FilterDef, type FormFieldDef, type Resu
 import { StatusDot } from './ui/status-dot'
 import { Chip } from './ui/chip'
 import type { ProcedimientoRow } from '@/lib/actions/catalogos'
+import { PROCEDIMIENTO_CATEGORIA_OPTIONS, procedimientoCategoriaLabel } from '@/lib/procedimiento-categorias'
 
 type Props = {
   initialData: { rows: ProcedimientoRow[]; total: number }
@@ -11,11 +12,6 @@ type Props = {
   onCreate: (fd: FormData) => Promise<Result>
   onUpdate: (fd: FormData) => Promise<Result>
   onToggle: (id: number, activo: boolean) => Promise<Result>
-}
-
-const CATEGORIAS: Record<string, string> = {
-  curaciones: 'Curaciones',
-  otros: 'Otros procedimientos',
 }
 
 const columns: ColumnDef<ProcedimientoRow>[] = [
@@ -36,7 +32,7 @@ const columns: ColumnDef<ProcedimientoRow>[] = [
     header: 'Categoría',
     cell: ({ row }) => (
       <span style={{ color: 'var(--color-fg-muted)' }}>
-        {CATEGORIAS[row.original.categoria] ?? row.original.categoria}
+        {procedimientoCategoriaLabel(row.original.categoria)}
       </span>
     ),
   },
@@ -61,11 +57,7 @@ const columns: ColumnDef<ProcedimientoRow>[] = [
   },
 ]
 
-const CATEGORIA_FILTER_OPTIONS = [
-  { value: '', label: '— Todas —' },
-  { value: 'curaciones', label: 'Curaciones' },
-  { value: 'otros', label: 'Otros procedimientos' },
-]
+const CATEGORIA_FILTER_OPTIONS = [{ value: '', label: '— Todas —' }, ...PROCEDIMIENTO_CATEGORIA_OPTIONS]
 
 const filters: FilterDef[] = [
   { key: 'buscar', label: 'Buscar', type: 'text', placeholder: 'Nombre o código…' },
@@ -73,15 +65,10 @@ const filters: FilterDef[] = [
   { key: 'mostrarInactivos', label: 'Mostrar inactivos', type: 'checkbox' },
 ]
 
-const CATEGORIA_OPTIONS = [
-  { value: 'curaciones', label: 'Curaciones' },
-  { value: 'otros', label: 'Otros procedimientos' },
-]
-
 const formFields: FormFieldDef[] = [
   { name: 'nombre', label: 'Nombre', required: true },
   { name: 'codigo', label: 'Código', required: true, placeholder: 'ej: ENF-001' },
-  { name: 'categoria', label: 'Categoría', type: 'select-single', required: true, options: CATEGORIA_OPTIONS },
+  { name: 'categoria', label: 'Categoría', type: 'select-single', required: true, options: PROCEDIMIENTO_CATEGORIA_OPTIONS },
   { name: 'precio', label: 'Precio', type: 'number', placeholder: '0' },
 ]
 

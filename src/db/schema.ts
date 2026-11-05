@@ -719,3 +719,45 @@ export const quotationWorkshops = pgTable(
     index('cotizacion_talleres_id_cotizacion_idx').on(table.idCotizacion),
   ]
 )
+
+// ============================================================================
+// 26. GastoMensual - Costos y gastos del mes que no se derivan de las visitas
+// (facturas de laboratorio, insumos, sueldos administrativos, marketing, etc.)
+// ============================================================================
+export const monthlyExpenses = pgTable(
+  'gastos_mensuales',
+  {
+    id: serial('id').primaryKey(),
+    anio: integer('anio').notNull(),
+    mes: integer('mes').notNull(),
+    // Ver GASTO_CATEGORIAS en src/lib/finanzas/categorias-gasto.ts
+    categoria: varchar('categoria', { length: 30 }).notNull(),
+    descripcion: varchar('descripcion', { length: 200 }).notNull(),
+    monto: integer('monto').notNull().default(0),
+    // Solo para `costo_laboratorio`: laboratorio (examenes.grupo_examen) al que se imputa
+    grupoExamen: varchar('grupo_examen', { length: 50 }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('gastos_mensuales_anio_mes_idx').on(table.anio, table.mes),
+  ]
+)
+
+// ============================================================================
+// 27. TasaRetencionHonorarios - Retención de boletas de honorarios (SII) con
+// vigencia histórica: la tasa de un mes es la fila de mayor `vigente_desde`
+// anterior o igual al fin de ese mes. Solo se agregan filas; no se pisan.
+// ============================================================================
+export const feeRetentionRates = pgTable(
+  'tasas_retencion_honorarios',
+  {
+    id: serial('id').primaryKey(),
+    vigenteDesde: date('vigente_desde').notNull(),
+    porcentaje: numeric('porcentaje', { precision: 5, scale: 2 }).notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('tasas_retencion_honorarios_vigente_desde_idx').on(table.vigenteDesde),
+  ]
+)
