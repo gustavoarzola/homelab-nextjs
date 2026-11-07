@@ -13,6 +13,7 @@ import { SelectCombobox } from '@/components/select-combobox'
 import { FilesUpload, serializeArchivos, archivosFromDTO, type ArchivoItem } from '@/components/files-upload'
 import { Button } from '@/components/ui/button'
 import { Callout } from '@/components/ui/callout'
+import { DIRECCION_MAX_LENGTH } from '@/lib/direccion'
 import './paciente-form.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -24,7 +25,6 @@ type Props = {
 }
 
 type AddressState = {
-  direccion: string
   direccionFormateada: string
   numero: string
   calle: string
@@ -173,11 +173,10 @@ function AddressAutocomplete({
         const direccionFormateada: string = place.formattedAddress ?? ''
         const latitud = place.location?.lat().toString() ?? ''
         const longitud = place.location?.lng().toString() ?? ''
-        const direccion = direccionFormateada || [calle, numero].filter(Boolean).join(' ')
 
-        onChange(direccionFormateada || direccion)
+        onChange(direccionFormateada || [calle, numero].filter(Boolean).join(' '))
         onPlaceSelected({
-          direccion, direccionFormateada, numero, calle, localidad,
+          direccionFormateada, numero, calle, localidad,
           areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
         })
       })
@@ -241,12 +240,24 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
       : [{ telefono: '', descripcion: '' }],
   )
 
+  // Texto de búsqueda en Google Maps (solo geolocaliza)
   const [addressValue, setAddressValue] = useState(
     paciente?.direccionFormateada || paciente?.direccion || '',
   )
+  // Texto exacto que escribe el operador: es lo que ve la enfermera
+  const [direccion, setDireccion] = useState(paciente?.direccion ?? '')
+  const direccionEditada = useRef(Boolean(paciente?.direccion))
+  const [sinNumero, setSinNumero] = useState(false)
+
+  const handlePlaceSelected = (addr: AddressState) => {
+    setAddressFields(addr)
+    setSinNumero(!addr.numero)
+    if (!direccionEditada.current || !direccion.trim()) {
+      setDireccion(addr.direccionFormateada || [addr.calle, addr.numero].filter(Boolean).join(' '))
+    }
+  }
 
   const [addressFields, setAddressFields] = useState<AddressState>({
-    direccion: paciente?.direccion ?? '',
     direccionFormateada: paciente?.direccionFormateada ?? '',
     numero: paciente?.numero ?? '',
     calle: paciente?.calle ?? '',
@@ -271,7 +282,11 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
     const fd = new FormData(e.currentTarget)
 
     // Append address fields (from state, since inputs are hidden)
-    fd.set('direccion', addressFields.direccion || addressValue)
+    if (!direccion.trim()) {
+      setErrors({ general: 'Ingresa la dirección para la enfermera' })
+      return
+    }
+    fd.set('direccion', direccion.trim())
     fd.set('direccionFormateada', addressFields.direccionFormateada)
     fd.set('numero', addressFields.numero)
     fd.set('calle', addressFields.calle)
@@ -525,16 +540,46 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
           <div className="flex flex-col gap-4">
             <div className="hl-fieldgroup">
               <label>
-                Búsqueda de dirección <span className="req">*</span>
+                Buscar en Google Maps
               </label>
               <AddressAutocomplete
                 value={addressValue}
                 onChange={setAddressValue}
-                onPlaceSelected={(addr) => setAddressFields(addr)}
+                onPlaceSelected={handlePlaceSelected}
                 disabled={isPending}
               />
               <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
-                Escribe la dirección para buscarla en Google Maps
+                Busca la dirección en Google Maps para ubicarla en el mapa y obtener la comuna
+              </span>
+            </div>
+
+            {sinNumero && (
+              <Callout tone="warn">
+                Google Maps no encontró el número de esta dirección. Agrégalo en
+                &quot;Dirección para la enfermera&quot;.
+              </Callout>
+            )}
+
+            <div className="hl-fieldgroup">
+              <label htmlFor="direccion">
+                Dirección para la enfermera <span className="req">*</span>
+              </label>
+              <div className="hl-input">
+                <input
+                  id="direccion"
+                  type="text"
+                  value={direccion}
+                  maxLength={DIRECCION_MAX_LENGTH}
+                  placeholder="Av. Grecia 1234, depto 45, Ñuñoa"
+                  disabled={isPending}
+                  onChange={(e) => {
+                    direccionEditada.current = true
+                    setDireccion(e.target.value)
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
+                Texto exacto que se envía a la enfermera: incluye número, depto, casa, block o referencias
               </span>
             </div>
 
@@ -542,7 +587,7 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
             <MapPreview lat={addressFields.latitud} lng={addressFields.longitud} />
 
             {/* Hidden inputs for address sub-fields */}
-            <input type="hidden" name="direccion" value={addressFields.direccion || addressValue} />
+            <input type="hidden" name="direccion" value={direccion} />
             <input type="hidden" name="direccionFormateada" value={addressFields.direccionFormateada} />
             <input type="hidden" name="numero" value={addressFields.numero} />
             <input type="hidden" name="calle" value={addressFields.calle} />

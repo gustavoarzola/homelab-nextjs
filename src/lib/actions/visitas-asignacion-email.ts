@@ -18,6 +18,7 @@ import { generateScheduledVisitsHTML } from '@/lib/emails/scheduled-visits-email
 import { getR2Object } from '@/lib/r2'
 import { basename } from '@/lib/archivos/nombres'
 import { emailLogoAttachment } from '@/lib/email-logo'
+import { direccionMapsUrl, direccionParaMostrar } from '@/lib/direccion'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,10 @@ export type VisitaConDetalles = {
   }
   telefonos: string[]
   dirección: {
+    /** Texto del operador (o de Google si no hay). */
     dirección: string
+    /** Link a Google Maps (coordenadas si existen). */
+    mapsUrl: string | null
     comuna: string | null
     areaAdministrativa1: string | null
     areaAdministrativa2: string | null
@@ -224,7 +228,10 @@ async function getVisitasConDetalles(
       infoAdicionalPaciente: patients.informacionAdicional,
       idCompaniaSeguro: patients.idCompaniaSeguro,
       idResidenciaAdulto: patients.idResidenciaAdulto,
-      direccion: addresses.direccionFormateada,
+      direccion: addresses.direccion,
+      direccionFormateada: addresses.direccionFormateada,
+      latitud: addresses.latitud,
+      longitud: addresses.longitud,
       comuna: addresses.areaAdministrativa3,
       areaAdministrativa1: addresses.areaAdministrativa1,
       areaAdministrativa2: addresses.areaAdministrativa2,
@@ -372,7 +379,8 @@ async function getVisitasConDetalles(
     },
     telefonos: v.idPaciente ? (phonesByPaciente.get(v.idPaciente) ?? []) : [],
     dirección: {
-      dirección: v.direccion || '',
+      dirección: direccionParaMostrar(v),
+      mapsUrl: direccionMapsUrl(v),
       comuna: v.comuna || null,
       areaAdministrativa1: v.areaAdministrativa1 || null,
       areaAdministrativa2: v.areaAdministrativa2 || null,

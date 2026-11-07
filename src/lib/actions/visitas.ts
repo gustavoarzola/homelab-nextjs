@@ -18,6 +18,7 @@ import { reconcileArchivos } from '@/lib/archivos/persist'
 import { syncArchivosVisita } from '@/lib/archivos/sync'
 import { getArchivosVisita, type ArchivoDTO } from '@/lib/archivos/query'
 import { deleteManyFromR2 } from '@/lib/r2'
+import { direccionConComuna, direccionParaMostrar } from '@/lib/direccion'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
@@ -680,7 +681,7 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
     // Fetch patient address, phones, and prevision in parallel if patient exists
     const [addressRow, telefonosRows, previsionRow] = await Promise.all([
       patientRow?.idDireccion
-        ? db.select({ areaAdministrativa3: addresses.areaAdministrativa3, calle: addresses.calle, numero: addresses.numero }).from(addresses).where(eq(addresses.id, patientRow.idDireccion)).then((r) => r[0] ?? null)
+        ? db.select({ areaAdministrativa3: addresses.areaAdministrativa3, direccion: addresses.direccion, direccionFormateada: addresses.direccionFormateada }).from(addresses).where(eq(addresses.id, patientRow.idDireccion)).then((r) => r[0] ?? null)
         : Promise.resolve(null),
       visit.idPaciente
         ? db.select({ telefono: patientPhones.telefono }).from(patientPhones).where(eq(patientPhones.idPaciente, visit.idPaciente))
@@ -699,7 +700,7 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
     const surchargeMetaMap = new Map((surchargeMeta as { id: number; nombre: string }[]).map((s) => [s.id, s]))
 
     const direccionStr = addressRow
-      ? [addressRow.calle, addressRow.numero, addressRow.areaAdministrativa3].filter(Boolean).join(', ')
+      ? direccionConComuna(direccionParaMostrar(addressRow), addressRow.areaAdministrativa3) || null
       : null
 
     return {

@@ -173,4 +173,25 @@ describe('getVisitasAsignadasPorEnfermera', () => {
     // el desglose del correo no expone un monto final (base × porcentaje)
     expect('pago' in pago).toBe(false)
   })
+
+  it('usa el texto del operador como dirección y coordenadas para el link de Maps', async () => {
+    const nurse = await seedNurse('direccion-operador')
+    const visit = await seedVisit({ estado: 'confirmada', idEnfermera: nurse.id })
+    const [patient] = await db.select().from(patients).where(inArray(patients.id, [visit.idPaciente]))
+    await db
+      .update(addresses)
+      .set({
+        direccion: 'Av. Grecia 1234, depto 45',
+        direccionFormateada: 'Av. Grecia, Ñuñoa, Chile',
+        latitud: '-33.456',
+        longitud: '-70.598',
+      })
+      .where(inArray(addresses.id, [patient.idDireccion]))
+
+    const result = await getVisitasAsignadasPorEnfermera(TEST_FECHA)
+    const direccion = result.find((e) => e.id === nurse.id)!.visitas[0]!.dirección
+
+    expect(direccion.dirección).toBe('Av. Grecia 1234, depto 45')
+    expect(direccion.mapsUrl).toBe('https://www.google.com/maps/search/?api=1&query=-33.456,-70.598')
+  })
 })

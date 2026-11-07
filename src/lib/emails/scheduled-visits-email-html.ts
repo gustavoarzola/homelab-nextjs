@@ -50,11 +50,10 @@ export function generateScheduledVisitsHTML(visitas: VisitaConDetalles[]): strin
           ? `<a href="mailto:${v.paciente.correo}" style="color:${BRAND_HEX.blue};text-decoration:none;">${v.paciente.correo}</a>`
           : '—'
       case 6: {
-          const query = encodeURIComponent(
-            [v.dirección.dirección, v.dirección.comuna].filter(Boolean).join(', '),
-          )
-          const mapsUrl = `https://maps.google.com/?q=${query}`
-          return `${v.dirección.dirección} <a href="${mapsUrl}" style="color:${BRAND_HEX.blue};text-decoration:none;font-size:14px;" title="Abrir en Maps">📍</a>`
+          if (!v.dirección.dirección) return '—'
+          const texto = esc(v.dirección.dirección)
+          if (!v.dirección.mapsUrl) return texto
+          return `${texto} <a href="${esc(v.dirección.mapsUrl)}" style="color:${BRAND_HEX.blue};text-decoration:none;font-size:14px;" title="Abrir en Maps">📍</a>`
         }
       case 7: return v.dirección.comuna ?? '—'
       case 8: return v.paciente.previsión ?? '—'

@@ -29,7 +29,7 @@ function visita(overrides: Partial<VisitaConDetalles> & { pagoInput?: Partial<Pa
       correo: null, informacionAdicional: null, previsión: null,
     },
     telefonos: [],
-    dirección: { dirección: 'Calle 1', comuna: 'Santiago', areaAdministrativa1: null, areaAdministrativa2: null },
+    dirección: { dirección: 'Calle 1', mapsUrl: null, comuna: 'Santiago', areaAdministrativa1: null, areaAdministrativa2: null },
     procedimientos: [],
     exámenes: [],
     talleres: [],
