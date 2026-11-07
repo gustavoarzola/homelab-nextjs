@@ -32,6 +32,7 @@ import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
 import { toast } from 'sonner'
 import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
 import { calcularCostoVisitaPreview, type VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
+import { direccionParaMostrar } from '@/lib/direccion'
 import {
   CLP,
   ServiceTabs,
@@ -221,9 +222,9 @@ function PacienteCard({ paciente }: { paciente: PacienteData }) {
     fechaDisplay       && { label: 'Nacimiento',  value: fechaDisplay },
     paciente.prevision && { label: 'Previsión',   value: paciente.prevision },
     paciente.residencia && { label: 'Residencia', value: paciente.residencia },
-    (paciente.direccionFormateada || paciente.direccion) && {
+    direccionParaMostrar(paciente) && {
       label: 'Dirección',
-      value: paciente.direccionFormateada || paciente.direccion,
+      value: direccionParaMostrar(paciente),
     },
   ].filter(Boolean) as { label: string; value: string }[]
 

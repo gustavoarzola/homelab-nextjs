@@ -156,6 +156,14 @@ src/
 ### Relaciones clave
 
 - `patients` → `addresses` (1:1, FK obligatorio)
+
+### Dirección del paciente
+- `direcciones.direccion` = **texto exacto del operador** (número, depto, block, referencias). Es lo
+  que se muestra a personas: correo a enfermeras, cotizaciones, formularios.
+- `direcciones.direccion_formateada` + componentes (`calle`, `numero`, `area_administrativa_3`,
+  lat/lng) = respuesta de Google Maps, solo para geolocalizar, mapa y resolver comuna/precio.
+- Leer siempre vía `direccionParaMostrar()` / `direccionMapsUrl()` / `direccionConComuna()` en
+  `src/lib/direccion.ts` — no elegir la columna a mano.
 - `patients` → `healthInsurances` (N:1, opcional)
 - `patients` → `elderlyResidences` (N:1, opcional)
 - `patients` → `patientPhones` (1:N, cascade delete)

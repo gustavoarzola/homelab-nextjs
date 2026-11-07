@@ -27,6 +27,7 @@ import { revalidatePath } from 'next/cache'
 import { formatNombre } from '@/lib/paciente'
 import type { SearchParams } from '@/components/data-table'
 import { calcularCostoVisitaPersistida } from '@/lib/pricing/visitas'
+import { direccionParaMostrar } from '@/lib/direccion'
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
@@ -407,7 +408,7 @@ export async function getCotizacionVisita(idVisita: number): Promise<CotizacionV
       tipoIdentificador: pacienteRow?.tipoIdentificador ?? null,
       fechaNacimiento: pacienteRow?.fechaNacimiento ?? null,
       prevision: pacienteRow?.previsionNombre ?? null,
-      direccion: pacienteRow?.direccionFormateada ?? pacienteRow?.direccion ?? null,
+      direccion: pacienteRow ? direccionParaMostrar(pacienteRow) || null : null,
       comuna: pacienteRow?.comuna ?? null,
     },
     enfermera: enfermeraRow

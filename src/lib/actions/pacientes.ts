@@ -28,6 +28,7 @@ import { requireSession } from '@/lib/auth-guard'
 // requireSession is kept for deletePaciente (needs session.user.role)
 import { parseFormData, fields } from '@/lib/validation'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
+import { DIRECCION_MAX_LENGTH } from '@/lib/direccion'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ function resolveIdentificador(
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const addressSchema = z.object({
-  direccion: z.string().trim().min(1, 'Dirección requerida'),
+  direccion: z.string().trim().min(1, 'Dirección requerida').max(DIRECCION_MAX_LENGTH, `La dirección no puede superar ${DIRECCION_MAX_LENGTH} caracteres`),
   direccionFormateada: z.string().trim().optional().transform((v) => v ?? ''),
   numero: fields.nullableStr,
   calle: fields.nullableStr,
