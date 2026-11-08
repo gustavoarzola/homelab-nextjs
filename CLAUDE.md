@@ -158,8 +158,11 @@ src/
 - `patients` → `addresses` (1:1, FK obligatorio)
 
 ### Dirección del paciente
-- `direcciones.direccion` = **texto exacto del operador** (número, depto, block, referencias). Es lo
-  que se muestra a personas: correo a enfermeras, cotizaciones, formularios.
+- `direcciones.direccion` = lo que se muestra a personas (correo a enfermeras, cotizaciones,
+  formularios). Por defecto = `direccion_formateada` (Google). Si el operador activa el checkbox
+  "Agregar dirección para la enfermera" —se activa solo cuando Google no trae número, con aviso—
+  es su texto libre (número, depto, block, referencias), pre-llenado con `direccionCorta()`.
+  El formulario deduce el checkbox con `direccion !== direccion_formateada` (no hay columna extra).
 - `direcciones.direccion_formateada` + componentes (`calle`, `numero`, `area_administrativa_3`,
   lat/lng) = respuesta de Google Maps, solo para geolocalizar, mapa y resolver comuna/precio.
 - Leer siempre vía `direccionParaMostrar()` / `direccionMapsUrl()` / `direccionConComuna()` en
