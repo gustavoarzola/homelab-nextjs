@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { direccionConComuna, direccionMapsUrl, direccionParaMostrar } from '@/lib/direccion'
+import { direccionConComuna, direccionCorta, direccionMapsUrl, direccionParaMostrar, normalizarDireccion } from '@/lib/direccion'
 
 describe('direccionParaMostrar', () => {
   it('prioriza el texto del operador', () => {
@@ -47,5 +47,27 @@ describe('direccionConComuna', () => {
   it('maneja vacíos', () => {
     expect(direccionConComuna('', 'Ñuñoa')).toBe('Ñuñoa')
     expect(direccionConComuna('X 1', null)).toBe('X 1')
+  })
+})
+
+describe('direccionCorta', () => {
+  it('con número: calle número, comuna y cursor al final', () => {
+    const r = direccionCorta({ calle: 'Av. Grecia', numero: '1234', areaAdministrativa3: 'Ñuñoa' })
+    expect(r).toEqual({ texto: 'Av. Grecia 1234, Ñuñoa', cursor: 'Av. Grecia 1234, Ñuñoa'.length })
+  })
+  it('sin número: deja el hueco y el cursor tras la calle', () => {
+    const r = direccionCorta({ calle: 'Av. Grecia', numero: '', areaAdministrativa3: 'Ñuñoa' })
+    expect(r).toEqual({ texto: 'Av. Grecia , Ñuñoa', cursor: 'Av. Grecia '.length })
+  })
+  it('sin calle: usa la dirección de Google', () => {
+    expect(direccionCorta({ direccionFormateada: 'Lo Barnechea, Chile' }))
+      .toEqual({ texto: 'Lo Barnechea, Chile', cursor: 19 })
+  })
+})
+
+describe('normalizarDireccion', () => {
+  it('quita espacio antes de coma y espacios dobles', () => {
+    expect(normalizarDireccion(' Av. Grecia , Ñuñoa ')).toBe('Av. Grecia, Ñuñoa')
+    expect(normalizarDireccion('Av. Grecia  1234,  depto 45')).toBe('Av. Grecia 1234, depto 45')
   })
 })

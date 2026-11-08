@@ -13,7 +13,8 @@ import { SelectCombobox } from '@/components/select-combobox'
 import { FilesUpload, serializeArchivos, archivosFromDTO, type ArchivoItem } from '@/components/files-upload'
 import { Button } from '@/components/ui/button'
 import { Callout } from '@/components/ui/callout'
-import { DIRECCION_MAX_LENGTH } from '@/lib/direccion'
+import { Checkbox } from '@/components/ui/checkbox'
+import { DIRECCION_MAX_LENGTH, direccionCorta, normalizarDireccion } from '@/lib/direccion'
 import './paciente-form.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -116,6 +117,13 @@ function AddressAutocomplete({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const elementRef = useRef<any>(null)
   const initialValue = useRef(value)
+  // El listener de Google se registra una sola vez: leer siempre los callbacks más recientes
+  const onChangeRef = useRef(onChange)
+  const onPlaceSelectedRef = useRef(onPlaceSelected)
+  useEffect(() => {
+    onChangeRef.current = onChange
+    onPlaceSelectedRef.current = onPlaceSelected
+  })
 
   useEffect(() => {
     if (!containerRef.current || elementRef.current) return
@@ -174,8 +182,8 @@ function AddressAutocomplete({
         const latitud = place.location?.lat().toString() ?? ''
         const longitud = place.location?.lng().toString() ?? ''
 
-        onChange(direccionFormateada || [calle, numero].filter(Boolean).join(' '))
-        onPlaceSelected({
+        onChangeRef.current(direccionFormateada || [calle, numero].filter(Boolean).join(' '))
+        onPlaceSelectedRef.current({
           direccionFormateada, numero, calle, localidad,
           areaAdministrativa1, areaAdministrativa2, areaAdministrativa3, pais, latitud, longitud,
         })
@@ -244,17 +252,54 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
   const [addressValue, setAddressValue] = useState(
     paciente?.direccionFormateada || paciente?.direccion || '',
   )
-  // Texto exacto que escribe el operador: es lo que ve la enfermera
-  const [direccion, setDireccion] = useState(paciente?.direccion ?? '')
-  const direccionEditada = useRef(Boolean(paciente?.direccion))
-  const [sinNumero, setSinNumero] = useState(false)
+  // "Dirección para la enfermera": opcional (checkbox). Apagado → se guarda la de Google;
+  // encendido → el texto del operador. Se deduce al cargar comparando ambas columnas.
+  const direccionGuardadaPersonalizada =
+    Boolean(paciente?.direccion) && paciente?.direccion !== paciente?.direccionFormateada
+  const [direccionPersonalizada, setDireccionPersonalizada] = useState(direccionGuardadaPersonalizada)
+  const [direccion, setDireccion] = useState(
+    direccionGuardadaPersonalizada ? (paciente?.direccion ?? '') : '',
+  )
+  const direccionEditada = useRef(false)
+  const direccionInputRef = useRef<HTMLInputElement>(null)
+  const [sinNumero, setSinNumero] = useState(
+    Boolean(paciente?.direccionFormateada) && !paciente?.numero,
+  )
+
+  // Enfoca el input y deja el cursor donde el operador tiene que escribir
+  const focusDireccion = (cursor?: number) => {
+    requestAnimationFrame(() => {
+      const input = direccionInputRef.current
+      if (!input) return
+      input.focus()
+      const pos = cursor ?? input.value.length
+      input.setSelectionRange(pos, pos)
+    })
+  }
+
+  const prefillDireccion = (addr: AddressState) => {
+    const { texto, cursor } = direccionCorta(addr)
+    setDireccion(texto)
+    focusDireccion(cursor)
+  }
 
   const handlePlaceSelected = (addr: AddressState) => {
     setAddressFields(addr)
-    setSinNumero(!addr.numero)
-    if (!direccionEditada.current || !direccion.trim()) {
-      setDireccion(addr.direccionFormateada || [addr.calle, addr.numero].filter(Boolean).join(' '))
+    const faltaNumero = !addr.numero
+    setSinNumero(faltaNumero)
+    if (faltaNumero) setDireccionPersonalizada(true)
+    const activo = faltaNumero || direccionPersonalizada
+    if (activo && (!direccionEditada.current || !direccion.trim())) {
+      direccionEditada.current = false
+      prefillDireccion(addr)
     }
+  }
+
+  const handleTogglePersonalizada = (checked: boolean) => {
+    setDireccionPersonalizada(checked)
+    if (!checked) return
+    if (direccion.trim()) focusDireccion()
+    else prefillDireccion(addressFields)
   }
 
   const [addressFields, setAddressFields] = useState<AddressState>({
@@ -270,6 +315,10 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
     longitud: paciente?.longitud ?? '',
   })
 
+  const direccionFinal = direccionPersonalizada
+    ? normalizarDireccion(direccion)
+    : addressFields.direccionFormateada.trim()
+
   const addPhone = () => setPhones((prev) => [...prev, { telefono: '', descripcion: '' }])
   const removePhone = (i: number) => setPhones((prev) => prev.filter((_, idx) => idx !== i))
   const updatePhone = (i: number, field: 'telefono' | 'descripcion', val: string) =>
@@ -282,11 +331,17 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
     const fd = new FormData(e.currentTarget)
 
     // Append address fields (from state, since inputs are hidden)
-    if (!direccion.trim()) {
+    if (direccionPersonalizada && !direccionFinal) {
       setErrors({ general: 'Ingresa la dirección para la enfermera' })
       return
     }
-    fd.set('direccion', direccion.trim())
+    if (!direccionFinal) {
+      setErrors({
+        general: 'Busca la dirección en Google Maps o activa "Agregar dirección para la enfermera"',
+      })
+      return
+    }
+    fd.set('direccion', direccionFinal)
     fd.set('direccionFormateada', addressFields.direccionFormateada)
     fd.set('numero', addressFields.numero)
     fd.set('calle', addressFields.calle)
@@ -540,7 +595,7 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
           <div className="flex flex-col gap-4">
             <div className="hl-fieldgroup">
               <label>
-                Buscar en Google Maps
+                Buscar en Google Maps <span className="req">*</span>
               </label>
               <AddressAutocomplete
                 value={addressValue}
@@ -553,19 +608,32 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
               </span>
             </div>
 
+            <label className="flex items-center gap-2" style={{ fontSize: 'var(--text-base)' }}>
+              <Checkbox
+                checked={direccionPersonalizada}
+                onCheckedChange={(v) => handleTogglePersonalizada(v === true)}
+                disabled={isPending}
+              />
+              Agregar dirección para la enfermera (depto, block, referencias)
+            </label>
+
             {sinNumero && (
               <Callout tone="warn">
-                Google Maps no encontró el número de esta dirección. Agrégalo en
-                &quot;Dirección para la enfermera&quot;.
+                Google Maps no encontró el número de esta dirección.{' '}
+                {direccionPersonalizada
+                  ? 'Agrégalo en "Dirección para la enfermera".'
+                  : 'Activa "Agregar dirección para la enfermera" para completarla.'}
               </Callout>
             )}
 
+            {direccionPersonalizada && (
             <div className="hl-fieldgroup">
               <label htmlFor="direccion">
                 Dirección para la enfermera <span className="req">*</span>
               </label>
               <div className="hl-input">
                 <input
+                  ref={direccionInputRef}
                   id="direccion"
                   type="text"
                   value={direccion}
@@ -582,12 +650,13 @@ export function PacienteForm({ paciente, previsiones, residencias }: Props) {
                 Texto exacto que se envía a la enfermera: incluye número, depto, casa, block o referencias
               </span>
             </div>
+            )}
 
             {/* Map preview */}
             <MapPreview lat={addressFields.latitud} lng={addressFields.longitud} />
 
             {/* Hidden inputs for address sub-fields */}
-            <input type="hidden" name="direccion" value={direccion} />
+            <input type="hidden" name="direccion" value={direccionFinal} />
             <input type="hidden" name="direccionFormateada" value={addressFields.direccionFormateada} />
             <input type="hidden" name="numero" value={addressFields.numero} />
             <input type="hidden" name="calle" value={addressFields.calle} />

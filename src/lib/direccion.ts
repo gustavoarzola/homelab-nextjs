@@ -1,9 +1,10 @@
 import { stripDiacritics } from '@/lib/slug'
 
-// Dirección del paciente — dos fuentes con roles distintos:
-//   - `direccion`: texto que escribe el operador (con número, depto, casa, referencias).
-//     Es lo que se muestra a personas: correo a enfermeras, cotizaciones, formularios.
-//   - `direccionFormateada`: respuesta de Google Maps. Solo para geolocalizar.
+// Dirección del paciente — dos columnas con roles distintos:
+//   - `direccion`: lo que se muestra a personas (correo a enfermeras, cotizaciones, formularios).
+//     Por defecto es la dirección de Google; si el operador activa "Agregar dirección para la
+//     enfermera" (o se activa sola porque Google no trajo el número), es su texto libre.
+//   - `direccionFormateada`: respuesta de Google Maps, para geolocalizar.
 
 type DireccionTexto = {
   direccion?: string | null
@@ -45,4 +46,37 @@ export function direccionConComuna(texto: string, comuna?: string | null): strin
   if (!texto) return c
   const norm = (s: string) => stripDiacritics(s).toLowerCase()
   return norm(texto).includes(norm(c)) ? texto : `${texto}, ${c}`
+}
+
+type DireccionComponentes = {
+  calle?: string | null
+  numero?: string | null
+  areaAdministrativa3?: string | null // comuna
+  direccionFormateada?: string | null
+}
+
+/**
+ * Versión corta para pre-llenar "Dirección para la enfermera": `calle numero, comuna`, sin código
+ * postal, región ni país. `cursor` indica dónde dejar el cursor: tras la calle si falta el número
+ * (el operador solo tipea el número), o al final para agregar depto/referencias.
+ */
+export function direccionCorta(a: DireccionComponentes): { texto: string; cursor: number } {
+  const calle = a.calle?.trim()
+  if (!calle) {
+    const texto = a.direccionFormateada?.trim() ?? ''
+    return { texto, cursor: texto.length }
+  }
+  const numero = a.numero?.trim()
+  const comuna = a.areaAdministrativa3?.trim()
+  if (numero) {
+    const texto = direccionConComuna(`${calle} ${numero}`, comuna)
+    return { texto, cursor: texto.length }
+  }
+  const base = `${calle} `
+  return { texto: comuna ? `${base}, ${comuna}` : base, cursor: base.length }
+}
+
+/** Limpia el texto final: espacios extra y " ," que queda si no se completó el número. */
+export function normalizarDireccion(texto: string): string {
+  return texto.replace(/\s+,/g, ',').replace(/\s{2,}/g, ' ').trim()
 }
