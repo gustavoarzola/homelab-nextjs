@@ -18,6 +18,7 @@ import { generateScheduledVisitsHTML } from '@/lib/emails/scheduled-visits-email
 import { getR2Object } from '@/lib/r2'
 import { basename } from '@/lib/archivos/nombres'
 import { emailLogoAttachment } from '@/lib/email-logo'
+import { resolveEmailEnvelope } from '@/lib/emails/recipients'
 import { direccionMapsUrl, direccionParaMostrar } from '@/lib/direccion'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -433,11 +434,12 @@ export async function sendScheduledVisitsEmail(
       ...(await buildVisitAttachments(enfermera.visitas)),
     ]
 
+    const resolved = resolveEmailEnvelope({ to: enfermera.correo, cc: CC_CORREOS_SALIDA, subject })
+    if (!resolved.ok) return { success: false, error: resolved.error }
+
     const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',
-      to: enfermera.correo,
-      cc: CC_CORREOS_SALIDA,
-      subject,
+      ...resolved.envelope,
       html: htmlContent,
       attachments,
     })
@@ -487,11 +489,15 @@ export async function sendAllScheduledVisitsEmails(
         ...(await buildVisitAttachments(enfermera.visitas)),
       ]
 
+      const resolved = resolveEmailEnvelope({ to: enfermera.correo, cc: CC_CORREOS_SALIDA, subject })
+      if (!resolved.ok) {
+        errors.push(`${nombreEnfermera}: ${resolved.error}`)
+        continue
+      }
+
       const { error: sendError } = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL ?? 'contacto@homelab.cl',
-        to: enfermera.correo,
-        cc: CC_CORREOS_SALIDA,
-        subject,
+        ...resolved.envelope,
         html: htmlContent,
         attachments,
       })

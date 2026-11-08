@@ -388,6 +388,10 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
   deduplicados por key y descargados en paralelo (`buildVisitAttachments`). El HTML lista los
   nombres de archivo en la fila "Adjuntos" para mapear adjunto ↔ columna `Visita #N`.
 - Todos los correos de salida llevan `cc` a `contacto@homelab.cl` (constante `CC_CORREOS_SALIDA`, override con `RESEND_CC_EMAIL`)
+- Destinatarios por ambiente vía `resolveEmailEnvelope()` (`src/lib/emails/recipients.ts`), obligatorio
+  en todo envío nuevo: con `EMAIL_REDIRECT_TO` todo va solo a esa casilla (sin CC, asunto
+  `[PRUEBA → destinatarios originales] ...`); en Preview sin `EMAIL_REDIRECT_TO` **no se envía nada**
+  (los previews usan una copia de la base con correos reales).
 
 ---
 
@@ -470,6 +474,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 | `R2_SECRET_ACCESS_KEY` | R2 secret key |
 | `R2_BUCKET_NAME` | Nombre del bucket R2 |
 | `VERCEL` | Autoinyectada por Vercel (detecta entorno) |
+| `EMAIL_REDIRECT_TO` | Solo Preview/Development: casilla que recibe todos los correos de salida |
 | `HOMELAB_PRODUCTION_DB_HOST` | Host de la base de producción (sin credenciales). Lo usa `db-guard` en el build; obligatoria en Preview |
 
 ---
