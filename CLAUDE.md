@@ -443,7 +443,12 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 - Variable: `HOMELAB_DATABASE_URL` (pooled), `HOMELAB_DATABASE_URL_UNPOOLED` (para migraciones)
 
 ### Build
-- `vercel-build`: ejecuta migraciones antes del build (`drizzle-kit migrate && next build`)
+- `vercel-build`: `tsx scripts/db-guard.ts && drizzle-kit migrate && next build`
+- Cada deployment de **Preview** usa su propia rama de Neon (`preview/<rama-git>`, creada por la
+  integración Vercel↔Neon desde la rama principal), así que las migraciones de una rama no tocan
+  producción. `scripts/db-guard.ts` (lógica en `src/lib/db-guard.ts`) imprime el host de la base y
+  **corta el build** si un Preview apunta al host de producción (`HOMELAB_PRODUCTION_DB_HOST`) o si
+  esa variable falta en Preview
 - Seed: `pnpm db:seed` (usa tsx con .env.local)
 
 ---
@@ -462,6 +467,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 | `R2_SECRET_ACCESS_KEY` | R2 secret key |
 | `R2_BUCKET_NAME` | Nombre del bucket R2 |
 | `VERCEL` | Autoinyectada por Vercel (detecta entorno) |
+| `HOMELAB_PRODUCTION_DB_HOST` | Host de la base de producción (sin credenciales). Lo usa `db-guard` en el build; obligatoria en Preview |
 
 ---
 
