@@ -27,15 +27,6 @@ export const ESTADO_VISITA_STYLES: Record<string, EstadoVisitaStyle> = {
     step: 0,
     badgeClass: 'is-creada',
   },
-  // Alias de compatibilidad: estado antiguo de visitas (antes de 'programada'); no está en ESTADOS_VISITA.
-  creada: {
-    bg: 'var(--estado-creada-bg)',
-    color: 'var(--estado-creada-fg)',
-    border: 'var(--estado-creada-fg)',
-    label: ESTADO_VISITA_LABEL.programada,
-    step: 0,
-    badgeClass: 'is-creada',
-  },
   confirmada: {
     bg: 'var(--estado-confirmada-bg)',
     color: 'var(--estado-confirmada-fg)',

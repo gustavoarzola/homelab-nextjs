@@ -41,9 +41,15 @@ export async function setup(): Promise<() => Promise<void>> {
 
   const testUrl = process.env.HOMELAB_TEST_DATABASE_URL
   if (!testUrl) {
-    throw new Error(
-      'HOMELAB_TEST_DATABASE_URL no está definida — no se puede preparar la BD de test.'
+    // Sin BD de test solo pueden correr los tests unitarios (sin BD). Se neutraliza
+    // HOMELAB_DATABASE_URL con una URL inalcanzable para que ningún test toque la BD de
+    // desarrollo por accidente: los tests de integración fallarán con error de conexión.
+    process.env.HOMELAB_DATABASE_URL = 'postgresql://none:none@127.0.0.1:1/homelab_test_sin_bd'
+    console.warn(
+      '[global-setup] HOMELAB_TEST_DATABASE_URL no definida — se omite la preparación de BD ' +
+        '(solo tests unitarios; los de integración fallarán).'
     )
+    return async () => {}
   }
   if (!/test/i.test(testUrl)) {
     throw new Error('HOMELAB_TEST_DATABASE_URL no parece de test — abortando por seguridad')

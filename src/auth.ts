@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
+import { revalidateToken } from '@/lib/session-revalidation'
 
 declare module 'next-auth' {
   interface Session {
@@ -12,6 +13,7 @@ declare module 'next-auth' {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  session: { strategy: 'jwt', maxAge: 7 * 24 * 60 * 60 },
   providers: [
     Credentials({
       credentials: {
@@ -46,9 +48,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
-      if (user) token.role = (user as { role: string }).role
-      return token
+    async jwt({ token, user }) {
+      if (user) {
+        // Login recién hecho: ya validado contra la BD en authorize().
+        token.role = (user as { role: string }).role
+        token.checkedAt = Date.now()
+        return token
+      }
+      // Devolver null invalida la sesión (Auth.js limpia la cookie).
+      return revalidateToken(token, db)
     },
     session({ session, token }) {
       session.user.role = token.role as string

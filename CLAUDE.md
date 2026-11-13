@@ -205,7 +205,10 @@ e2e/                        # Tests Playwright
 
 - **NextAuth v5 beta** con Credentials provider (correo + contraseña)
 - Contraseñas hasheadas con bcryptjs
-- JWT con campo `role` custom (`session.user.role`)
+- JWT con campo `role` custom (`session.user.role`), `maxAge` 7 días. El callback `jwt` re-valida contra
+  `usuarios` como máximo cada 15 min (`token.checkedAt`, lógica en `src/lib/session-revalidation.ts`):
+  si el usuario fue desactivado o borrado la sesión se invalida, y el rol se actualiza al vigente.
+  Desactivar un usuario o cambiarle el rol aplica en ≤15 min.
 - Guard: `requireSession()` en `src/lib/auth-guard.ts` — se llama al inicio de cada server action
 - Layout `(admin)/layout.tsx` verifica sesión y redirige a `/login`
 - Página de login usa server action con `signIn('credentials', ...)`
@@ -239,7 +242,7 @@ usuario o cambiar una contraseña, entregar el SQL listo (no un script).
   VALUES ('<Nombre>', '<correo>', '<hash>', 'ejecutivo', true, NOW(), NOW());` (rol `admin` o
   `ejecutivo`; `correo` es único).
 - Cambiar contraseña: `UPDATE usuarios SET contrasena = '<hash>', updated_at = NOW() WHERE correo = '<correo>';`
-  — no invalida sesiones JWT ya abiertas.
+  — no invalida sesiones JWT ya abiertas (solo desactivar el usuario o cambiar el rol se re-valida).
 
 ---
 
@@ -552,7 +555,10 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
   viven en `src/db/seed/data/` (incluye `examenes.csv`, leído con `process.cwd()`).
 - Tests: `pnpm test` (todo vitest), `pnpm test:unit` (`src/lib/__tests__` y `src/lib/pricing/__tests__`),
   `pnpm test:integration` (`src/lib/actions/__tests__`, requieren Postgres de test vía
-  `HOMELAB_TEST_DATABASE_URL`, ver `src/test/global-setup.ts`), `pnpm test:e2e` (Playwright, `e2e/`).
+  `HOMELAB_TEST_DATABASE_URL`, ver `src/test/global-setup.ts`), `pnpm test:e2e` (Playwright, `e2e/`; vitest lo excluye).
+  `pnpm test:unit` corre sin BD (el globalSetup omite la preparación y neutraliza `HOMELAB_DATABASE_URL`).
+- CI: `.github/workflows/ci.yml` (push y pull_request; Node 24, pnpm 9, service `postgres:16`) corre
+  `pnpm typecheck`, `pnpm lint` y `pnpm test`. No incluye e2e.
 
 ---
 
