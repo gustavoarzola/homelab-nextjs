@@ -28,6 +28,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
   const [visitasSinAsignar, setVisitasSinAsignar] = useState(initialVisitasSinAsignar)
   const [isPending, startTransition] = useTransition()
   const [loading, setLoading] = useState(false)
+  const [confirmEnviarTodos, setConfirmEnviarTodos] = useState(false)
 
   const handleBuscar = () => {
     setLoading(true)
@@ -66,20 +67,19 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
     })
   }
 
+  const conCorreo = enfermeras.filter((e) => e.correo)
+  const conCorreoSinVisitas = conCorreo.filter((e) => e.visitas.length === 0).length
+  const conCorreoConVisitas = conCorreo.length - conCorreoSinVisitas
+
   const handleEnviarTodos = () => {
-    const conCorreo = enfermeras.filter((e) => e.correo)
     if (conCorreo.length === 0) {
       toast.warning('No hay enfermeras con correo para enviar')
       return
     }
+    setConfirmEnviarTodos(true)
+  }
 
-    const nSinVisitas = conCorreo.filter((e) => e.visitas.length === 0).length
-    const nConVisitas = conCorreo.length - nSinVisitas
-    const ok = window.confirm(
-      `Se enviarán ${nConVisitas} correo(s) con programación y ${nSinVisitas} correo(s) de "sin visitas asignadas". ¿Continuar?`,
-    )
-    if (!ok) return
-
+  const handleConfirmEnviarTodos = () => {
     startTransition(async () => {
       try {
         const result = await sendAllScheduledVisitsEmails(enfermeras)
@@ -91,6 +91,8 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         }
       } catch (error) {
         toast.error('Error al enviar correos')
+      } finally {
+        setConfirmEnviarTodos(false)
       }
     })
   }
@@ -98,7 +100,6 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
   const totalVisitas = enfermeras.reduce((sum, e) => sum + e.visitas.length, 0)
   const conVisitas = enfermeras.filter((e) => e.visitas.length > 0).length
   const sinVisitas = enfermeras.length - conVisitas
-  const totalConCorreo = enfermeras.filter((e) => e.correo).length
 
   return (
     <div className="flex flex-col gap-4">
@@ -236,8 +237,34 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         <div className="flex justify-end">
           <Button onClick={handleEnviarTodos} disabled={isPending}>
             {isPending ? <Loader2 className="animate-spin" /> : <Mail />}
-            Enviar a todos ({totalConCorreo})
+            Enviar a todos ({conCorreo.length})
           </Button>
+        </div>
+      )}
+
+      {confirmEnviarTodos && (
+        <div className="hl-backdrop">
+          <div className="hl-modal" style={{ maxWidth: 420 }}>
+            <div className="hl-modal__body">
+              <h2 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 600 }}>
+                ¿Enviar programación a todas?
+              </h2>
+              <p style={{ margin: 0, fontSize: 'var(--text-base)', color: 'var(--color-fg-muted)' }}>
+                Se enviarán {conCorreoConVisitas} correo(s) con programación y{' '}
+                {conCorreoSinVisitas} correo(s) de &ldquo;sin visitas asignadas&rdquo; para el{' '}
+                {formatDateLong(fechaBuscada)}.
+              </p>
+            </div>
+            <div className="hl-modal__foot">
+              <Button variant="ghost" onClick={() => setConfirmEnviarTodos(false)} disabled={isPending}>
+                Cancelar
+              </Button>
+              <Button onClick={handleConfirmEnviarTodos} disabled={isPending}>
+                {isPending ? <Loader2 className="animate-spin" /> : <Mail />}
+                Enviar {conCorreo.length} correo(s)
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
