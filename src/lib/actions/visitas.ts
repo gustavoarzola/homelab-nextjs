@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { db, type DbOrTx } from '@/db'
 import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, elderlyResidences, surchargeTypes } from '@/db/schema'
-import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray } from 'drizzle-orm'
+import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, notInArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/lib/types'
 import { requireSession } from '@/lib/auth-guard'
@@ -838,7 +838,9 @@ export async function updateVisita(
   let orphanedKeys: string[] = []
 
   await db.transaction(async (tx) => {
-      await tx
+      // Condicional al estado: si la visita pasó a un estado final desde el chequeo inicial
+      // (p.ej. se completó en otra pestaña), no se toca nada.
+      const [updated] = await tx
         .update(visits)
         .set({
           fecha, hora, idEnfermera, idOrigenContacto, informacionAdicional, cobraVisita, montoInsumos,
@@ -846,7 +848,9 @@ export async function updateVisita(
           descuentoProcedimientosAfectaPagoEnfermera,
           updatedAt: new Date(),
         })
-        .where(eq(visits.id, id))
+        .where(and(eq(visits.id, id), notInArray(visits.estado, [...ESTADOS_VISITA_NO_EDITABLES])))
+        .returning({ id: visits.id })
+      if (!updated) throw new ActionError('No se puede editar una visita en estado final')
 
       // Preserve stored prices for existing items before deleting.
       const existingProcs = await tx

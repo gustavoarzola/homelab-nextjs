@@ -477,7 +477,6 @@ export async function createCotizacion(
       .select({ id: procedures.id, precio: procedures.precio })
         .from(procedures)
         .where(inArray(procedures.id, procedureIds))
-        .catch(() => [])
 
       total += procs.reduce((sum, p) => sum + p.precio, 0)
       montoDescuentoProcedimientos = procs.reduce(
@@ -493,7 +492,6 @@ export async function createCotizacion(
         .select({ precio: exams.precio })
         .from(exams)
         .where(inArray(exams.id, examIds))
-        .catch(() => [])
 
       total += examRows.reduce((sum, e) => sum + e.precio, 0)
     }
@@ -522,7 +520,6 @@ export async function createCotizacion(
         .select({ id: surchargeTypes.id, precio: surchargeTypes.precio })
         .from(surchargeTypes)
         .where(inArray(surchargeTypes.id, surchargeIds))
-        .catch(() => [])
       total += surchargeItems.reduce((sum, s) => sum + s.precio, 0)
     }
 
@@ -714,7 +711,6 @@ export async function updateCotizacion(
         .select({ id: procedures.id, precio: procedures.precio })
         .from(procedures)
         .where(inArray(procedures.id, procedureIds))
-        .catch(() => [])
 
       total += procs.reduce((sum, p) => sum + p.precio, 0)
       montoDescuentoProcedimientos = procs.reduce(
@@ -729,7 +725,6 @@ export async function updateCotizacion(
         .select({ precio: exams.precio })
         .from(exams)
         .where(inArray(exams.id, examIds))
-        .catch(() => [])
 
       total += examRows.reduce((sum, e) => sum + e.precio, 0)
     }
@@ -756,7 +751,6 @@ export async function updateCotizacion(
         .select({ id: surchargeTypes.id, precio: surchargeTypes.precio })
         .from(surchargeTypes)
         .where(inArray(surchargeTypes.id, surchargeIds))
-        .catch(() => [])
       total += surchargeItems.reduce((sum, s) => sum + s.precio, 0)
     }
 
@@ -961,43 +955,36 @@ async function convertirCotizacionAVisita(
 
   const visitId: number = insertedVisits[0]!.id
 
-  const [procs, examItems, isapreItems, tallerItems, surchargeItems] = await Promise.all([
-    tx
-      .select({
-        idProcedimiento: quotationProcedures.idProcedimiento,
-        precio: quotationProcedures.precio,
-        descuento: quotationProcedures.descuento,
-      })
-      .from(quotationProcedures)
-      .where(eq(quotationProcedures.idCotizacion, idCotizacion)),
-    tx
-      .select({ idExamen: quotationExams.idExamen, precio: quotationExams.precio })
-      .from(quotationExams)
-      .where(eq(quotationExams.idCotizacion, idCotizacion)),
-    tx
-      .select({
-        idExamen: quotationIsapreExams.idExamen,
-        valorCompleto: quotationIsapreExams.valorCompleto,
-        valorPagar: quotationIsapreExams.valorPagar,
-        idPrevision: quotationIsapreExams.idPrevision,
-      })
-      .from(quotationIsapreExams)
-      .where(eq(quotationIsapreExams.idCotizacion, idCotizacion)),
-    tx
-      .select({ idTaller: quotationWorkshops.idTaller, precio: quotationWorkshops.precio })
-      .from(quotationWorkshops)
-      .where(eq(quotationWorkshops.idCotizacion, idCotizacion)),
-    tx
-      .select({ idTipoRecargo: quotationSurcharges.idTipoRecargo, precio: quotationSurcharges.precio })
-      .from(quotationSurcharges)
-      .where(eq(quotationSurcharges.idCotizacion, idCotizacion)),
-  ]) as [
-    { idProcedimiento: number; precio: number; descuento: number }[],
-    { idExamen: number; precio: number }[],
-    { idExamen: number; valorCompleto: number; valorPagar: number; idPrevision: number | null }[],
-    { idTaller: number; precio: number }[],
-    { idTipoRecargo: number; precio: number }[],
-  ]
+  // Secuenciales a propósito: una transacción usa una sola conexión (no hay paralelismo real).
+  const procs = await tx
+    .select({
+      idProcedimiento: quotationProcedures.idProcedimiento,
+      precio: quotationProcedures.precio,
+      descuento: quotationProcedures.descuento,
+    })
+    .from(quotationProcedures)
+    .where(eq(quotationProcedures.idCotizacion, idCotizacion))
+  const examItems = await tx
+    .select({ idExamen: quotationExams.idExamen, precio: quotationExams.precio })
+    .from(quotationExams)
+    .where(eq(quotationExams.idCotizacion, idCotizacion))
+  const isapreItems = await tx
+    .select({
+      idExamen: quotationIsapreExams.idExamen,
+      valorCompleto: quotationIsapreExams.valorCompleto,
+      valorPagar: quotationIsapreExams.valorPagar,
+      idPrevision: quotationIsapreExams.idPrevision,
+    })
+    .from(quotationIsapreExams)
+    .where(eq(quotationIsapreExams.idCotizacion, idCotizacion))
+  const tallerItems = await tx
+    .select({ idTaller: quotationWorkshops.idTaller, precio: quotationWorkshops.precio })
+    .from(quotationWorkshops)
+    .where(eq(quotationWorkshops.idCotizacion, idCotizacion))
+  const surchargeItems = await tx
+    .select({ idTipoRecargo: quotationSurcharges.idTipoRecargo, precio: quotationSurcharges.precio })
+    .from(quotationSurcharges)
+    .where(eq(quotationSurcharges.idCotizacion, idCotizacion))
 
   if (procs.length > 0) {
     await tx.insert(visitProcedures).values(

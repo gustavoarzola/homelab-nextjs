@@ -268,9 +268,9 @@ Wrappers en `src/lib/with-action.ts` (todos llaman `requireSession()`; usarlos e
 ### visitas.ts
 - `searchVisitas(params)` — Listado paginado con filtros (fecha, enfermera, estado, búsqueda)
 - `getVisita(id)` — Detalle completo para edición
-- `createVisita(formData)` / `updateVisita(formData)` — devuelven `ActionResult<{ id: number }>` (vía `withAction`)
-- `createVisita(formData)` — Crear visita con exámenes, procedimientos, talleres
-- `updateVisita(formData)` — Actualizar visita
+- `createVisita(formData)` / `updateVisita(formData)` — Crear / actualizar visita con exámenes, procedimientos,
+  talleres y recargos; devuelven `ActionResult<{ id: number }>` (vía `withAction`). `updateVisita` hace el
+  UPDATE condicional al estado dentro de la transacción (no edita una visita que pasó a estado final)
 - `deleteVisita(id)` — Eliminar visita
 - `getEnfermeras()` — Select de enfermeras activas
 - (Select de tipos de recargos activos: `getTiposRecargosForSelect()` en `catalogos.ts`)
@@ -350,8 +350,10 @@ Wrappers en `src/lib/with-action.ts` (todos llaman `requireSession()`; usarlos e
 
 ### visitas-asignacion-email.ts
 - `getVisitasAsignadasPorEnfermera(fecha)` — Datos para correos
-- `sendScheduledVisitsEmail(enfermeraId, fecha)` — Enviar correo a una enfermera
-- `sendAllScheduledVisitsEmails(fecha)` — Envío masivo
+- `sendScheduledVisitsEmail(idEnfermera, fecha)` — Enviar correo a una enfermera
+- `sendAllScheduledVisitsEmails(fecha)` — Envío masivo; devuelve `ActionResult<{ enviados, warning? }>`
+- Ambos envíos reciben solo ids/fecha y **recargan los datos en el servidor** (helper interno
+  `loadEnfermerasConVisitas`): nunca usar correo, visitas ni keys de R2 enviados por el cliente.
 
 ### dashboard.ts
 - `getDashboardVisitsByDay(month, year)` — Visitas por día del mes

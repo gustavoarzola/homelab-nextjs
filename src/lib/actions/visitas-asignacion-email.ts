@@ -98,7 +98,15 @@ export async function getVisitasAsignadasPorEnfermera(
   fecha: string,
 ): Promise<EnfermeraConVisitas[]> {
   await requireSession()
+  return loadEnfermerasConVisitas(fecha)
+}
 
+// Helper interno (no exportado): los envíos de correo recargan los datos con esto en el
+// servidor en vez de confiar en el objeto que manda el cliente (correo, keys de R2, etc.).
+async function loadEnfermerasConVisitas(
+  fecha: string,
+  idEnfermera?: number,
+): Promise<EnfermeraConVisitas[]> {
   // Todas las enfermeras activas: las que no tienen visitas también reciben correo
   const nursesData = await db
     .select({
@@ -108,7 +116,10 @@ export async function getVisitasAsignadasPorEnfermera(
       correo: nurses.correo,
     })
     .from(nurses)
-    .where(eq(nurses.activo, true))
+    .where(and(
+      eq(nurses.activo, true),
+      idEnfermera === undefined ? undefined : eq(nurses.id, idEnfermera),
+    ))
     .orderBy(asc(nurses.apellidoPaterno))
 
   if (!nursesData.length) return []
@@ -415,9 +426,12 @@ async function sendProgramacionEmail(
 }
 
 export async function sendScheduledVisitsEmail(
-  enfermera: EnfermeraConVisitas,
+  idEnfermera: number,
+  fecha: string,
 ): Promise<ActionResult> {
   return withAction('Error al enviar correo', async () => {
+    const [enfermera] = await loadEnfermerasConVisitas(fecha, idEnfermera)
+    if (!enfermera) throw new ActionError('Enfermera no encontrada')
     if (!enfermera.correo) throw new ActionError('La enfermera no tiene correo registrado')
 
     const resend = new Resend(process.env.RESEND_API_KEY)
@@ -428,11 +442,15 @@ export async function sendScheduledVisitsEmail(
 
 // ─── sendAllScheduledVisitsEmails ────────────────────────────────────────────
 
-/** `warning`: envío parcial (algunas enfermeras fallaron); el detalle se muestra al usuario. */
+/**
+ * `enviados`: correos efectivamente enviados. `warning`: envío parcial (algunas enfermeras
+ * fallaron); el detalle se muestra al usuario.
+ */
 export async function sendAllScheduledVisitsEmails(
-  enfermeras: EnfermeraConVisitas[],
-): Promise<ActionResult<{ warning?: string }>> {
+  fecha: string,
+): Promise<ActionResult<{ enviados: number; warning?: string }>> {
   return withAction('Error al enviar correos', async () => {
+    const enfermeras = await loadEnfermerasConVisitas(fecha)
     const resend = new Resend(process.env.RESEND_API_KEY)
     let successCount = 0
     const errors: string[] = []
@@ -462,6 +480,7 @@ export async function sendAllScheduledVisitsEmails(
     }
 
     return {
+      enviados: successCount,
       warning:
         errors.length > 0
           ? `Se enviaron ${successCount} correos. Errores: ${errors.join(', ')}`

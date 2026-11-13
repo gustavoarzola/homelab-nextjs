@@ -4,7 +4,13 @@ import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { revalidateToken } from '@/lib/session-revalidation'
+import { cache } from 'react'
+import { loadSessionUser, revalidateToken } from '@/lib/session-revalidation'
+
+// Memoizado por request: en un mismo render, el layout y cada server action llaman auth() con la
+// misma cookie (el refresco del proxy llega recién en la respuesta) → una sola consulta. Fuera de
+// un render de React (p.ej. el proxy) `cache` no memoiza y la función corre normal.
+const loadUser = cache((id: number) => loadSessionUser(db, id))
 
 declare module 'next-auth' {
   interface Session {
@@ -59,7 +65,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Un error de BD (p.ej. corte transitorio de Neon) no debe desloguear:
       // se mantiene el token y se reintenta en la próxima request.
       try {
-        return await revalidateToken(token, db)
+        return await revalidateToken(token, loadUser)
       } catch (err) {
         console.error('[auth] revalidación de sesión falló:', err)
         return token
