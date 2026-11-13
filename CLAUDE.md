@@ -468,7 +468,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 - `sendScheduledVisitsEmail()` envía a una enfermera
 - `sendAllScheduledVisitsEmails()` envío masivo del día
 - Todos los archivos de la visita se adjuntan con su nombre legible (`v{id}_{nombre}_{n}.jpg`),
-  deduplicados por key y descargados en paralelo (`buildVisitAttachments`). El HTML lista los
+  deduplicados por key y descargados en paralelo (`buildVisitAttachments` en `src/lib/emails/attachments.ts`, fuera de `actions/` a propósito: es un helper sin guard y no debe ser server action). El HTML lista los
   nombres de archivo en la fila "Adjuntos" para mapear adjunto ↔ columna `Visita #N`.
 - Todos los correos de salida llevan `cc` a `contacto@homelab.cl` (constante `CC_CORREOS_SALIDA`, override con `RESEND_CC_EMAIL`)
 - Destinatarios por ambiente vía `resolveEmailEnvelope()` (`src/lib/emails/recipients.ts`), obligatorio
