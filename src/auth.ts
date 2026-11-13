@@ -56,7 +56,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return token
       }
       // Devolver null invalida la sesión (Auth.js limpia la cookie).
-      return revalidateToken(token, db)
+      // Un error de BD (p.ej. corte transitorio de Neon) no debe desloguear:
+      // se mantiene el token y se reintenta en la próxima request.
+      try {
+        return await revalidateToken(token, db)
+      } catch (err) {
+        console.error('[auth] revalidación de sesión falló:', err)
+        return token
+      }
     },
     session({ session, token }) {
       session.user.role = token.role as string
