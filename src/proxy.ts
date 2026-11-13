@@ -1,5 +1,6 @@
 import { auth } from '@/auth'
 import { NextResponse } from 'next/server'
+import { canAccessPath } from '@/lib/permissions'
 
 export default auth((req) => {
   const isLoggedIn = !!req.auth
@@ -10,6 +11,14 @@ export default auth((req) => {
   }
 
   if (isLoggedIn && isLoginPage) {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
+  }
+
+  const { pathname } = req.nextUrl
+  if (isLoggedIn && !canAccessPath(req.auth?.user?.role, pathname)) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 })
+    }
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 })

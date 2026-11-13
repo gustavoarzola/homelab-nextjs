@@ -25,7 +25,7 @@ export const users = pgTable(
     nombre: varchar('nombre', { length: 200 }).notNull(),
     correo: varchar('correo', { length: 100 }).notNull().unique(),
     contrasena: varchar('contrasena', { length: 255 }).notNull(),
-    rol: varchar('rol', { length: 50 }).notNull().default('usuario'),
+    rol: varchar('rol', { length: 50 }).notNull().default('ejecutivo'),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

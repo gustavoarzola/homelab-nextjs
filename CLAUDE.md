@@ -198,6 +198,21 @@ src/
 - Layout `(admin)/layout.tsx` verifica sesión y redirige a `/login`
 - Página de login usa server action con `signIn('credentials', ...)`
 
+### Roles y permisos
+- Roles (`usuarios.rol`): `admin` (acceso total) y `ejecutivo` (default). **Todo lo que no sea
+  `admin` queda restringido** — un rol desconocido nunca recibe más acceso.
+- Modelo simple: acceso sí/no a interfaces completas, definido en `src/lib/permissions.ts`
+  (`ADMIN_ONLY_PREFIXES`, `canAccessPath()`, `isAdmin()`). Hoy solo-admin: exámenes,
+  procedimientos, talleres, tipos de recargos, precios de visita y reportes (`/reportes`, `/api/reportes`).
+- Se aplica en 3 capas: `src/proxy.ts` (redirige a `/dashboard`, o 403 en `/api/*`), el sidebar
+  (oculta ítems) y las server actions de mutación con `requireAdmin()` (`src/lib/auth-guard.ts`).
+  En catálogos del factory basta con `adminOnly: true` en el `CatalogConfig`. Las lecturas
+  (`search*`/`get*`) no se restringen porque las usan otros formularios (p.ej. visita).
+- Reglas puntuales: `deleteVisita` solo deja a admin eliminar visitas `realizada`/`completada`;
+  `deletePaciente` solo deja a admin eliminar pacientes con visitas.
+- Al agregar una sección solo-admin: sumar el prefijo a `ADMIN_ONLY_PREFIXES` y `requireAdmin()`
+  en sus mutaciones.
+
 ---
 
 ## Server Actions — Referencia

@@ -5,12 +5,12 @@ async function main() {
     {
       nombre: 'Francesca Espinosa',
       correo: 'francesca.espinosa@homelab.cl',
-      rol: 'usuario'
+      rol: 'ejecutivo'
     },
     {
       nombre: 'Sergio Espinosa',
       correo: 'sergioespinosa@homelab.cl',
-      rol: 'usuario'
+      rol: 'ejecutivo'
     },
     {
       nombre: 'Gustavo Arzola',
@@ -20,7 +20,7 @@ async function main() {
     {
       nombre: 'Rino',
       correo: 'contacto@homelab.cl',
-      rol: 'usuario'
+      rol: 'ejecutivo'
     }
   ];
 

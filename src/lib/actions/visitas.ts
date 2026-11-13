@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache'
 import { getTiposRecargosForSelect } from './catalogos'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { isAdmin } from '@/lib/permissions'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 import { formatNombre } from '@/lib/paciente'
 import { actualizarCostoVisitaPersistida, resolverPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
@@ -752,8 +753,18 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
 
 // ─── deleteVisita ─────────────────────────────────────────────────────────────
 
+// Solo admin puede eliminar visitas en estos estados (registros cerrados).
+const ESTADOS_VISITA_CERRADA = ['realizada', 'completada']
+
 export async function deleteVisita(id: number): Promise<ActionResult> {
   return withAction('Error al eliminar la visita', async () => {
+    const session = await requireSession()
+    if (!isAdmin(session.user.role)) {
+      const [visita] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
+      if (visita && ESTADOS_VISITA_CERRADA.includes(visita.estado)) {
+        throw new ActionError('No tienes permisos para eliminar una visita realizada o completada')
+      }
+    }
     await db.delete(visits).where(eq(visits.id, id))
     revalidatePath('/visitas')
   })

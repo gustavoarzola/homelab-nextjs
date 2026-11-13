@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { parseFormData, fields } from '@/lib/validation'
 import { withQuery, withFormAction, withAction, ActionError, type ActionResult } from '@/lib/with-action'
+import { requireAdmin } from '@/lib/auth-guard'
 import { db } from '@/db'
 import {
   nursingVisitPrices,
@@ -138,6 +139,7 @@ export async function searchPreciosExamenes(
 
 export async function createPrecioExamen(fd: FormData): Promise<ActionResult> {
   return withFormAction(precioExamenCreateSchema, fd, 'Error al actualizar precio', async ({ idExamen, precio }) => {
+    await requireAdmin()
     await db.update(exams).set({ precio }).where(eq(exams.id, idExamen))
     revalidatePath('/examenes')
   })
@@ -145,6 +147,7 @@ export async function createPrecioExamen(fd: FormData): Promise<ActionResult> {
 
 export async function updatePrecioExamen(fd: FormData): Promise<ActionResult> {
   return withFormAction(precioExamenUpdateSchema, fd, 'Error al actualizar precio', async ({ id, precio }) => {
+    await requireAdmin()
     await db.update(exams).set({ precio, updatedAt: new Date() }).where(eq(exams.id, id))
     revalidatePath('/examenes')
   })
@@ -152,6 +155,7 @@ export async function updatePrecioExamen(fd: FormData): Promise<ActionResult> {
 
 export async function togglePrecioExamen(id: number, activo: boolean): Promise<ActionResult> {
   return withAction('Error al cambiar estado', async () => {
+    await requireAdmin()
     await db.update(exams).set({ activo: !activo }).where(eq(exams.id, id))
     revalidatePath('/examenes')
   })
@@ -209,6 +213,7 @@ async function labelParaIdComuna(idComuna: number | null): Promise<string> {
 
 export async function createPrecioVisita(fd: FormData): Promise<ActionResult> {
   return withFormAction(precioVisitaCreateSchema, fd, 'Error al crear precio', async ({ idComuna, precio }) => {
+    await requireAdmin()
     const duplicateCondition = idComuna !== null
       ? eq(nursingVisitPrices.idComuna, idComuna)
       : isNull(nursingVisitPrices.idComuna)
@@ -223,6 +228,7 @@ export async function createPrecioVisita(fd: FormData): Promise<ActionResult> {
 
 export async function updatePrecioVisita(fd: FormData): Promise<ActionResult> {
   return withFormAction(precioVisitaUpdateSchema, fd, 'Error al actualizar precio', async ({ id, idComuna, precio }) => {
+    await requireAdmin()
     const duplicateCondition = idComuna !== null
       ? and(eq(nursingVisitPrices.idComuna, idComuna), ne(nursingVisitPrices.id, id))
       : and(isNull(nursingVisitPrices.idComuna), ne(nursingVisitPrices.id, id))
@@ -237,6 +243,7 @@ export async function updatePrecioVisita(fd: FormData): Promise<ActionResult> {
 
 export async function togglePrecioVisita(id: number, activo: boolean): Promise<ActionResult> {
   return withAction('Error al cambiar estado', async () => {
+    await requireAdmin()
     await db.update(nursingVisitPrices).set({ activo: !activo }).where(eq(nursingVisitPrices.id, id))
     revalidatePath('/precios/visitas')
   })

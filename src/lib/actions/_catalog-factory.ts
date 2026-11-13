@@ -5,6 +5,7 @@ import { z } from 'zod'
 import type { SearchParams } from '@/components/data-table'
 import { parseFormData } from '@/lib/validation'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
+import { requireAdmin } from '@/lib/auth-guard'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyCol = any
@@ -22,6 +23,7 @@ export type CatalogConfig = {
   tag?: string
   extraFilters?: (filters: Record<string, unknown>, conditions: SQL[]) => void
   extraUpdateFields?: Record<string, unknown> | (() => Record<string, unknown>)
+  adminOnly?: boolean                            // create/update/toggle solo para admin (lectura libre)
 }
 
 export async function catalogSearch(
@@ -62,6 +64,7 @@ export async function catalogSearch(
 
 export async function catalogCreate(config: CatalogConfig, formData: FormData): Promise<ActionResult> {
   return withAction('Error al crear', async () => {
+    if (config.adminOnly) await requireAdmin()
     const parsed = parseFormData(config.createSchema, formData)
     if (!parsed.success) throw new ActionError(parsed.error)
     const existing = await db
@@ -77,6 +80,7 @@ export async function catalogCreate(config: CatalogConfig, formData: FormData): 
 
 export async function catalogUpdate(config: CatalogConfig, formData: FormData): Promise<ActionResult> {
   return withAction('Error al actualizar', async () => {
+    if (config.adminOnly) await requireAdmin()
     const parsed = parseFormData(config.updateSchema, formData)
     if (!parsed.success) throw new ActionError(parsed.error)
     const { id, ...data } = parsed.data
@@ -101,6 +105,7 @@ export async function catalogToggle(
   activo: boolean,
 ): Promise<ActionResult> {
   return withAction('Error al cambiar estado', async () => {
+    if (config.adminOnly) await requireAdmin()
     await db.update(config.table).set({ activo: !activo }).where(eq(config.idCol, id))
     revalidatePath(config.path)
     if (config.tag) revalidateTag(config.tag, 'days')

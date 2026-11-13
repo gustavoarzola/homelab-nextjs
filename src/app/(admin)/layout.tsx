@@ -20,7 +20,7 @@ export default async function AdminLayout({
     <div className="app hl-root">
       <Sidebar
         userName={session.user?.name ?? 'Usuario'}
-        userRole={session.user?.role ?? 'usuario'}
+        userRole={session.user?.role ?? 'ejecutivo'}
         onSignOut={handleSignOut}
       />
       <main className="app-main">

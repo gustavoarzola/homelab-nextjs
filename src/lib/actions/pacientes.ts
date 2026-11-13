@@ -25,6 +25,7 @@ import { validateRut, validatePasaporte } from '@/lib/rut'
 import { formatNombre } from '@/lib/paciente'
 import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { isAdmin } from '@/lib/permissions'
 // requireSession is kept for deletePaciente (needs session.user.role)
 import { parseFormData, fields } from '@/lib/validation'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
@@ -597,7 +598,6 @@ export async function getHistorialPaciente(id: number): Promise<HistorialPacient
 export async function deletePaciente(id: number): Promise<ActionResult> {
   return withAction('Error al eliminar el paciente', async () => {
     const session = await requireSession()
-    const userRole = session.user.role ?? 'usuario'
 
     const [countRow] = await db
       .select({ total: count() })
@@ -605,7 +605,7 @@ export async function deletePaciente(id: number): Promise<ActionResult> {
       .where(eq(visits.idPaciente, id))
     const total = Number(countRow?.total ?? 0)
 
-    if (total > 0 && userRole !== 'admin') {
+    if (total > 0 && !isAdmin(session.user.role)) {
       throw new ActionError(
         `No se puede eliminar: tiene ${total} visita${total === 1 ? '' : 's'} registrada${total === 1 ? '' : 's'}`,
       )

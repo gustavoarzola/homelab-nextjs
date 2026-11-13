@@ -33,7 +33,7 @@ async function main() {
   console.log('✅ Seed completado.')
   if (!catalogosOnly) {
     console.log('   admin@homelab.cl   / admin123  (rol: admin)')
-    console.log('   usuario@homelab.cl / user123   (rol: usuario)')
+    console.log('   usuario@homelab.cl / user123   (rol: ejecutivo)')
   }
 }
 

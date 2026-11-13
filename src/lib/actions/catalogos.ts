@@ -70,6 +70,7 @@ export type TipoRecargoRow  = { id: number; nombre: string; precio: number; acti
 // ─── Catalog configs ──────────────────────────────────────────────────────────
 
 const procedimientoCfg: CatalogConfig = {
+  adminOnly: true,
   table: procedures, idCol: procedures.id, nombreCol: procedures.nombre, activoCol: procedures.activo,
   searchCols: [procedures.codigo],
   sortCols: { codigo: procedures.codigo },
@@ -83,6 +84,7 @@ const procedimientoCfg: CatalogConfig = {
 }
 
 const examenCfg: CatalogConfig = {
+  adminOnly: true,
   table: exams, idCol: exams.id, nombreCol: exams.nombre, activoCol: exams.activo,
   searchCols: [exams.codigo],
   sortCols: { codigo: exams.codigo },
@@ -127,6 +129,7 @@ const origenContactoCfg: CatalogConfig = {
 }
 
 const tipoRecargoCfg: CatalogConfig = {
+  adminOnly: true,
   table: surchargeTypes, idCol: surchargeTypes.id, nombreCol: surchargeTypes.nombre, activoCol: surchargeTypes.activo,
   createSchema: tipoRecargoSchema,
   updateSchema: tipoRecargoUpdateSchema,
@@ -135,6 +138,7 @@ const tipoRecargoCfg: CatalogConfig = {
 }
 
 const tallerCfg: CatalogConfig = {
+  adminOnly: true,
   table: workshops, idCol: workshops.id, nombreCol: workshops.nombre, activoCol: workshops.activo,
   searchCols: [workshops.codigo],
   sortCols: { codigo: workshops.codigo },
