@@ -496,6 +496,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 9. **Notificaciones con `toast` de sonner** (toast.success, toast.error)
 10. **Estilos con los tokens del HomeLab Design System** (`var(--color-fg)`, `var(--color-fg-muted)`, `var(--color-primary)`, etc. — ver sección "Design System")
 11. **Server actions con FormData usan Zod** — `parseFormData` para campos escalares, `parseFormDataWithArrays` para forms con arrays (`procedure_ids`, `exam_ids`, etc.), ambos en `src/lib/validation.ts`. Campos reutilizables en `fields` (nullableStr, nullableId, bool, fechaRequerida, ids). Validación cruzada con `.superRefine()`. Claves dinámicas (`taller_precio_${id}`, `phone_${i}`) siguen extrayéndose manualmente después del parse.
+12. **Todo cambio debe pasar `pnpm typecheck && pnpm lint` antes de commitear** (`lint` = `eslint .` con flat config en `eslint.config.mjs`; `typecheck` = `tsc --noEmit`). `next build` ya no corre lint. Las reglas `react-hooks/set-state-in-effect` y `no-explicit-any` están en `warn` (deuda conocida); el resto debe quedar en 0 errores.
 
 ### Patrones de UI
 - Páginas de listado: Server Component que hace fetch inicial + Client Component tabla
