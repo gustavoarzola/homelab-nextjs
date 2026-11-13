@@ -44,7 +44,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         if (result.every((e) => e.visitas.length === 0) && sinAsignar.length === 0) {
           toast.info('No hay visitas para esta fecha')
         }
-      } catch (error) {
+      } catch {
         toast.error('Error al buscar visitas')
       } finally {
         setLoading(false)
@@ -61,7 +61,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         } else {
           toast.error(result.error || 'Error al enviar correo')
         }
-      } catch (error) {
+      } catch {
         toast.error('Error al enviar correo')
       }
     })
@@ -89,7 +89,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         } else {
           toast.info(result.error)
         }
-      } catch (error) {
+      } catch {
         toast.error('Error al enviar correos')
       } finally {
         setConfirmEnviarTodos(false)

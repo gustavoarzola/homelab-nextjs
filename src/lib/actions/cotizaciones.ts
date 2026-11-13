@@ -26,7 +26,7 @@ import {
   healthInsurances,
   nurses,
 } from '@/db/schema'
-import { eq, and, or, ilike, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
+import { eq, and, or, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/lib/types'
 import { isEstadoCotizacion, type EstadoCotizacion } from '@/lib/estados'
@@ -342,7 +342,6 @@ export async function searchCotizaciones(
 
   const conditions: SQL[] = []
   if (buscar) {
-    const normalized = buscar.replace(/[\.\-\s]/g, '').toUpperCase()
     const orConditions = [
       sql`unaccent(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, '')) ILIKE unaccent(${'%' + buscar + '%'})`,
       sql`${quotations.nombreDestinatario} ILIKE ${'%' + buscar + '%'}`,

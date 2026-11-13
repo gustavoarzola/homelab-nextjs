@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Loader2, Pencil, FileText, AlertTriangle,
-  ChevronRight, Stethoscope, FlaskConical, BookOpen, MapPin,
+  ChevronRight, Stethoscope, FlaskConical, BookOpen,
 } from 'lucide-react'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { cn } from '@/lib/utils'

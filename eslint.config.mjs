@@ -13,6 +13,8 @@ export default defineConfig([
       'react-hooks/set-state-in-effect': 'warn',
       // `any` es deuda tecnica conocida (p.ej. PricingDb); visible como aviso.
       '@typescript-eslint/no-explicit-any': 'warn',
+      // Permite descartar campos con rest (`({ campo: _x, ...rest }) => rest`).
+      '@typescript-eslint/no-unused-vars': ['warn', { ignoreRestSiblings: true, varsIgnorePattern: '^_' }],
     },
   },
   {

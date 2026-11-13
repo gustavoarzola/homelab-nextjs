@@ -73,7 +73,6 @@ export async function searchEnfermeras(
     const where = conditions.length ? and(...conditions) : undefined
 
     const [countRow] = await db.select({ total: count() }).from(nurses).where(where)
-    const total = countRow?.total ?? 0
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sortCols: Record<string, any> = {

@@ -2,12 +2,11 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { Loader2, Plus, X, CheckCircle2 } from 'lucide-react'
 import { createPaciente, updatePaciente } from '@/lib/actions/pacientes'
 import type { PacienteDetalle } from '@/lib/actions/pacientes'
-import { formatRut, validatePasaporte } from '@/lib/rut'
+import { formatRut } from '@/lib/rut'
 import { BirthDatePicker } from '@/components/birth-date-picker'
 import { SelectCombobox } from '@/components/select-combobox'
 import { FilesUpload, serializeArchivos, archivosFromDTO, type ArchivoItem } from '@/components/files-upload'
@@ -189,7 +188,6 @@ function AddressAutocomplete({
         })
       })
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Sync disabled state
@@ -210,7 +208,6 @@ const TIPO_IDENTIFICADOR_OPTIONS = [
 ]
 
 export function PacienteForm({ paciente, previsiones, residencias }: Props) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [createdId, setCreatedId] = useState<number | null>(null)

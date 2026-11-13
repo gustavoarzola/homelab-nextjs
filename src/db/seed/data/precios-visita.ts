@@ -24,10 +24,6 @@ export function buildNursingVisitPrices(): Array<{
 
   const zonasCaras = ['Providencia', 'Las Condes', 'Vitacura', 'Lo Barnechea', 'La Reina', 'Ñuñoa']
   const zonasMedias = ['Santiago', 'Peñalolén', 'Macul', 'San Miguel', 'Huechuraba', 'Recoleta', 'Independencia']
-  const zonasLejanas = [
-    'La Florida', 'Maipú', 'La Cisterna', 'La Granja', 'Pudahuel', 'Quilicura',
-    'Conchalí', 'Cerrillos', 'Estación Central', 'Puente Alto', 'San Bernardo', 'Colina', 'Lampa'
-  ]
 
   for (let i = 0; i < comunasStgo.length; i++) {
     const comuna = comunasStgo[i]!

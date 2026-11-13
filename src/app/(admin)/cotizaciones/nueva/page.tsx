@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation'
 import { CotizacionForm } from '@/components/cotizacion-form'
 import { getPacientes } from '@/lib/actions/pacientes'
 import { getProcedimientos, getExamenes, getTalleres, getIsaprePrevisiones, getComunasForSelect, getTiposRecargosForSelect } from '@/lib/actions/catalogos'
