@@ -19,7 +19,7 @@ import { reconcileArchivos } from '@/lib/archivos/persist'
 import { syncArchivosPaciente, syncArchivosVisita } from '@/lib/archivos/sync'
 import { getArchivosPaciente, type ArchivoDTO } from '@/lib/archivos/query'
 import { deleteManyFromR2 } from '@/lib/r2'
-import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'drizzle-orm'
+import { eq, count, and, asc, desc, inArray, not, sql, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { validateRut, validatePasaporte } from '@/lib/rut'
 import { formatNombre } from '@/lib/paciente'
@@ -30,6 +30,7 @@ import { isAdmin } from '@/lib/permissions'
 // requireSession is kept for deletePaciente (needs session.user.role)
 import { parseFormData, fields } from '@/lib/validation'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
+import { patientSearchCondition } from '@/lib/search-sql'
 import { DIRECCION_MAX_LENGTH } from '@/lib/direccion'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -150,14 +151,8 @@ export async function searchPacientes(
 
   const conditions: SQL[] = []
   if (buscar) {
-    const normalized = buscar.replace(/[\.\-\s]/g, '').toUpperCase()
-    const fullName = sql`(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, ''))`
-    conditions.push(
-      or(
-        sql`unaccent(${fullName}) ILIKE unaccent(${'%' + buscar + '%'})`,
-        ilike(patients.identificador, `%${normalized}%`),
-      )!,
-    )
+    const condition = patientSearchCondition(buscar)
+    if (condition) conditions.push(condition)
   }
   if (idPrevision) {
     conditions.push(eq(patients.idCompaniaSeguro, Number(idPrevision)))

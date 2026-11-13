@@ -96,6 +96,8 @@ src/
     format.ts               # Formateo de fechas (zona Chile)
     rut.ts                  # Validación/formateo RUT chileno
     paciente.ts             # Helper formatNombre()
+    search.ts               # Búsqueda por palabras en orden libre, sin acentos (cliente: matchesAllTokens en SelectCombobox)
+    search-sql.ts           # Versión SQL: allTokensMatch / patientSearchCondition (visitas, pacientes, cotizaciones, enfermeras)
     comunas.ts              # normalizeComuna() — normalización case/acento-insensible (el catálogo vive en la tabla `comunas`)
     utils.ts                # cn() (clsx + tailwind-merge)
   components/
@@ -509,6 +511,15 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 10. **Estilos con los tokens del HomeLab Design System** (`var(--color-fg)`, `var(--color-fg-muted)`, `var(--color-primary)`, etc. — ver sección "Design System")
 11. **Server actions con FormData usan Zod** — `parseFormData` para campos escalares, `parseFormDataWithArrays` para forms con arrays (`procedure_ids`, `exam_ids`, etc.), ambos en `src/lib/validation.ts`. Campos reutilizables en `fields` (nullableStr, nullableId, bool, fechaRequerida, ids). Validación cruzada con `.superRefine()`. Claves dinámicas de ítems (`taller_precio_${id}`, `procedimiento_descuento_${id}`, `isapre_*`) se leen con `parseItemExtras(fd, { procedureIds, tallerIds }, { numberParser })` (visitas usan `Number`, cotizaciones `'int'`; el descuento ausente es `null`); otras (`phone_${i}`) siguen extrayéndose manualmente después del parse.
 12. **Todo cambio debe pasar `pnpm typecheck && pnpm lint` antes de commitear** (`lint` = `eslint .` con flat config en `eslint.config.mjs`; `typecheck` = `tsc --noEmit`). `next build` ya no corre lint. Las reglas `react-hooks/set-state-in-effect` y `no-explicit-any` están en `warn` (deuda conocida); el resto debe quedar en 0 errores.
+
+### Búsqueda de texto
+- La consulta se parte en palabras y **cada palabra** debe aparecer (AND), en cualquier orden, sin
+  acentos ni mayúsculas: "maria gonzalez" encuentra "González Pérez, María". Nunca comparar la
+  consulta entera como substring contiguo.
+- Servidor: `patientSearchCondition()` / `allTokensMatch()` + `unaccentIlike()` (`src/lib/search-sql.ts`).
+  La expresión del nombre del paciente es idéntica a la del índice `pacientes_nombre_trgm_idx` y usa
+  `f_unaccent` (no `unaccent`), si no el índice GIN no aplica.
+- Cliente: `matchesAllTokens()` (`src/lib/search.ts`), ya usado por `SelectCombobox`.
 
 ### Patrones de UI
 - Páginas de listado: Server Component que hace fetch inicial + Client Component tabla

@@ -26,7 +26,7 @@ import {
   healthInsurances,
   nurses,
 } from '@/db/schema'
-import { eq, and, or, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
+import { eq, and, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/lib/types'
 import { isEstadoCotizacion, type EstadoCotizacion } from '@/lib/estados'
@@ -37,6 +37,7 @@ import { direccionParaMostrar } from '@/lib/direccion'
 import { resolverMontoDescuento } from '@/lib/pricing/descuento'
 import { parseFormDataWithArrays, parseItemExtras, fields } from '@/lib/validation'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
+import { patientSearchCondition, unaccentIlike } from '@/lib/search-sql'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -342,13 +343,11 @@ export async function searchCotizaciones(
 
   const conditions: SQL[] = []
   if (buscar) {
-    const orConditions = [
-      sql`unaccent(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, '')) ILIKE unaccent(${'%' + buscar + '%'})`,
-      sql`${quotations.nombreDestinatario} ILIKE ${'%' + buscar + '%'}`,
-      sql`${quotations.emailDestinatario} ILIKE ${'%' + buscar + '%'}`,
-    ]
-    const orCondition = or(...orConditions)
-    if (orCondition) conditions.push(orCondition)
+    const condition = patientSearchCondition(buscar, (pattern) => [
+      unaccentIlike(quotations.nombreDestinatario, pattern),
+      sql`${quotations.emailDestinatario} ILIKE ${pattern}`,
+    ])
+    if (condition) conditions.push(condition)
   }
   if (estado && estado !== 'todas') {
     // Un estado desconocido no matchea nada.

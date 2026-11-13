@@ -3,13 +3,14 @@
 import { z } from 'zod'
 import { db, type DbOrTx } from '@/db'
 import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, elderlyResidences, surchargeTypes } from '@/db/schema'
-import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray, notInArray } from 'drizzle-orm'
+import { eq, ne, count, and, gte, lte, asc, desc, SQL, inArray, notInArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/lib/types'
 import { requireSession } from '@/lib/auth-guard'
 import { ESTADOS_VISITA_CANCELABLES, ESTADOS_VISITA_ELIMINACION_SOLO_ADMIN, ESTADOS_VISITA_INACTIVOS, ESTADOS_VISITA_NO_EDITABLES, isEstadoVisita, type EstadoVisita } from '@/lib/estados'
 import { isAdmin } from '@/lib/permissions'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
+import { patientSearchCondition } from '@/lib/search-sql'
 import { formatNombre } from '@/lib/paciente'
 import { actualizarCostoVisitaPersistida, resolverPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
 import { calcNursePaymentBreakdown, DEFAULT_PORCENTAJE_PAGO } from '@/lib/pricing/nurse-payment'
@@ -150,14 +151,8 @@ function buildVisitasWhere(filters: SearchParams['filters']): SQL | undefined {
 
   const conditions: SQL[] = []
   if (buscar) {
-    const normalized = buscar.replace(/[\.\-\s]/g, '').toUpperCase()
-    const fullName = sql`(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, ''))`
-    conditions.push(
-      or(
-        sql`unaccent(${fullName}) ILIKE unaccent(${'%' + buscar + '%'})`,
-        ilike(patients.identificador, `%${normalized}%`),
-      )!,
-    )
+    const condition = patientSearchCondition(buscar)
+    if (condition) conditions.push(condition)
   }
   if (estado) {
     // Un estado desconocido se descarta; si no queda ninguno, `inArray([])` no matchea nada.

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Check, ChevronDown } from 'lucide-react'
+import { matchesAllTokens } from '@/lib/search'
 
 type Option = { id: number; label: string; code?: string; tag?: { label: string; bg: string; color: string } }
 
@@ -88,14 +89,9 @@ export function SelectCombobox(props: Props) {
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [closeDropdown])
 
-  const normalize = (s: string) =>
-    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-
+  // Palabras en cualquier orden, sin acentos: "maria gonzalez" encuentra "González Pérez, María".
   const filtered = query.trim()
-    ? props.options.filter((o) =>
-        normalize(o.label).includes(normalize(query)) ||
-        (o.code && normalize(o.code).includes(normalize(query)))
-      )
+    ? props.options.filter((o) => matchesAllTokens(query, o.label, o.code))
     : props.options
 
   const selectedOptions = props.options.filter((o) => {

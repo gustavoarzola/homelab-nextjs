@@ -2,13 +2,14 @@
 
 import { db } from '@/db'
 import { nurses, visits, comunas } from '@/db/schema'
-import { eq, count, and, or, ilike, asc, desc, SQL } from 'drizzle-orm'
+import { eq, count, and, or, asc, desc, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { validateRut } from '@/lib/rut'
 import type { SearchParams } from '@/lib/types'
 import { fields } from '@/lib/validation'
 import { withQuery, withAction, withFormAction, ActionError, type ActionResult } from '@/lib/with-action'
+import { allTokensMatch, unaccentIlike } from '@/lib/search-sql'
 
 const enfermeraSchema = z.object({
   nombres: z.string().trim().min(1, 'Nombres requeridos'),
@@ -60,13 +61,14 @@ export async function searchEnfermeras(
 
     const conditions: SQL[] = []
     if (nombre) {
-      conditions.push(
+      const condition = allTokensMatch(nombre, (pattern) =>
         or(
-          ilike(nurses.nombres, `%${nombre}%`),
-          ilike(nurses.apellidoPaterno, `%${nombre}%`),
-          ilike(nurses.apellidoMaterno, `%${nombre}%`),
-        )!,
+          unaccentIlike(nurses.nombres, pattern),
+          unaccentIlike(nurses.apellidoPaterno, pattern),
+          unaccentIlike(nurses.apellidoMaterno, pattern),
+        ),
       )
+      if (condition) conditions.push(condition)
     }
     if (!mostrarInactivas) conditions.push(eq(nurses.activo, true))
 
