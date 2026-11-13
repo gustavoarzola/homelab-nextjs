@@ -213,6 +213,22 @@ src/
 - Al agregar una sección solo-admin: sumar el prefijo a `ADMIN_ONLY_PREFIXES` y `requireAdmin()`
   en sus mutaciones.
 
+### Alta de usuarios y cambio de contraseña
+No hay UI de gestión de usuarios: se hace con SQL en el SQL Editor de Neon. Si piden crear un
+usuario o cambiar una contraseña, entregar el SQL listo (no un script).
+- Hash bcrypt con costo 10 (lo que espera `bcryptjs` en `src/auth.ts`). Generarlo localmente para
+  que la contraseña no quede en el historial de la base:
+  `node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 10))" '<contraseña>'`.
+  Para contraseñas iniciales, generar una aleatoria (~20 caracteres) y entregarla junto al SQL.
+- Alternativa en la base (deja la contraseña en el historial; usarla en un Preview y copiar el hash
+  a prod): `CREATE EXTENSION IF NOT EXISTS pgcrypto; SELECT crypt('<contraseña>', gen_salt('bf', 10));`
+  — el hash `$2a$` de pgcrypto es compatible con `bcryptjs`.
+- Crear: `INSERT INTO usuarios (nombre, correo, contrasena, rol, activo, created_at, updated_at)
+  VALUES ('<Nombre>', '<correo>', '<hash>', 'ejecutivo', true, NOW(), NOW());` (rol `admin` o
+  `ejecutivo`; `correo` es único).
+- Cambiar contraseña: `UPDATE usuarios SET contrasena = '<hash>', updated_at = NOW() WHERE correo = '<correo>';`
+  — no invalida sesiones JWT ya abiertas.
+
 ---
 
 ## Server Actions — Referencia
