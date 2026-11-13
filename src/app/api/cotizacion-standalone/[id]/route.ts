@@ -11,7 +11,7 @@ import {
   comunas,
 } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { formatDateLong, todaySantiago } from '@/lib/format'
+import { formatDateLong, dateToSantiagoYMD } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { esc, formatCotizacionId, buildCotizacionHTML, type CotizacionHTMLData } from '@/lib/cotizacion-html'
 
@@ -102,9 +102,8 @@ function mapToHTMLData({
   patient: { nombres: string; apellidoPaterno: string | null; apellidoMaterno: string | null; identificador: string | null; tipoIdentificador: string | null } | null
   surcharges: { label: string; precio: number }[]
 }): CotizacionHTMLData {
-  const today = todaySantiago()
   const numeroDoc = formatCotizacionId(quotation.id)
-  const emisionDate = quotation.createdAt.toISOString().split('T')[0] || today
+  const emisionDate = dateToSantiagoYMD(quotation.createdAt)
 
   let recipientName: string
   const leftFields: CotizacionHTMLData['leftCard']['fields'] = []

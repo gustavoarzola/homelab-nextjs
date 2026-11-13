@@ -289,16 +289,18 @@ Wrappers en `src/lib/with-action.ts` (todos llaman `requireSession()`; usarlos e
 ### cotizaciones.ts
 - `searchCotizaciones(params)` — Listado paginado
 - `getCotizacion(id)` — Detalle para edición
-- `createCotizacion(formData)` — Crear cotización
-- `updateCotizacion(formData)` — Actualizar cotización
+- `createCotizacion(formData)` / `updateCotizacion(formData)` — Crear / actualizar cotización
+  (escrituras en una transacción: un fallo no deja la cotización sin ítems)
 - `deleteCotizacion(id)` — Eliminar cotización
-- `convertirCotizacionAVisita(id)` — Convierte cotización en visita (copia ítems)
 - `getPreciosVisita()` — Mapa comuna→precio para el formulario
 - `getCotizacionVista(id)` — Datos de la vista de ciclo de vida
 - Ciclo de estados (`cotizaciones.estado`): `creada` → `enviada` → `aceptada` | `rechazada`.
   `marcarEnviada(id)` (creada → enviada), `aceptarCotizacion(id, idPaciente?)` (enviada → aceptada,
-  **convierte en visita** vía `convertirCotizacionAVisita` y devuelve `{ idVisita }`),
-  `rechazarCotizacion(id, motivo)` (enviada → rechazada).
+  **convierte en visita** y devuelve `{ idVisita }`), `rechazarCotizacion(id, motivo)` (enviada → rechazada).
+  `aceptarCotizacion` corre en una transacción que primero "reclama" la cotización con un UPDATE
+  condicional (`estado = 'enviada' AND id_visita IS NULL`) → dos aceptaciones concurrentes no crean
+  dos visitas. La conversión (`convertirCotizacionAVisita`) es un helper interno no exportado que
+  recibe `tx`; la visita queda con fecha `todaySantiago()`.
 
 ### pacientes.ts
 - `searchPacientes(params)` — Listado paginado

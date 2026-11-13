@@ -9,6 +9,7 @@ import {
   nursingVisitPrices,
   patients,
   procedures,
+  quotationExams,
   quotationProcedures,
   quotations,
   visitExams,
@@ -29,9 +30,10 @@ vi.mock('next/cache', () => ({
 import { calcularCostoVisitaPersistida } from '@/lib/pricing/visitas'
 import { resolverMontoDescuento } from '@/lib/pricing/descuento'
 import {
-  convertirCotizacionAVisita,
+  aceptarCotizacion,
   createCotizacion,
   getCotizacion,
+  marcarEnviada,
   updateCotizacion,
 } from '../cotizaciones'
 
@@ -48,6 +50,7 @@ const created = {
 }
 
 afterEach(async () => {
+  vi.useRealTimers()
   await Promise.all([
     created.visits.length ? db.delete(visits).where(inArray(visits.id, created.visits)) : null,
     created.quotations.length ? db.delete(quotations).where(inArray(quotations.id, created.quotations)) : null,
@@ -276,7 +279,7 @@ describe('getCotizacion', () => {
   })
 })
 
-describe('convertirCotizacionAVisita', () => {
+describe('aceptarCotizacion — convierte la cotización en visita', () => {
   it('copia items y campos de descuento/insumos a la visita resultante, y marca la cotización aceptada', async () => {
     const comuna = unique('ComunaCotiConvert')
     const patient = await seedPaciente(comuna)
@@ -307,7 +310,8 @@ describe('convertirCotizacionAVisita', () => {
 
     const [quotationBefore] = await db.select().from(quotations).where(eq(quotations.id, quotationId))
 
-    const convertResult = await convertirCotizacionAVisita(quotationId)
+    expect((await marcarEnviada(quotationId)).success).toBe(true)
+    const convertResult = await aceptarCotizacion(quotationId)
     expect(convertResult.success).toBe(true)
     const visitId = (convertResult as { success: true; data: { idVisita: number } }).data.idVisita
     created.visits.push(visitId)
@@ -363,15 +367,127 @@ describe('convertirCotizacionAVisita', () => {
     const quotationId = (createResult as { success: true; data: { id: number } }).data.id
     created.quotations.push(quotationId)
 
-    const withoutPatient = await convertirCotizacionAVisita(quotationId)
-    expect(withoutPatient.success).toBe(false)
+    expect((await marcarEnviada(quotationId)).success).toBe(true)
 
-    const withPatient = await convertirCotizacionAVisita(quotationId, patient.id)
+    // Sin paciente falla y hace rollback del "reclamo": la cotización sigue enviada y sin visita.
+    const withoutPatient = await aceptarCotizacion(quotationId)
+    expect(withoutPatient.success).toBe(false)
+    const [stillSent] = await db.select().from(quotations).where(eq(quotations.id, quotationId))
+    expect(stillSent!.estado).toBe('enviada')
+    expect(stillSent!.idVisita).toBeNull()
+
+    const withPatient = await aceptarCotizacion(quotationId, patient.id)
     expect(withPatient.success).toBe(true)
     const visitId = (withPatient as { success: true; data: { idVisita: number } }).data.idVisita
     created.visits.push(visitId)
 
     const [visitRow] = await db.select({ idPaciente: visits.idPaciente }).from(visits).where(eq(visits.id, visitId))
     expect(visitRow!.idPaciente).toBe(patient.id)
+  })
+
+  it('dos aceptaciones concurrentes de la misma cotización crean una sola visita', async () => {
+    const comuna = unique('ComunaCotiDoble')
+    const patient = await seedPaciente(comuna)
+    const precioVisita = await seedPrecioVisita(comuna, 15000)
+
+    const createResult = await createCotizacion(
+      cotizacionForm({ idPaciente: patient.id, idComuna: precioVisita.idComuna!, cobraVisita: 'true' }),
+    )
+    const quotationId = (createResult as { success: true; data: { id: number } }).data.id
+    created.quotations.push(quotationId)
+    expect((await marcarEnviada(quotationId)).success).toBe(true)
+
+    const results = await Promise.all([aceptarCotizacion(quotationId), aceptarCotizacion(quotationId)])
+    const ok = results.filter((r) => r.success)
+    const failed = results.filter((r) => !r.success)
+    expect(ok).toHaveLength(1)
+    expect(failed).toHaveLength(1)
+    expect((failed[0] as { error: string }).error).toBe('La cotización ya fue aceptada o no está en estado enviada')
+
+    const visitId = (ok[0] as { success: true; data: { idVisita: number } }).data.idVisita
+    created.visits.push(visitId)
+
+    const patientVisits = await db.select({ id: visits.id }).from(visits).where(eq(visits.idPaciente, patient.id))
+    created.visits.push(...patientVisits.map((v) => v.id).filter((id) => id !== visitId))
+    expect(patientVisits.map((v) => v.id)).toEqual([visitId])
+
+    const [quotationAfter] = await db.select().from(quotations).where(eq(quotations.id, quotationId))
+    expect(quotationAfter!.estado).toBe('aceptada')
+    expect(quotationAfter!.idVisita).toBe(visitId)
+  })
+
+  it('la visita queda con la fecha de hoy en Santiago, no en UTC', async () => {
+    const comuna = unique('ComunaCotiFecha')
+    const patient = await seedPaciente(comuna)
+    const precioVisita = await seedPrecioVisita(comuna, 15000)
+
+    const createResult = await createCotizacion(
+      cotizacionForm({ idPaciente: patient.id, idComuna: precioVisita.idComuna!, cobraVisita: 'false' }),
+    )
+    const quotationId = (createResult as { success: true; data: { id: number } }).data.id
+    created.quotations.push(quotationId)
+    expect((await marcarEnviada(quotationId)).success).toBe(true)
+
+    // 2026-11-14T01:30Z = 13-nov 22:30 en Santiago (UTC−3 en horario de verano).
+    // Solo se falsea Date para no interferir con los timers del driver de postgres.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-14T01:30:00Z'))
+    const result = await aceptarCotizacion(quotationId)
+    vi.useRealTimers()
+
+    expect(result.success).toBe(true)
+    const visitId = (result as { success: true; data: { idVisita: number } }).data.idVisita
+    created.visits.push(visitId)
+
+    const [visitRow] = await db.select({ fecha: visits.fecha }).from(visits).where(eq(visits.id, visitId))
+    expect(visitRow!.fecha).toBe('2026-11-13')
+  })
+})
+
+describe('updateCotizacion — atomicidad', () => {
+  it('si un insert falla a mitad, la cotización conserva sus datos e ítems originales', async () => {
+    const comuna = unique('ComunaCotiRollback')
+    const patient = await seedPaciente(comuna)
+    const proc = await seedProcedimiento(8000)
+    const exam = await seedExamen(4000)
+    const precioVisita = await seedPrecioVisita(comuna, 18000)
+
+    const createResult = await createCotizacion(
+      cotizacionForm(
+        { idPaciente: patient.id, idComuna: precioVisita.idComuna!, cobraVisita: 'true', montoInsumos: 500 },
+        [proc.id],
+        [exam.id],
+      ),
+    )
+    expect(createResult.success).toBe(true)
+    const id = (createResult as { success: true; data: { id: number } }).data.id
+    created.quotations.push(id)
+    const [before] = await db.select().from(quotations).where(eq(quotations.id, id))
+
+    // Examen isapre con id inexistente: viola la FK al insertar, después de que el update ya
+    // reescribió la cabecera y borró/reinsertó procedimientos y exámenes.
+    const form = cotizacionForm(
+      { id, idPaciente: patient.id, idComuna: precioVisita.idComuna!, cobraVisita: 'true', montoInsumos: 9999 },
+      [proc.id],
+      [],
+    )
+    const bogusExamId = 2147483000
+    form.append('isapre_exam_ids', String(bogusExamId))
+    form.append(`isapre_exam_valor_${bogusExamId}`, '1000')
+    form.append(`isapre_exam_valor_pagar_${bogusExamId}`, '500')
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const updateResult = await updateCotizacion(form)
+    errorSpy.mockRestore()
+    expect(updateResult.success).toBe(false)
+
+    const [after] = await db.select().from(quotations).where(eq(quotations.id, id))
+    expect(after!.montoInsumos).toBe(500)
+    expect(after!.total).toBe(before!.total)
+
+    const procRows = await db.select().from(quotationProcedures).where(eq(quotationProcedures.idCotizacion, id))
+    expect(procRows.map((r) => r.idProcedimiento)).toEqual([proc.id])
+    const examRows = await db.select().from(quotationExams).where(eq(quotationExams.idCotizacion, id))
+    expect(examRows.map((r) => r.idExamen)).toEqual([exam.id])
   })
 })
