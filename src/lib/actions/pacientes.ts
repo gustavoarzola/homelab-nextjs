@@ -23,7 +23,7 @@ import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'dr
 import { revalidatePath } from 'next/cache'
 import { validateRut, validatePasaporte } from '@/lib/rut'
 import { formatNombre } from '@/lib/paciente'
-import type { SearchParams } from '@/components/data-table'
+import type { SearchParams } from '@/lib/types'
 import { requireSession } from '@/lib/auth-guard'
 import type { EstadoVisita } from '@/lib/estados'
 import { isAdmin } from '@/lib/permissions'

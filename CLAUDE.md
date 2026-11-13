@@ -89,7 +89,8 @@ src/
     reportes/               # Definición de columnas del reporte/Excel de visitas
     pricing/                # Lógica de cálculo de precios
     auth-guard.ts           # requireSession() helper
-    validation.ts           # parseFormData / parseFormDataWithArrays + campos reutilizables (fields)
+    validation.ts           # parseFormData / parseFormDataWithArrays + campos reutilizables (fields) + parseItemExtras
+    types.ts                # Tipos compartidos lib/componentes: SearchParams, SelectOption (data-table los re-exporta)
     r2.ts                   # Cliente S3 para Cloudflare R2
     excel/build-excel.ts    # Helper genérico para generar .xlsx desde columnas + filas (ExcelJS)
     format.ts               # Formateo de fechas (zona Chile)
@@ -264,11 +265,12 @@ Wrappers en `src/lib/with-action.ts` (todos llaman `requireSession()`; usarlos e
 ### visitas.ts
 - `searchVisitas(params)` — Listado paginado con filtros (fecha, enfermera, estado, búsqueda)
 - `getVisita(id)` — Detalle completo para edición
+- `createVisita(formData)` / `updateVisita(formData)` — devuelven `ActionResult<{ id: number }>` (vía `withAction`)
 - `createVisita(formData)` — Crear visita con exámenes, procedimientos, talleres
 - `updateVisita(formData)` — Actualizar visita
 - `deleteVisita(id)` — Eliminar visita
 - `getEnfermeras()` — Select de enfermeras activas
-- `getTiposRecargos()` — Select de tipos de recargos activos
+- (Select de tipos de recargos activos: `getTiposRecargosForSelect()` en `catalogos.ts`)
 - `getVisitaFormPricingContext(comuna, examIds)` — Contexto de precios para preview en formulario
 - `searchOrigenesContacto()` — Listado de orígenes
 - `actualizarPrecioExamenVisita(...)` — Actualizar precio individual de examen en visita
@@ -296,6 +298,8 @@ Wrappers en `src/lib/with-action.ts` (todos llaman `requireSession()`; usarlos e
 - `deleteCotizacion(id)` — Eliminar cotización
 - `getPreciosVisita()` — Mapa comuna→precio para el formulario
 - `getCotizacionVista(id)` — Datos de la vista de ciclo de vida
+- `getCotizacionVisita(idVisita)` — Datos para generar HTML de cotización desde visita (`/api/cotizacion/[id]`)
+- `getCotizacionImprimible(id)` — Datos de una cotización independiente (`/api/cotizacion-standalone/[id]`)
 - Ciclo de estados (`cotizaciones.estado`): `creada` → `enviada` → `aceptada` | `rechazada`.
   `marcarEnviada(id)` (creada → enviada), `aceptarCotizacion(id, idPaciente?)` (enviada → aceptada,
   **convierte en visita** y devuelve `{ idVisita }`), `rechazarCotizacion(id, motivo)` (enviada → rechazada).
@@ -330,7 +334,6 @@ Wrappers en `src/lib/with-action.ts` (todos llaman `requireSession()`; usarlos e
 
 ### precios.ts
 - `searchPreciosExamenes(params)` / `searchPreciosVisita(params)` — Gestión de precios
-- `getCotizacionVisita(idVisita)` — Datos para generar HTML de cotización desde visita
 - `getExamenesForSelect()` — Select de exámenes para asociar precios
 
 ### pagos-enfermeras.ts
@@ -340,7 +343,7 @@ Wrappers en `src/lib/with-action.ts` (todos llaman `requireSession()`; usarlos e
 ### asignacion.ts
 - `getVisitasParaAsignacion(fecha)` — Visitas del día con datos para el board
 - `getEnfermerasActivas()` — Enfermeras para asignar
-- `guardarAsignaciones(...)` — Guardar asignación enfermera-visita
+- `guardarAsignaciones(...)` — Guardar asignación enfermera-visita (`ActionResult`, vía `withAction`)
 
 ### visitas-asignacion-email.ts
 - `getVisitasAsignadasPorEnfermera(fecha)` — Datos para correos
@@ -428,7 +431,7 @@ total = subtotalExámenes + subtotalProcedimientos + subtotalTalleres
 - Link a detalle
 - Server actions como props (`search`, `onCreate`, `onUpdate`, `onDelete`, `onToggle`)
 
-**Tipos públicos exportados:** `SearchParams`, `Result`, `ColumnDef`, `FilterDef`, `FormFieldDef`, `SelectOption`
+**Tipos públicos exportados:** `SearchParams` y `SelectOption` (definidos en `src/lib/types.ts`, re-exportados), `Result` (= `ActionResult` de `with-action.ts`), `ColumnDef`, `FilterDef`, `FormFieldDef`
 
 Patrón de uso en páginas:
 ```tsx
@@ -499,7 +502,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 8. **Formateo de nombres con `formatNombre()`** de `src/lib/paciente.ts`
 9. **Notificaciones con `toast` de sonner** (toast.success, toast.error)
 10. **Estilos con los tokens del HomeLab Design System** (`var(--color-fg)`, `var(--color-fg-muted)`, `var(--color-primary)`, etc. — ver sección "Design System")
-11. **Server actions con FormData usan Zod** — `parseFormData` para campos escalares, `parseFormDataWithArrays` para forms con arrays (`procedure_ids`, `exam_ids`, etc.), ambos en `src/lib/validation.ts`. Campos reutilizables en `fields` (nullableStr, nullableId, bool, fechaRequerida, ids). Validación cruzada con `.superRefine()`. Claves dinámicas (`taller_precio_${id}`, `phone_${i}`) siguen extrayéndose manualmente después del parse.
+11. **Server actions con FormData usan Zod** — `parseFormData` para campos escalares, `parseFormDataWithArrays` para forms con arrays (`procedure_ids`, `exam_ids`, etc.), ambos en `src/lib/validation.ts`. Campos reutilizables en `fields` (nullableStr, nullableId, bool, fechaRequerida, ids). Validación cruzada con `.superRefine()`. Claves dinámicas de ítems (`taller_precio_${id}`, `procedimiento_descuento_${id}`, `isapre_*`) se leen con `parseItemExtras(fd, { procedureIds, tallerIds }, { numberParser })` (visitas usan `Number`, cotizaciones `'int'`; el descuento ausente es `null`); otras (`phone_${i}`) siguen extrayéndose manualmente después del parse.
 12. **Todo cambio debe pasar `pnpm typecheck && pnpm lint` antes de commitear** (`lint` = `eslint .` con flat config en `eslint.config.mjs`; `typecheck` = `tsc --noEmit`). `next build` ya no corre lint. Las reglas `react-hooks/set-state-in-effect` y `no-explicit-any` están en `warn` (deuda conocida); el resto debe quedar en 0 errores.
 
 ### Patrones de UI

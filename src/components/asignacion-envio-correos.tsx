@@ -85,8 +85,8 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         const result = await sendAllScheduledVisitsEmails(enfermeras)
         if (result.success) {
           toast.success(`Correos enviados a ${conCorreo.length} enfermera(s)`)
-        }
-        if (result.error) {
+          if (result.data.warning) toast.info(result.data.warning)
+        } else {
           toast.info(result.error)
         }
       } catch (error) {

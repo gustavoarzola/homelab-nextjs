@@ -5,8 +5,7 @@ import { db, type DbOrTx } from '@/db'
 import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, elderlyResidences, surchargeTypes } from '@/db/schema'
 import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
-import { getTiposRecargosForSelect } from './catalogos'
-import type { SearchParams, Result } from '@/components/data-table'
+import type { SearchParams } from '@/lib/types'
 import { requireSession } from '@/lib/auth-guard'
 import { ESTADOS_VISITA_CANCELABLES, ESTADOS_VISITA_ELIMINACION_SOLO_ADMIN, ESTADOS_VISITA_INACTIVOS, ESTADOS_VISITA_NO_EDITABLES, isEstadoVisita, type EstadoVisita } from '@/lib/estados'
 import { isAdmin } from '@/lib/permissions'
@@ -15,7 +14,7 @@ import { formatNombre } from '@/lib/paciente'
 import { actualizarCostoVisitaPersistida, resolverPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
 import { calcNursePaymentBreakdown, DEFAULT_PORCENTAJE_PAGO } from '@/lib/pricing/nurse-payment'
 import type { VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
-import { parseFormDataWithArrays, fields } from '@/lib/validation'
+import { parseFormDataWithArrays, parseItemExtras, fields } from '@/lib/validation'
 import { reconcileArchivos } from '@/lib/archivos/persist'
 import { syncArchivosVisita } from '@/lib/archivos/sync'
 import { getArchivosVisita, type ArchivoDTO } from '@/lib/archivos/query'
@@ -33,12 +32,6 @@ export async function getEnfermeras(): Promise<{ id: number; nombre: string }[]>
       .orderBy(asc(nurses.apellidoPaterno))
     return rows.map((r) => ({ id: r.id, nombre: formatNombre(r) }))
   })
-}
-
-// ─── getTiposRecargos ──────────────────────────────────────────────────────────
-
-export async function getTiposRecargos(): Promise<{ id: number; label: string; precio: number }[]> {
-  return getTiposRecargosForSelect()
 }
 
 // ─── Detail type ──────────────────────────────────────────────────────────────
@@ -637,7 +630,6 @@ export async function getVisita(id: number): Promise<VisitaDetalle | null> {
 
 export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDetalle | null> {
   return withQuery(async () => {
-    await requireSession()
     const [visit] = await db.select().from(visits).where(eq(visits.id, id))
     if (!visit) return null
 
@@ -817,11 +809,10 @@ const visitaUpdateSchema = z.object({
 
 export async function updateVisita(
   fd: FormData,
-): Promise<{ success: true; id: number } | { success: false; error: string }> {
-  await requireSession()
-
+): Promise<ActionResult<{ id: number }>> {
+  return withAction('Error al actualizar la visita', async () => {
   const parsed = parseFormDataWithArrays(visitaUpdateSchema, fd, ['procedure_ids', 'exam_ids', 'taller_ids', 'surcharge_ids'])
-  if (!parsed.success) return parsed
+  if (!parsed.success) throw new ActionError(parsed.error)
 
   const {
     id, fecha, hora, idEnfermera,
@@ -835,29 +826,18 @@ export async function updateVisita(
   const descuentoValorFinal = cobraVisita ? descuentoValor : 0
 
   const [current] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
-  if (!current) return { success: false, error: 'Visita no encontrada' }
+  if (!current) throw new ActionError('Visita no encontrada')
   if (ESTADOS_VISITA_NO_EDITABLES.includes(current.estado)) {
-    return { success: false, error: `No se puede editar una visita en estado ${current.estado}` }
+    throw new ActionError(`No se puede editar una visita en estado ${current.estado}`)
   }
 
-  const tallerPrices = tallerIds.map((idTaller) => ({
-    idTaller,
-    precio: Number(fd.get(`taller_precio_${idTaller}`)) || 0,
-  }))
-
-  const isapreExamIds = fd.getAll('isapre_exam_ids').map((v) => Number(v)).filter(Boolean)
-  const isaprePrevisionId = fd.get('isapre_prevision_id') ? Number(fd.get('isapre_prevision_id')) : null
-  const isapreExamData = isapreExamIds.map((examId) => ({
-    idExamen: examId,
-    valorCompleto: Number(fd.get(`isapre_exam_valor_${examId}`)) || 0,
-    valorPagar: Number(fd.get(`isapre_exam_valor_pagar_${examId}`)) || 0,
-    idPrevision: isaprePrevisionId,
-  }))
+  const { procedimientoDescuentos, tallerPrecios, isapreExams: isapreExamData } =
+    parseItemExtras(fd, { procedureIds, tallerIds })
+  const tallerPrices = tallerIds.map((idTaller) => ({ idTaller, precio: tallerPrecios[idTaller] ?? 0 }))
 
   let orphanedKeys: string[] = []
 
-  try {
-    await db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
       await tx
         .update(visits)
         .set({
@@ -908,10 +888,9 @@ export async function updateVisita(
       if (procedureIds.length > 0) {
         await tx.insert(visitProcedures).values(
           procedureIds.map((idProcedimiento) => {
-            const descuentoRaw = fd.get(`procedimiento_descuento_${idProcedimiento}`)
-            const descuento = descuentoRaw !== null
-              ? Math.max(0, Number(descuentoRaw) || 0)
-              : (storedDiscountMap.get(idProcedimiento) ?? 0)
+            const descuento = procedimientoDescuentos[idProcedimiento]
+              ?? storedDiscountMap.get(idProcedimiento)
+              ?? 0
             return {
               idProcedimiento,
               idVisita: id,
@@ -985,12 +964,8 @@ export async function updateVisita(
 
     revalidatePath('/visitas')
     revalidatePath(`/visitas/${id}`)
-    return { success: true, id }
-  } catch (err) {
-    console.error('[updateVisita] error:', err)
-    // Drizzle wraps the PG error in err.cause
-    return { success: false, error: 'Error al actualizar la visita' }
-  }
+    return { id }
+  })
 }
 
 // ─── createVisita ─────────────────────────────────────────────────────────────
@@ -1013,19 +988,9 @@ export async function createVisita(
 
   const descuentoValorFinal = cobraVisita ? descuentoValor : 0
 
-  const tallerPrices = tallerIds.map((idTaller) => ({
-    idTaller,
-    precio: Number(fd.get(`taller_precio_${idTaller}`)) || 0,
-  }))
-
-  const isapreExamIds = fd.getAll('isapre_exam_ids').map((v) => Number(v)).filter(Boolean)
-  const isaprePrevisionId = fd.get('isapre_prevision_id') ? Number(fd.get('isapre_prevision_id')) : null
-  const isapreExamData = isapreExamIds.map((examId) => ({
-    idExamen: examId,
-    valorCompleto: Number(fd.get(`isapre_exam_valor_${examId}`)) || 0,
-    valorPagar: Number(fd.get(`isapre_exam_valor_pagar_${examId}`)) || 0,
-    idPrevision: isaprePrevisionId,
-  }))
+  const { procedimientoDescuentos, tallerPrecios, isapreExams: isapreExamData } =
+    parseItemExtras(fd, { procedureIds, tallerIds })
+  const tallerPrices = tallerIds.map((idTaller) => ({ idTaller, precio: tallerPrecios[idTaller] ?? 0 }))
 
   let orphanedKeys: string[] = []
 
@@ -1056,7 +1021,7 @@ export async function createVisita(
             idProcedimiento,
             idVisita: id,
             precio: priceMap.get(idProcedimiento) ?? 0,
-            descuento: Math.max(0, Number(fd.get(`procedimiento_descuento_${idProcedimiento}`)) || 0),
+            descuento: procedimientoDescuentos[idProcedimiento] ?? 0,
           })),
         )
       }
@@ -1170,7 +1135,6 @@ export async function actualizarPrecioProcedimientoVisita(
 
 export async function confirmarVisita(id: number): Promise<ActionResult> {
   return withAction('Error al confirmar la visita', async () => {
-    await requireSession()
     const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
     if (!visit) throw new ActionError('Visita no encontrada')
     if (visit.estado !== 'programada') throw new ActionError('Solo se puede confirmar una visita programada')
@@ -1184,7 +1148,6 @@ export async function confirmarVisita(id: number): Promise<ActionResult> {
 
 export async function marcarRealizada(id: number): Promise<ActionResult> {
   return withAction('Error al marcar como realizada', async () => {
-    await requireSession()
     const [visit] = await db.select({ estado: visits.estado, idEnfermera: visits.idEnfermera }).from(visits).where(eq(visits.id, id))
     if (!visit) throw new ActionError('Visita no encontrada')
     if (visit.estado !== 'confirmada') throw new ActionError('Solo se puede marcar como realizada una visita confirmada')
@@ -1200,7 +1163,6 @@ export async function marcarRealizada(id: number): Promise<ActionResult> {
 
 export async function marcarNoRealizada(id: number, costo: number, concepto: string): Promise<ActionResult> {
   return withAction('Error al marcar como no realizada', async () => {
-    await requireSession()
     const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
     if (!visit) throw new ActionError('Visita no encontrada')
     if (visit.estado !== 'confirmada') throw new ActionError('Solo se puede marcar como no realizada una visita confirmada')
@@ -1216,7 +1178,6 @@ export async function marcarNoRealizada(id: number, costo: number, concepto: str
 
 export async function cancelarVisita(id: number, motivo: string): Promise<ActionResult> {
   return withAction('Error al cancelar la visita', async () => {
-    await requireSession()
     if (!motivo.trim()) throw new ActionError('El motivo de cancelación es requerido')
     const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
     if (!visit) throw new ActionError('Visita no encontrada')
@@ -1317,7 +1278,6 @@ export type FacturacionVisitaData = {
 
 export async function guardarFacturacionVisita(id: number, data: FacturacionVisitaData): Promise<ActionResult> {
   return withAction('Error al guardar la facturación', async () => {
-    await requireSession()
     await getVisitaRealizada(id)
 
     const numeroBoleta = data.numeroBoleta.trim()
@@ -1350,7 +1310,6 @@ export type PagoVisitaData = {
 
 export async function guardarPagoVisita(id: number, data: PagoVisitaData): Promise<ActionResult> {
   return withAction('Error al guardar el pago', async () => {
-    await requireSession()
     await getVisitaRealizada(id)
 
     if (data.pagado && data.fechaPago && !/^\d{4}-\d{2}-\d{2}$/.test(data.fechaPago)) {
@@ -1375,7 +1334,6 @@ export type EnvioExamenVisitaItem = { idExamen: number; enviado: boolean; fechaE
 
 export async function guardarEnvioExamenesVisita(id: number, examenes: EnvioExamenVisitaItem[]): Promise<ActionResult> {
   return withAction('Error al guardar el envío de exámenes', async () => {
-    await requireSession()
     await getVisitaRealizada(id)
 
     const expectedExamIds = await getExamenesEsperados(id)
@@ -1411,7 +1369,6 @@ export type CompletarVisitaData = {
 
 export async function completarVisita(id: number, data: CompletarVisitaData): Promise<ActionResult> {
   return withAction('Error al completar la visita', async () => {
-    await requireSession()
     await getVisitaRealizada(id)
     if (!data.tipoDocumento || !data.numeroBoleta.trim()) throw new ActionError('Tipo de documento y N° boleta/factura son requeridos')
     if (!data.pagado) throw new ActionError('La visita debe estar marcada como pagada para completarla')

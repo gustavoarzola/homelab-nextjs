@@ -5,7 +5,7 @@ import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes,
 import { eq, asc, and, ilike } from 'drizzle-orm'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { z } from 'zod'
-import type { SearchParams } from '@/components/data-table'
+import type { SearchParams } from '@/lib/types'
 import { fields } from '@/lib/validation'
 import { withQuery } from '@/lib/with-action'
 import { PREVISION_CATEGORIAS } from '@/lib/previsiones'

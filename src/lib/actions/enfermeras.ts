@@ -6,7 +6,7 @@ import { eq, count, and, or, ilike, asc, desc, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { validateRut } from '@/lib/rut'
-import type { SearchParams } from '@/components/data-table'
+import type { SearchParams } from '@/lib/types'
 import { fields } from '@/lib/validation'
 import { withQuery, withAction, withFormAction, ActionError, type ActionResult } from '@/lib/with-action'
 

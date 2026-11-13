@@ -4,8 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { CotizacionForm } from '@/components/cotizacion-form'
 import { getCotizacion, updateCotizacion } from '@/lib/actions/cotizaciones'
 import { getPacientes } from '@/lib/actions/pacientes'
-import { getProcedimientos, getExamenes, getTalleres, getIsaprePrevisiones, getComunasForSelect } from '@/lib/actions/catalogos'
-import { getTiposRecargos } from '@/lib/actions/visitas'
+import { getProcedimientos, getExamenes, getTalleres, getIsaprePrevisiones, getComunasForSelect, getTiposRecargosForSelect } from '@/lib/actions/catalogos'
 import { getPreciosVisita } from '@/lib/actions/cotizaciones'
 
 export default async function CotizacionEditarPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,7 +25,7 @@ export default async function CotizacionEditarPage({ params }: { params: Promise
       getProcedimientos(),
       getExamenes(),
       getTalleres(),
-      getTiposRecargos(),
+      getTiposRecargosForSelect(),
       getPreciosVisita(),
       getIsaprePrevisiones(),
       getComunasForSelect(),

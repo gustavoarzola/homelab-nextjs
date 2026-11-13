@@ -8,6 +8,7 @@ import {
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { requireSession } from '@/lib/auth-guard'
+import { withAction, type ActionResult } from '@/lib/with-action'
 import { ESTADOS_VISITA_ASIGNABLES } from '@/lib/estados'
 import { formatNombre } from '@/lib/paciente'
 
@@ -24,8 +25,6 @@ export type VisitaAsignacion = {
   procedimientos: string[]
   examenes: string[]
 }
-
-export type Result = { success: boolean; error?: string }
 
 // ─── getVisitasParaAsignacion ─────────────────────────────────────────────────
 
@@ -119,20 +118,14 @@ export async function getEnfermerasActivas(): Promise<{ id: number; nombre: stri
 
 export async function guardarAsignaciones(
   cambios: { idVisita: number; idEnfermera: number | null }[],
-): Promise<Result> {
-  await requireSession()
-
-  if (!cambios.length) return { success: true }
-  try {
+): Promise<ActionResult> {
+  return withAction('Error al guardar asignaciones', async () => {
+    if (!cambios.length) return
     await db.transaction(async (tx) => {
       for (const { idVisita, idEnfermera } of cambios) {
         await tx.update(visits).set({ idEnfermera }).where(eq(visits.id, idVisita))
       }
     })
     revalidatePath('/asignacion')
-    return { success: true }
-  } catch (err) {
-    console.error('guardarAsignaciones failed', err)
-    return { success: false, error: 'Error al guardar asignaciones' }
-  }
+  })
 }

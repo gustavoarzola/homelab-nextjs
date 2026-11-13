@@ -23,17 +23,19 @@ import {
   visitWorkshops,
   visitSurcharges,
   nursingVisitPrices,
+  healthInsurances,
+  nurses,
 } from '@/db/schema'
 import { eq, and, or, ilike, asc, desc, SQL, sql, isNull, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
-import type { SearchParams } from '@/components/data-table'
-import { requireSession } from '@/lib/auth-guard'
+import type { SearchParams } from '@/lib/types'
 import { isEstadoCotizacion, type EstadoCotizacion } from '@/lib/estados'
 import { formatNombre } from '@/lib/paciente'
 import { dateToSantiagoYMD, todaySantiago } from '@/lib/format'
-import { getPrecioVisitaPorIdComuna } from '@/lib/pricing/visitas'
+import { getPrecioVisitaPorIdComuna, calcularCostoVisitaPersistida } from '@/lib/pricing/visitas'
+import { direccionParaMostrar } from '@/lib/direccion'
 import { resolverMontoDescuento } from '@/lib/pricing/descuento'
-import { parseFormDataWithArrays, fields } from '@/lib/validation'
+import { parseFormDataWithArrays, parseItemExtras, fields } from '@/lib/validation'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -459,24 +461,11 @@ export async function createCotizacion(
 
   const descuentoValorFinal = cobraVisita ? descuentoValor : 0
 
-  const procedimientoDescuentoMap: Record<number, number> = {}
-  for (const id of procedureIds) {
-    procedimientoDescuentoMap[id] = Math.max(0, parseInt(fd.get(`procedimiento_descuento_${id}`) as string) || 0)
-  }
-
-  const tallerPrecioMap: Record<number, number> = {}
-  for (const id of tallerIds) {
-    tallerPrecioMap[id] = parseInt(fd.get(`taller_precio_${id}`) as string) || 0
-  }
-
-  const isapreExamIds = fd.getAll('isapre_exam_ids').map((v) => Number(v)).filter(Boolean)
-  const isaprePrevisionId = fd.get('isapre_prevision_id') ? Number(fd.get('isapre_prevision_id')) : null
-  const isapreExamData = isapreExamIds.map((examId) => ({
-    idExamen: examId,
-    valorCompleto: Number(fd.get(`isapre_exam_valor_${examId}`)) || 0,
-    valorPagar: Number(fd.get(`isapre_exam_valor_pagar_${examId}`)) || 0,
-    idPrevision: isaprePrevisionId,
-  }))
+  const {
+    procedimientoDescuentos: procedimientoDescuentoMap,
+    tallerPrecios: tallerPrecioMap,
+    isapreExams: isapreExamData,
+  } = parseItemExtras(fd, { procedureIds, tallerIds }, { numberParser: 'int' })
 
   // Calculate total
   let total = 0
@@ -710,24 +699,11 @@ export async function updateCotizacion(
 
   const descuentoValorFinal = cobraVisita ? descuentoValor : 0
 
-  const procedimientoDescuentoMap: Record<number, number> = {}
-  for (const pid of procedureIds) {
-    procedimientoDescuentoMap[pid] = Math.max(0, parseInt(fd.get(`procedimiento_descuento_${pid}`) as string) || 0)
-  }
-
-  const tallerPrecioMap: Record<number, number> = {}
-  for (const tid of tallerIds) {
-    tallerPrecioMap[tid] = parseInt(fd.get(`taller_precio_${tid}`) as string) || 0
-  }
-
-  const isapreExamIds = fd.getAll('isapre_exam_ids').map((v) => Number(v)).filter(Boolean)
-  const isaprePrevisionId = fd.get('isapre_prevision_id') ? Number(fd.get('isapre_prevision_id')) : null
-  const isapreExamData = isapreExamIds.map((examId) => ({
-    idExamen: examId,
-    valorCompleto: Number(fd.get(`isapre_exam_valor_${examId}`)) || 0,
-    valorPagar: Number(fd.get(`isapre_exam_valor_pagar_${examId}`)) || 0,
-    idPrevision: isaprePrevisionId,
-  }))
+  const {
+    procedimientoDescuentos: procedimientoDescuentoMap,
+    tallerPrecios: tallerPrecioMap,
+    isapreExams: isapreExamData,
+  } = parseItemExtras(fd, { procedureIds, tallerIds }, { numberParser: 'int' })
 
   // Calculate total
   let total = 0
@@ -1164,5 +1140,277 @@ export async function getPreciosVisita(): Promise<Record<string, number>> {
       else map[String(row.idComuna)] = row.precio
     }
     return map
+  })
+}
+
+// ─── Helper: normalizar categoria ─────────────────────────────────────────────
+
+function normalizarCategoria(categoria: string | null): 'fonasa' | 'isapre' | 'particular' {
+  if (categoria === 'fonasa' || categoria === 'isapre') return categoria
+  return 'particular'
+}
+
+// ─── getCotizacionVisita ──────────────────────────────────────────────────────
+
+export type ItemCotizacion = {
+  descripcion: string
+  codigo: string
+  tipo: 'examen' | 'procedimiento' | 'visita' | 'taller'
+  precio: number | null   // null = sin precio configurado
+}
+
+export type CotizacionVisita = {
+  id: number
+  fecha: string
+  hora: string | null
+  paciente: {
+    nombreCompleto: string
+    identificador: string | null
+    tipoIdentificador: string | null
+    fechaNacimiento: string | null
+    prevision: string | null
+    direccion: string | null
+    comuna: string | null
+  }
+  enfermera: string | null
+  items: ItemCotizacion[]
+  subtotalExamenes: number
+  subtotalTalleres: number
+  subtotalProcedimientosOriginal: number
+  montoDescuentoProcedimientos: number
+  costoVisitaEnfermeria: number
+  costoVisitaEnfermeriaOriginal: number
+  montoDescuento: number
+  recargos: { nombre: string; precio: number }[]
+  subtotalRecargos: number
+  montoInsumos: number
+  total: number
+  tipoPrevision: 'fonasa' | 'isapre' | 'particular'
+}
+
+export async function getCotizacionVisita(idVisita: number): Promise<CotizacionVisita | null> {
+  return withQuery(async () => {
+  // Visita base
+  const [visitRow] = await db
+    .select({
+      id: visits.id,
+      fecha: visits.fecha,
+      hora: visits.hora,
+      idPaciente: visits.idPaciente,
+      idEnfermera: visits.idEnfermera,
+    })
+    .from(visits)
+    .where(eq(visits.id, idVisita))
+
+  if (!visitRow) return null
+
+  // Datos en paralelo
+  const [pacienteRow, enfermeraRow, procRows, examRows, isapreExamRows, tallerRows, surchargesRows] = await Promise.all([
+    visitRow.idPaciente
+      ? db
+          .select({
+            id: patients.id,
+            nombres: patients.nombres,
+            apellidoPaterno: patients.apellidoPaterno,
+            apellidoMaterno: patients.apellidoMaterno,
+            identificador: patients.identificador,
+            tipoIdentificador: patients.tipoIdentificador,
+            fechaNacimiento: patients.fechaNacimiento,
+            previsionNombre: healthInsurances.nombre,
+            categoriaSeguro: healthInsurances.categoria,
+            direccionFormateada: addresses.direccionFormateada,
+            direccion: addresses.direccion,
+            comuna: addresses.areaAdministrativa3,
+          })
+          .from(patients)
+          .leftJoin(healthInsurances, eq(patients.idCompaniaSeguro, healthInsurances.id))
+          .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
+          .where(eq(patients.id, visitRow.idPaciente))
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
+
+    visitRow.idEnfermera
+      ? db
+          .select({ nombres: nurses.nombres, apellidoPaterno: nurses.apellidoPaterno, apellidoMaterno: nurses.apellidoMaterno })
+          .from(nurses)
+          .where(eq(nurses.id, visitRow.idEnfermera))
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
+
+    db
+      .select({ id: visitProcedures.idProcedimiento, nombre: procedures.nombre, codigo: procedures.codigo, precio: visitProcedures.precio })
+      .from(visitProcedures)
+      .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
+      .where(eq(visitProcedures.idVisita, idVisita)),
+
+    db
+      .select({ id: visitExams.idExamen, nombre: exams.nombre, codigo: exams.codigo, precio: visitExams.precio })
+      .from(visitExams)
+      .innerJoin(exams, eq(visitExams.idExamen, exams.id))
+      .where(eq(visitExams.idVisita, idVisita)),
+
+    db
+      .select({ nombre: exams.nombre, codigo: exams.codigo, precio: visitIsapreExams.valorPagar })
+      .from(visitIsapreExams)
+      .innerJoin(exams, eq(visitIsapreExams.idExamen, exams.id))
+      .where(eq(visitIsapreExams.idVisita, idVisita)),
+
+    db
+      .select({ nombre: workshops.nombre, codigo: workshops.codigo, precio: visitWorkshops.precio })
+      .from(visitWorkshops)
+      .innerJoin(workshops, eq(visitWorkshops.idTaller, workshops.id))
+      .where(eq(visitWorkshops.idVisita, idVisita)),
+
+    db
+      .select({ nombre: surchargeTypes.nombre, precio: visitSurcharges.precio })
+      .from(visitSurcharges)
+      .innerJoin(surchargeTypes, eq(visitSurcharges.idTipoRecargo, surchargeTypes.id))
+      .where(eq(visitSurcharges.idVisita, idVisita)),
+  ])
+
+  const tipoPrevision = normalizarCategoria(pacienteRow?.categoriaSeguro ?? null)
+  const costoCalculado = await calcularCostoVisitaPersistida(idVisita)
+
+  // Precios de exámenes (desde snapshot guardado en visitExams.precio)
+  const items: ItemCotizacion[] = []
+  for (const exam of examRows) {
+    const precioExamen = exam.precio || null
+    items.push({ descripcion: exam.nombre, codigo: exam.codigo, tipo: 'examen', precio: precioExamen })
+  }
+
+  for (const isapreExam of isapreExamRows) {
+    items.push({ descripcion: isapreExam.nombre, codigo: isapreExam.codigo, tipo: 'examen', precio: isapreExam.precio || null })
+  }
+
+  for (const proc of procRows) {
+    const precio = proc.precio || null
+    items.push({ descripcion: proc.nombre, codigo: proc.codigo, tipo: 'procedimiento', precio })
+  }
+
+  for (const taller of tallerRows) {
+    items.push({ descripcion: taller.nombre, codigo: taller.codigo, tipo: 'taller', precio: taller.precio })
+  }
+
+  if (costoCalculado.aplicaVisitaEnfermeria) {
+    items.push({
+      descripcion: 'Visita de enfermería a domicilio',
+      codigo: 'VIS-ENF',
+      tipo: 'visita',
+      precio: costoCalculado.precioVisitaConfigurado ? costoCalculado.costoVisitaEnfermeriaOriginal : null,
+    })
+  }
+
+  return {
+    id: visitRow.id,
+    fecha: visitRow.fecha,
+    hora: visitRow.hora ?? null,
+    paciente: {
+      nombreCompleto: pacienteRow
+        ? formatNombre({
+            nombres: pacienteRow.nombres,
+            apellidoPaterno: pacienteRow.apellidoPaterno,
+            apellidoMaterno: pacienteRow.apellidoMaterno,
+          })
+        : '—',
+      identificador: pacienteRow?.identificador ?? null,
+      tipoIdentificador: pacienteRow?.tipoIdentificador ?? null,
+      fechaNacimiento: pacienteRow?.fechaNacimiento ?? null,
+      prevision: pacienteRow?.previsionNombre ?? null,
+      direccion: pacienteRow ? direccionParaMostrar(pacienteRow) || null : null,
+      comuna: pacienteRow?.comuna ?? null,
+    },
+    enfermera: enfermeraRow
+      ? formatNombre({
+          nombres: enfermeraRow.nombres,
+          apellidoPaterno: enfermeraRow.apellidoPaterno,
+          apellidoMaterno: enfermeraRow.apellidoMaterno,
+        })
+      : null,
+    items,
+    subtotalExamenes: costoCalculado.subtotalExamenes,
+    subtotalTalleres: costoCalculado.subtotalTalleres,
+    subtotalProcedimientosOriginal: costoCalculado.subtotalProcedimientosOriginal,
+    montoDescuentoProcedimientos: costoCalculado.montoDescuentoProcedimientos,
+    costoVisitaEnfermeria: costoCalculado.costoVisitaEnfermeria,
+    costoVisitaEnfermeriaOriginal: costoCalculado.costoVisitaEnfermeriaOriginal,
+    montoDescuento: costoCalculado.montoDescuento,
+    recargos: surchargesRows,
+    subtotalRecargos: costoCalculado.subtotalRecargos,
+    montoInsumos: costoCalculado.montoInsumos,
+    total: costoCalculado.total,
+    tipoPrevision,
+  }
+  })
+}
+
+// ─── getCotizacionImprimible ─────────────────────────────────────────────────
+
+type ItemImprimible = { descripcion: string; codigo: string | null; precio: number }
+
+/** Datos crudos de una cotización standalone para `/api/cotizacion-standalone/[id]` (HTML imprimible). */
+export type CotizacionImprimible = {
+  quotation: {
+    id: number
+    idPaciente: number | null
+    nombreDestinatario: string | null
+    emailDestinatario: string | null
+    telefonoDestinatario: string | null
+    identificacionDestinatario: string | null
+    comuna: string | null
+    cobraVisita: boolean
+    total: number | null
+    montoInsumos: number
+    montoDescuento: number
+    montoVisitaOriginal: number
+    montoDescuentoProcedimientos: number
+    notas: string | null
+    createdAt: Date
+  }
+  examItems: ItemImprimible[]
+  isapreExamItems: ItemImprimible[]
+  procItems: ItemImprimible[]
+  tallerItems: ItemImprimible[]
+  patient: { nombres: string; apellidoPaterno: string | null; apellidoMaterno: string | null; identificador: string | null; tipoIdentificador: string | null } | null
+  surcharges: { label: string; precio: number }[]
+}
+
+export async function getCotizacionImprimible(id: number): Promise<CotizacionImprimible | null> {
+  return withQuery(async () => {
+    const [quotationRow] = await db
+      .select({ quotation: quotations, comunaNombre: comunas.nombre })
+      .from(quotations)
+      .leftJoin(comunas, eq(quotations.idComuna, comunas.id))
+      .where(eq(quotations.id, id))
+    if (!quotationRow) return null
+    const quotation = { ...quotationRow.quotation, comuna: quotationRow.comunaNombre }
+
+    const [examItems, isapreExamItems, procItems, tallerItems, patient, surcharges] = await Promise.all([
+      db
+        .select({ descripcion: quotationExams.descripcion, codigo: quotationExams.codigo, precio: quotationExams.precio })
+        .from(quotationExams)
+        .where(eq(quotationExams.idCotizacion, id)),
+      db
+        .select({ descripcion: quotationIsapreExams.descripcion, codigo: quotationIsapreExams.codigo, precio: quotationIsapreExams.valorPagar })
+        .from(quotationIsapreExams)
+        .where(eq(quotationIsapreExams.idCotizacion, id)),
+      db
+        .select({ descripcion: quotationProcedures.descripcion, codigo: quotationProcedures.codigo, precio: quotationProcedures.precio })
+        .from(quotationProcedures)
+        .where(eq(quotationProcedures.idCotizacion, id)),
+      db
+        .select({ descripcion: quotationWorkshops.descripcion, codigo: quotationWorkshops.codigo, precio: quotationWorkshops.precio })
+        .from(quotationWorkshops)
+        .where(eq(quotationWorkshops.idCotizacion, id)),
+      quotation.idPaciente
+        ? db.select().from(patients).where(eq(patients.id, quotation.idPaciente)).then((r) => r[0] ?? null)
+        : Promise.resolve(null),
+      db
+        .select({ label: surchargeTypes.nombre, precio: quotationSurcharges.precio })
+        .from(quotationSurcharges)
+        .innerJoin(surchargeTypes, eq(quotationSurcharges.idTipoRecargo, surchargeTypes.id))
+        .where(eq(quotationSurcharges.idCotizacion, id)),
+    ])
+
+    return { quotation, examItems, isapreExamItems, procItems, tallerItems, patient, surcharges }
   })
 }

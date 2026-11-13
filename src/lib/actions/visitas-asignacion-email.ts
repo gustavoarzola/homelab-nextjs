@@ -12,6 +12,7 @@ import { eq, and, inArray, asc, isNull } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { formatDate } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
+import { withAction, ActionError, type ActionResult } from '@/lib/with-action'
 import type { EstadoVisita } from '@/lib/estados'
 import { formatNombre } from '@/lib/paciente'
 import { calcNursePaymentConcepts, type NursePaymentConcepts } from '@/lib/pricing/nurse-payment'
@@ -85,8 +86,6 @@ export type VisitaSinAsignar = {
   hora: string | null
   pacienteNombre: string
 }
-
-export type Result = { success: boolean; error?: string }
 
 const ESTADO_VISITA_ENVIO_CORREO: EstadoVisita = 'confirmada'
 
@@ -417,67 +416,56 @@ async function sendProgramacionEmail(
 
 export async function sendScheduledVisitsEmail(
   enfermera: EnfermeraConVisitas,
-): Promise<Result> {
-  await requireSession()
+): Promise<ActionResult> {
+  return withAction('Error al enviar correo', async () => {
+    if (!enfermera.correo) throw new ActionError('La enfermera no tiene correo registrado')
 
-  if (!enfermera.correo) {
-    return { success: false, error: 'La enfermera no tiene correo registrado' }
-  }
-
-  try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     const error = await sendProgramacionEmail(resend, { ...enfermera, correo: enfermera.correo })
-    if (error) return { success: false, error }
-    return { success: true }
-  } catch (error) {
-    console.error('Error sending email:', error)
-    return { success: false, error: 'Error al enviar correo' }
-  }
+    if (error) throw new ActionError(error)
+  })
 }
 
 // ─── sendAllScheduledVisitsEmails ────────────────────────────────────────────
 
+/** `warning`: envío parcial (algunas enfermeras fallaron); el detalle se muestra al usuario. */
 export async function sendAllScheduledVisitsEmails(
   enfermeras: EnfermeraConVisitas[],
-): Promise<Result> {
-  await requireSession()
+): Promise<ActionResult<{ warning?: string }>> {
+  return withAction('Error al enviar correos', async () => {
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    let successCount = 0
+    const errors: string[] = []
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  let successCount = 0
-  const errors: string[] = []
-
-  for (const enfermera of enfermeras) {
-    const nombreEnfermera = formatNombre(enfermera)
-    if (!enfermera.correo) {
-      errors.push(`${nombreEnfermera}: sin correo registrado`)
-      continue
-    }
-
-    try {
-      const sendError = await sendProgramacionEmail(resend, { ...enfermera, correo: enfermera.correo })
-      if (sendError) {
-        errors.push(`${nombreEnfermera}: ${sendError}`)
+    for (const enfermera of enfermeras) {
+      const nombreEnfermera = formatNombre(enfermera)
+      if (!enfermera.correo) {
+        errors.push(`${nombreEnfermera}: sin correo registrado`)
         continue
       }
-      successCount++
-    } catch (error) {
-      console.error(`Error sending email to ${enfermera.correo}:`, error)
-      errors.push(`${nombreEnfermera}: error al enviar`)
-    }
-  }
 
-  if (successCount === 0) {
+      try {
+        const sendError = await sendProgramacionEmail(resend, { ...enfermera, correo: enfermera.correo })
+        if (sendError) {
+          errors.push(`${nombreEnfermera}: ${sendError}`)
+          continue
+        }
+        successCount++
+      } catch (error) {
+        console.error(`Error sending email to ${enfermera.correo}:`, error)
+        errors.push(`${nombreEnfermera}: error al enviar`)
+      }
+    }
+
+    if (successCount === 0) {
+      throw new ActionError(`No se pudo enviar ningún correo. Errores: ${errors.join(', ')}`)
+    }
+
     return {
-      success: false,
-      error: `No se pudo enviar ningún correo. Errores: ${errors.join(', ')}`,
+      warning:
+        errors.length > 0
+          ? `Se enviaron ${successCount} correos. Errores: ${errors.join(', ')}`
+          : undefined,
     }
-  }
-
-  return {
-    success: true,
-    error:
-      errors.length > 0
-        ? `Se enviaron ${successCount} correos. Errores: ${errors.join(', ')}`
-        : undefined,
-  }
+  })
 }

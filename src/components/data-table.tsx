@@ -19,21 +19,16 @@ import { cn } from '@/lib/utils'
 import { SelectCombobox } from './select-combobox'
 import { FormDatePicker } from './form-date-picker'
 import { Button } from './ui/button'
+import type { SearchParams, SelectOption } from '@/lib/types'
+import type { ActionResult } from '@/lib/with-action'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
 export type { ColumnDef }   // consumers import ColumnDef from here
 
-export type Result = { success: boolean; error?: string }
+export type Result = ActionResult
 
-export type SearchParams = {
-  filters: Record<string, string | boolean>
-  sort: { key: string; dir: 'asc' | 'desc' } | null
-  page: number
-  pageSize: number
-}
-
-export type SelectOption = { value: string; label: string }
+export type { SearchParams, SelectOption }
 
 export type FilterDef = {
   key: string

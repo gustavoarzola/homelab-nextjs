@@ -67,7 +67,7 @@ export default async function EditarVisitaPage({
     'use server'
     const result = await updateVisita(fd)
     if (result.success) {
-      redirect(`/visitas/${result.id}`)
+      redirect(`/visitas/${result.data.id}`)
     }
     return result
   }

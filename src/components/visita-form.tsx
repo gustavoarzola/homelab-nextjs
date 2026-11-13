@@ -33,6 +33,7 @@ import { toast } from 'sonner'
 import { actualizarPrecioProcedimientoVisita, actualizarPrecioExamenVisita } from '@/lib/actions/visitas'
 import { calcularCostoVisitaPreview, type VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
 import { direccionParaMostrar } from '@/lib/direccion'
+import type { ActionResult } from '@/lib/with-action'
 import {
   CLP,
   ServiceTabs,
@@ -76,11 +77,7 @@ type Props = {
   tiposRecargos: { id: number; label: string; precio: number }[]
   pricingContext: VisitaFormPricingContext
   isaprePrevisiones: IsaprePrevisionRow[]
-  onSubmit: (fd: FormData) => Promise<
-    | { success: true; id: number }
-    | { success: true; data: { id: number } }
-    | { success: false; error: string }
-  >
+  onSubmit: (fd: FormData) => Promise<ActionResult<{ id: number }>>
 }
 
 type ServiceTab = 'procedimientos' | 'examenes' | 'talleres'
@@ -375,7 +372,7 @@ export function VisitaForm({
     startTransition(async () => {
       const result = await onSubmit(fd)
       if (result.success) {
-        const visitId = 'data' in result ? result.data.id : result.id
+        const visitId = result.data.id
         toast.success(isEdit ? 'Cambios guardados' : 'Visita creada')
         router.push(`/visitas/${visitId}`)
       } else {
