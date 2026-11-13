@@ -6,7 +6,7 @@ import { eq, count, and, or, ilike, asc, desc, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { validateRut } from '@/lib/rut'
-import type { SearchParams } from '@/components/data-table'
+import type { SearchParams } from '@/lib/types'
 import { fields } from '@/lib/validation'
 import { withQuery, withAction, withFormAction, ActionError, type ActionResult } from '@/lib/with-action'
 
@@ -73,7 +73,6 @@ export async function searchEnfermeras(
     const where = conditions.length ? and(...conditions) : undefined
 
     const [countRow] = await db.select({ total: count() }).from(nurses).where(where)
-    const total = countRow?.total ?? 0
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sortCols: Record<string, any> = {

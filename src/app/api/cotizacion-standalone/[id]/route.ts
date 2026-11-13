@@ -1,17 +1,5 @@
-import { db } from '@/db'
-import {
-  quotations,
-  quotationExams,
-  quotationIsapreExams,
-  quotationProcedures,
-  quotationWorkshops,
-  quotationSurcharges,
-  patients,
-  surchargeTypes,
-  comunas,
-} from '@/db/schema'
-import { eq } from 'drizzle-orm'
-import { formatDateLong, todaySantiago } from '@/lib/format'
+import { getCotizacionImprimible, type CotizacionImprimible } from '@/lib/actions/cotizaciones'
+import { formatDateLong, dateToSantiagoYMD } from '@/lib/format'
 import { formatNombre } from '@/lib/paciente'
 import { esc, formatCotizacionId, buildCotizacionHTML, type CotizacionHTMLData } from '@/lib/cotizacion-html'
 
@@ -25,46 +13,12 @@ export async function GET(
     return new Response('ID inválido', { status: 400 })
   }
 
-  const [quotationRow] = await db
-    .select({ quotation: quotations, comunaNombre: comunas.nombre })
-    .from(quotations)
-    .leftJoin(comunas, eq(quotations.idComuna, comunas.id))
-    .where(eq(quotations.id, cotizacionId))
-  if (!quotationRow) {
+  const data = await getCotizacionImprimible(cotizacionId)
+  if (!data) {
     return new Response('Cotización no encontrada', { status: 404 })
   }
-  const quotation = { ...quotationRow.quotation, comuna: quotationRow.comunaNombre }
 
-  const [examItems, isapreExamItems, procItems, tallerItems, patientRow, surchargesRows] = await Promise.all([
-    db
-      .select({ descripcion: quotationExams.descripcion, codigo: quotationExams.codigo, precio: quotationExams.precio })
-      .from(quotationExams)
-      .where(eq(quotationExams.idCotizacion, cotizacionId)),
-    db
-      .select({ descripcion: quotationIsapreExams.descripcion, codigo: quotationIsapreExams.codigo, precio: quotationIsapreExams.valorPagar })
-      .from(quotationIsapreExams)
-      .where(eq(quotationIsapreExams.idCotizacion, cotizacionId)),
-    db
-      .select({ descripcion: quotationProcedures.descripcion, codigo: quotationProcedures.codigo, precio: quotationProcedures.precio })
-      .from(quotationProcedures)
-      .where(eq(quotationProcedures.idCotizacion, cotizacionId)),
-    db
-      .select({ descripcion: quotationWorkshops.descripcion, codigo: quotationWorkshops.codigo, precio: quotationWorkshops.precio })
-      .from(quotationWorkshops)
-      .where(eq(quotationWorkshops.idCotizacion, cotizacionId)),
-    quotation.idPaciente
-      ? db.select().from(patients).where(eq(patients.id, quotation.idPaciente)).then((r) => r[0] ?? null)
-      : Promise.resolve(null),
-    db
-      .select({ label: surchargeTypes.nombre, precio: quotationSurcharges.precio })
-      .from(quotationSurcharges)
-      .innerJoin(surchargeTypes, eq(quotationSurcharges.idTipoRecargo, surchargeTypes.id))
-      .where(eq(quotationSurcharges.idCotizacion, cotizacionId)),
-  ])
-
-  const html = buildCotizacionHTML(mapToHTMLData({
-    quotation, examItems, isapreExamItems, procItems, tallerItems, patient: patientRow, surcharges: surchargesRows,
-  }))
+  const html = buildCotizacionHTML(mapToHTMLData(data))
 
   return new Response(html, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -73,38 +27,11 @@ export async function GET(
 
 // ─── Map → CotizacionHTMLData ─────────────────────────────────────────────────
 
-type Item = { descripcion: string; codigo: string | null; precio: number }
-
 function mapToHTMLData({
   quotation, examItems, isapreExamItems, procItems, tallerItems, patient, surcharges,
-}: {
-  quotation: {
-    id: number
-    idPaciente: number | null
-    nombreDestinatario: string | null
-    emailDestinatario: string | null
-    telefonoDestinatario: string | null
-    identificacionDestinatario: string | null
-    comuna: string | null
-    cobraVisita: boolean
-    total: number | null
-    montoInsumos: number
-    montoDescuento: number
-    montoVisitaOriginal: number
-    montoDescuentoProcedimientos: number
-    notas: string | null
-    createdAt: Date
-  }
-  examItems: Item[]
-  isapreExamItems: Item[]
-  procItems: Item[]
-  tallerItems: Item[]
-  patient: { nombres: string; apellidoPaterno: string | null; apellidoMaterno: string | null; identificador: string | null; tipoIdentificador: string | null } | null
-  surcharges: { label: string; precio: number }[]
-}): CotizacionHTMLData {
-  const today = todaySantiago()
+}: CotizacionImprimible): CotizacionHTMLData {
   const numeroDoc = formatCotizacionId(quotation.id)
-  const emisionDate = quotation.createdAt.toISOString().split('T')[0] || today
+  const emisionDate = dateToSantiagoYMD(quotation.createdAt)
 
   let recipientName: string
   const leftFields: CotizacionHTMLData['leftCard']['fields'] = []

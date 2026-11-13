@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { CotizacionVista } from '@/lib/actions/cotizaciones'
 import { ESTADO_COTIZACION_STYLES } from '@/lib/estado-colors'
+import type { EstadoCotizacion } from '@/lib/estados'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
@@ -47,12 +48,10 @@ function getInitials(nombre: string): string {
 
 // ─── Estado config ────────────────────────────────────────────────────────────
 
-type EstadoKey = 'creada' | 'enviada' | 'aceptada' | 'rechazada'
-
-const ESTADO_CFG = ESTADO_COTIZACION_STYLES as Record<EstadoKey, { label: string; badgeClass: string; step: number }>
+const ESTADO_CFG = ESTADO_COTIZACION_STYLES as Record<EstadoCotizacion, { label: string; badgeClass: string; step: number }>
 
 function EstadoBadge({ estado }: { estado: string }) {
-  const cfg = ESTADO_CFG[estado as EstadoKey]
+  const cfg = ESTADO_CFG[estado as EstadoCotizacion]
   if (!cfg) return <Badge badgeClass="is-cot-rechazada">Inválido: {estado}</Badge>
   return <Badge badgeClass={cfg.badgeClass}>{cfg.label}</Badge>
 }
@@ -60,7 +59,7 @@ function EstadoBadge({ estado }: { estado: string }) {
 // ─── Stepper ──────────────────────────────────────────────────────────────────
 
 function Stepper({ estado }: { estado: string }) {
-  const step = ESTADO_CFG[estado as EstadoKey]?.step ?? 0
+  const step = ESTADO_CFG[estado as EstadoCotizacion]?.step ?? 0
 
   return (
     <div className="stepbar">

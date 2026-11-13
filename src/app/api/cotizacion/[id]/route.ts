@@ -1,8 +1,8 @@
-import { getCotizacionVisita } from '@/lib/actions/precios'
+import { getCotizacionVisita } from '@/lib/actions/cotizaciones'
 import { formatDate } from '@/lib/format'
 import { formatRut } from '@/lib/rut'
 import { esc, formatCotizacionId, buildCotizacionHTML, type CotizacionHTMLData } from '@/lib/cotizacion-html'
-import type { CotizacionVisita } from '@/lib/actions/precios'
+import type { CotizacionVisita } from '@/lib/actions/cotizaciones'
 
 export async function GET(
   _req: Request,

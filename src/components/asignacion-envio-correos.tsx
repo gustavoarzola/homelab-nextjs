@@ -44,7 +44,7 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
         if (result.every((e) => e.visitas.length === 0) && sinAsignar.length === 0) {
           toast.info('No hay visitas para esta fecha')
         }
-      } catch (error) {
+      } catch {
         toast.error('Error al buscar visitas')
       } finally {
         setLoading(false)
@@ -55,13 +55,13 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
   const handleEnviarUnica = (enfermera: EnfermeraConVisitas) => {
     startTransition(async () => {
       try {
-        const result = await sendScheduledVisitsEmail(enfermera)
+        const result = await sendScheduledVisitsEmail(enfermera.id, enfermera.fecha)
         if (result.success) {
           toast.success(`Correo enviado a ${formatNombre(enfermera)}`)
         } else {
           toast.error(result.error || 'Error al enviar correo')
         }
-      } catch (error) {
+      } catch {
         toast.error('Error al enviar correo')
       }
     })
@@ -82,14 +82,14 @@ export function AsignacionEnvioCorreos({ initialFecha, initialEnfermeras, initia
   const handleConfirmEnviarTodos = () => {
     startTransition(async () => {
       try {
-        const result = await sendAllScheduledVisitsEmails(enfermeras)
+        const result = await sendAllScheduledVisitsEmails(fechaBuscada)
         if (result.success) {
-          toast.success(`Correos enviados a ${conCorreo.length} enfermera(s)`)
-        }
-        if (result.error) {
+          toast.success(`Correos enviados a ${result.data.enviados} enfermera(s)`)
+          if (result.data.warning) toast.info(result.data.warning)
+        } else {
           toast.info(result.error)
         }
-      } catch (error) {
+      } catch {
         toast.error('Error al enviar correos')
       } finally {
         setConfirmEnviarTodos(false)

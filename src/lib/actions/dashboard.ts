@@ -17,6 +17,7 @@ import {
   visitWorkshops,
 } from '@/db/schema'
 import { requireSession } from '@/lib/auth-guard'
+import { ESTADOS_VISITA_EFECTIVOS } from '@/lib/estados'
 import { formatNombre } from '@/lib/paciente'
 
 const MONTHS = [
@@ -46,10 +47,6 @@ type RankingItem = {
   label: string
   value: number
 }
-
-// Una visita "efectiva" es la que realmente ocurrió; `completada` es el estado
-// final posterior a `realizada` (ver ciclo de vida de visitas).
-const ESTADOS_VISITA_EFECTIVA = ['realizada', 'completada']
 
 export async function getDashboardVisitsByDay(month: number, year: number) {
   await requireSession()
@@ -90,7 +87,7 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
   const visitasEfectivas = and(
     gte(visits.fecha, start),
     lte(visits.fecha, end),
-    inArray(visits.estado, ESTADOS_VISITA_EFECTIVA),
+    inArray(visits.estado, ESTADOS_VISITA_EFECTIVOS),
   )
 
   // Exámenes: unión deduplicada de regulares (examenes_visitas) + isapre

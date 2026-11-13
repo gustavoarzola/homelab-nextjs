@@ -5,6 +5,7 @@ import { Badge } from './ui/badge'
 import { formatDateTime } from '@/lib/format'
 import type { VisitaRow } from '@/lib/actions/visitas'
 import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
+import { ESTADOS_VISITA, ESTADO_VISITA_LABEL } from '@/lib/estados'
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
@@ -83,12 +84,7 @@ function getFilters(enfermeras: { id: number; nombre: string }[]): FilterDef[] {
       type: 'select-single',
       options: [
         { value: '', label: '— Todos —' },
-        { value: 'programada',   label: 'Programada' },
-        { value: 'confirmada',   label: 'Confirmada' },
-        { value: 'realizada',    label: 'Realizada' },
-        { value: 'completada',   label: 'Completada' },
-        { value: 'no_realizada', label: 'No realizada' },
-        { value: 'cancelada',    label: 'Cancelada' },
+        ...ESTADOS_VISITA.map((value) => ({ value, label: ESTADO_VISITA_LABEL[value] })),
       ],
     },
     {

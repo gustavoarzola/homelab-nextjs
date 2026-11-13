@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Loader2, Upload, FileText, X, ArrowUp, ArrowDown, AlertCircle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { resizeImage } from '@/lib/images/resize'
 import { formatBytes } from '@/lib/format'
 

@@ -4,6 +4,7 @@ import { getPaciente } from '@/lib/actions/pacientes'
 import { searchEnfermeras } from '@/lib/actions/enfermeras'
 import { searchProcedimientos, searchExamenes, searchPrevisiones, searchResidencias, getTiposRecargosForSelect, getTalleres, getIsaprePrevisiones, getOrigenesContactoForSelect } from '@/lib/actions/catalogos'
 import { VisitaForm } from '@/components/visita-form'
+import { ESTADOS_VISITA_NO_EDITABLES } from '@/lib/estados'
 
 export default async function EditarVisitaPage({
   params,
@@ -14,8 +15,7 @@ export default async function EditarVisitaPage({
   const visita = await getVisita(Number(id))
   if (!visita || !visita.idPaciente) notFound()
 
-  const nonEditable = ['completada', 'cancelada', 'no_realizada']
-  if (nonEditable.includes(visita.estado)) redirect(`/visitas/${id}`)
+  if (ESTADOS_VISITA_NO_EDITABLES.includes(visita.estado)) redirect(`/visitas/${id}`)
 
   const [
     detalle,
@@ -67,7 +67,7 @@ export default async function EditarVisitaPage({
     'use server'
     const result = await updateVisita(fd)
     if (result.success) {
-      redirect(`/visitas/${result.id}`)
+      redirect(`/visitas/${result.data.id}`)
     }
     return result
   }

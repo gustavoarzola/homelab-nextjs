@@ -9,7 +9,6 @@ import { P, fd } from './helpers'
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   unstable_cache: (fn: any) => fn,
 }))
 

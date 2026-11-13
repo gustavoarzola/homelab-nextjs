@@ -43,9 +43,14 @@ export function formatDateFull(fecha: string): string {
   return `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`
 }
 
+/** Convierte un instante (Date) a su fecha calendario en zona America/Santiago, como YYYY-MM-DD */
+export function dateToSantiagoYMD(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Santiago' })
+}
+
 /** Devuelve la fecha de hoy en zona America/Santiago como YYYY-MM-DD */
 export function todaySantiago(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' })
+  return dateToSantiagoYMD(new Date())
 }
 
 /** Tamaño de archivo legible: 1234 → "1,2 KB". */

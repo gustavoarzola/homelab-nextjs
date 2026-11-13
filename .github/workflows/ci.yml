@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hltest
+          POSTGRES_PASSWORD: hltest
+          POSTGRES_DB: homelab_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hltest -d homelab_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Valores dummy, no secretos: solo para que los módulos carguen en los tests.
+      HOMELAB_TEST_DATABASE_URL: postgresql://hltest:hltest@localhost:5432/homelab_test
+      HOMELAB_DATABASE_URL: postgresql://hltest:hltest@localhost:5432/homelab_test
+      AUTH_SECRET: ci-dummy-secret
+      R2_ACCOUNT_ID: ci-dummy
+      R2_ACCESS_KEY_ID: ci-dummy
+      R2_SECRET_ACCESS_KEY: ci-dummy
+      R2_BUCKET_NAME: ci-dummy
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # Sin `version`: la toma de `packageManager` en package.json (declararla en
+      # ambos lados hace fallar la action).
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm lint
+
+      - run: pnpm test

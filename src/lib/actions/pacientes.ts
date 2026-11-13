@@ -23,8 +23,9 @@ import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'dr
 import { revalidatePath } from 'next/cache'
 import { validateRut, validatePasaporte } from '@/lib/rut'
 import { formatNombre } from '@/lib/paciente'
-import type { SearchParams } from '@/components/data-table'
+import type { SearchParams } from '@/lib/types'
 import { requireSession } from '@/lib/auth-guard'
+import type { EstadoVisita } from '@/lib/estados'
 import { isAdmin } from '@/lib/permissions'
 // requireSession is kept for deletePaciente (needs session.user.role)
 import { parseFormData, fields } from '@/lib/validation'
@@ -464,7 +465,7 @@ export type VisitaHistorialItem = {
   id: number
   fecha: string
   hora: string | null
-  estado: string
+  estado: EstadoVisita
   costo: number
   numeroBoleta: string
   tipoDocumento: string

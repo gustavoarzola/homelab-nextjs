@@ -1,8 +1,6 @@
-import { redirect } from 'next/navigation'
 import { CotizacionForm } from '@/components/cotizacion-form'
 import { getPacientes } from '@/lib/actions/pacientes'
-import { getProcedimientos, getExamenes, getTalleres, getIsaprePrevisiones, getComunasForSelect } from '@/lib/actions/catalogos'
-import { getTiposRecargos } from '@/lib/actions/visitas'
+import { getProcedimientos, getExamenes, getTalleres, getIsaprePrevisiones, getComunasForSelect, getTiposRecargosForSelect } from '@/lib/actions/catalogos'
 import { createCotizacion, getPreciosVisita } from '@/lib/actions/cotizaciones'
 
 export default async function NuevaCotizacionPage() {
@@ -11,7 +9,7 @@ export default async function NuevaCotizacionPage() {
     getProcedimientos(),
     getExamenes(),
     getTalleres(),
-    getTiposRecargos(),
+    getTiposRecargosForSelect(),
     getPreciosVisita(),
     getIsaprePrevisiones(),
     getComunasForSelect(),

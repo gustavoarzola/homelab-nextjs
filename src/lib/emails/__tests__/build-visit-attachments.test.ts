@@ -3,7 +3,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 const { getR2Object } = vi.hoisted(() => ({ getR2Object: vi.fn() }))
 vi.mock('@/lib/r2', () => ({ getR2Object }))
 
-import { buildVisitAttachments } from '@/lib/actions/visitas-asignacion-email'
+import { buildVisitAttachments } from '@/lib/emails/attachments'
 
 describe('buildVisitAttachments', () => {
   beforeEach(() => {

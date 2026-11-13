@@ -50,17 +50,18 @@ src/
       visitas/              # CRUD visitas + formulario complejo
         page.tsx            # Listado con DataTable
         nueva/page.tsx      # Crear visita
-        [id]/page.tsx       # Editar visita
+        [id]/page.tsx       # Detalle con ciclo de vida (confirmar, realizar, completar; ver `visita-lifecycle-view.tsx`)
+        [id]/editar/page.tsx    # Editar visita (formulario)
+        [id]/resultados/page.tsx # Resultados de exámenes
       cotizaciones/         # CRUD cotizaciones standalone
         page.tsx
         nueva/page.tsx
-        [id]/page.tsx
+        [id]/page.tsx       # Detalle con ciclo de vida (`cotizacion-lifecycle-view.tsx`)
       asignacion/           # Board drag-and-drop para asignar enfermeras
         page.tsx            # Board con mapa
         envio-correos/      # Envío masivo de correos a enfermeras
       pacientes/            # CRUD pacientes con historial
       enfermeras/           # CRUD enfermeras
-      laboratorios/         # CRUD laboratorios
       examenes/             # Catálogo de exámenes
       procedimientos/       # Catálogo de procedimientos
       talleres/             # Catálogo de talleres
@@ -68,19 +69,28 @@ src/
       residencias/          # Catálogo de residencias de adulto mayor
       comunas/              # Catálogo de comunas
       tipos-recargos/       # Catálogo de tipos de recargos
+      origenes-contacto/    # Catálogo de orígenes de contacto
       precios/              # Gestión de precios (visitas por comuna)
-      playground/           # Página de desarrollo/testing de componentes
+      pagos-enfermeras/     # Resumen mensual de pago a enfermeras + [enfermeraId] detalle
+      reportes/             # Reporte de visitas con export Excel (solo admin)
+      playground/           # Showcase del design system (solo admin)
     api/
       auth/[...nextauth]/   # NextAuth route handler
       cotizacion/[id]/      # GET → HTML imprimible de cotización (desde visita)
       cotizacion-standalone/[id]/ # GET → HTML imprimible de cotización independiente
       upload/               # POST → Subir archivos a R2
       r2-file/              # GET → Redirect a signed URL de R2
+      visitas/export/       # GET → .xlsx de visitas filtradas
+      reportes/visitas/export/ # GET → .xlsx del reporte de visitas (solo admin)
   lib/
-    actions/                # Server actions (toda la lógica de negocio)
+    actions/                # Server actions (toda la lógica de negocio); tests en `__tests__/`
+    with-action.ts          # withQuery / withAction / withFormAction / ActionError / ActionResult
+    permissions.ts          # ADMIN_ONLY_PREFIXES, canAccessPath(), isAdmin()
+    reportes/               # Definición de columnas del reporte/Excel de visitas
     pricing/                # Lógica de cálculo de precios
     auth-guard.ts           # requireSession() helper
-    validation.ts           # parseFormData / parseFormDataWithArrays + campos reutilizables (fields)
+    validation.ts           # parseFormData / parseFormDataWithArrays + campos reutilizables (fields) + parseItemExtras
+    types.ts                # Tipos compartidos lib/componentes: SearchParams, SelectOption (data-table los re-exporta)
     r2.ts                   # Cliente S3 para Cloudflare R2
     excel/build-excel.ts    # Helper genérico para generar .xlsx desde columnas + filas (ExcelJS)
     format.ts               # Formateo de fechas (zona Chile)
@@ -104,9 +114,13 @@ src/
   db/
     index.ts                # Conexión DB (Neon en Vercel, postgres.js local)
     schema.ts               # Esquema Drizzle completo
-    seed.ts                 # Seed de datos
+    seed/                   # Seed de datos (index.ts, catalogos.ts, operacion.ts, data/ con catálogos y examenes.csv)
     migrations/             # Migraciones Drizzle
   auth.ts                   # Configuración NextAuth
+docs/
+  historico/                # Planes y especificaciones antiguas ya implementadas (solo referencia histórica)
+  plan-*/                   # Planes de trabajo por iniciativa (design system, archivos múltiples, seed/tests)
+e2e/                        # Tests Playwright
 ```
 
 ---
@@ -132,7 +146,6 @@ src/
 | `examenes` | `exams` | Exámenes médicos (con grupo: imalab, etc.) |
 | `procedimientos` | `procedures` | Procedimientos de enfermería (con categoría) |
 | `talleres` | `workshops` | Talleres (precio libre por visita) |
-| `laboratorios` | `laboratories` | Redes de laboratorios |
 | `companias_seguros` | `healthInsurances` | Previsiones de salud (fonasa/isapre/particular) |
 | `residencias_adulto_mayor` | `elderlyResidences` | Residencias de adulto mayor |
 | `origenes_contacto` | `contactOrigins` | Origen del contacto |
@@ -172,7 +185,6 @@ src/
 - `patients` → `patientPhones` (1:N, cascade delete)
 - `visits` → `patients` (N:1, cascade delete)
 - `visits` → `nurses` (N:1, restrict delete)
-- `visits` → `laboratories` (N:1, restrict delete)
 - `visits` → `surchargeTypes` (N:1, restrict delete)
 - `quotations` → `patients` (N:1, set null — paciente opcional)
 - `quotations` → `visits` (N:1, set null — referencia a visita convertida)
@@ -193,7 +205,10 @@ src/
 
 - **NextAuth v5 beta** con Credentials provider (correo + contraseña)
 - Contraseñas hasheadas con bcryptjs
-- JWT con campo `role` custom (`session.user.role`)
+- JWT con campo `role` custom (`session.user.role`), `maxAge` 7 días. El callback `jwt` re-valida contra
+  `usuarios` como máximo cada 15 min (`token.checkedAt`, lógica en `src/lib/session-revalidation.ts`):
+  si el usuario fue desactivado o borrado la sesión se invalida, y el rol se actualiza al vigente.
+  Desactivar un usuario o cambiarle el rol aplica en ≤15 min.
 - Guard: `requireSession()` en `src/lib/auth-guard.ts` — se llama al inicio de cada server action
 - Layout `(admin)/layout.tsx` verifica sesión y redirige a `/login`
 - Página de login usa server action con `signIn('credentials', ...)`
@@ -203,7 +218,7 @@ src/
   `admin` queda restringido** — un rol desconocido nunca recibe más acceso.
 - Modelo simple: acceso sí/no a interfaces completas, definido en `src/lib/permissions.ts`
   (`ADMIN_ONLY_PREFIXES`, `canAccessPath()`, `isAdmin()`). Hoy solo-admin: exámenes,
-  procedimientos, talleres, tipos de recargos, precios de visita y reportes (`/reportes`, `/api/reportes`).
+  procedimientos, talleres, tipos de recargos, precios de visita, reportes (`/reportes`, `/api/reportes`) y `/playground`.
 - Se aplica en 3 capas: `src/proxy.ts` (redirige a `/dashboard`, o 403 en `/api/*`), el sidebar
   (oculta ítems) y las server actions de mutación con `requireAdmin()` (`src/lib/auth-guard.ts`).
   En catálogos del factory basta con `adminOnly: true` en el `CatalogConfig`. Las lecturas
@@ -227,35 +242,74 @@ usuario o cambiar una contraseña, entregar el SQL listo (no un script).
   VALUES ('<Nombre>', '<correo>', '<hash>', 'ejecutivo', true, NOW(), NOW());` (rol `admin` o
   `ejecutivo`; `correo` es único).
 - Cambiar contraseña: `UPDATE usuarios SET contrasena = '<hash>', updated_at = NOW() WHERE correo = '<correo>';`
-  — no invalida sesiones JWT ya abiertas.
+  — no invalida sesiones JWT ya abiertas (solo desactivar el usuario o cambiar el rol se re-valida).
 
 ---
 
 ## Server Actions — Referencia
 
-Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al inicio.
+Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al inicio
+(lo hacen los wrappers de `src/lib/with-action.ts`, ver "Patrón de server actions").
+
+### Patrón de server actions
+Wrappers en `src/lib/with-action.ts` (todos llaman `requireSession()`; usarlos en toda action nueva):
+- `withQuery(fn)` — lecturas. Los errores se propagan al error boundary.
+- `withAction(errorMsg, fn)` — mutaciones. try/catch: devuelve `{ success: false, error }`; el detalle
+  real solo va a `console.error`, el usuario ve `errorMsg`.
+- `withFormAction(schema, formData, errorMsg, fn, arrayFields?)` — mutaciones con FormData: parsea con
+  Zod (`parseFormData`, o `parseFormDataWithArrays` si pasas `arrayFields`) y luego como `withAction`.
+- `ActionError` — lanzarlo dentro de `fn` para devolver un mensaje **visible al usuario** (validaciones de
+  negocio, estados inválidos). Cualquier otro error se enmascara con `errorMsg`.
+- `ActionResult<T>` — `{ success: true }` | `{ success: true, data: T }` | `{ success: false, error }`.
+- Archivos `'use server'`: no exportar desde ellos funciones helper que no sean actions (cada export
+  queda expuesto como endpoint). Los helpers van en `src/lib/...`.
+- Las mutaciones solo-admin llaman además `requireAdmin()` (`src/lib/auth-guard.ts`).
 
 ### visitas.ts
 - `searchVisitas(params)` — Listado paginado con filtros (fecha, enfermera, estado, búsqueda)
 - `getVisita(id)` — Detalle completo para edición
-- `createVisita(formData)` — Crear visita con exámenes, procedimientos, talleres
-- `updateVisita(formData)` — Actualizar visita
+- `createVisita(formData)` / `updateVisita(formData)` — Crear / actualizar visita con exámenes, procedimientos,
+  talleres y recargos; devuelven `ActionResult<{ id: number }>` (vía `withAction`). `updateVisita` hace el
+  UPDATE condicional al estado dentro de la transacción (no edita una visita que pasó a estado final)
 - `deleteVisita(id)` — Eliminar visita
 - `getEnfermeras()` — Select de enfermeras activas
-- `getTiposRecargos()` — Select de tipos de recargos activos
+- (Select de tipos de recargos activos: `getTiposRecargosForSelect()` en `catalogos.ts`)
 - `getVisitaFormPricingContext(comuna, examIds)` — Contexto de precios para preview en formulario
 - `searchOrigenesContacto()` — Listado de orígenes
 - `actualizarPrecioExamenVisita(...)` — Actualizar precio individual de examen en visita
 - `actualizarPrecioProcedimientoVisita(...)` — Actualizar precio individual de procedimiento en visita
+- `getVisitaLifecycle(id)` — Detalle para la vista de ciclo de vida (`visita-lifecycle-view.tsx`)
+- `listVisitasForExport(filters)` — Filas para `/api/visitas/export`
+- `listVisitasForReport(filters)` — Filas del reporte (`/reportes`, `/api/reportes/visitas/export`); columnas en `src/lib/reportes/visitas-columns.ts`
+- Ciclo de estados (`visitas.estado`): `programada` → `confirmada` → `realizada` → `completada`;
+  ramas `no_realizada` (desde confirmada) y `cancelada` (desde programada o confirmada). `completada`,
+  `cancelada` y `no_realizada` son finales (no se editan). Lista, tipo `EstadoVisita`, labels y grupos
+  con nombre (`ESTADOS_VISITA_NO_EDITABLES`, `ESTADOS_VISITA_ASIGNABLES`, `ESTADOS_VISITA_EFECTIVOS`, …)
+  viven en `src/lib/estados.ts` (ídem `EstadoCotizacion`); el schema los tipa con `$type<>()`. Acciones:
+  - `confirmarVisita(id)` — programada → confirmada
+  - `marcarRealizada(id)` — confirmada → realizada (exige enfermera asignada)
+  - `marcarNoRealizada(id, costo, concepto)` — confirmada → no_realizada (costo de traslado)
+  - `cancelarVisita(id, motivo)` — programada/confirmada → cancelada
+  - `guardarFacturacionVisita(id, data)` / `guardarPagoVisita(id, data)` / `guardarEnvioExamenesVisita(id, examenes)` — guardado parcial del cierre (visita realizada)
+  - `completarVisita(id, data)` — realizada → completada (exige documento, pago y fecha de pago)
 
 ### cotizaciones.ts
 - `searchCotizaciones(params)` — Listado paginado
 - `getCotizacion(id)` — Detalle para edición
-- `createCotizacion(formData)` — Crear cotización
-- `updateCotizacion(formData)` — Actualizar cotización
+- `createCotizacion(formData)` / `updateCotizacion(formData)` — Crear / actualizar cotización
+  (escrituras en una transacción: un fallo no deja la cotización sin ítems)
 - `deleteCotizacion(id)` — Eliminar cotización
-- `convertirCotizacionAVisita(id)` — Convierte cotización en visita (copia ítems)
 - `getPreciosVisita()` — Mapa comuna→precio para el formulario
+- `getCotizacionVista(id)` — Datos de la vista de ciclo de vida
+- `getCotizacionVisita(idVisita)` — Datos para generar HTML de cotización desde visita (`/api/cotizacion/[id]`)
+- `getCotizacionImprimible(id)` — Datos de una cotización independiente (`/api/cotizacion-standalone/[id]`)
+- Ciclo de estados (`cotizaciones.estado`): `creada` → `enviada` → `aceptada` | `rechazada`.
+  `marcarEnviada(id)` (creada → enviada), `aceptarCotizacion(id, idPaciente?)` (enviada → aceptada,
+  **convierte en visita** y devuelve `{ idVisita }`), `rechazarCotizacion(id, motivo)` (enviada → rechazada).
+  `aceptarCotizacion` corre en una transacción que primero "reclama" la cotización con un UPDATE
+  condicional (`estado = 'enviada' AND id_visita IS NULL`) → dos aceptaciones concurrentes no crean
+  dos visitas. La conversión (`convertirCotizacionAVisita`) es un helper interno no exportado que
+  recibe `tx`; la visita queda con fecha `todaySantiago()`.
 
 ### pacientes.ts
 - `searchPacientes(params)` — Listado paginado
@@ -270,28 +324,36 @@ Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al in
 - `searchEnfermeras(params)` — Listado paginado
 - `createEnfermera(formData)` / `updateEnfermera(formData)` / `toggleEnfermera(id, activo)` / `deleteEnfermera(id)`
 
-### laboratorios.ts
-- CRUD estándar: `searchLaboratorios`, `createLaboratorio`, `updateLaboratorio`, `toggleLaboratorio`
-
 ### catalogos.ts
 - CRUD para cada catálogo: procedimientos, exámenes, talleres, previsiones, residencias, comunas, tipos de recargos
 - Patrón: `search*`, `create*`, `update*`, `toggle*`
+- Cada catálogo se declara con un `CatalogConfig` y delega en `_catalog-factory.ts`
+
+### _catalog-factory.ts
+- Factory genérico del CRUD de catálogos: `catalogSearch`, `catalogCreate`, `catalogUpdate`, `catalogToggle`
+  (config: `CatalogConfig`, incl. `adminOnly: true` para exigir `requireAdmin()` en mutaciones).
+  No es un archivo de actions expuestas: los catálogos lo envuelven en `catalogos.ts`.
 - Helpers: `getProcedimientos()`, `getExamenes()`, `getTalleres()`, `getComunasForSelect()` — para selects
 
 ### precios.ts
 - `searchPreciosExamenes(params)` / `searchPreciosVisita(params)` — Gestión de precios
-- `getCotizacionVisita(idVisita)` — Datos para generar HTML de cotización desde visita
 - `getExamenesForSelect()` — Select de exámenes para asociar precios
+
+### pagos-enfermeras.ts
+- `searchPagosEnfermerasMensual(params)` — Resumen mensual de pago por enfermera (suma SQL con `calcNursePaymentBase()`)
+- `getPagoEnfermeraDetalle(...)` — Detalle por visita de una enfermera (usa `calcNursePaymentBreakdown()`)
 
 ### asignacion.ts
 - `getVisitasParaAsignacion(fecha)` — Visitas del día con datos para el board
 - `getEnfermerasActivas()` — Enfermeras para asignar
-- `guardarAsignaciones(...)` — Guardar asignación enfermera-visita
+- `guardarAsignaciones(...)` — Guardar asignación enfermera-visita (`ActionResult`, vía `withAction`)
 
 ### visitas-asignacion-email.ts
 - `getVisitasAsignadasPorEnfermera(fecha)` — Datos para correos
-- `sendScheduledVisitsEmail(enfermeraId, fecha)` — Enviar correo a una enfermera
-- `sendAllScheduledVisitsEmails(fecha)` — Envío masivo
+- `sendScheduledVisitsEmail(idEnfermera, fecha)` — Enviar correo a una enfermera
+- `sendAllScheduledVisitsEmails(fecha)` — Envío masivo; devuelve `ActionResult<{ enviados, warning? }>`
+- Ambos envíos reciben solo ids/fecha y **recargan los datos en el servidor** (helper interno
+  `loadEnfermerasConVisitas`): nunca usar correo, visitas ni keys de R2 enviados por el cliente.
 
 ### dashboard.ts
 - `getDashboardVisitsByDay(month, year)` — Visitas por día del mes
@@ -374,7 +436,7 @@ total = subtotalExámenes + subtotalProcedimientos + subtotalTalleres
 - Link a detalle
 - Server actions como props (`search`, `onCreate`, `onUpdate`, `onDelete`, `onToggle`)
 
-**Tipos públicos exportados:** `SearchParams`, `Result`, `ColumnDef`, `FilterDef`, `FormFieldDef`, `SelectOption`
+**Tipos públicos exportados:** `SearchParams` y `SelectOption` (definidos en `src/lib/types.ts`, re-exportados), `Result` (= `ActionResult` de `with-action.ts`), `ColumnDef`, `FilterDef`, `FormFieldDef`
 
 Patrón de uso en páginas:
 ```tsx
@@ -416,7 +478,7 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 - `sendScheduledVisitsEmail()` envía a una enfermera
 - `sendAllScheduledVisitsEmails()` envío masivo del día
 - Todos los archivos de la visita se adjuntan con su nombre legible (`v{id}_{nombre}_{n}.jpg`),
-  deduplicados por key y descargados en paralelo (`buildVisitAttachments`). El HTML lista los
+  deduplicados por key y descargados en paralelo (`buildVisitAttachments` en `src/lib/emails/attachments.ts`, fuera de `actions/` a propósito: es un helper sin guard y no debe ser server action). El HTML lista los
   nombres de archivo en la fila "Adjuntos" para mapear adjunto ↔ columna `Visita #N`.
 - Todos los correos de salida llevan `cc` a `contacto@homelab.cl` (constante `CC_CORREOS_SALIDA`, override con `RESEND_CC_EMAIL`)
 - Destinatarios por ambiente vía `resolveEmailEnvelope()` (`src/lib/emails/recipients.ts`), obligatorio
@@ -445,7 +507,8 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 8. **Formateo de nombres con `formatNombre()`** de `src/lib/paciente.ts`
 9. **Notificaciones con `toast` de sonner** (toast.success, toast.error)
 10. **Estilos con los tokens del HomeLab Design System** (`var(--color-fg)`, `var(--color-fg-muted)`, `var(--color-primary)`, etc. — ver sección "Design System")
-11. **Server actions con FormData usan Zod** — `parseFormData` para campos escalares, `parseFormDataWithArrays` para forms con arrays (`procedure_ids`, `exam_ids`, etc.), ambos en `src/lib/validation.ts`. Campos reutilizables en `fields` (nullableStr, nullableId, bool, fechaRequerida, ids). Validación cruzada con `.superRefine()`. Claves dinámicas (`taller_precio_${id}`, `phone_${i}`) siguen extrayéndose manualmente después del parse.
+11. **Server actions con FormData usan Zod** — `parseFormData` para campos escalares, `parseFormDataWithArrays` para forms con arrays (`procedure_ids`, `exam_ids`, etc.), ambos en `src/lib/validation.ts`. Campos reutilizables en `fields` (nullableStr, nullableId, bool, fechaRequerida, ids). Validación cruzada con `.superRefine()`. Claves dinámicas de ítems (`taller_precio_${id}`, `procedimiento_descuento_${id}`, `isapre_*`) se leen con `parseItemExtras(fd, { procedureIds, tallerIds }, { numberParser })` (visitas usan `Number`, cotizaciones `'int'`; el descuento ausente es `null`); otras (`phone_${i}`) siguen extrayéndose manualmente después del parse.
+12. **Todo cambio debe pasar `pnpm typecheck && pnpm lint` antes de commitear** (`lint` = `eslint .` con flat config en `eslint.config.mjs`; `typecheck` = `tsc --noEmit`). `next build` ya no corre lint. Las reglas `react-hooks/set-state-in-effect` y `no-explicit-any` están en `warn` (deuda conocida); el resto debe quedar en 0 errores.
 
 ### Patrones de UI
 - Páginas de listado: Server Component que hace fetch inicial + Client Component tabla
@@ -479,6 +542,9 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 - En Vercel: Neon serverless (WebSocket via `@neondatabase/serverless` Pool)
 - Local: `postgres` (TCP directo) — se detecta con `process.env.VERCEL`
 - Variable: `HOMELAB_DATABASE_URL` (pooled), `HOMELAB_DATABASE_URL_UNPOOLED` (para migraciones)
+- Tipos: `db` está tipado como `Db` (`PgDatabase`, supertipo común de ambos drivers). Los helpers que
+  reciben una conexión o una transacción (pricing, `reconcileArchivos`, seed, helpers con `tx`) usan
+  `DbOrTx` de `src/db/index.ts` — nunca `any`.
 
 ### Build
 - `vercel-build`: `tsx scripts/db-guard.ts && drizzle-kit migrate && next build`
@@ -487,7 +553,14 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
   producción. `scripts/db-guard.ts` (lógica en `src/lib/db-guard.ts`) imprime el host de la base y
   **corta el build** si un Preview apunta al host de producción (`HOMELAB_PRODUCTION_DB_HOST`) o si
   esa variable falta en Preview
-- Seed: `pnpm db:seed` (usa tsx con .env.local)
+- Seed: `pnpm db:seed` (usa tsx con .env.local); `pnpm db:seed:catalogos` solo catálogos. Los datos
+  viven en `src/db/seed/data/` (incluye `examenes.csv`, leído con `process.cwd()`).
+- Tests: `pnpm test` (todo vitest), `pnpm test:unit` (`src/lib/__tests__` y `src/lib/pricing/__tests__`),
+  `pnpm test:integration` (`src/lib/actions/__tests__`, requieren Postgres de test vía
+  `HOMELAB_TEST_DATABASE_URL`, ver `src/test/global-setup.ts`), `pnpm test:e2e` (Playwright, `e2e/`; vitest lo excluye).
+  `pnpm test:unit` corre sin BD (el globalSetup omite la preparación y neutraliza `HOMELAB_DATABASE_URL`).
+- CI: `.github/workflows/ci.yml` (push y pull_request; Node 24, pnpm 9, service `postgres:16`) corre
+  `pnpm typecheck`, `pnpm lint` y `pnpm test`. No incluye e2e.
 
 ---
 
@@ -514,28 +587,31 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 ### Alta prioridad
 
-1. **`PricingDb` tipado como `any`** en `src/lib/pricing/visitas.ts:25` — la conexión de DB se pasa como `any` para aceptar tanto Neon como postgres.js. Debería tener un tipo compartido o usar el tipo de Drizzle.
-
-2. ~~Duplicación de lógica HTML entre cotización y cotización-standalone~~ — **Resuelto.** Ambos route handlers son mappers delgados sobre `buildCotizacionHTML()` en `src/lib/cotizacion-html.ts`; los tokens de marca del documento imprimible viven en `src/lib/brand.ts` (`DOC_TOKENS_CSS`, espejo de `homelab-tokens.css`).
-
-3. **`SimpleDatePicker` solo se usa en playground** — El componente existe pero no se usa en producción. Evaluar si eliminarlo o adoptarlo.
+1. **`SimpleDatePicker` solo se usa en playground** — El componente existe pero no se usa en producción. Evaluar si eliminarlo o adoptarlo.
 
 ### Media prioridad
 
-4. **Catálogos siguen un patrón repetitivo** — `catalogos.ts` tiene ~500 líneas con CRUD casi idéntico para 6 entidades. Podría abstraerse en un factory genérico.
+2. **Formularios sin react-hook-form** — Los formularios complejos (visita, cotización, paciente) manejan estado manualmente con muchos `useState`. Esto es funcional pero verboso. La validación server-side con Zod ya está en place; no es prioridad migrar.
 
-5. **Formularios sin react-hook-form** — Los formularios complejos (visita, cotización, paciente) manejan estado manualmente con muchos `useState`. Esto es funcional pero verboso. Considerar migrar a react-hook-form para gestión de estado en el cliente (la validación server-side con Zod ya está en place).
+3. **NextAuth en versión beta** — `next-auth@5.0.0-beta.30` puede tener breaking changes. Monitorear para actualizar a la versión estable cuando salga.
 
-6. **Tests limitados** — Existen tests en `src/lib/actions/__tests__/` para catalogos, enfermeras, laboratorios y pricing, pero faltan tests para las funcionalidades más críticas (visitas CRUD, cotizaciones, asignación, email).
-
-7. **NextAuth en versión beta** — `next-auth@5.0.0-beta.30` puede tener breaking changes. Monitorear para actualizar a la versión estable cuando salga.
-
-8. **Los cuadros de pendientes del dashboard son un quickview, no un reporte.** "Cobros pendientes" y "Resultados pendientes" (`getDashboardFinanciero`) muestran solo las primeras 20 filas del mes seleccionado (el subtítulo indica el total real). Falta una página de reporte dedicada, con filtros propios (rango de fechas, enfermera, laboratorio, grupo de examen), paginación y export a Excel vía `src/lib/excel/build-excel.ts`, tanto para cobros pendientes como para exámenes con resultado por enviar.
+4. **Los cuadros de pendientes del dashboard son un quickview, no un reporte.** "Cobros pendientes" y "Resultados pendientes" (`getDashboardFinanciero`) muestran solo las primeras 20 filas del mes seleccionado (el subtítulo indica el total real). Falta una página de reporte dedicada, con filtros propios (rango de fechas, enfermera, laboratorio, grupo de examen), paginación y export a Excel vía `src/lib/excel/build-excel.ts`, tanto para cobros pendientes como para exámenes con resultado por enviar.
 
 ### Baja prioridad
 
-8. **Google Maps API key expuesta al cliente** — `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` es pública por necesidad (se usa en el browser), pero debería tener restricciones de dominio configuradas en la consola de Google Cloud.
+5. **Google Maps API key expuesta al cliente** — `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` es pública por necesidad (se usa en el browser), pero debería tener restricciones de dominio configuradas en la consola de Google Cloud.
 
-9. **No hay rate limiting en API routes** — Los endpoints de upload y archivos no tienen rate limiting.
+6. **No hay rate limiting en API routes** — Los endpoints de upload y archivos no tienen rate limiting.
 
-10. **No hay manejo de errores centralizado en server actions** — Cada action tiene su propio try/catch con `{ success: false, error }`. Un wrapper genérico reduciría la repetición.
+7. **9 warnings de lint pendientes** (`pnpm lint`, 0 errores). Arreglarlos cambia comportamiento, por eso
+   quedaron como aviso: 6 `react-hooks/set-state-in-effect` (componentes que copian props a estado en un
+   `useEffect`: `exam-grupo-block`, `select-combobox`, `time-picker`), 1 `react-hooks/incompatible-library`,
+   1 `jsx-a11y/role-supports-aria-props` y 1 `no-explicit-any` (`_catalog-factory.ts`). Corregirlos al tocar
+   esos archivos; no agregar warnings nuevos.
+
+### Resuelto (referencia)
+- Conexión de DB tipada como `any` (`PricingDb`, `Tx`) → `Db` / `DbOrTx` en `src/db/index.ts`.
+- Duplicación de HTML entre cotización y cotización-standalone → `buildCotizacionHTML()` en `src/lib/cotizacion-html.ts`.
+- Catálogos con CRUD repetido → `src/lib/actions/_catalog-factory.ts`.
+- Manejo de errores centralizado en server actions → `src/lib/with-action.ts`.
+- Cobertura de tests → tests de integración en `src/lib/actions/__tests__/` (visitas, cotizaciones, asignación, email, reportes, pagos, permisos, dashboard, catálogos, enfermeras, pricing), unit en `src/lib/__tests__/` y e2e en `e2e/`.

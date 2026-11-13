@@ -20,6 +20,7 @@ export const ADMIN_ONLY_PREFIXES = [
   '/talleres',
   '/tipos-recargos',
   '/precios',
+  '/playground',
   '/reportes',
   '/api/reportes',
 ] as const

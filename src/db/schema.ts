@@ -14,6 +14,7 @@ import {
   index,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import type { EstadoCotizacion, EstadoVisita } from '../lib/estados'
 
 // ============================================================================
 // 1. Usuario - Usuarios del sistema (login y permisos)
@@ -286,7 +287,7 @@ export const visits = pgTable(
     id: serial('id').primaryKey(),
     fecha: date('fecha').notNull(),
     hora: time('hora'),
-    estado: varchar('estado', { length: 40 }).notNull().default('programada'),
+    estado: varchar('estado', { length: 40 }).$type<EstadoVisita>().notNull().default('programada'),
     costo: integer('costo').notNull().default(0),
     montoInsumos: integer('monto_insumos').notNull().default(0),
     idPaciente: integer('id_paciente'),
@@ -459,7 +460,7 @@ export const quotations = pgTable(
   'cotizaciones',
   {
     id: serial('id').primaryKey(),
-    estado: varchar('estado', { length: 20 }).notNull().default('creada'), // creada, enviada, aceptada, rechazada
+    estado: varchar('estado', { length: 20 }).$type<EstadoCotizacion>().notNull().default('creada'),
     idPaciente: integer('id_paciente'),
     nombreDestinatario: varchar('nombre_destinatario', { length: 255 }),
     emailDestinatario: varchar('email_destinatario', { length: 255 }),

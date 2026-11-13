@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { asc, isNull, sql } from 'drizzle-orm'
+import type { DbOrTx } from '../index'
 import {
   users,
   healthInsurances,
@@ -24,13 +25,6 @@ import { examenesDataWithPrices, examenesIsapreData } from './data/examenes-csv'
 import { buildNursingVisitPrices } from './data/precios-visita'
 import { nurseData, pickByIndex } from './data/enfermeras'
 
-// Igual que `PricingDb` en `src/lib/pricing/visitas.ts`: la conexión puede ser
-// tanto el Pool de Neon (drizzle-orm/neon-serverless) como postgres.js
-// (drizzle-orm/postgres-js) según el entorno (ver `src/db/index.ts`). Se tipa
-// como `any` para aceptar ambas variantes sin duplicar tipos; es deuda técnica
-// conocida y ya asumida en el resto del proyecto.
-type SeedConn = any
-
 /**
  * Inserta usuarios del sistema + todos los catálogos "de verdad" (prod-safe).
  *
@@ -42,7 +36,7 @@ type SeedConn = any
  * NO usa RETURNING para IDs de catálogo: el Paso 2 (operación) los vuelve a
  * leer por clave natural cuando los necesita.
  */
-export async function seedCatalogos(conn: SeedConn): Promise<void> {
+export async function seedCatalogos(conn: DbOrTx): Promise<void> {
   // ─── Usuarios del sistema ────────────────────────────────────────────────
   const adminHash = await bcrypt.hash('admin123', 10)
   const userHash = await bcrypt.hash('user123', 10)

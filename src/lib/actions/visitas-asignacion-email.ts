@@ -12,43 +12,17 @@ import { eq, and, inArray, asc, isNull } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { formatDate } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
+import { withAction, ActionError, type ActionResult } from '@/lib/with-action'
+import type { EstadoVisita } from '@/lib/estados'
 import { formatNombre } from '@/lib/paciente'
 import { calcNursePaymentConcepts, type NursePaymentConcepts } from '@/lib/pricing/nurse-payment'
 import { generateScheduledVisitsHTML } from '@/lib/emails/scheduled-visits-email-html'
-import { getR2Object } from '@/lib/r2'
-import { basename } from '@/lib/archivos/nombres'
+import { buildVisitAttachments, type ArchivoCorreo, type EmailAttachment } from '@/lib/emails/attachments'
 import { emailLogoAttachment } from '@/lib/email-logo'
 import { resolveEmailEnvelope } from '@/lib/emails/recipients'
 import { direccionMapsUrl, direccionParaMostrar } from '@/lib/direccion'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type EmailAttachment = { filename: string; content: Buffer; contentType?: string; contentId?: string }
-
-export type ArchivoCorreo = { key: string; contentType: string }
-
-/**
- * Descarga (una sola vez por key) los adjuntos de todas las visitas y los
- * devuelve listos para Resend. El `filename` es la key legible ya renombrada
- * (`v123_gustavo_arzola_1.jpg`).
- */
-export async function buildVisitAttachments(
-  visitas: { archivos: ArchivoCorreo[] }[],
-): Promise<EmailAttachment[]> {
-  const keys = [...new Set(visitas.flatMap((v) => v.archivos.map((a) => a.key)))]
-  const results = await Promise.all(
-    keys.map(async (key): Promise<EmailAttachment | null> => {
-      try {
-        const { buffer, contentType } = await getR2Object(key)
-        return { filename: basename(key), content: buffer, contentType }
-      } catch (err) {
-        console.error(`Error descargando adjunto ${key}:`, err)
-        return null
-      }
-    }),
-  )
-  return results.filter((r): r is EmailAttachment => r !== null)
-}
 
 export type ExamenCorreo = {
   nombre: string
@@ -113,9 +87,7 @@ export type VisitaSinAsignar = {
   pacienteNombre: string
 }
 
-export type Result = { success: boolean; error?: string }
-
-const ESTADO_VISITA_ENVIO_CORREO = 'confirmada'
+const ESTADO_VISITA_ENVIO_CORREO: EstadoVisita = 'confirmada'
 
 // CC en todos los correos de salida (registro interno)
 const CC_CORREOS_SALIDA = process.env.RESEND_CC_EMAIL ?? 'contacto@homelab.cl'
@@ -126,7 +98,15 @@ export async function getVisitasAsignadasPorEnfermera(
   fecha: string,
 ): Promise<EnfermeraConVisitas[]> {
   await requireSession()
+  return loadEnfermerasConVisitas(fecha)
+}
 
+// Helper interno (no exportado): los envíos de correo recargan los datos con esto en el
+// servidor en vez de confiar en el objeto que manda el cliente (correo, keys de R2, etc.).
+async function loadEnfermerasConVisitas(
+  fecha: string,
+  idEnfermera?: number,
+): Promise<EnfermeraConVisitas[]> {
   // Todas las enfermeras activas: las que no tienen visitas también reciben correo
   const nursesData = await db
     .select({
@@ -136,7 +116,10 @@ export async function getVisitasAsignadasPorEnfermera(
       correo: nurses.correo,
     })
     .from(nurses)
-    .where(eq(nurses.activo, true))
+    .where(and(
+      eq(nurses.activo, true),
+      idEnfermera === undefined ? undefined : eq(nurses.id, idEnfermera),
+    ))
     .orderBy(asc(nurses.apellidoPaterno))
 
   if (!nursesData.length) return []
@@ -443,68 +426,65 @@ async function sendProgramacionEmail(
 }
 
 export async function sendScheduledVisitsEmail(
-  enfermera: EnfermeraConVisitas,
-): Promise<Result> {
-  await requireSession()
+  idEnfermera: number,
+  fecha: string,
+): Promise<ActionResult> {
+  return withAction('Error al enviar correo', async () => {
+    const [enfermera] = await loadEnfermerasConVisitas(fecha, idEnfermera)
+    if (!enfermera) throw new ActionError('Enfermera no encontrada')
+    if (!enfermera.correo) throw new ActionError('La enfermera no tiene correo registrado')
 
-  if (!enfermera.correo) {
-    return { success: false, error: 'La enfermera no tiene correo registrado' }
-  }
-
-  try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     const error = await sendProgramacionEmail(resend, { ...enfermera, correo: enfermera.correo })
-    if (error) return { success: false, error }
-    return { success: true }
-  } catch (error) {
-    console.error('Error sending email:', error)
-    return { success: false, error: 'Error al enviar correo' }
-  }
+    if (error) throw new ActionError(error)
+  })
 }
 
 // ─── sendAllScheduledVisitsEmails ────────────────────────────────────────────
 
+/**
+ * `enviados`: correos efectivamente enviados. `warning`: envío parcial (algunas enfermeras
+ * fallaron); el detalle se muestra al usuario.
+ */
 export async function sendAllScheduledVisitsEmails(
-  enfermeras: EnfermeraConVisitas[],
-): Promise<Result> {
-  await requireSession()
+  fecha: string,
+): Promise<ActionResult<{ enviados: number; warning?: string }>> {
+  return withAction('Error al enviar correos', async () => {
+    const enfermeras = await loadEnfermerasConVisitas(fecha)
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    let successCount = 0
+    const errors: string[] = []
 
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  let successCount = 0
-  const errors: string[] = []
-
-  for (const enfermera of enfermeras) {
-    const nombreEnfermera = formatNombre(enfermera)
-    if (!enfermera.correo) {
-      errors.push(`${nombreEnfermera}: sin correo registrado`)
-      continue
-    }
-
-    try {
-      const sendError = await sendProgramacionEmail(resend, { ...enfermera, correo: enfermera.correo })
-      if (sendError) {
-        errors.push(`${nombreEnfermera}: ${sendError}`)
+    for (const enfermera of enfermeras) {
+      const nombreEnfermera = formatNombre(enfermera)
+      if (!enfermera.correo) {
+        errors.push(`${nombreEnfermera}: sin correo registrado`)
         continue
       }
-      successCount++
-    } catch (error) {
-      console.error(`Error sending email to ${enfermera.correo}:`, error)
-      errors.push(`${nombreEnfermera}: error al enviar`)
-    }
-  }
 
-  if (successCount === 0) {
+      try {
+        const sendError = await sendProgramacionEmail(resend, { ...enfermera, correo: enfermera.correo })
+        if (sendError) {
+          errors.push(`${nombreEnfermera}: ${sendError}`)
+          continue
+        }
+        successCount++
+      } catch (error) {
+        console.error(`Error sending email to ${enfermera.correo}:`, error)
+        errors.push(`${nombreEnfermera}: error al enviar`)
+      }
+    }
+
+    if (successCount === 0) {
+      throw new ActionError(`No se pudo enviar ningún correo. Errores: ${errors.join(', ')}`)
+    }
+
     return {
-      success: false,
-      error: `No se pudo enviar ningún correo. Errores: ${errors.join(', ')}`,
+      enviados: successCount,
+      warning:
+        errors.length > 0
+          ? `Se enviaron ${successCount} correos. Errores: ${errors.join(', ')}`
+          : undefined,
     }
-  }
-
-  return {
-    success: true,
-    error:
-      errors.length > 0
-        ? `Se enviaron ${successCount} correos. Errores: ${errors.join(', ')}`
-        : undefined,
-  }
+  })
 }

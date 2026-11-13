@@ -129,12 +129,6 @@ export function SelectCombobox(props: Props) {
     props.onChange(props.selected.filter((s) => s !== id))
   }
 
-  const handleRemoveSingle = (e: React.MouseEvent) => {
-    if (isMulti(props)) return
-    e.stopPropagation()
-    props.onChange(null)
-  }
-
   const isSingleMode = !isMulti(props)
   const isClearable = props.clearable ?? true
   const showPills = props.showPills ?? true

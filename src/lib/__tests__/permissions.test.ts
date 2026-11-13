@@ -18,6 +18,7 @@ describe('canAccessPath', () => {
     '/talleres',
     '/tipos-recargos',
     '/precios/visitas',
+    '/playground',
     '/reportes',
     '/api/reportes/visitas/export',
   ]
