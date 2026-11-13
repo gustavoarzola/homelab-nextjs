@@ -1,4 +1,4 @@
-import { db } from '@/db'
+import { db, type DbOrTx } from '@/db'
 import {
   addresses,
   comunas,
@@ -31,10 +31,7 @@ export type CostoVisitaCalculado = {
   precioVisitaConfigurado: boolean
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PricingDb = any
-
-async function getPrecioBase(conn: PricingDb): Promise<number | null> {
+async function getPrecioBase(conn: DbOrTx): Promise<number | null> {
   const [row] = await conn
     .select({ precio: nursingVisitPrices.precio })
     .from(nursingVisitPrices)
@@ -43,7 +40,7 @@ async function getPrecioBase(conn: PricingDb): Promise<number | null> {
   return row?.precio ?? null
 }
 
-async function getPrecioComunaEspecifico(conn: PricingDb, idComuna: number): Promise<number | null> {
+async function getPrecioComunaEspecifico(conn: DbOrTx, idComuna: number): Promise<number | null> {
   const [row] = await conn
     .select({ precio: nursingVisitPrices.precio })
     .from(nursingVisitPrices)
@@ -58,7 +55,7 @@ async function getPrecioComunaEspecifico(conn: PricingDb, idComuna: number): Pro
  * cotizaciones). Cae al precio base si la comuna no tiene precio propio.
  */
 export async function getPrecioVisitaPorIdComuna(
-  conn: PricingDb,
+  conn: DbOrTx,
   idComuna: number | null,
 ): Promise<number | null> {
   if (idComuna !== null) {
@@ -91,7 +88,7 @@ export type PrecioVisitaResuelto = {
  * catálogo.
  */
 export async function resolverPrecioVisitaEnfermeria(
-  conn: PricingDb,
+  conn: DbOrTx,
   comunaNombre: string | null,
 ): Promise<PrecioVisitaResuelto> {
   let idComuna: number | null = null
@@ -194,7 +191,7 @@ export function computeCostoVisita(inputs: {
 
 export async function calcularCostoVisitaPersistida(
   idVisita: number,
-  conn: PricingDb = db,
+  conn: DbOrTx = db,
 ): Promise<CostoVisitaCalculado> {
   const [procedimientos, examenes, exameneIsapre, talleres, recargos, [visitaPaciente]] = await Promise.all([
     conn.select({ precio: visitProcedures.precio, descuento: visitProcedures.descuento }).from(visitProcedures).where(eq(visitProcedures.idVisita, idVisita)),
@@ -238,7 +235,7 @@ export async function calcularCostoVisitaPersistida(
 
 export async function actualizarCostoVisitaPersistida(
   idVisita: number,
-  conn: PricingDb = db,
+  conn: DbOrTx = db,
 ): Promise<CostoVisitaCalculado> {
   const costo = await calcularCostoVisitaPersistida(idVisita, conn)
 

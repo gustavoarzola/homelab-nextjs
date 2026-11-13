@@ -7,6 +7,7 @@ import { Check, X, ChevronDown, ChevronRight, Home } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ESTADO_VISITA_STYLES } from '@/lib/estado-colors'
+import { ESTADOS_VISITA_NO_EDITABLES, ESTADOS_VISITA_TERMINALES, type EstadoVisita } from '@/lib/estados'
 import type {
   VisitaLifecycleDetalle,
   CompletarVisitaData,
@@ -38,12 +39,11 @@ function getInitials(nombre: string): string {
 
 // ─── Stepper ──────────────────────────────────────────────────────────────────
 
-const MAIN_STEPS = ['programada', 'confirmada', 'realizada']
-const TERMINAL_STATES = ['completada', 'no_realizada', 'cancelada'] as const
+const MAIN_STEPS: readonly EstadoVisita[] = ['programada', 'confirmada', 'realizada']
 
-function Stepper({ estado }: { estado: string }) {
+function Stepper({ estado }: { estado: EstadoVisita }) {
   const mainStep = MAIN_STEPS.indexOf(estado)
-  const isTerminal = TERMINAL_STATES.includes(estado as typeof TERMINAL_STATES[number])
+  const isTerminal = ESTADOS_VISITA_TERMINALES.includes(estado)
   const doneMainStep = isTerminal ? 3 : mainStep
 
   function status(idx: number) {
@@ -64,7 +64,7 @@ function Stepper({ estado }: { estado: string }) {
 
       {/* Terminal fork */}
       <div className={cn('fork', isTerminal && 'is-live')}>
-        {(['completada', 'no_realizada', 'cancelada'] as const).map((t, i) => {
+        {ESTADOS_VISITA_TERMINALES.map((t, i) => {
           const isActive = estado === t
           const cfg = ESTADO_VISITA_STYLES[t]!
           const tone = t === 'completada' ? 'ok' : t === 'no_realizada' ? 'bad' : 'gray'
@@ -1112,8 +1112,6 @@ type Props = {
   onGuardarExamenes: (examenes: EnvioExamenVisitaItem[]) => Promise<{ success: boolean; error?: string }>
 }
 
-const EDITABLE_STATES = ['programada', 'confirmada', 'realizada']
-
 export function VisitaLifecycleView({
   visita,
   onConfirmar,
@@ -1125,7 +1123,7 @@ export function VisitaLifecycleView({
   onGuardarPago,
   onGuardarExamenes,
 }: Props) {
-  const isEditable = EDITABLE_STATES.includes(visita.estado)
+  const isEditable = !ESTADOS_VISITA_NO_EDITABLES.includes(visita.estado)
   const isCompleted = visita.estado === 'completada'
   const visitCode = `V-${String(visita.id).padStart(5, '0')}`
   const cfg = ESTADO_VISITA_STYLES[visita.estado] ?? ESTADO_VISITA_STYLES['programada']!

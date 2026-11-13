@@ -8,15 +8,9 @@ import { SelectCombobox } from '@/components/select-combobox'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { VISITA_REPORT_COLUMNS } from '@/lib/reportes/visitas-columns'
+import { ESTADOS_VISITA, ESTADO_VISITA_LABEL, type EstadoVisita } from '@/lib/estados'
 
-const ESTADO_OPTIONS = [
-  { value: 'programada', label: 'Programada' },
-  { value: 'confirmada', label: 'Confirmada' },
-  { value: 'realizada', label: 'Realizada' },
-  { value: 'completada', label: 'Completada' },
-  { value: 'no_realizada', label: 'No realizada' },
-  { value: 'cancelada', label: 'Cancelada' },
-]
+const ESTADO_OPTIONS = ESTADOS_VISITA.map((value) => ({ value, label: ESTADO_VISITA_LABEL[value] }))
 
 const DEFAULT_ESTADO_IDX = ESTADO_OPTIONS.findIndex((o) => o.value === 'realizada')
 
@@ -34,7 +28,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
   )
 
   const estadoOptions = ESTADO_OPTIONS.map((opt, idx) => ({ id: idx, label: opt.label }))
-  const estadoValues = estadoIds.map((idx) => ESTADO_OPTIONS[idx]?.value).filter((v): v is string => Boolean(v))
+  const estadoValues = estadoIds.map((idx) => ESTADO_OPTIONS[idx]?.value).filter((v): v is EstadoVisita => Boolean(v))
   const enfermeraOptions = enfermeras.map((e) => ({ id: e.id, label: e.nombre }))
 
   const activeColumnKeys = useMemo(

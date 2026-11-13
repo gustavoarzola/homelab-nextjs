@@ -5,6 +5,7 @@ import { and, asc, count, desc, eq, gte, lte, sql, sum } from 'drizzle-orm'
 import { db } from '@/db'
 import { nurses, patients, visitExams, visitIsapreExams, visitProcedures, visits, visitSurcharges, visitWorkshops } from '@/db/schema'
 import { requireSession } from '@/lib/auth-guard'
+import type { EstadoVisita } from '@/lib/estados'
 import { formatNombre } from '@/lib/paciente'
 import {
   calcNursePayment,
@@ -35,7 +36,7 @@ type Params = {
 
 // Solo se paga a la enfermera por visitas ya cerradas (boleta/factura emitida y
 // cobrada al paciente). completarVisita() exige pagado=true para llegar a este estado.
-const ESTADO_VISITA_PAGABLE = 'completada'
+const ESTADO_VISITA_PAGABLE: EstadoVisita = 'completada'
 
 // ─── searchPagosEnfermerasMensual ─────────────────────────────────────────────
 

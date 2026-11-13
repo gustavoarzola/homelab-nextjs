@@ -8,6 +8,7 @@ import {
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { requireSession } from '@/lib/auth-guard'
+import { ESTADOS_VISITA_ASIGNABLES } from '@/lib/estados'
 import { formatNombre } from '@/lib/paciente'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -25,8 +26,6 @@ export type VisitaAsignacion = {
 }
 
 export type Result = { success: boolean; error?: string }
-
-const ESTADOS_VISITA_ASIGNABLE = ['programada', 'confirmada']
 
 // ─── getVisitasParaAsignacion ─────────────────────────────────────────────────
 
@@ -48,7 +47,7 @@ export async function getVisitasParaAsignacion(fecha: string): Promise<VisitaAsi
     .from(visits)
     .leftJoin(patients, eq(visits.idPaciente, patients.id))
     .leftJoin(addresses, eq(patients.idDireccion, addresses.id))
-    .where(and(eq(visits.fecha, fecha), inArray(visits.estado, ESTADOS_VISITA_ASIGNABLE)))
+    .where(and(eq(visits.fecha, fecha), inArray(visits.estado, ESTADOS_VISITA_ASIGNABLES)))
 
   if (!rawVisitas.length) return []
 

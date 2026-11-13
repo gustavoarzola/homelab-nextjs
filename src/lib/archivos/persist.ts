@@ -1,12 +1,8 @@
 import { eq, inArray } from 'drizzle-orm'
+import type { DbOrTx } from '@/db'
 import { visitFiles, patientFiles } from '@/db/schema'
 import type { ArchivoItemInput } from '@/lib/validation'
 import type { ArchivoTipo } from './nombres'
-
-// El tipo exacto de la transacción de Drizzle es engorroso de nombrar; se acepta
-// `any` igual que `PricingDb` en `src/lib/pricing/visitas.ts` (deuda técnica #1).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Tx = any
 
 /**
  * Reconcilia las filas de archivos de una entidad contra el payload del formulario:
@@ -18,7 +14,7 @@ type Tx = any
  * `deleteManyFromR2`). El renombrado a la key definitiva lo hace `syncArchivos*`.
  */
 export async function reconcileArchivos(args: {
-  tx: Tx
+  tx: DbOrTx
   tipo: ArchivoTipo
   entidadId: number
   incoming: ArchivoItemInput[]

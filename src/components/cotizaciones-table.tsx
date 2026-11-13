@@ -8,6 +8,7 @@ import type { CotizacionRow } from '@/lib/actions/cotizaciones'
 import { formatDate } from '@/lib/format'
 import { Printer, Stethoscope } from 'lucide-react'
 import { ESTADO_COTIZACION_STYLES } from '@/lib/estado-colors'
+import { ESTADOS_COTIZACION, ESTADO_COTIZACION_LABEL } from '@/lib/estados'
 
 const columns: ColumnDef<CotizacionRow>[] = [
   {
@@ -66,10 +67,7 @@ const columns: ColumnDef<CotizacionRow>[] = [
 
 const ESTADO_OPTIONS = [
   { value: '', label: '— Todos —' },
-  { value: 'creada', label: 'Creada' },
-  { value: 'enviada', label: 'Enviada' },
-  { value: 'aceptada', label: 'Aceptada' },
-  { value: 'rechazada', label: 'Rechazada' },
+  ...ESTADOS_COTIZACION.map((value) => ({ value, label: ESTADO_COTIZACION_LABEL[value] })),
 ]
 
 const filters: FilterDef[] = [

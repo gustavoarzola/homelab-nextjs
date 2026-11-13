@@ -278,7 +278,9 @@ Wrappers en `src/lib/with-action.ts` (todos llaman `requireSession()`; usarlos e
 - `listVisitasForReport(filters)` — Filas del reporte (`/reportes`, `/api/reportes/visitas/export`); columnas en `src/lib/reportes/visitas-columns.ts`
 - Ciclo de estados (`visitas.estado`): `programada` → `confirmada` → `realizada` → `completada`;
   ramas `no_realizada` (desde confirmada) y `cancelada` (desde programada o confirmada). `completada`,
-  `cancelada` y `no_realizada` son finales (no se editan). Acciones:
+  `cancelada` y `no_realizada` son finales (no se editan). Lista, tipo `EstadoVisita`, labels y grupos
+  con nombre (`ESTADOS_VISITA_NO_EDITABLES`, `ESTADOS_VISITA_ASIGNABLES`, `ESTADOS_VISITA_EFECTIVOS`, …)
+  viven en `src/lib/estados.ts` (ídem `EstadoCotizacion`); el schema los tipa con `$type<>()`. Acciones:
   - `confirmarVisita(id)` — programada → confirmada
   - `marcarRealizada(id)` — confirmada → realizada (exige enfermera asignada)
   - `marcarNoRealizada(id, costo, concepto)` — confirmada → no_realizada (costo de traslado)
@@ -532,6 +534,9 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 - En Vercel: Neon serverless (WebSocket via `@neondatabase/serverless` Pool)
 - Local: `postgres` (TCP directo) — se detecta con `process.env.VERCEL`
 - Variable: `HOMELAB_DATABASE_URL` (pooled), `HOMELAB_DATABASE_URL_UNPOOLED` (para migraciones)
+- Tipos: `db` está tipado como `Db` (`PgDatabase`, supertipo común de ambos drivers). Los helpers que
+  reciben una conexión o una transacción (pricing, `reconcileArchivos`, seed, helpers con `tx`) usan
+  `DbOrTx` de `src/db/index.ts` — nunca `any`.
 
 ### Build
 - `vercel-build`: `tsx scripts/db-guard.ts && drizzle-kit migrate && next build`
@@ -571,25 +576,24 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 ### Alta prioridad
 
-1. **`PricingDb` tipado como `any`** en `src/lib/pricing/visitas.ts:35` — la conexión de DB se pasa como `any` para aceptar tanto Neon como postgres.js. Debería tener un tipo compartido o usar el tipo de Drizzle.
-
-2. **`SimpleDatePicker` solo se usa en playground** — El componente existe pero no se usa en producción. Evaluar si eliminarlo o adoptarlo.
+1. **`SimpleDatePicker` solo se usa en playground** — El componente existe pero no se usa en producción. Evaluar si eliminarlo o adoptarlo.
 
 ### Media prioridad
 
-3. **Formularios sin react-hook-form** — Los formularios complejos (visita, cotización, paciente) manejan estado manualmente con muchos `useState`. Esto es funcional pero verboso. La validación server-side con Zod ya está en place; no es prioridad migrar.
+2. **Formularios sin react-hook-form** — Los formularios complejos (visita, cotización, paciente) manejan estado manualmente con muchos `useState`. Esto es funcional pero verboso. La validación server-side con Zod ya está en place; no es prioridad migrar.
 
-4. **NextAuth en versión beta** — `next-auth@5.0.0-beta.30` puede tener breaking changes. Monitorear para actualizar a la versión estable cuando salga.
+3. **NextAuth en versión beta** — `next-auth@5.0.0-beta.30` puede tener breaking changes. Monitorear para actualizar a la versión estable cuando salga.
 
-5. **Los cuadros de pendientes del dashboard son un quickview, no un reporte.** "Cobros pendientes" y "Resultados pendientes" (`getDashboardFinanciero`) muestran solo las primeras 20 filas del mes seleccionado (el subtítulo indica el total real). Falta una página de reporte dedicada, con filtros propios (rango de fechas, enfermera, laboratorio, grupo de examen), paginación y export a Excel vía `src/lib/excel/build-excel.ts`, tanto para cobros pendientes como para exámenes con resultado por enviar.
+4. **Los cuadros de pendientes del dashboard son un quickview, no un reporte.** "Cobros pendientes" y "Resultados pendientes" (`getDashboardFinanciero`) muestran solo las primeras 20 filas del mes seleccionado (el subtítulo indica el total real). Falta una página de reporte dedicada, con filtros propios (rango de fechas, enfermera, laboratorio, grupo de examen), paginación y export a Excel vía `src/lib/excel/build-excel.ts`, tanto para cobros pendientes como para exámenes con resultado por enviar.
 
 ### Baja prioridad
 
-6. **Google Maps API key expuesta al cliente** — `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` es pública por necesidad (se usa en el browser), pero debería tener restricciones de dominio configuradas en la consola de Google Cloud.
+5. **Google Maps API key expuesta al cliente** — `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` es pública por necesidad (se usa en el browser), pero debería tener restricciones de dominio configuradas en la consola de Google Cloud.
 
-7. **No hay rate limiting en API routes** — Los endpoints de upload y archivos no tienen rate limiting.
+6. **No hay rate limiting en API routes** — Los endpoints de upload y archivos no tienen rate limiting.
 
 ### Resuelto (referencia)
+- Conexión de DB tipada como `any` (`PricingDb`, `Tx`) → `Db` / `DbOrTx` en `src/db/index.ts`.
 - Duplicación de HTML entre cotización y cotización-standalone → `buildCotizacionHTML()` en `src/lib/cotizacion-html.ts`.
 - Catálogos con CRUD repetido → `src/lib/actions/_catalog-factory.ts`.
 - Manejo de errores centralizado en server actions → `src/lib/with-action.ts`.

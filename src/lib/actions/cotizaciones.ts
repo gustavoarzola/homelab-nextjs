@@ -1,7 +1,7 @@
 'use server'
 
 import { z } from 'zod'
-import { db } from '@/db'
+import { db, type DbOrTx } from '@/db'
 import {
   quotations,
   quotationExams,
@@ -28,6 +28,7 @@ import { eq, and, or, ilike, asc, desc, SQL, sql, isNull, inArray } from 'drizzl
 import { revalidatePath } from 'next/cache'
 import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { isEstadoCotizacion, type EstadoCotizacion } from '@/lib/estados'
 import { formatNombre } from '@/lib/paciente'
 import { dateToSantiagoYMD, todaySantiago } from '@/lib/format'
 import { getPrecioVisitaPorIdComuna } from '@/lib/pricing/visitas'
@@ -39,7 +40,7 @@ import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/wit
 
 export type CotizacionDetalle = {
   id: number
-  estado: string
+  estado: EstadoCotizacion
   idPaciente: number | null
   nombreDestinatario: string | null
   emailDestinatario: string | null
@@ -74,7 +75,7 @@ export type CotizacionDetalle = {
 
 export type CotizacionVista = {
   id: number
-  estado: string
+  estado: EstadoCotizacion
   idPaciente: number | null
   pacienteNombre: string | null
   nombreDestinatario: string | null
@@ -110,7 +111,7 @@ export type CotizacionVista = {
 export type CotizacionRow = {
   id: number
   fecha: string
-  estado: string
+  estado: EstadoCotizacion
   paciente: string | null
   destinatario: string | null
   total: number
@@ -349,7 +350,8 @@ export async function searchCotizaciones(
     if (orCondition) conditions.push(orCondition)
   }
   if (estado && estado !== 'todas') {
-    conditions.push(eq(quotations.estado, estado))
+    // Un estado desconocido no matchea nada.
+    conditions.push(isEstadoCotizacion(estado) ? eq(quotations.estado, estado) : sql`false`)
   }
 
   const countResult = await db
@@ -944,16 +946,11 @@ export async function deleteCotizacion(id: number): Promise<ActionResult> {
 
 // ─── convertirCotizacionAVisita ────────────────────────────────────────────
 
-// tx: transacción de Drizzle. Sin tipo compartido entre Neon (Vercel) y postgres.js (local) — mismo
-// criterio que los helpers con tx de visitas.ts.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Tx = any
-
 // Helper interno (no exportado → no es invocable como server action): crea la visita a partir de
 // la cotización ya "reclamada" por aceptarCotizacion y copia sus ítems, dentro de la misma
 // transacción. Devuelve el id de la visita.
 async function convertirCotizacionAVisita(
-  tx: Tx,
+  tx: DbOrTx,
   quotation: typeof quotations.$inferSelect,
   idPatient?: number,
 ): Promise<number> {

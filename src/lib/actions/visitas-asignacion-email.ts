@@ -12,6 +12,7 @@ import { eq, and, inArray, asc, isNull } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { formatDate } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
+import type { EstadoVisita } from '@/lib/estados'
 import { formatNombre } from '@/lib/paciente'
 import { calcNursePaymentConcepts, type NursePaymentConcepts } from '@/lib/pricing/nurse-payment'
 import { generateScheduledVisitsHTML } from '@/lib/emails/scheduled-visits-email-html'
@@ -87,7 +88,7 @@ export type VisitaSinAsignar = {
 
 export type Result = { success: boolean; error?: string }
 
-const ESTADO_VISITA_ENVIO_CORREO = 'confirmada'
+const ESTADO_VISITA_ENVIO_CORREO: EstadoVisita = 'confirmada'
 
 // CC en todos los correos de salida (registro interno)
 const CC_CORREOS_SALIDA = process.env.RESEND_CC_EMAIL ?? 'contacto@homelab.cl'

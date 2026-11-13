@@ -1,13 +1,14 @@
 'use server'
 
 import { z } from 'zod'
-import { db } from '@/db'
+import { db, type DbOrTx } from '@/db'
 import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, elderlyResidences, surchargeTypes } from '@/db/schema'
 import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getTiposRecargosForSelect } from './catalogos'
 import type { SearchParams, Result } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
+import { ESTADOS_VISITA_CANCELABLES, ESTADOS_VISITA_ELIMINACION_SOLO_ADMIN, ESTADOS_VISITA_INACTIVOS, ESTADOS_VISITA_NO_EDITABLES, isEstadoVisita, type EstadoVisita } from '@/lib/estados'
 import { isAdmin } from '@/lib/permissions'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 import { formatNombre } from '@/lib/paciente'
@@ -46,7 +47,7 @@ export type VisitaDetalle = {
   id: number
   fecha: string
   hora: string | null
-  estado: string
+  estado: EstadoVisita
   costo: number
   montoInsumos: number
   descuentoTipo: 'monto' | 'porcentaje'
@@ -90,7 +91,7 @@ export type VisitaLifecycleDetalle = {
   id: number
   fecha: string
   hora: string | null
-  estado: string
+  estado: EstadoVisita
   costo: number
   montoInsumos: number
   cobraVisita: boolean
@@ -138,7 +139,7 @@ export type VisitaRow = {
   activo: boolean      // false when cancelada → renders at 50% opacity
   fecha: string        // YYYY-MM-DD
   hora: string | null
-  estado: string
+  estado: EstadoVisita
   costo: number
   idPaciente: number | null
   paciente: string | null
@@ -166,8 +167,9 @@ function buildVisitasWhere(filters: SearchParams['filters']): SQL | undefined {
     )
   }
   if (estado) {
-    const estados = estado.split(',').map((e) => e.trim()).filter(Boolean)
-    conditions.push(estados.length > 1 ? inArray(visits.estado, estados) : eq(visits.estado, estados[0]!))
+    // Un estado desconocido se descarta; si no queda ninguno, `inArray([])` no matchea nada.
+    const estados = estado.split(',').map((e) => e.trim()).filter(isEstadoVisita)
+    conditions.push(inArray(visits.estado, estados))
   }
   if (enfermeraId) {
     const enfermeraIds = enfermeraId.split(',').map((e) => Number(e.trim())).filter(Boolean)
@@ -210,7 +212,7 @@ type VisitaRawRow = {
   id: number
   fecha: string
   hora: string | null
-  estado: string
+  estado: EstadoVisita
   costo: number
   idPaciente: number | null
   pacienteNombres: string | null
@@ -224,7 +226,7 @@ type VisitaRawRow = {
 function mapVisitaRow(r: VisitaRawRow): VisitaRow {
   return {
     id: r.id,
-    activo: !['cancelada', 'no_realizada'].includes(r.estado),
+    activo: !ESTADOS_VISITA_INACTIVOS.includes(r.estado),
     fecha: r.fecha,
     hora: r.hora,
     estado: r.estado,
@@ -299,7 +301,7 @@ export async function listVisitasForExport(
 export type VisitaReportRow = {
   id: number
   fecha: string
-  estado: string
+  estado: EstadoVisita
   paciente: string | null
   rut: string | null
   comuna: string | null
@@ -753,15 +755,12 @@ export async function getVisitaLifecycle(id: number): Promise<VisitaLifecycleDet
 
 // ─── deleteVisita ─────────────────────────────────────────────────────────────
 
-// Solo admin puede eliminar visitas en estos estados (registros cerrados).
-const ESTADOS_VISITA_CERRADA = ['realizada', 'completada']
-
 export async function deleteVisita(id: number): Promise<ActionResult> {
   return withAction('Error al eliminar la visita', async () => {
     const session = await requireSession()
     if (!isAdmin(session.user.role)) {
       const [visita] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
-      if (visita && ESTADOS_VISITA_CERRADA.includes(visita.estado)) {
+      if (visita && ESTADOS_VISITA_ELIMINACION_SOLO_ADMIN.includes(visita.estado)) {
         throw new ActionError('No tienes permisos para eliminar una visita realizada o completada')
       }
     }
@@ -835,10 +834,9 @@ export async function updateVisita(
 
   const descuentoValorFinal = cobraVisita ? descuentoValor : 0
 
-  // Guard: cannot edit completed or terminal states
   const [current] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
   if (!current) return { success: false, error: 'Visita no encontrada' }
-  if (['completada', 'cancelada', 'no_realizada'].includes(current.estado)) {
+  if (ESTADOS_VISITA_NO_EDITABLES.includes(current.estado)) {
     return { success: false, error: `No se puede editar una visita en estado ${current.estado}` }
   }
 
@@ -1222,7 +1220,7 @@ export async function cancelarVisita(id: number, motivo: string): Promise<Action
     if (!motivo.trim()) throw new ActionError('El motivo de cancelación es requerido')
     const [visit] = await db.select({ estado: visits.estado }).from(visits).where(eq(visits.id, id))
     if (!visit) throw new ActionError('Visita no encontrada')
-    if (!['programada', 'confirmada'].includes(visit.estado)) throw new ActionError('Solo se puede cancelar una visita programada o confirmada')
+    if (!ESTADOS_VISITA_CANCELABLES.includes(visit.estado)) throw new ActionError('Solo se puede cancelar una visita programada o confirmada')
     await db.update(visits)
       .set({ estado: 'cancelada', motivoCancelacion: motivo.trim(), updatedAt: new Date() })
       .where(eq(visits.id, id))
@@ -1277,10 +1275,8 @@ async function getExamenesEsperados(id: number): Promise<number[]> {
   return [...new Set([...stdExams, ...isapreExams].map((ex) => ex.idExamen))]
 }
 
-// tx: transacción de Drizzle. Sin tipo compartido entre Neon (Vercel) y postgres.js (local) — mismo
-// patrón que `PricingDb` en src/lib/pricing/visitas.ts.
 async function upsertExamResults(
-  tx: any,
+  tx: DbOrTx,
   idVisita: number,
   items: { idExamen: number; enviado: boolean; fechaEnvio: string | null }[],
 ): Promise<{ enviados: number; total: number }> {

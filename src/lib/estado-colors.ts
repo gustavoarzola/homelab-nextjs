@@ -1,3 +1,5 @@
+import { ESTADO_COTIZACION_LABEL, ESTADO_VISITA_LABEL } from '@/lib/estados'
+
 export type EstadoVisitaStyle = {
   bg: string
   color: string
@@ -21,16 +23,16 @@ export const ESTADO_VISITA_STYLES: Record<string, EstadoVisitaStyle> = {
     bg: 'var(--estado-creada-bg)',
     color: 'var(--estado-creada-fg)',
     border: 'var(--estado-creada-fg)',
-    label: 'Programada',
+    label: ESTADO_VISITA_LABEL.programada,
     step: 0,
     badgeClass: 'is-creada',
   },
-  // backward compat alias
+  // Alias de compatibilidad: estado antiguo de visitas (antes de 'programada'); no está en ESTADOS_VISITA.
   creada: {
     bg: 'var(--estado-creada-bg)',
     color: 'var(--estado-creada-fg)',
     border: 'var(--estado-creada-fg)',
-    label: 'Programada',
+    label: ESTADO_VISITA_LABEL.programada,
     step: 0,
     badgeClass: 'is-creada',
   },
@@ -38,7 +40,7 @@ export const ESTADO_VISITA_STYLES: Record<string, EstadoVisitaStyle> = {
     bg: 'var(--estado-confirmada-bg)',
     color: 'var(--estado-confirmada-fg)',
     border: 'var(--estado-confirmada-fg)',
-    label: 'Confirmada',
+    label: ESTADO_VISITA_LABEL.confirmada,
     step: 1,
     badgeClass: 'is-confirmada',
   },
@@ -46,7 +48,7 @@ export const ESTADO_VISITA_STYLES: Record<string, EstadoVisitaStyle> = {
     bg: 'var(--estado-realizada-bg)',
     color: 'var(--estado-realizada-fg)',
     border: 'var(--estado-realizada-fg)',
-    label: 'Realizada',
+    label: ESTADO_VISITA_LABEL.realizada,
     step: 2,
     badgeClass: 'is-realizada',
   },
@@ -56,7 +58,7 @@ export const ESTADO_VISITA_STYLES: Record<string, EstadoVisitaStyle> = {
     bg: 'var(--cot-aceptada-bg)',
     color: 'var(--cot-aceptada-fg)',
     border: 'var(--cot-aceptada-fg)',
-    label: 'Completada',
+    label: ESTADO_VISITA_LABEL.completada,
     step: 3,
     badgeClass: 'is-cot-aceptada',
   },
@@ -64,7 +66,7 @@ export const ESTADO_VISITA_STYLES: Record<string, EstadoVisitaStyle> = {
     bg: 'var(--estado-norealizada-bg)',
     color: 'var(--estado-norealizada-fg)',
     border: 'var(--estado-norealizada-fg)',
-    label: 'No realizada',
+    label: ESTADO_VISITA_LABEL.no_realizada,
     step: 3,
     badgeClass: 'is-norealizada',
   },
@@ -72,7 +74,7 @@ export const ESTADO_VISITA_STYLES: Record<string, EstadoVisitaStyle> = {
     bg: 'var(--estado-cancelada-bg)',
     color: 'var(--estado-cancelada-fg)',
     border: 'var(--estado-cancelada-fg)',
-    label: 'Cancelada',
+    label: ESTADO_VISITA_LABEL.cancelada,
     step: 3,
     badgeClass: 'is-cancelada',
   },
@@ -82,28 +84,28 @@ export const ESTADO_COTIZACION_STYLES: Record<string, EstadoCotizacionStyle> = {
   creada: {
     bg: 'var(--cot-creada-bg)',
     color: 'var(--cot-creada-fg)',
-    label: 'Creada',
+    label: ESTADO_COTIZACION_LABEL.creada,
     step: 0,
     badgeClass: 'is-cot-creada',
   },
   enviada: {
     bg: 'var(--cot-enviada-bg)',
     color: 'var(--cot-enviada-fg)',
-    label: 'Enviada',
+    label: ESTADO_COTIZACION_LABEL.enviada,
     step: 1,
     badgeClass: 'is-cot-enviada',
   },
   aceptada: {
     bg: 'var(--cot-aceptada-bg)',
     color: 'var(--cot-aceptada-fg)',
-    label: 'Aceptada',
+    label: ESTADO_COTIZACION_LABEL.aceptada,
     step: 2,
     badgeClass: 'is-cot-aceptada',
   },
   rechazada: {
     bg: 'var(--cot-rechazada-bg)',
     color: 'var(--cot-rechazada-fg)',
-    label: 'Rechazada',
+    label: ESTADO_COTIZACION_LABEL.rechazada,
     step: 2,
     badgeClass: 'is-cot-rechazada',
   },
