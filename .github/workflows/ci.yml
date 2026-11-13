@@ -39,13 +39,13 @@ jobs:
       R2_BUCKET_NAME: ci-dummy
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      # Sin `version`: la toma de `packageManager` en package.json (declararla en
+      # ambos lados hace fallar la action).
+      - uses: pnpm/action-setup@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           cache: pnpm
