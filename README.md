@@ -113,7 +113,7 @@ src/
 
 ## Modelo de Datos
 
-Ver `PLAN_MIGRACION.md` en el repositorio raíz para la documentación completa del modelo de datos.
+Ver `docs/historico/PLAN_MIGRACION.md` para la documentación completa del modelo de datos.
 
 Tablas principales:
 - `usuarios` - Usuarios del sistema

@@ -5,7 +5,7 @@ import { join } from 'path'
 
 type ExamRow = { codigo: string; nombre: string; precio: number; grupoExamen: string }
 
-const csvPath = join(process.cwd(), 'examenes.csv')
+const csvPath = join(process.cwd(), 'src/db/seed/data/examenes.csv')
 const csvLines = readFileSync(csvPath, 'utf-8').trim().split('\n').slice(1) // skip header
 
 export const examenesDataWithPrices: ExamRow[] = csvLines
