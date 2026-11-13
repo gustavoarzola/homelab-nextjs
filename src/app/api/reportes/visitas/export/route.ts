@@ -1,10 +1,10 @@
-import { requireSession } from '@/lib/auth-guard'
+import { requireAdmin } from '@/lib/auth-guard'
 import { listVisitasForReport } from '@/lib/actions/visitas'
 import { buildExcel } from '@/lib/excel/build-excel'
 import { VISITA_REPORT_COLUMNS } from '@/lib/reportes/visitas-columns'
 
 export async function GET(request: Request) {
-  await requireSession()
+  await requireAdmin()
 
   const { searchParams } = new URL(request.url)
 

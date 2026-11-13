@@ -10,7 +10,7 @@ import { visits } from '@/db/schema'
 import { and, asc, count, countDistinct, eq, gte, isNotNull, lte, sql, sum } from 'drizzle-orm'
 
 vi.mock('@/auth', () => ({
-  auth: vi.fn(async () => ({ user: { id: 'test-user' } })),
+  auth: vi.fn(async () => ({ user: { id: 'test-user', role: 'admin' } })),
 }))
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),

@@ -29,5 +29,5 @@ if (process.env.VITEST && process.env.HOMELAB_TEST_DATABASE_URL) {
 }
 
 vi.mock('@/auth', () => ({
-  auth: vi.fn(async () => ({ user: { id: 'test-user', email: 'test@example.com' } })),
+  auth: vi.fn(async () => ({ user: { id: 'test-user', email: 'test@example.com', role: 'admin' } })),
 }))

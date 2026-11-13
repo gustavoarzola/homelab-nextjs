@@ -25,6 +25,7 @@ import {
   Megaphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { canAccessPath } from '@/lib/permissions'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -79,6 +80,8 @@ type Props = {
 
 export function Sidebar({ userName, userRole, onSignOut }: Props) {
   const pathname = usePathname()
+  const visibleNav = navItems.filter(({ href }) => canAccessPath(userRole, href))
+  const visibleCatalog = catalogItems.filter(({ href }) => canAccessPath(userRole, href))
 
   return (
     <aside className="app-side">
@@ -87,7 +90,7 @@ export function Sidebar({ userName, userRole, onSignOut }: Props) {
       </div>
 
       <nav className="app-side__nav">
-        {navItems.map(({ href, label, icon: Icon }) => (
+        {visibleNav.map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href} className={cn(isActive(pathname, href) && 'active')}>
             <Icon />
             <span>{label}</span>
@@ -95,7 +98,7 @@ export function Sidebar({ userName, userRole, onSignOut }: Props) {
         ))}
 
         <div className="app-side__group">Catálogos</div>
-        {catalogItems.map(({ href, label, icon: Icon }) => (
+        {visibleCatalog.map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href} className={cn(isActive(pathname, href) && 'active')}>
             <Icon />
             <span>{label}</span>

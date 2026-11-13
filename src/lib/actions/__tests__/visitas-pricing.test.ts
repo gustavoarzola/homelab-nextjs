@@ -17,7 +17,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { P } from './helpers'
 
 vi.mock('@/auth', () => ({
-  auth: vi.fn(async () => ({ user: { id: 'test-user' } })),
+  auth: vi.fn(async () => ({ user: { id: 'test-user', role: 'admin' } })),
 }))
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),

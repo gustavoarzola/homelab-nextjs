@@ -51,7 +51,7 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
     .insert(users)
     .values([
       { nombre: 'Administrador', correo: 'admin@homelab.cl', contrasena: adminHash, rol: 'admin', activo: true },
-      { nombre: 'Usuario Demo', correo: 'usuario@homelab.cl', contrasena: userHash, rol: 'usuario', activo: true },
+      { nombre: 'Usuario Demo', correo: 'usuario@homelab.cl', contrasena: userHash, rol: 'ejecutivo', activo: true },
     ])
     .onConflictDoNothing({ target: users.correo })
 
