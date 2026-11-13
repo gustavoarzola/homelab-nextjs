@@ -603,6 +603,12 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 6. **No hay rate limiting en API routes** — Los endpoints de upload y archivos no tienen rate limiting.
 
+7. **9 warnings de lint pendientes** (`pnpm lint`, 0 errores). Arreglarlos cambia comportamiento, por eso
+   quedaron como aviso: 6 `react-hooks/set-state-in-effect` (componentes que copian props a estado en un
+   `useEffect`: `exam-grupo-block`, `select-combobox`, `time-picker`), 1 `react-hooks/incompatible-library`,
+   1 `jsx-a11y/role-supports-aria-props` y 1 `no-explicit-any` (`_catalog-factory.ts`). Corregirlos al tocar
+   esos archivos; no agregar warnings nuevos.
+
 ### Resuelto (referencia)
 - Conexión de DB tipada como `any` (`PricingDb`, `Tx`) → `Db` / `DbOrTx` en `src/db/index.ts`.
 - Duplicación de HTML entre cotización y cotización-standalone → `buildCotizacionHTML()` en `src/lib/cotizacion-html.ts`.
