@@ -56,10 +56,9 @@ export default async function DashboardPage({ searchParams }: Props) {
         />
         <DashboardRankingCard
           title="Ítems atendidos"
-          description="Exámenes, procedimientos y talleres realizados en el período"
+          description="Visitas por tipo de atención (una visita puede sumar en varios)"
           items={dashboard.itemsAtendidos}
           icon="composicion"
-          unit={null}
         />
       </div>
 

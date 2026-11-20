@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { db } from '@/db'
 import { visits } from '@/db/schema'
-import { and, asc, count, countDistinct, eq, gte, isNotNull, lte, sql, sum } from 'drizzle-orm'
+import { and, asc, count, countDistinct, eq, gte, inArray, isNotNull, lte, sql, sum } from 'drizzle-orm'
 
 vi.mock('@/auth', () => ({
   auth: vi.fn(async () => ({ user: { id: 'test-user', role: 'admin' } })),
@@ -24,13 +24,14 @@ import { calcNursePayment } from '@/lib/pricing/nurse-payment'
 
 const MARCH_START = '2026-03-01'
 const MARCH_END = '2026-03-31'
+const ESTADOS_EFECTIVOS = ['realizada', 'completada']
 
 describe('getDashboardVisitsByDay — marzo 2026 (seed determinista)', () => {
-  it('el total de visitas coincide con un conteo independiente por rango de fecha', async () => {
+  it('el total de visitas cuenta solo realizadas/completadas (excluye canceladas, etc.)', async () => {
     const [row] = await db
       .select({ total: count() })
       .from(visits)
-      .where(and(gte(visits.fecha, MARCH_START), lte(visits.fecha, MARCH_END)))
+      .where(and(gte(visits.fecha, MARCH_START), lte(visits.fecha, MARCH_END), inArray(visits.estado, ESTADOS_EFECTIVOS)))
 
     const result = await getDashboardVisitsByDay(3, 2026)
 
@@ -49,7 +50,7 @@ describe('getDashboardVisitsByDay — marzo 2026 (seed determinista)', () => {
     const [row] = await db
       .select({ total: countDistinct(visits.idEnfermera) })
       .from(visits)
-      .where(and(gte(visits.fecha, MARCH_START), lte(visits.fecha, MARCH_END), isNotNull(visits.idEnfermera)))
+      .where(and(and(gte(visits.fecha, MARCH_START), lte(visits.fecha, MARCH_END), inArray(visits.estado, ESTADOS_EFECTIVOS)), isNotNull(visits.idEnfermera)))
 
     const result = await getDashboardVisitsByDay(3, 2026)
     const rankingSum = result.visitsByNurse.reduce((s, r) => s + r.value, 0)
@@ -59,33 +60,30 @@ describe('getDashboardVisitsByDay — marzo 2026 (seed determinista)', () => {
     expect(rankingSum).toBeGreaterThan(0) // el seed asigna enfermera a buena parte de las visitas
   })
 
-  it('los ítems atendidos cuentan exámenes/procedimientos/talleres de visitas realizadas (SQL independiente, incluye isapre)', async () => {
+  it('los ítems atendidos cuentan visitas (no ítems) por tipo de atención, solo realizadas/completadas (SQL independiente, incluye isapre)', async () => {
     const independiente = await db.execute(sql`
+      with efectivas as (
+        select id from visitas
+        where fecha >= ${MARCH_START} and fecha <= ${MARCH_END}
+          and estado in ('realizada', 'completada')
+      )
       select
-        (select count(*) from (
-           select ev.id_visita, ev.id_examen from examenes_visitas ev
-           union
-           select eiv.id_visita, eiv.id_examen from examenes_isapre_visitas eiv
-         ) x
-         join visitas v on v.id = x.id_visita
-         where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
-           and v.estado in ('realizada', 'completada'))::int as examenes,
-        (select count(*) from procedimientos_visitas pv
-           join visitas v on v.id = pv.id_visita
+        (select count(distinct x.id_visita) from (
+           select ev.id_visita from examenes_visitas ev
+           union all
+           select eiv.id_visita from examenes_isapre_visitas eiv
+         ) x join efectivas e on e.id = x.id_visita)::int as examenes,
+        (select count(distinct pv.id_visita) from procedimientos_visitas pv
+           join efectivas e on e.id = pv.id_visita
            join procedimientos p on p.id = pv.id_procedimiento
-         where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
-           and v.estado in ('realizada', 'completada')
-           and p.categoria = 'curaciones')::int as curaciones,
-        (select count(*) from procedimientos_visitas pv
-           join visitas v on v.id = pv.id_visita
+         where p.categoria = 'curaciones')::int as curaciones,
+        (select count(distinct pv.id_visita) from procedimientos_visitas pv
+           join efectivas e on e.id = pv.id_visita
            join procedimientos p on p.id = pv.id_procedimiento
-         where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
-           and v.estado in ('realizada', 'completada')
-           and p.categoria <> 'curaciones')::int as otros,
-        (select count(*) from talleres_visitas tv
-           join visitas v on v.id = tv.id_visita
-         where v.fecha >= ${MARCH_START} and v.fecha <= ${MARCH_END}
-           and v.estado in ('realizada', 'completada'))::int as talleres
+         where p.categoria <> 'curaciones')::int as otros,
+        (select count(distinct tv.id_visita) from talleres_visitas tv
+           join efectivas e on e.id = tv.id_visita)::int as talleres,
+        (select count(*) from efectivas)::int as visitas
     `)
     const ind = independiente[0]
 
@@ -103,6 +101,12 @@ describe('getDashboardVisitsByDay — marzo 2026 (seed determinista)', () => {
     expect(byLabel['Curaciones']).toBe(Number(ind.curaciones))
     expect(byLabel['Otros procedimientos']).toBe(Number(ind.otros))
     expect(byLabel['Talleres']).toBe(Number(ind.talleres))
+
+    // Cada tipo cuenta visitas: nunca más que las visitas efectivas del mes.
+    for (const item of result.itemsAtendidos) {
+      expect(item.value).toBeLessThanOrEqual(Number(ind.visitas))
+    }
+    expect(Number(ind.visitas)).toBe(result.totalVisits)
 
     const total = result.itemsAtendidos.reduce((s, r) => s + r.value, 0)
     expect(total).toBeGreaterThan(0)
