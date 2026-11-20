@@ -56,13 +56,21 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
 
   const { start, end, totalDays } = getMonthRange(year, month)
 
+  // Todo el cuadro "Visitas del mes" cuenta solo visitas efectivamente realizadas
+  // (excluye programadas, confirmadas, canceladas y no realizadas).
+  const visitasEfectivas = and(
+    gte(visits.fecha, start),
+    lte(visits.fecha, end),
+    inArray(visits.estado, ESTADOS_VISITA_EFECTIVA),
+  )
+
   const rows = await db
     .select({
       fecha: visits.fecha,
       total: count(),
     })
     .from(visits)
-    .where(and(gte(visits.fecha, start), lte(visits.fecha, end)))
+    .where(visitasEfectivas)
     .groupBy(visits.fecha)
     .orderBy(asc(visits.fecha))
 
@@ -86,21 +94,19 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
     chartData[0] ?? { day: 1, label: '', visits: 0, date: start },
   )
 
-  // Ítems atendidos: se cuentan solo los de visitas efectivamente realizadas.
-  const visitasEfectivas = and(
-    gte(visits.fecha, start),
-    lte(visits.fecha, end),
-    inArray(visits.estado, ESTADOS_VISITA_EFECTIVA),
-  )
+  // Ítems atendidos: se cuentan VISITAS por tipo de atención, no ítems. Una visita con
+  // ≥1 examen (regular o isapre) suma 1 en "Exámenes" aunque tenga varios; lo mismo con
+  // curaciones, otros procedimientos y talleres. Una visita puede sumar en más de un tipo.
+  const tieneExamen = sql`(exists (select 1 from ${visitExams} where ${visitExams.idVisita} = ${visits.id})
+    or exists (select 1 from ${visitIsapreExams} where ${visitIsapreExams.idVisita} = ${visits.id}))`
+  const tieneProcedimiento = (curaciones: boolean) => sql`exists (
+    select 1 from ${visitProcedures}
+    inner join ${procedures} on ${procedures.id} = ${visitProcedures.idProcedimiento}
+    where ${visitProcedures.idVisita} = ${visits.id}
+      and ${procedures.categoria} ${curaciones ? sql`=` : sql`<>`} 'curaciones')`
+  const tieneTaller = sql`exists (select 1 from ${visitWorkshops} where ${visitWorkshops.idVisita} = ${visits.id})`
 
-  // Exámenes: unión deduplicada de regulares (examenes_visitas) + isapre
-  // (examenes_isapre_visitas), mismo criterio que resultadosPendientesBase().
-  const examenesDeVisita = union(
-    db.select({ idVisita: visitExams.idVisita, idExamen: visitExams.idExamen }).from(visitExams),
-    db.select({ idVisita: visitIsapreExams.idVisita, idExamen: visitIsapreExams.idExamen }).from(visitIsapreExams),
-  ).as('examenes_de_visita')
-
-  const [visitsByNurseRaw, examenesRows, procsRows, talleresRows] = await Promise.all([
+  const [visitsByNurseRaw, itemsRows] = await Promise.all([
     db
       .select({
         label: sql<string>`trim(concat(${nurses.nombres}, ' ', ${nurses.apellidoPaterno}))`,
@@ -108,30 +114,18 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
       })
       .from(visits)
       .innerJoin(nurses, sql`${visits.idEnfermera} = ${nurses.id}`)
-      .where(and(gte(visits.fecha, start), lte(visits.fecha, end)))
+      .where(visitasEfectivas)
       .groupBy(nurses.id, nurses.nombres, nurses.apellidoPaterno)
       .orderBy(desc(count()), asc(nurses.apellidoPaterno), asc(nurses.nombres)),
 
     db
-      .select({ total: count() })
-      .from(examenesDeVisita)
-      .innerJoin(visits, eq(examenesDeVisita.idVisita, visits.id))
-      .where(visitasEfectivas),
-
-    db
       .select({
-        curaciones: sql<number>`count(*) filter (where ${procedures.categoria} = 'curaciones')`,
-        otros: sql<number>`count(*) filter (where ${procedures.categoria} <> 'curaciones')`,
+        examenes: sql<number>`count(*) filter (where ${tieneExamen})`,
+        curaciones: sql<number>`count(*) filter (where ${tieneProcedimiento(true)})`,
+        otros: sql<number>`count(*) filter (where ${tieneProcedimiento(false)})`,
+        talleres: sql<number>`count(*) filter (where ${tieneTaller})`,
       })
-      .from(visitProcedures)
-      .innerJoin(visits, eq(visitProcedures.idVisita, visits.id))
-      .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
-      .where(visitasEfectivas),
-
-    db
-      .select({ total: count() })
-      .from(visitWorkshops)
-      .innerJoin(visits, eq(visitWorkshops.idVisita, visits.id))
+      .from(visits)
       .where(visitasEfectivas),
   ])
 
@@ -140,12 +134,12 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
     value: Number(item.total),
   }))
 
-  const procsRow = procsRows[0]
+  const items = itemsRows[0]
   const itemsAtendidosRaw: RankingItem[] = [
-    { label: 'Exámenes', value: Number(examenesRows[0]?.total ?? 0) },
-    { label: 'Curaciones', value: Number(procsRow?.curaciones ?? 0) },
-    { label: 'Otros procedimientos', value: Number(procsRow?.otros ?? 0) },
-    { label: 'Talleres', value: Number(talleresRows[0]?.total ?? 0) },
+    { label: 'Exámenes', value: Number(items?.examenes ?? 0) },
+    { label: 'Curaciones', value: Number(items?.curaciones ?? 0) },
+    { label: 'Otros procedimientos', value: Number(items?.otros ?? 0) },
+    { label: 'Talleres', value: Number(items?.talleres ?? 0) },
   ]
   // Si el mes no tiene ningún ítem atendido, devolver [] para que la card
   // muestre su EmptyState en vez de 4 barras al mínimo con valor 0.

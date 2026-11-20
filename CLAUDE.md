@@ -294,7 +294,7 @@ Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al in
 - `sendAllScheduledVisitsEmails(fecha)` — Envío masivo
 
 ### dashboard.ts
-- `getDashboardVisitsByDay(month, year)` — Visitas por día del mes
+- `getDashboardVisitsByDay(month, year)` — Visitas por día del mes, ranking por enfermera e "Ítems atendidos". Todo cuenta solo visitas `realizada`/`completada`. "Ítems atendidos" cuenta **visitas por tipo** (≥1 examen → 1 en Exámenes; idem curaciones, otros procedimientos, talleres), no ítems; una visita puede sumar en más de un tipo
 - `getDashboardFinanciero(month, year)` — Métricas financieras
 
 ---
