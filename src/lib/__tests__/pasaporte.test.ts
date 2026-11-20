@@ -3,8 +3,9 @@ import { validatePasaporte } from '@/lib/rut'
 
 describe('validatePasaporte', () => {
   it.each([
-    ['1234567', '1234567'], // Bolivia
-    ['123456789', '123456789'], // Perú / Venezuela
+    ['7654321', '7654321'], // Bolivia
+    ['1234567', '1234567'], // Perú
+    ['123456789', '123456789'], // Venezuela
     ['AAA123456', 'AAA123456'], // Argentina
     ['rd1234567', 'RD1234567'], // Haití, en minúsculas
     ['AB 123 456', 'AB123456'],

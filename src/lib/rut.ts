@@ -45,8 +45,8 @@ export function formatRut(stored: string): string {
 }
 
 /**
- * Validates a passport number. Formats vary by country (e.g. Bolivia 7 digits,
- * Peru/Venezuela 9, Argentina "AAA123456", Haiti "RD1234567"), so we only require
+ * Validates a passport number. Formats vary by country (e.g. Bolivia and Peru 7 characters,
+ * Venezuela 9, Argentina "AAA123456", Haiti "RD1234567"), so we only require
  * 6-20 alphanumeric characters. Spaces, hyphens and dots typed as separators are
  * stripped. Returns normalized (uppercase, no separators) or invalid.
  */
