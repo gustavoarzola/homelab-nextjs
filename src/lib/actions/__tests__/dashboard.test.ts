@@ -77,10 +77,14 @@ describe('getDashboardVisitsByDay — marzo 2026 (seed determinista)', () => {
            join efectivas e on e.id = pv.id_visita
            join procedimientos p on p.id = pv.id_procedimiento
          where p.categoria = 'curaciones')::int as curaciones,
-        (select count(distinct pv.id_visita) from procedimientos_visitas pv
-           join efectivas e on e.id = pv.id_visita
-           join procedimientos p on p.id = pv.id_procedimiento
-         where p.categoria <> 'curaciones')::int as otros,
+        (select count(*) from efectivas e
+         where e.id in (select pv.id_visita from procedimientos_visitas pv
+                          join procedimientos p on p.id = pv.id_procedimiento
+                        where p.categoria <> 'curaciones')
+            or (e.id not in (select id_visita from examenes_visitas)
+                and e.id not in (select id_visita from examenes_isapre_visitas)
+                and e.id not in (select id_visita from procedimientos_visitas)
+                and e.id not in (select id_visita from talleres_visitas)))::int as otros,
         (select count(distinct tv.id_visita) from talleres_visitas tv
            join efectivas e on e.id = tv.id_visita)::int as talleres,
         (select count(*) from efectivas)::int as visitas
@@ -107,6 +111,10 @@ describe('getDashboardVisitsByDay — marzo 2026 (seed determinista)', () => {
       expect(item.value).toBeLessThanOrEqual(Number(ind.visitas))
     }
     expect(Number(ind.visitas)).toBe(result.totalVisits)
+
+    // Toda visita cae en al menos un tipo (las sin ítems van a "Otros procedimientos").
+    const sumaTipos = result.itemsAtendidos.reduce((s, r) => s + r.value, 0)
+    expect(sumaTipos).toBeGreaterThanOrEqual(result.totalVisits)
 
     const total = result.itemsAtendidos.reduce((s, r) => s + r.value, 0)
     expect(total).toBeGreaterThan(0)

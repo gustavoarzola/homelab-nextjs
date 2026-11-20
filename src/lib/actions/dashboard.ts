@@ -97,6 +97,7 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
   // Ítems atendidos: se cuentan VISITAS por tipo de atención, no ítems. Una visita con
   // ≥1 examen (regular o isapre) suma 1 en "Exámenes" aunque tenga varios; lo mismo con
   // curaciones, otros procedimientos y talleres. Una visita puede sumar en más de un tipo.
+  // Así, la suma de los tipos es siempre ≥ total de visitas del mes.
   const tieneExamen = sql`(exists (select 1 from ${visitExams} where ${visitExams.idVisita} = ${visits.id})
     or exists (select 1 from ${visitIsapreExams} where ${visitIsapreExams.idVisita} = ${visits.id}))`
   const tieneProcedimiento = (curaciones: boolean) => sql`exists (
@@ -105,6 +106,11 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
     where ${visitProcedures.idVisita} = ${visits.id}
       and ${procedures.categoria} ${curaciones ? sql`=` : sql`<>`} 'curaciones')`
   const tieneTaller = sql`exists (select 1 from ${visitWorkshops} where ${visitWorkshops.idVisita} = ${visits.id})`
+  // Visitas de convenio: no registran ítems porque no se cobran; se cuentan como
+  // "Otros procedimientos" para que la card no quede bajo el total de visitas.
+  const sinItems = sql`not (${tieneExamen}) and not exists (
+    select 1 from ${visitProcedures} where ${visitProcedures.idVisita} = ${visits.id})
+    and not (${tieneTaller})`
 
   const [visitsByNurseRaw, itemsRows] = await Promise.all([
     db
@@ -122,7 +128,7 @@ export async function getDashboardVisitsByDay(month: number, year: number) {
       .select({
         examenes: sql<number>`count(*) filter (where ${tieneExamen})`,
         curaciones: sql<number>`count(*) filter (where ${tieneProcedimiento(true)})`,
-        otros: sql<number>`count(*) filter (where ${tieneProcedimiento(false)})`,
+        otros: sql<number>`count(*) filter (where ${tieneProcedimiento(false)} or (${sinItems}))`,
         talleres: sql<number>`count(*) filter (where ${tieneTaller})`,
       })
       .from(visits)
