@@ -45,11 +45,17 @@ export function formatRut(stored: string): string {
 }
 
 /**
- * Validates a passport number: alphanumeric, 8-16 characters.
- * Returns normalized (uppercase) or invalid.
+ * Validates a passport number. Formats vary by country (e.g. Bolivia 7 digits,
+ * Peru/Venezuela 9, Argentina "AAA123456", Haiti "RD1234567"), so we only require
+ * 6-20 alphanumeric characters. Spaces, hyphens and dots typed as separators are
+ * stripped. Returns normalized (uppercase, no separators) or invalid.
  */
+export const PASAPORTE_MIN_LENGTH = 6
+export const PASAPORTE_MAX_LENGTH = 20
+
 export function validatePasaporte(raw: string): { valid: true; normalized: string } | { valid: false } {
-  const clean = raw.trim().toUpperCase()
-  if (!/^[A-Z0-9]{8,16}$/.test(clean)) return { valid: false }
+  const clean = raw.replace(/[\s.\-]/g, '').toUpperCase()
+  const re = new RegExp(`^[A-Z0-9]{${PASAPORTE_MIN_LENGTH},${PASAPORTE_MAX_LENGTH}}$`)
+  if (!re.test(clean)) return { valid: false }
   return { valid: true, normalized: clean }
 }
