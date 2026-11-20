@@ -21,7 +21,7 @@ import { getArchivosPaciente, type ArchivoDTO } from '@/lib/archivos/query'
 import { deleteManyFromR2 } from '@/lib/r2'
 import { eq, count, and, or, ilike, asc, desc, inArray, not, sql, SQL } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
-import { validateRut, validatePasaporte } from '@/lib/rut'
+import { validateRut, validatePasaporte, PASAPORTE_MIN_LENGTH, PASAPORTE_MAX_LENGTH } from '@/lib/rut'
 import { formatNombre } from '@/lib/paciente'
 import type { SearchParams } from '@/components/data-table'
 import { requireSession } from '@/lib/auth-guard'
@@ -45,7 +45,7 @@ function resolveIdentificador(
   }
   if (tipo === 'pasaporte') {
     const r = validatePasaporte(raw)
-    if (!r.valid) return { error: 'Pasaporte inválido' }
+    if (!r.valid) return { error: `Pasaporte inválido: debe tener entre ${PASAPORTE_MIN_LENGTH} y ${PASAPORTE_MAX_LENGTH} letras o números` }
     return { identificador: r.normalized, tipoId: 'pasaporte' }
   }
   return { error: 'Tipo de identificador no válido' }
