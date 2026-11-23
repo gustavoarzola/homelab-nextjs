@@ -176,6 +176,13 @@
       "when": 1794534095184,
       "tag": "0024_usuarios_rol_ejecutivo",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795459021995,
+      "tag": "0025_costos_mensuales",
+      "breakpoints": true
     }
   ]
 }

@@ -42,11 +42,16 @@ function valueLength(v: unknown): number {
   return String(v).length
 }
 
-export async function buildExcel<T>(opts: BuildExcelOptions<T>): Promise<BuildExcelResult> {
-  const { columns, rows, sheetName } = opts
+export type ExcelSheet<T> = {
+  columns: ExcelColumn<T>[]
+  rows: T[]
+  sheetName: string
+  /** Filas en negrita (p.ej. subtotales de un resumen). */
+  isBold?: (row: T) => boolean
+}
 
-  const workbook = new ExcelJS.Workbook()
-  workbook.created = new Date()
+function addSheet<T>(workbook: ExcelJS.Workbook, opts: ExcelSheet<T>): void {
+  const { columns, rows, sheetName, isBold } = opts
   const sheet = workbook.addWorksheet(sanitizeSheetName(sheetName))
 
   sheet.columns = columns.map((col) => {
@@ -69,7 +74,8 @@ export async function buildExcel<T>(opts: BuildExcelOptions<T>): Promise<BuildEx
       const v = col.accessor(row)
       return v ?? null
     })
-    sheet.addRow(values)
+    const added = sheet.addRow(values)
+    if (isBold?.(row)) added.font = { bold: true }
 
     if (columns.some((c) => c.width == null)) {
       values.forEach((v, i) => {
@@ -103,9 +109,29 @@ export async function buildExcel<T>(opts: BuildExcelOptions<T>): Promise<BuildEx
       to: { row: 1, column: columns.length },
     }
   }
+}
+
+export async function buildExcel<T>(opts: BuildExcelOptions<T>): Promise<BuildExcelResult> {
+  const workbook = new ExcelJS.Workbook()
+  workbook.created = new Date()
+  addSheet(workbook, opts)
 
   const buffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer
-  const fileName = opts.fileName ?? `${sheetName.toLowerCase()}-${todaySantiago()}.xlsx`
+  const fileName = opts.fileName ?? `${opts.sheetName.toLowerCase()}-${todaySantiago()}.xlsx`
 
   return { buffer, fileName }
+}
+
+/** Libro con varias hojas (mismas reglas de formato que `buildExcel`). */
+export async function buildExcelWorkbook(opts: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sheets: ExcelSheet<any>[]
+  fileName: string
+}): Promise<BuildExcelResult> {
+  const workbook = new ExcelJS.Workbook()
+  workbook.created = new Date()
+  for (const sheet of opts.sheets) addSheet(workbook, sheet)
+
+  const buffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer
+  return { buffer, fileName: opts.fileName }
 }

@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { db } from '@/db'
 import { contactOrigins, visits, visitProcedures, visitExams, visitIsapreExams, visitWorkshops, visitSurcharges, visitExamResults, workshops, patients, patientPhones, nurses, procedures, exams, healthInsurances, addresses, elderlyResidences, surchargeTypes } from '@/db/schema'
-import { eq, ne, count, and, or, ilike, gte, lte, asc, desc, SQL, sql, inArray } from 'drizzle-orm'
+import { eq, ne, count, and, asc, desc, SQL, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { getTiposRecargosForSelect } from './catalogos'
 import type { SearchParams, Result } from '@/components/data-table'
@@ -11,6 +11,7 @@ import { requireSession } from '@/lib/auth-guard'
 import { isAdmin } from '@/lib/permissions'
 import { withQuery, withAction, ActionError, type ActionResult } from '@/lib/with-action'
 import { formatNombre } from '@/lib/paciente'
+import { buildVisitasWhere } from '@/lib/visitas-where'
 import { actualizarCostoVisitaPersistida, resolverPrecioVisitaEnfermeria } from '@/lib/pricing/visitas'
 import { calcNursePaymentBreakdown, DEFAULT_PORCENTAJE_PAGO } from '@/lib/pricing/nurse-payment'
 import type { VisitaFormPricingContext } from '@/lib/pricing/visita-preview'
@@ -147,38 +148,6 @@ export type VisitaRow = {
 }
 
 // ─── Visitas query helpers (internal) ─────────────────────────────────────────
-
-function buildVisitasWhere(filters: SearchParams['filters']): SQL | undefined {
-  const buscar = (filters.buscar as string | undefined)?.trim()
-  const estado = (filters.estado as string | undefined)?.trim()
-  const enfermeraId = (filters.enfermera as string | undefined)?.trim()
-  const fechaInicio = (filters.fechaInicio as string | undefined)?.trim()
-  const fechaFin = (filters.fechaFin as string | undefined)?.trim()
-
-  const conditions: SQL[] = []
-  if (buscar) {
-    const normalized = buscar.replace(/[\.\-\s]/g, '').toUpperCase()
-    const fullName = sql`(${patients.nombres} || ' ' || ${patients.apellidoPaterno} || ' ' || COALESCE(${patients.apellidoMaterno}, ''))`
-    conditions.push(
-      or(
-        sql`unaccent(${fullName}) ILIKE unaccent(${'%' + buscar + '%'})`,
-        ilike(patients.identificador, `%${normalized}%`),
-      )!,
-    )
-  }
-  if (estado) {
-    const estados = estado.split(',').map((e) => e.trim()).filter(Boolean)
-    conditions.push(estados.length > 1 ? inArray(visits.estado, estados) : eq(visits.estado, estados[0]!))
-  }
-  if (enfermeraId) {
-    const enfermeraIds = enfermeraId.split(',').map((e) => Number(e.trim())).filter(Boolean)
-    conditions.push(enfermeraIds.length > 1 ? inArray(visits.idEnfermera, enfermeraIds) : eq(visits.idEnfermera, enfermeraIds[0]!))
-  }
-  if (fechaInicio) conditions.push(gte(visits.fecha, fechaInicio))
-  if (fechaFin) conditions.push(lte(visits.fecha, fechaFin))
-
-  return conditions.length ? and(...conditions) : undefined
-}
 
 function buildVisitasOrder(sort: SearchParams['sort']): SQL {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

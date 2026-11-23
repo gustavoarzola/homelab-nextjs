@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops, comunas, contactOrigins } from '@/db/schema'
+import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops, comunas, contactOrigins, costCategories } from '@/db/schema'
 import { eq, asc, and, ilike } from 'drizzle-orm'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { z } from 'zod'
@@ -53,6 +53,9 @@ const origenContactoUpdateSchema = origenContactoSchema.extend({ id: fields.id }
 const tipoRecargoSchema = z.object({ nombre: fields.nombre, precio: fields.precio.optional().default(0) })
 const tipoRecargoUpdateSchema = tipoRecargoSchema.extend({ id: fields.id })
 
+const categoriaCostoSchema = z.object({ nombre: fields.nombre })
+const categoriaCostoUpdateSchema = categoriaCostoSchema.extend({ id: fields.id })
+
 const tallerSchema = z.object({ nombre: fields.nombre, codigo: fields.codigo })
 const tallerUpdateSchema = tallerSchema.extend({ id: fields.id })
 
@@ -66,6 +69,7 @@ export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
 export type ComunaRow       = { id: number; nombre: string; activo: boolean }
 export type OrigenContactoRow = { id: number; nombre: string; activo: boolean }
 export type TipoRecargoRow  = { id: number; nombre: string; precio: number; activo: boolean }
+export type CategoriaCostoRow = { id: number; nombre: string; activo: boolean }
 
 // ─── Catalog configs ──────────────────────────────────────────────────────────
 
@@ -134,6 +138,15 @@ const tipoRecargoCfg: CatalogConfig = {
   createSchema: tipoRecargoSchema,
   updateSchema: tipoRecargoUpdateSchema,
   path: '/tipos-recargos', tag: 'tipos-recargos',
+  extraUpdateFields: () => ({ updatedAt: new Date() }),
+}
+
+const categoriaCostoCfg: CatalogConfig = {
+  adminOnly: true,
+  table: costCategories, idCol: costCategories.id, nombreCol: costCategories.nombre, activoCol: costCategories.activo,
+  createSchema: categoriaCostoSchema,
+  updateSchema: categoriaCostoUpdateSchema,
+  path: '/categorias-costos',
   extraUpdateFields: () => ({ updatedAt: new Date() }),
 }
 
@@ -257,6 +270,15 @@ const _fetchTiposRecargos = unstable_cache(
 export async function getTiposRecargosForSelect(): Promise<{ id: number; label: string; precio: number }[]> {
   return withQuery(() => _fetchTiposRecargos())
 }
+
+// ─── Categorías de costos ─────────────────────────────────────────────────────
+
+export async function searchCategoriasCostos(params: SearchParams): Promise<{ rows: CategoriaCostoRow[]; total: number }> {
+  return catalogSearch(categoriaCostoCfg, params) as Promise<{ rows: CategoriaCostoRow[]; total: number }>
+}
+export async function createCategoriaCosto(formData: FormData) { return catalogCreate(categoriaCostoCfg, formData) }
+export async function updateCategoriaCosto(formData: FormData) { return catalogUpdate(categoriaCostoCfg, formData) }
+export async function toggleCategoriaCosto(id: number, activo: boolean) { return catalogToggle(categoriaCostoCfg, id, activo) }
 
 // ─── Talleres ─────────────────────────────────────────────────────────────────
 
