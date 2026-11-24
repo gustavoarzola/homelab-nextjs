@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation'
+import { auth } from '@/auth'
+import { isAdmin } from '@/lib/permissions'
 import {
   getVisitaLifecycle,
   confirmarVisita,
@@ -9,6 +11,7 @@ import {
   guardarFacturacionVisita,
   guardarPagoVisita,
   guardarEnvioExamenesVisita,
+  cambiarEstadoVisita,
 } from '@/lib/actions/visitas'
 import { VisitaLifecycleView } from '@/components/visita-lifecycle-view'
 import type { CompletarVisitaData, FacturacionVisitaData, PagoVisitaData, EnvioExamenVisitaItem } from '@/lib/actions/visitas'
@@ -24,8 +27,9 @@ export default async function VisitaPage({
   const idVisita = Number(id)
   if (!idVisita) notFound()
 
-  const visita = await getVisitaLifecycle(idVisita)
+  const [visita, session] = await Promise.all([getVisitaLifecycle(idVisita), auth()])
   if (!visita) notFound()
+  const esAdmin = isAdmin(session?.user?.role)
 
   async function handleConfirmar() {
     'use server'
@@ -67,6 +71,11 @@ export default async function VisitaPage({
     return guardarEnvioExamenesVisita(idVisita, examenes)
   }
 
+  async function handleCambiarEstado(estado: string) {
+    'use server'
+    return cambiarEstadoVisita(idVisita, estado)
+  }
+
   return (
     <VisitaLifecycleView
       visita={visita}
@@ -78,6 +87,7 @@ export default async function VisitaPage({
       onGuardarFacturacion={handleGuardarFacturacion}
       onGuardarPago={handleGuardarPago}
       onGuardarExamenes={handleGuardarExamenes}
+      onCambiarEstado={esAdmin ? handleCambiarEstado : undefined}
     />
   )
 }

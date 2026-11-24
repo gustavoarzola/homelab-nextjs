@@ -210,6 +210,10 @@ src/
   (`search*`/`get*`) no se restringen porque las usan otros formularios (p.ej. visita).
 - Reglas puntuales: `deleteVisita` solo deja a admin eliminar visitas `realizada`/`completada`;
   `deletePaciente` solo deja a admin eliminar pacientes con visitas.
+- `cambiarEstadoVisita(id, estado)` (solo admin) devuelve una visita desde cualquier estado a
+  `programada`/`confirmada`/`realizada` (`ESTADOS_REABRIBLES` en `src/lib/visita-estados.ts`) para que
+  el ejecutivo la corrija en vez de borrarla y recrearla. Conserva facturación/pago/resultados; limpia
+  motivo de cancelación y datos de "no realizada". UI: tarjeta "Cambiar estado (admin)" en `/visitas/[id]`.
 - Al agregar una sección solo-admin: sumar el prefijo a `ADMIN_ONLY_PREFIXES` y `requireAdmin()`
   en sus mutaciones.
 
@@ -241,6 +245,7 @@ Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al in
 - `createVisita(formData)` — Crear visita con exámenes, procedimientos, talleres
 - `updateVisita(formData)` — Actualizar visita
 - `deleteVisita(id)` — Eliminar visita
+- `cambiarEstadoVisita(id, estado)` — Solo admin: reabre la visita a programada/confirmada/realizada
 - `getEnfermeras()` — Select de enfermeras activas
 - `getTiposRecargos()` — Select de tipos de recargos activos
 - `getVisitaFormPricingContext(comuna, examIds)` — Contexto de precios para preview en formulario

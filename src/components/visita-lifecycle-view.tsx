@@ -22,6 +22,7 @@ import { Chip } from '@/components/ui/chip'
 import { Callout } from '@/components/ui/callout'
 import { MetaTile, MetaGrid } from '@/components/ui/meta'
 import { Step, Pipe } from '@/components/ui/stepper'
+import { ESTADOS_REABRIBLES } from '@/lib/visita-estados'
 import './visita-lifecycle-view.css'
 
 const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
@@ -1098,6 +1099,77 @@ function PanelCancelada({ v }: { v: VisitaLifecycleDetalle }) {
   )
 }
 
+// ─── Admin: cambiar estado ────────────────────────────────────────────────────
+
+function AdminCambiarEstado({
+  estadoActual,
+  onCambiarEstado,
+}: {
+  estadoActual: string
+  onCambiarEstado: (estado: string) => Promise<{ success: boolean; error?: string }>
+}) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [destino, setDestino] = useState('')
+  const [isPending, startTransition] = useTransition()
+  const opciones = ESTADOS_REABRIBLES.filter((e) => e !== estadoActual)
+
+  function handleConfirmar() {
+    startTransition(async () => {
+      const result = await onCambiarEstado(destino)
+      if (result.success) {
+        toast.success(`Visita devuelta a ${ESTADO_VISITA_STYLES[destino]?.label ?? destino}`)
+        setOpen(false)
+        setDestino('')
+        router.refresh()
+      } else {
+        toast.error(result.error ?? 'Error al cambiar el estado')
+      }
+    })
+  }
+
+  return (
+    <div className="hl-rail__card">
+      <div className="act__head">
+        <h3>Cambiar estado (admin)</h3>
+      </div>
+      <div className="act__body">
+        {!open ? (
+          <Button variant="secondary" className="wfull" onClick={() => setOpen(true)}>
+            Cambiar estado…
+          </Button>
+        ) : (
+          <>
+            <Callout tone="warn">
+              Devuelve la visita a un estado anterior para que pueda corregirse. Se conservan los datos de
+              facturación, pago y resultados; se borran el motivo de cancelación y los datos de “no realizada”.
+            </Callout>
+            <div className="hl-fieldgroup">
+              <label>Nuevo estado</label>
+              <div className="hl-input">
+                <select value={destino} onChange={(e) => setDestino(e.target.value)} className="w-full bg-transparent">
+                  <option value="">Selecciona…</option>
+                  {opciones.map((e) => (
+                    <option key={e} value={e}>{ESTADO_VISITA_STYLES[e]?.label ?? e}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1 wfull" onClick={handleConfirmar} disabled={!destino || isPending}>
+                {isPending ? 'Guardando…' : 'Confirmar cambio'}
+              </Button>
+              <Button variant="secondary" onClick={() => { setOpen(false); setDestino('') }} disabled={isPending}>
+                Atrás
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 type Props = {
@@ -1110,6 +1182,8 @@ type Props = {
   onGuardarFacturacion: (data: FacturacionVisitaData) => Promise<{ success: boolean; error?: string }>
   onGuardarPago: (data: PagoVisitaData) => Promise<{ success: boolean; error?: string }>
   onGuardarExamenes: (examenes: EnvioExamenVisitaItem[]) => Promise<{ success: boolean; error?: string }>
+  /** Solo se pasa a usuarios admin: habilita devolver la visita a un estado editable. */
+  onCambiarEstado?: (estado: string) => Promise<{ success: boolean; error?: string }>
 }
 
 const EDITABLE_STATES = ['programada', 'confirmada', 'realizada']
@@ -1124,9 +1198,11 @@ export function VisitaLifecycleView({
   onGuardarFacturacion,
   onGuardarPago,
   onGuardarExamenes,
+  onCambiarEstado,
 }: Props) {
   const isEditable = EDITABLE_STATES.includes(visita.estado)
   const isCompleted = visita.estado === 'completada'
+  const showRail = !isCompleted || !!onCambiarEstado
   const visitCode = `V-${String(visita.id).padStart(5, '0')}`
   const cfg = ESTADO_VISITA_STYLES[visita.estado] ?? ESTADO_VISITA_STYLES['programada']!
 
@@ -1165,15 +1241,16 @@ export function VisitaLifecycleView({
       </div>
 
       {/* Body */}
-      <div className={isCompleted ? '' : 'split'}>
+      <div className={showRail ? 'split' : ''}>
         {/* Left: summary */}
         <div style={{ minWidth: 0 }}>
           <VisitaSummary v={visita} />
         </div>
 
         {/* Right: action rail */}
-        {!isCompleted && (
+        {showRail && (
           <div className="hl-rail" style={{ position: 'sticky', top: 20 }}>
+            {!isCompleted && (
             <div className="hl-rail__card">
               <div className="act__head">
                 <h3>{actTitle}</h3>
@@ -1197,6 +1274,8 @@ export function VisitaLifecycleView({
               {visita.estado === 'no_realizada' && <PanelNoRealizada v={visita} />}
               {visita.estado === 'cancelada' && <PanelCancelada v={visita} />}
             </div>
+            )}
+            {onCambiarEstado && <AdminCambiarEstado estadoActual={visita.estado} onCambiarEstado={onCambiarEstado} />}
           </div>
         )}
       </div>
