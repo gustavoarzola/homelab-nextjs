@@ -1,0 +1,95 @@
+# Al cerrar (merge o no) un PR, borra lo que el preview dejó creado:
+#   1. Los deployments de Preview de Vercel de esa rama.
+#   2. La rama de Neon `preview/<rama-git>` que crea la integración Vercel↔Neon.
+#
+# La integración nativa de Neon solo borra la rama cuando se borra su último deployment de
+# Vercel, y Vercel retiene los previews por meses. Sin esto, las ramas se acumulan y el plan
+# Free de Neon (10 ramas por proyecto) termina rechazando nuevos previews.
+#
+# Configuración (GitHub → Settings → Secrets and variables → Actions):
+#   secrets:   VERCEL_TOKEN, NEON_API_KEY
+#   variables: VERCEL_PROJECT_ID, VERCEL_TEAM_ID, NEON_PROJECT_ID
+# Si falta alguno, el paso correspondiente se salta con un aviso (no falla el job).
+
+name: Cleanup preview
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+concurrency:
+  group: cleanup-preview-${{ github.head_ref }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    # Los PRs desde forks no reciben secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GIT_BRANCH: ${{ github.head_ref }}
+    steps:
+      - name: Borrar deployments de Preview en Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN}" ] || [ -z "${VERCEL_PROJECT_ID}" ] || [ -z "${VERCEL_TEAM_ID}" ]; then
+            echo "::warning::Falta VERCEL_TOKEN / VERCEL_PROJECT_ID / VERCEL_TEAM_ID; se omite Vercel."
+            exit 0
+          fi
+          if [ "${GIT_BRANCH}" = "main" ]; then
+            echo "Rama main: no se toca."; exit 0
+          fi
+          api="https://api.vercel.com"
+          auth=(-H "Authorization: Bearer ${VERCEL_TOKEN}")
+
+          ids=$(curl -fsS -G "${auth[@]}" "${api}/v6/deployments" \
+            --data-urlencode "projectId=${VERCEL_PROJECT_ID}" \
+            --data-urlencode "teamId=${VERCEL_TEAM_ID}" \
+            --data-urlencode "branch=${GIT_BRANCH}" \
+            --data-urlencode "limit=100" \
+            | jq -r '.deployments[] | select(.target != "production") | .uid')
+
+          if [ -z "${ids}" ]; then
+            echo "No hay deployments de Preview para ${GIT_BRANCH}."; exit 0
+          fi
+          for id in ${ids}; do
+            echo "Borrando deployment ${id}"
+            curl -fsS -X DELETE "${auth[@]}" "${api}/v13/deployments/${id}?teamId=${VERCEL_TEAM_ID}" > /dev/null
+          done
+
+      - name: Borrar rama de Neon
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NEON_API_KEY}" ] || [ -z "${NEON_PROJECT_ID}" ]; then
+            echo "::warning::Falta NEON_API_KEY / NEON_PROJECT_ID; se omite Neon."
+            exit 0
+          fi
+          api="https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}"
+          auth=(-H "Authorization: Bearer ${NEON_API_KEY}" -H "Accept: application/json")
+          name="preview/${GIT_BRANCH}"
+
+          # Borrar el deployment en Vercel ya dispara el borrado en Neon; esto cubre el caso en
+          # que la integración no lo haga (o tarde). Nunca toca la rama default (producción).
+          branch_id=$(curl -fsS "${auth[@]}" "${api}/branches" \
+            | jq -r --arg n "${name}" '.branches[] | select(.name == $n and (.default | not)) | .id')
+
+          if [ -z "${branch_id}" ]; then
+            echo "No existe la rama ${name} en Neon (ya borrada o nunca creada)."; exit 0
+          fi
+          echo "Borrando rama ${name} (${branch_id})"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE "${auth[@]}" "${api}/branches/${branch_id}")
+          case "${code}" in
+            200|404) echo "OK (${code})" ;;
+            409|423) echo "::warning::Neon respondió ${code}: la rama ya se está borrando (probablemente por la integración)." ;;
+            *) echo "::error::Neon respondió ${code}"; exit 1 ;;
+          esac
