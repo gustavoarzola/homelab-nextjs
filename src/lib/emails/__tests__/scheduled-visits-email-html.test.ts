@@ -1,22 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { VisitaConDetalles } from '@/lib/actions/visitas-asignacion-email'
-import { calcNursePaymentConcepts } from '@/lib/pricing/nurse-payment'
+import type { MontosCorreo, VisitaConDetalles } from '@/lib/actions/visitas-asignacion-email'
 import { generateScheduledVisitsHTML } from '../scheduled-visits-email-html'
 
-type PagoInput = Parameters<typeof calcNursePaymentConcepts>[0]
-
-function visita(overrides: Partial<VisitaConDetalles> & { pagoInput?: Partial<PagoInput> } = {}): VisitaConDetalles {
-  const { pagoInput, ...rest } = overrides
-  const pago = calcNursePaymentConcepts({
-    procSum: 0,
-    surchargeSum: 0,
-    montoVisitaOriginal: 0,
-    montoDescuento: 0,
-    descuentoAfectaPagoEnfermera: false,
-    montoDescuentoProcedimientos: 0,
-    descuentoProcedimientosAfectaPagoEnfermera: false,
-    ...pagoInput,
-  })
+function visita(overrides: Partial<VisitaConDetalles> & { montosInput?: Partial<MontosCorreo> } = {}): VisitaConDetalles {
+  const { montosInput, ...rest } = overrides
   return {
     id: 1,
     idEnfermera: 10,
@@ -37,12 +24,17 @@ function visita(overrides: Partial<VisitaConDetalles> & { pagoInput?: Partial<Pa
     informacionAdicional: null,
     costo: 0,
     recargos: [],
-    pago,
+    montos: { visita: 0, procedimientos: 0, recargos: 0, insumos: 0, ...montosInput },
     ...rest,
   }
 }
 
-describe('generateScheduledVisitsHTML — desglose de pago', () => {
+/** Contenido de la fila con el rótulo dado (primera columna de visita). */
+const fila = (html: string, label: string) => html.split(`>${label}</td>`)[1]?.split('</tr>')[0] ?? ''
+/** Tabla anidada del "Detalle pago" (sus filas internas tienen su propio `</tr>`). */
+const detallePago = (html: string) => html.split('>Detalle pago</td>')[1]?.split('</table>')[0] ?? ''
+
+describe('generateScheduledVisitsHTML — montos', () => {
   it('renombra la fila de costo del paciente a "Total paciente"', () => {
     const html = generateScheduledVisitsHTML([visita({ costo: 50000 })])
     expect(html).toContain('Total paciente')
@@ -50,46 +42,110 @@ describe('generateScheduledVisitsHTML — desglose de pago', () => {
   })
 
   it('no muestra las filas de traslado ni de monto de pago', () => {
-    const html = generateScheduledVisitsHTML([
-      visita({ pagoInput: { montoVisitaOriginal: 30000 } }),
-    ])
+    const html = generateScheduledVisitsHTML([visita({ montosInput: { visita: 30000 } })])
     expect(html).not.toContain('Traslado')
     expect(html).not.toContain('Pago estimado')
     expect(html).not.toContain('Total estimado a recibir')
   })
 
-  it('omite las líneas del desglose que están en cero', () => {
-    const html = generateScheduledVisitsHTML([
-      visita({ pagoInput: { montoVisitaOriginal: 25000 } }),
-    ])
-    expect(html).toContain('>Visita</td>')
-    expect(html).not.toContain('Procedimientos</td>')
-    expect(html).not.toContain('Descuento visita')
+  it('omite las líneas del detalle que están en cero', () => {
+    const html = generateScheduledVisitsHTML([visita({ montosInput: { visita: 25000 } })])
+    const detalle = detallePago(html)
+    expect(detalle).toContain('>Visita</td>')
+    expect(detalle).not.toContain('Procedimientos')
+    expect(detalle).not.toContain('Recargos')
+    expect(detalle).not.toContain('Insumos')
   })
 
-  it('desglosa visita, descuento, procedimientos y recargo cuando aplican', () => {
+  it('el detalle muestra una sola línea neta por concepto, sin líneas de descuento', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({ montosInput: { visita: 27000, procedimientos: 10000, recargos: 6000, insumos: 4000 } }),
+    ])
+    const detalle = detallePago(html)
+    expect(detalle).toContain('>Visita</td>')
+    expect(detalle).toContain('$27.000')
+    expect(detalle).toContain('>Procedimientos</td>')
+    expect(detalle).toContain('$10.000')
+    expect(detalle).toContain('>Recargos</td>')
+    expect(detalle).toContain('$6.000')
+    expect(detalle).toContain('>Insumos</td>')
+    expect(detalle).toContain('$4.000')
+    expect(html).not.toContain('Descuento')
+    expect(html).not.toContain('−')
+  })
+
+  it('el detalle no expone un monto final de pago (base × porcentaje)', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({ montosInput: { visita: 20000, procedimientos: 15000, recargos: 5000 } }),
+    ])
+    expect(html).not.toContain('$27.000')
+  })
+})
+
+describe('generateScheduledVisitsHTML — procedimientos, talleres y recargos', () => {
+  it('lista procedimientos uno por línea con código y precio neto, sin subtítulo de categoría', () => {
     const html = generateScheduledVisitsHTML([
       visita({
-        recargos: [{ nombre: 'Recargo nocturno', precio: 6000 }],
-        pagoInput: {
-          procSum: 12000,
-          surchargeSum: 6000,
-          montoVisitaOriginal: 30000,
-          montoDescuento: 3000,
-          descuentoAfectaPagoEnfermera: true,
-          montoDescuentoProcedimientos: 2000,
-          descuentoProcedimientosAfectaPagoEnfermera: false,
-        },
+        procedimientos: [
+          { codigo: 'CUR1', nombre: 'Curación simple', precio: 10000 },
+          { codigo: 'INY', nombre: 'Inyección', precio: 5000 },
+        ],
       }),
     ])
-    expect(html).toContain('>Visita</td>')
-    expect(html).toContain('$30.000')
-    expect(html).toContain('Descuento visita')
-    expect(html).toContain('−$3.000')
-    expect(html).toContain('Procedimientos</td>')
-    expect(html).toContain('Recargo (Recargo nocturno)')
+    const cell = fila(html, 'Procedimiento(s)')
+    expect(cell).toContain('>CUR1</span> Curación simple')
+    expect(cell).toContain('— $10.000')
+    expect(cell).toContain('>INY</span> Inyección')
+    expect(cell).toContain('— $5.000')
+    expect(cell.match(/<div /g)?.length).toBe(2)
   })
 
+  it('lista talleres con código y precio', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({ talleres: [{ codigo: 'TAL', nombre: 'Taller cuidadores', precio: 8000 }] }),
+    ])
+    const cell = fila(html, 'Taller(es)')
+    expect(cell).toContain('>TAL</span> Taller cuidadores')
+    expect(cell).toContain('— $8.000')
+  })
+
+  it('lista recargos uno por línea con su precio', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({
+        recargos: [
+          { nombre: 'Recargo nocturno', precio: 6000 },
+          { nombre: 'Fin de semana', precio: 3000 },
+        ],
+      }),
+    ])
+    const cell = fila(html, 'Recargo(s)')
+    expect(cell).toContain('Recargo nocturno')
+    expect(cell).toContain('— $6.000')
+    expect(cell).toContain('Fin de semana')
+    expect(cell).toContain('— $3.000')
+  })
+
+  it('sin ítems las celdas siguen siendo —', () => {
+    const html = generateScheduledVisitsHTML([visita()])
+    expect(fila(html, 'Procedimiento(s)')).toContain('—')
+    expect(fila(html, 'Taller(es)')).toContain('—')
+    expect(fila(html, 'Recargo(s)')).toContain('—')
+  })
+
+  it('escapa nombres y códigos', () => {
+    const html = generateScheduledVisitsHTML([
+      visita({
+        recargos: [{ nombre: '<script>x</script>', precio: 1000 }],
+        procedimientos: [{ codigo: '<b>', nombre: '<i>p</i>', precio: 1000 }],
+      }),
+    ])
+    expect(html).not.toContain('<script>x</script>')
+    expect(html).toContain('&lt;script&gt;')
+    expect(html).not.toContain('<i>p</i>')
+  })
+})
+
+describe('generateScheduledVisitsHTML — adjuntos', () => {
   it('lista los adjuntos de la visita por su nombre de archivo', () => {
     const html = generateScheduledVisitsHTML([
       visita({
@@ -102,29 +158,6 @@ describe('generateScheduledVisitsHTML — desglose de pago', () => {
     expect(html).toContain('>Adjuntos</td>')
     expect(html).toContain('v1_ana_perez_1.jpg')
     expect(html).toContain('v1_ana_perez_2.jpg')
-  })
-
-  it('escapa los nombres de recargo', () => {
-    const html = generateScheduledVisitsHTML([
-      visita({
-        recargos: [{ nombre: '<script>x</script>', precio: 1000 }],
-        pagoInput: { surchargeSum: 1000, montoVisitaOriginal: 1000 },
-      }),
-    ])
-    expect(html).not.toContain('<script>x</script>')
-    expect(html).toContain('&lt;script&gt;')
-  })
-
-  it('el desglose foota su base sin exponer un monto final de pago', () => {
-    const html = generateScheduledVisitsHTML([
-      visita({
-        pagoInput: { montoVisitaOriginal: 20000, procSum: 15000, surchargeSum: 5000 },
-      }),
-    ])
-    expect(html).toContain('$20.000')
-    expect(html).toContain('$15.000')
-    expect(html).toContain('$5.000')
-    expect(html).not.toContain('$27.000') // no aparece base × porcentaje
   })
 })
 

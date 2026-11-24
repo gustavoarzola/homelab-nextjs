@@ -6,7 +6,7 @@ import { basename } from '@/lib/archivos/nombres'
 import { BRAND_HEX, LOGO_RENDER_WIDTH, LOGO_RENDER_HEIGHT } from '@/lib/brand'
 import { EMAIL_LOGO_CID } from '@/lib/email-logo'
 import { EXAM_GRUPOS, EXAM_GRUPO_LABELS, EXAM_GRUPO_META, type ExamGrupo } from '@/lib/exam-grupos'
-import type { ExamenCorreo, VisitaConDetalles } from '@/lib/actions/visitas-asignacion-email'
+import type { ExamenCorreo, ItemCorreo, VisitaConDetalles } from '@/lib/actions/visitas-asignacion-email'
 
 /**
  * HTML del correo de programación de visitas a una enfermera. La tabla está
@@ -70,6 +70,15 @@ export function generateScheduledVisitsHTML(
   const examMutedStyle = `color:${BRAND_HEX.fgMuted};white-space:nowrap;`
   const examGroupStyle = `margin:6px 0 2px 0;font-size:11px;font-weight:600;color:${BRAND_HEX.fgMuted};text-transform:uppercase;letter-spacing:0.06em;`
   const examGroupFirstStyle = examGroupStyle.replace('margin:6px 0 2px 0', 'margin:0 0 2px 0')
+  /** Una línea por ítem: `[código] Nombre (sufijo) — $precio`. Mismo formato para exámenes, procedimientos, talleres y recargos. */
+  const itemLinea = (i: { codigo?: string; nombre: string; precio: number; sufijo?: string }) =>
+    `<div style="${examLineStyle}">`
+    + (i.codigo ? `<span style="${codeChipStyle}">${esc(i.codigo)}</span> ` : '')
+    + `${esc(i.nombre)}${i.sufijo ? ` <span style="${examMutedStyle}">${esc(i.sufijo)}</span>` : ''} `
+    + `<span style="${examMutedStyle}">— ${pesos(i.precio)}</span>`
+    + `</div>`
+  const itemsCell = (items: ItemCorreo[]) => (items.length ? items.map(itemLinea).join('') : '—')
+
   const pagoRowLabelStyle = `padding:1px 10px 1px 0;font-size:13px;color:${BRAND_HEX.fg};`
   const pagoRowAmountStyle = `padding:1px 0;font-size:13px;color:${BRAND_HEX.fgMuted};text-align:right;white-space:nowrap;`
 
@@ -97,7 +106,7 @@ export function generateScheduledVisitsHTML(
       case 7: return v.dirección.comuna ?? '—'
       case 8: return v.paciente.previsión ?? '—'
       case 9: return v.residenciaAdultoMayor ?? '—'
-      case 10: return v.procedimientos.join(', ') || '—'
+      case 10: return itemsCell(v.procedimientos)
       case 11: {
           if (!v.exámenes.length) return '—'
 
@@ -117,11 +126,7 @@ export function generateScheduledVisitsHTML(
           const grupos = [...porGrupo.keys()].sort((a, b) => grupoRank(a) - grupoRank(b))
 
           const examLinea = (e: ExamenCorreo, grupoEsIsapre: boolean) =>
-            `<div style="${examLineStyle}">`
-            + `<span style="${codeChipStyle}">${esc(e.codigo)}</span> `
-            + `${esc(e.nombre)}${e.isapre && !grupoEsIsapre ? ` <span style="${examMutedStyle}">(isapre)</span>` : ''} `
-            + `<span style="${examMutedStyle}">— ${pesos(e.precio)}</span>`
-            + `</div>`
+            itemLinea({ ...e, sufijo: e.isapre && !grupoEsIsapre ? '(isapre)' : undefined })
 
           return grupos
             .map((grupo, idx) => {
@@ -133,7 +138,7 @@ export function generateScheduledVisitsHTML(
             })
             .join('')
         }
-      case 12: return v.talleres.join(', ') || '—'
+      case 12: return itemsCell(v.talleres)
       case 13: return v.paciente.informacionAdicional || '—'
       case 14: return v.informacionAdicional || '—'
       case 15:
@@ -189,33 +194,24 @@ export function generateScheduledVisitsHTML(
   const costoRow = `<tr><td style="${costoLabelStyle}">Total paciente</td>${costoCells}</tr>`
 
   const recargoCells = visitas
-    .map((v) => {
-      if (!v.recargos.length) return `<td style="${costoDataStyle}">—</td>`
-      const total = v.recargos.reduce((s, r) => s + r.precio, 0)
-      const names = v.recargos.map((r) => esc(r.nombre)).join(', ')
-      return `<td style="${costoDataStyle}">${money(total)} (${names})</td>`
-    })
+    .map((v) => `<td style="${dataColStyle}">${v.recargos.length ? v.recargos.map(itemLinea).join('') : '—'}</td>`)
     .join('')
-  const recargoRow = `<tr><td style="${costoLabelStyle}">Recargo</td>${recargoCells}</tr>`
+  const recargoRow = `<tr><td style="${labelColStyle}">Recargo(s)</td>${recargoCells}</tr>`
 
-  // ── Desglose del pago a la enfermera ──
+  // ── Detalle de montos (todos netos de descuentos) ──
   const desglosePagoCell = (v: VisitaConDetalles): string => {
-    const { pago } = v
+    const { montos } = v
     const lineas: Array<[string, number]> = []
-    if (pago.feeVisita > 0) lineas.push(['Visita', pago.feeVisita])
-    if (pago.descuentoVisita > 0) lineas.push(['Descuento visita', -pago.descuentoVisita])
-    if (pago.procedimientos > 0) lineas.push(['Procedimientos', pago.procedimientos])
-    if (pago.descuentoProcedimientos > 0) lineas.push(['Descuento procedimientos', -pago.descuentoProcedimientos])
-    if (pago.recargos > 0) {
-      const nombres = v.recargos.map((r) => r.nombre).join(', ')
-      lineas.push([nombres ? `Recargo (${esc(nombres)})` : 'Recargo', pago.recargos])
-    }
+    if (montos.visita > 0) lineas.push(['Visita', montos.visita])
+    if (montos.procedimientos > 0) lineas.push(['Procedimientos', montos.procedimientos])
+    if (montos.recargos > 0) lineas.push(['Recargos', montos.recargos])
+    if (montos.insumos > 0) lineas.push(['Insumos', montos.insumos])
     if (!lineas.length) return '—'
     const filas = lineas
       .map(([label, monto]) =>
         `<tr>`
         + `<td style="${pagoRowLabelStyle}">${label}</td>`
-        + `<td style="${pagoRowAmountStyle}">${monto < 0 ? '−' : ''}${money(Math.abs(monto))}</td>`
+        + `<td style="${pagoRowAmountStyle}">${money(monto)}</td>`
         + `</tr>`,
       )
       .join('')
@@ -235,8 +231,8 @@ export function generateScheduledVisitsHTML(
           ${headerCells}
         </tr>
         ${dataRows}
-        ${costoRow}
         ${recargoRow}
+        ${costoRow}
         ${desglosePagoRow}
       </table>
     </div>
@@ -249,9 +245,9 @@ export function generateScheduledVisitsHTML(
       ${table}
 
       <p style="margin:8px 0 0 0;font-size:11px;color:${BRAND_HEX.fgMuted};line-height:1.5;">
-        <strong>Detalle pago</strong>: conceptos considerados para tu pago (valor de visita,
-        procedimientos y recargos, netos de los descuentos que te aplican). No incluye exámenes,
-        talleres ni insumos. Puede variar si la visita cambia antes de realizarse.
+        Todos los valores incluyen los descuentos aplicados. <strong>Detalle pago</strong>: visita,
+        procedimientos, recargos e insumos (no incluye exámenes ni talleres). Puede variar si la
+        visita cambia antes de realizarse.
       </p>
 
       ${footer}

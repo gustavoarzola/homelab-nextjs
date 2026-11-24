@@ -13,7 +13,6 @@ import { Resend } from 'resend'
 import { formatDate } from '@/lib/format'
 import { requireSession } from '@/lib/auth-guard'
 import { formatNombre } from '@/lib/paciente'
-import { calcNursePaymentConcepts, type NursePaymentConcepts } from '@/lib/pricing/nurse-payment'
 import { generateScheduledVisitsHTML } from '@/lib/emails/scheduled-visits-email-html'
 import { getR2Object } from '@/lib/r2'
 import { basename } from '@/lib/archivos/nombres'
@@ -59,6 +58,23 @@ export type ExamenCorreo = {
   grupoExamen: string
 }
 
+/** Procedimiento o taller del correo. `precio` es neto (con su descuento aplicado). */
+export type ItemCorreo = {
+  codigo: string
+  nombre: string
+  precio: number
+}
+
+/** Montos de la visita que se muestran en el correo, todos netos de descuentos. */
+export type MontosCorreo = {
+  /** Fee de visita menos su descuento (`montoVisitaOriginal − montoDescuento`). */
+  visita: number
+  /** Σ procedimientos, cada uno menos su descuento. */
+  procedimientos: number
+  recargos: number
+  insumos: number
+}
+
 export type VisitaConDetalles = {
   id: number
   idEnfermera: number | null
@@ -86,15 +102,14 @@ export type VisitaConDetalles = {
     areaAdministrativa1: string | null
     areaAdministrativa2: string | null
   }
-  procedimientos: string[]
+  procedimientos: ItemCorreo[]
   exámenes: ExamenCorreo[]
-  talleres: string[]
+  talleres: ItemCorreo[]
   residenciaAdultoMayor: string | null
   informacionAdicional: string | null
   costo: number
   recargos: { nombre: string; precio: number }[]
-  /** Conceptos que componen el pago a la enfermera para esta visita (sin monto final). */
-  pago: NursePaymentConcepts
+  montos: MontosCorreo
 }
 
 export type EnfermeraConVisitas = {
@@ -210,9 +225,7 @@ async function getVisitasConDetalles(
       costo: visits.costo,
       montoDescuento: visits.montoDescuento,
       montoVisitaOriginal: visits.montoVisitaOriginal,
-      descuentoAfectaPagoEnfermera: visits.descuentoAfectaPagoEnfermera,
-      montoDescuentoProcedimientos: visits.montoDescuentoProcedimientos,
-      descuentoProcedimientosAfectaPagoEnfermera: visits.descuentoProcedimientosAfectaPagoEnfermera,
+      montoInsumos: visits.montoInsumos,
       informacionAdicional: visits.informacionAdicional,
       idEnfermera: visits.idEnfermera,
       pacienteNombres: patients.nombres,
@@ -266,10 +279,17 @@ async function getVisitasConDetalles(
   // Obtener procedimientos, exámenes, talleres, recargos y adjuntos
   const [procRows, examRows, isapreExamRows, workshopRows, surchargeRows, fileRows] = await Promise.all([
     db
-      .select({ idVisita: visitProcedures.idVisita, nombre: procedures.nombre, precio: visitProcedures.precio })
+      .select({
+        idVisita: visitProcedures.idVisita,
+        nombre: procedures.nombre,
+        codigo: procedures.codigo,
+        precio: visitProcedures.precio,
+        descuento: visitProcedures.descuento,
+      })
       .from(visitProcedures)
       .innerJoin(procedures, eq(visitProcedures.idProcedimiento, procedures.id))
-      .where(inArray(visitProcedures.idVisita, visitaIds)),
+      .where(inArray(visitProcedures.idVisita, visitaIds))
+      .orderBy(asc(procedures.nombre)),
     db
       .select({ idVisita: visitExams.idVisita, nombre: exams.nombre, codigo: exams.codigo, precio: visitExams.precio, grupoExamen: exams.grupoExamen })
       .from(visitExams)
@@ -283,10 +303,11 @@ async function getVisitasConDetalles(
       .where(inArray(visitIsapreExams.idVisita, visitaIds))
       .orderBy(asc(exams.nombre)),
     db
-      .select({ idVisita: visitWorkshops.idVisita, nombre: workshops.nombre })
+      .select({ idVisita: visitWorkshops.idVisita, nombre: workshops.nombre, codigo: workshops.codigo, precio: visitWorkshops.precio })
       .from(visitWorkshops)
       .innerJoin(workshops, eq(visitWorkshops.idTaller, workshops.id))
-      .where(inArray(visitWorkshops.idVisita, visitaIds)),
+      .where(inArray(visitWorkshops.idVisita, visitaIds))
+      .orderBy(asc(workshops.nombre)),
     db
       .select({ idVisita: visitSurcharges.idVisita, nombre: surchargeTypes.nombre, precio: visitSurcharges.precio })
       .from(visitSurcharges)
@@ -299,9 +320,9 @@ async function getVisitasConDetalles(
       .orderBy(asc(visitFiles.orden), asc(visitFiles.id)),
   ])
 
-  const procsByVisita = new Map<number, string[]>()
+  const procsByVisita = new Map<number, ItemCorreo[]>()
   const examsByVisita = new Map<number, ExamenCorreo[]>()
-  const workshopsByVisita = new Map<number, string[]>()
+  const workshopsByVisita = new Map<number, ItemCorreo[]>()
   const surchargesByVisita = new Map<number, { nombre: string; precio: number }[]>()
   const phonesByPaciente = new Map<number, string[]>()
   const filesByVisita = new Map<number, ArchivoCorreo[]>()
@@ -312,16 +333,18 @@ async function getVisitasConDetalles(
     filesByVisita.set(f.idVisita, arr)
   }
 
-  // Subtotales para el desglose del pago a la enfermera
+  // Subtotales netos para el "Detalle pago" del correo
   const procPrecioByVisita = new Map<number, number>()
   const surchargePrecioByVisita = new Map<number, number>()
   const add = (m: Map<number, number>, k: number, n: number) => m.set(k, (m.get(k) ?? 0) + n)
 
   for (const p of procRows) {
     const arr = procsByVisita.get(p.idVisita) ?? []
-    arr.push(p.nombre)
+    // Misma regla que `computeCostoVisita`: el descuento se acota a [0, precio].
+    const precioNeto = p.precio - Math.min(Math.max(0, p.descuento), p.precio)
+    arr.push({ codigo: p.codigo, nombre: p.nombre, precio: precioNeto })
     procsByVisita.set(p.idVisita, arr)
-    add(procPrecioByVisita, p.idVisita, p.precio)
+    add(procPrecioByVisita, p.idVisita, precioNeto)
   }
 
   for (const e of examRows) {
@@ -339,7 +362,7 @@ async function getVisitasConDetalles(
 
   for (const w of workshopRows) {
     const arr = workshopsByVisita.get(w.idVisita) ?? []
-    arr.push(w.nombre)
+    arr.push({ codigo: w.codigo, nombre: w.nombre, precio: w.precio })
     workshopsByVisita.set(w.idVisita, arr)
   }
 
@@ -389,15 +412,12 @@ async function getVisitasConDetalles(
     informacionAdicional: v.informacionAdicional || null,
     costo: v.costo,
     recargos: surchargesByVisita.get(v.visitaId) ?? [],
-    pago: calcNursePaymentConcepts({
-      procSum: procPrecioByVisita.get(v.visitaId) ?? 0,
-      surchargeSum: surchargePrecioByVisita.get(v.visitaId) ?? 0,
-      montoVisitaOriginal: v.montoVisitaOriginal,
-      montoDescuento: v.montoDescuento,
-      descuentoAfectaPagoEnfermera: v.descuentoAfectaPagoEnfermera,
-      montoDescuentoProcedimientos: v.montoDescuentoProcedimientos,
-      descuentoProcedimientosAfectaPagoEnfermera: v.descuentoProcedimientosAfectaPagoEnfermera,
-    }),
+    montos: {
+      visita: Math.max(0, v.montoVisitaOriginal - v.montoDescuento),
+      procedimientos: procPrecioByVisita.get(v.visitaId) ?? 0,
+      recargos: surchargePrecioByVisita.get(v.visitaId) ?? 0,
+      insumos: v.montoInsumos,
+    },
   }))
 }
 
