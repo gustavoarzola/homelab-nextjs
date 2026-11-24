@@ -414,8 +414,8 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 - El correo es la programación de cara al paciente, **no** el pago de la enfermera: no usa
   `nurse-payment.ts` ni los flags `…AfectaPagoEnfermera`. Todo monto es **neto de todos los descuentos**.
   Exámenes, procedimientos, talleres y recargos van uno por línea (`[código] Nombre — $precio`).
-  "Detalle pago" muestra visita, procedimientos, recargos e insumos (`MontosCorreo` en
-  `visitas-asignacion-email.ts`), y "Total paciente" es `visits.costo`.
+  "Detalle pago" muestra visita, procedimientos, exámenes, talleres, recargos e insumos (`MontosCorreo` en
+  `visitas-asignacion-email.ts`) y suma exactamente "Total paciente" (`visits.costo`).
 - `sendScheduledVisitsEmail()` envía a una enfermera
 - `sendAllScheduledVisitsEmails()` envío masivo del día
 - Todos los archivos de la visita se adjuntan con su nombre legible (`v{id}_{nombre}_{n}.jpg`),

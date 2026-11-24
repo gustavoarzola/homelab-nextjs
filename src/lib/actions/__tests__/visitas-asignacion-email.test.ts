@@ -191,7 +191,10 @@ describe('getVisitasAsignadasPorEnfermera', () => {
     const v = result.find((e) => e.id === nurse.id)!.visitas[0]!
 
     expect(v.procedimientos).toEqual([{ codigo: `${P}PN`, nombre: `${P}ProcNeto`, precio: 8000 }])
-    expect(v.montos).toEqual({ visita: 36000, procedimientos: 8000, recargos: 0, insumos: 3000 })
+    expect(v.montos).toEqual({ visita: 36000, procedimientos: 8000, examenes: 15000, talleres: 0, recargos: 0, insumos: 3000 })
+    // el detalle del correo suma el Total paciente
+    const m = v.montos
+    expect(m.visita + m.procedimientos + m.examenes + m.talleres + m.recargos + m.insumos).toBe(v.costo)
   })
 
   it('usa el texto del operador como dirección y coordenadas para el link de Maps', async () => {

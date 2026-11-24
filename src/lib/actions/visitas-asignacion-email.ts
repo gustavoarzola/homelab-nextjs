@@ -65,12 +65,15 @@ export type ItemCorreo = {
   precio: number
 }
 
-/** Montos de la visita que se muestran en el correo, todos netos de descuentos. */
+/** Montos de la visita que se muestran en el correo, todos netos de descuentos. Suman `visits.costo`. */
 export type MontosCorreo = {
   /** Fee de visita menos su descuento (`montoVisitaOriginal − montoDescuento`). */
   visita: number
   /** Σ procedimientos, cada uno menos su descuento. */
   procedimientos: number
+  /** Exámenes regulares (`precio`) + isapre (`valor_pagar`). */
+  examenes: number
+  talleres: number
   recargos: number
   insumos: number
 }
@@ -335,6 +338,8 @@ async function getVisitasConDetalles(
 
   // Subtotales netos para el "Detalle pago" del correo
   const procPrecioByVisita = new Map<number, number>()
+  const examPrecioByVisita = new Map<number, number>()
+  const workshopPrecioByVisita = new Map<number, number>()
   const surchargePrecioByVisita = new Map<number, number>()
   const add = (m: Map<number, number>, k: number, n: number) => m.set(k, (m.get(k) ?? 0) + n)
 
@@ -351,6 +356,7 @@ async function getVisitasConDetalles(
     const arr = examsByVisita.get(e.idVisita) ?? []
     arr.push({ nombre: e.nombre, codigo: e.codigo, precio: e.precio, isapre: false, grupoExamen: e.grupoExamen })
     examsByVisita.set(e.idVisita, arr)
+    add(examPrecioByVisita, e.idVisita, e.precio)
   }
 
   // Los exámenes isapre van al final de la lista de cada visita
@@ -358,12 +364,14 @@ async function getVisitasConDetalles(
     const arr = examsByVisita.get(e.idVisita) ?? []
     arr.push({ nombre: e.nombre, codigo: e.codigo, precio: e.precio, isapre: true, grupoExamen: e.grupoExamen })
     examsByVisita.set(e.idVisita, arr)
+    add(examPrecioByVisita, e.idVisita, e.precio)
   }
 
   for (const w of workshopRows) {
     const arr = workshopsByVisita.get(w.idVisita) ?? []
     arr.push({ codigo: w.codigo, nombre: w.nombre, precio: w.precio })
     workshopsByVisita.set(w.idVisita, arr)
+    add(workshopPrecioByVisita, w.idVisita, w.precio)
   }
 
   for (const s of surchargeRows) {
@@ -415,6 +423,8 @@ async function getVisitasConDetalles(
     montos: {
       visita: Math.max(0, v.montoVisitaOriginal - v.montoDescuento),
       procedimientos: procPrecioByVisita.get(v.visitaId) ?? 0,
+      examenes: examPrecioByVisita.get(v.visitaId) ?? 0,
+      talleres: workshopPrecioByVisita.get(v.visitaId) ?? 0,
       recargos: surchargePrecioByVisita.get(v.visitaId) ?? 0,
       insumos: v.montoInsumos,
     },

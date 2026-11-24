@@ -24,7 +24,7 @@ function visita(overrides: Partial<VisitaConDetalles> & { montosInput?: Partial<
     informacionAdicional: null,
     costo: 0,
     recargos: [],
-    montos: { visita: 0, procedimientos: 0, recargos: 0, insumos: 0, ...montosInput },
+    montos: { visita: 0, procedimientos: 0, examenes: 0, talleres: 0, recargos: 0, insumos: 0, ...montosInput },
     ...rest,
   }
 }
@@ -53,19 +53,25 @@ describe('generateScheduledVisitsHTML — montos', () => {
     const detalle = detallePago(html)
     expect(detalle).toContain('>Visita</td>')
     expect(detalle).not.toContain('Procedimientos')
+    expect(detalle).not.toContain('Exámenes')
+    expect(detalle).not.toContain('Talleres')
     expect(detalle).not.toContain('Recargos')
     expect(detalle).not.toContain('Insumos')
   })
 
   it('el detalle muestra una sola línea neta por concepto, sin líneas de descuento', () => {
     const html = generateScheduledVisitsHTML([
-      visita({ montosInput: { visita: 27000, procedimientos: 10000, recargos: 6000, insumos: 4000 } }),
+      visita({ montosInput: { visita: 27000, procedimientos: 10000, examenes: 48620, talleres: 8000, recargos: 6000, insumos: 4000 } }),
     ])
     const detalle = detallePago(html)
     expect(detalle).toContain('>Visita</td>')
     expect(detalle).toContain('$27.000')
     expect(detalle).toContain('>Procedimientos</td>')
     expect(detalle).toContain('$10.000')
+    expect(detalle).toContain('>Exámenes</td>')
+    expect(detalle).toContain('$48.620')
+    expect(detalle).toContain('>Talleres</td>')
+    expect(detalle).toContain('$8.000')
     expect(detalle).toContain('>Recargos</td>')
     expect(detalle).toContain('$6.000')
     expect(detalle).toContain('>Insumos</td>')
