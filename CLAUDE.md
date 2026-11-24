@@ -353,9 +353,7 @@ total = subtotalExámenes + subtotalProcedimientos + subtotalTalleres
 - `pago = round(base * porcentajePago / 100)`
 - Lógica centralizada en `src/lib/pricing/nurse-payment.ts`:
   - `calcNursePaymentConcepts()` — desglose de conceptos por visita (fee, descuentos, procedimientos,
-    recargos, base), **sin** el monto final. Lo usa el correo de programación
-    (`generateScheduledVisitsHTML` en `src/lib/emails/scheduled-visits-email-html.ts`), que muestra el
-    detalle pero no un monto de pago.
+    recargos, base), **sin** el monto final.
   - `calcNursePaymentBreakdown()` — lo anterior + `porcentaje` + `pago` final. Lo usan
     `getPagoEnfermeraDetalle` (`/pagos-enfermeras`) y el reporte Excel de visitas.
 - El resumen mensual agregado (`searchPagosEnfermerasMensual`) usa `calcNursePaymentBase()` con sumas
@@ -413,6 +411,11 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 
 - Se usa para enviar itinerario de visitas a enfermeras
 - El correo incluye detalle de cada visita: paciente, dirección, exámenes, procedimientos, talleres, adjuntos (fotos de órdenes médicas desde R2)
+- El correo es la programación de cara al paciente, **no** el pago de la enfermera: no usa
+  `nurse-payment.ts` ni los flags `…AfectaPagoEnfermera`. Todo monto es **neto de todos los descuentos**.
+  Exámenes, procedimientos, talleres y recargos van uno por línea (`[código] Nombre — $precio`).
+  "Detalle pago" muestra visita, procedimientos, recargos e insumos (`MontosCorreo` en
+  `visitas-asignacion-email.ts`), y "Total paciente" es `visits.costo`.
 - `sendScheduledVisitsEmail()` envía a una enfermera
 - `sendAllScheduledVisitsEmails()` envío masivo del día
 - Todos los archivos de la visita se adjuntan con su nombre legible (`v{id}_{nombre}_{n}.jpg`),

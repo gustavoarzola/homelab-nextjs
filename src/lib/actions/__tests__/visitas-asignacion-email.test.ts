@@ -78,6 +78,8 @@ async function seedVisit(params: {
   fecha?: string
   costo?: number
   montoVisitaOriginal?: number
+  montoDescuento?: number
+  montoInsumos?: number
 }) {
   const patient = await seedPatient(params.estado)
   const [visit] = await db
@@ -90,6 +92,8 @@ async function seedVisit(params: {
       idEnfermera: params.idEnfermera,
       costo: params.costo ?? 0,
       montoVisitaOriginal: params.montoVisitaOriginal ?? 0,
+      montoDescuento: params.montoDescuento ?? 0,
+      montoInsumos: params.montoInsumos ?? 0,
     })
     .returning()
   created.visits.push(visit!.id)
@@ -165,32 +169,29 @@ describe('getVisitasAsignadasPorEnfermera', () => {
     ])
   })
 
-  it('adjunta el desglose de conceptos de pago y excluye exámenes de la base', async () => {
-    const nurse = await seedNurse('ConPago')
+  it('entrega procedimientos y montos netos de todos los descuentos, sin importar si afectan el pago', async () => {
+    const nurse = await seedNurse('ConMontos')
 
-    // fee visita 40000 + procedimiento 10000 + examen regular 15000 → costo 65000
+    // fee 40000 − descuento 4000 + procedimiento 10000 − descuento 2000 + examen 15000 + insumos 3000
     const visit = await seedVisit({
-      estado: 'confirmada', idEnfermera: nurse.id, costo: 65000, montoVisitaOriginal: 40000,
+      estado: 'confirmada', idEnfermera: nurse.id, costo: 62000,
+      montoVisitaOriginal: 40000, montoDescuento: 4000, montoInsumos: 3000,
     })
     const [proc] = await db
       .insert(procedures)
-      .values({ nombre: `${P}ProcPago`, codigo: `${P}PP`, precio: 10000 })
+      .values({ nombre: `${P}ProcNeto`, codigo: `${P}PN`, precio: 10000 })
       .returning()
     created.procedures.push(proc!.id)
-    await db.insert(visitProcedures).values({ idVisita: visit.id, idProcedimiento: proc!.id, precio: 10000 })
+    await db.insert(visitProcedures).values({ idVisita: visit.id, idProcedimiento: proc!.id, precio: 10000, descuento: 2000 })
 
     const [examRegular] = await db.select({ id: exams.id }).from(exams).orderBy(asc(exams.id)).limit(1)
     await db.insert(visitExams).values({ idVisita: visit.id, idExamen: examRegular!.id, precio: 15000 })
 
     const result = await getVisitasAsignadasPorEnfermera(TEST_FECHA)
-    const enfermera = result.find((e) => e.id === nurse.id)!
+    const v = result.find((e) => e.id === nurse.id)!.visitas[0]!
 
-    const pago = enfermera.visitas[0]!.pago
-    expect(pago.feeVisita).toBe(40000)
-    expect(pago.procedimientos).toBe(10000)
-    expect(pago.base).toBe(50000) // excluye el examen de 15000
-    // el desglose del correo no expone un monto final (base × porcentaje)
-    expect('pago' in pago).toBe(false)
+    expect(v.procedimientos).toEqual([{ codigo: `${P}PN`, nombre: `${P}ProcNeto`, precio: 8000 }])
+    expect(v.montos).toEqual({ visita: 36000, procedimientos: 8000, recargos: 0, insumos: 3000 })
   })
 
   it('usa el texto del operador como dirección y coordenadas para el link de Maps', async () => {
