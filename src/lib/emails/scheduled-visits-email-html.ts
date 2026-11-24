@@ -204,6 +204,8 @@ export function generateScheduledVisitsHTML(
     const lineas: Array<[string, number]> = []
     if (montos.visita > 0) lineas.push(['Visita', montos.visita])
     if (montos.procedimientos > 0) lineas.push(['Procedimientos', montos.procedimientos])
+    if (montos.examenes > 0) lineas.push(['Exámenes', montos.examenes])
+    if (montos.talleres > 0) lineas.push(['Talleres', montos.talleres])
     if (montos.recargos > 0) lineas.push(['Recargos', montos.recargos])
     if (montos.insumos > 0) lineas.push(['Insumos', montos.insumos])
     if (!lineas.length) return '—'
@@ -245,9 +247,8 @@ export function generateScheduledVisitsHTML(
       ${table}
 
       <p style="margin:8px 0 0 0;font-size:11px;color:${BRAND_HEX.fgMuted};line-height:1.5;">
-        Todos los valores incluyen los descuentos aplicados. <strong>Detalle pago</strong>: visita,
-        procedimientos, recargos e insumos (no incluye exámenes ni talleres). Puede variar si la
-        visita cambia antes de realizarse.
+        Todos los valores incluyen los descuentos aplicados. El <strong>Detalle pago</strong> suma el
+        Total paciente. Puede variar si la visita cambia antes de realizarse.
       </p>
 
       ${footer}
