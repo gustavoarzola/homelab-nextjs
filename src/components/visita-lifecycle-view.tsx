@@ -1160,7 +1160,7 @@ function AdminCambiarEstado({
                 {isPending ? 'Guardando…' : 'Confirmar cambio'}
               </Button>
               <Button variant="secondary" onClick={() => { setOpen(false); setDestino('') }} disabled={isPending}>
-                Atrás
+                Cancelar
               </Button>
             </div>
           </>
