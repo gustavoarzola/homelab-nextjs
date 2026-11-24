@@ -20,6 +20,7 @@ import { syncArchivosVisita } from '@/lib/archivos/sync'
 import { getArchivosVisita, type ArchivoDTO } from '@/lib/archivos/query'
 import { deleteManyFromR2 } from '@/lib/r2'
 import { direccionConComuna, direccionParaMostrar } from '@/lib/direccion'
+import { ESTADOS_REABRIBLES } from '@/lib/visita-estados'
 
 // ─── getEnfermeras ────────────────────────────────────────────────────────────
 
@@ -1226,6 +1227,39 @@ export async function cancelarVisita(id: number, motivo: string): Promise<Action
     await db.update(visits)
       .set({ estado: 'cancelada', motivoCancelacion: motivo.trim(), updatedAt: new Date() })
       .where(eq(visits.id, id))
+    revalidatePath('/visitas')
+    revalidatePath(`/visitas/${id}`)
+  })
+}
+
+// ─── cambiarEstadoVisita (solo admin) ─────────────────────────────────────────
+
+export async function cambiarEstadoVisita(id: number, nuevoEstado: string): Promise<ActionResult> {
+  return withAction('Error al cambiar el estado de la visita', async () => {
+    const session = await requireSession()
+    if (!isAdmin(session.user.role)) throw new ActionError('Solo un administrador puede cambiar el estado de una visita')
+    if (!(ESTADOS_REABRIBLES as readonly string[]).includes(nuevoEstado)) throw new ActionError('Estado de destino inválido')
+
+    const [visit] = await db.select({ estado: visits.estado, idEnfermera: visits.idEnfermera }).from(visits).where(eq(visits.id, id))
+    if (!visit) throw new ActionError('Visita no encontrada')
+    if (visit.estado === nuevoEstado) throw new ActionError('La visita ya está en ese estado')
+    if (nuevoEstado === 'realizada' && visit.idEnfermera === null) {
+      throw new ActionError('Para dejar la visita como realizada, primero asigna una enfermera')
+    }
+
+    // Los datos de facturación/pago/resultados se conservan para no perder lo ya
+    // registrado; solo se limpian los datos propios de los estados cancelada/no realizada.
+    const resultadosTotalCount = nuevoEstado === 'realizada' ? (await getExamenesEsperados(id)).length : undefined
+    await db.update(visits).set({
+      estado: nuevoEstado,
+      motivoCancelacion: null,
+      costoTraslado: 0,
+      conceptoNoRealizada: null,
+      ...(resultadosTotalCount !== undefined && { resultadosTotalCount }),
+      updatedAt: new Date(),
+    }).where(eq(visits.id, id))
+
+    console.info(`[visitas] admin ${session.user.email ?? session.user.id} cambió visita #${id}: ${visit.estado} → ${nuevoEstado}`)
     revalidatePath('/visitas')
     revalidatePath(`/visitas/${id}`)
   })

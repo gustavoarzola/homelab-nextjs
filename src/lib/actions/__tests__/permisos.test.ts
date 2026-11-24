@@ -15,7 +15,7 @@ vi.mock('next/cache', () => ({
 
 import { createExamen, toggleProcedimiento, createTaller, createTipoRecargo, createComuna } from '../catalogos'
 import { createPrecioVisita, togglePrecioVisita } from '../precios'
-import { deleteVisita } from '../visitas'
+import { deleteVisita, cambiarEstadoVisita } from '../visitas'
 
 const DENIED = { success: false, error: 'No tienes permisos para realizar esta acción' }
 
@@ -96,5 +96,48 @@ describe('deleteVisita', () => {
     const visit = await seedVisita('completada')
     asRole('admin')
     expect(await deleteVisita(visit.id)).toEqual({ success: true })
+  })
+})
+
+describe('cambiarEstadoVisita', () => {
+  async function estadoDe(id: number) {
+    const [row] = await db.select().from(visits).where(eq(visits.id, id))
+    return row
+  }
+
+  it('ejecutivo no puede cambiar el estado', async () => {
+    const visit = await seedVisita('completada')
+    asRole('ejecutivo')
+    const res = await cambiarEstadoVisita(visit.id, 'programada')
+    expect(res.success).toBe(false)
+    expect((await estadoDe(visit.id)).estado).toBe('completada')
+  })
+
+  it('admin devuelve una visita completada a programada conservando la facturación', async () => {
+    const visit = await seedVisita('completada')
+    await db.update(visits).set({ numeroBoleta: `${P}B1`, tipoDocumento: 'boleta', pagado: true }).where(eq(visits.id, visit.id))
+    asRole('admin')
+    expect(await cambiarEstadoVisita(visit.id, 'programada')).toEqual({ success: true })
+    const row = await estadoDe(visit.id)
+    expect(row.estado).toBe('programada')
+    expect(row.numeroBoleta).toBe(`${P}B1`)
+    expect(row.pagado).toBe(true)
+  })
+
+  it('admin reabre una visita cancelada y limpia el motivo', async () => {
+    const visit = await seedVisita('cancelada')
+    await db.update(visits).set({ motivoCancelacion: 'error' }).where(eq(visits.id, visit.id))
+    expect(await cambiarEstadoVisita(visit.id, 'confirmada')).toEqual({ success: true })
+    const row = await estadoDe(visit.id)
+    expect(row.estado).toBe('confirmada')
+    expect(row.motivoCancelacion).toBeNull()
+  })
+
+  it('rechaza estados terminales y realizada sin enfermera', async () => {
+    const visit = await seedVisita('programada')
+    expect((await cambiarEstadoVisita(visit.id, 'completada')).success).toBe(false)
+    expect((await cambiarEstadoVisita(visit.id, 'cancelada')).success).toBe(false)
+    expect((await cambiarEstadoVisita(visit.id, 'realizada')).success).toBe(false)
+    expect((await estadoDe(visit.id)).estado).toBe('programada')
   })
 })
