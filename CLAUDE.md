@@ -496,9 +496,9 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
   **corta el build** si un Preview apunta al host de producción (`HOMELAB_PRODUCTION_DB_HOST`) o si
   esa variable falta en Preview
 - Al cerrar un PR, `.github/workflows/cleanup-preview.yml` borra los deployments de Preview de esa
-  rama en Vercel y la rama `preview/<rama-git>` de Neon (la integración solo la borra cuando expira el
-  deployment, y el plan Free de Neon tiene tope de 10 ramas). Requiere secrets `VERCEL_TOKEN`,
-  `NEON_API_KEY` y variables `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID`, `NEON_PROJECT_ID` en GitHub Actions
+  rama en Vercel; al desaparecer el último, la integración nativa borra la rama `preview/<rama-git>`
+  de Neon (plan Free: tope de 10 ramas). Requiere secret `VERCEL_TOKEN` y variables
+  `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` en GitHub Actions
 - Seed: `pnpm db:seed` (usa tsx con .env.local)
 
 ---
