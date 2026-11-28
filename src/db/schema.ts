@@ -12,6 +12,7 @@ import {
   foreignKey,
   uniqueIndex,
   index,
+  check,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -717,5 +718,70 @@ export const quotationWorkshops = pgTable(
     foreignKey({ columns: [table.idTaller], foreignColumns: [workshops.id] })
       .onDelete('restrict'),
     index('cotizacion_talleres_id_cotizacion_idx').on(table.idCotizacion),
+  ]
+)
+
+// ============================================================================
+// 26a. GrupoCosto - Agrupa categorías de costo en el Resumen (mantenido por admin)
+// ============================================================================
+export const costGroups = pgTable(
+  'grupos_costos',
+  {
+    id: serial('id').primaryKey(),
+    nombre: varchar('nombre', { length: 200 }).notNull(),
+    orden: integer('orden').notNull().default(0),
+    activo: boolean('activo').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('grupos_costos_nombre_idx').on(table.nombre),
+  ]
+)
+
+// ============================================================================
+// 26b. CategoriaCosto - Catálogo de categorías de costos (mantenido por admin)
+// ============================================================================
+export const costCategories = pgTable(
+  'categorias_costos',
+  {
+    id: serial('id').primaryKey(),
+    nombre: varchar('nombre', { length: 200 }).notNull(),
+    idGrupo: integer('id_grupo').notNull(),
+    orden: integer('orden').notNull().default(0),
+    activo: boolean('activo').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idGrupo], foreignColumns: [costGroups.id] })
+      .onDelete('restrict'),
+    uniqueIndex('categorias_costos_nombre_idx').on(table.nombre),
+    index('categorias_costos_id_grupo_idx').on(table.idGrupo),
+  ]
+)
+
+// ============================================================================
+// 27. CostoMensual - Monto de una categoría de costo en un mes (no por visita)
+// ============================================================================
+export const monthlyCosts = pgTable(
+  'costos_mensuales',
+  {
+    id: serial('id').primaryKey(),
+    idCategoria: integer('id_categoria').notNull(),
+    anio: integer('anio').notNull(),
+    mes: integer('mes').notNull(),
+    monto: integer('monto').notNull().default(0),
+    notas: text('notas'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.idCategoria], foreignColumns: [costCategories.id] })
+      .onDelete('restrict'),
+    uniqueIndex('costos_mensuales_categoria_periodo_idx').on(table.idCategoria, table.anio, table.mes),
+    index('costos_mensuales_periodo_idx').on(table.anio, table.mes),
+    check('costos_mensuales_mes_check', sql`${table.mes} BETWEEN 1 AND 12`),
+    check('costos_mensuales_monto_check', sql`${table.monto} >= 0`),
   ]
 )

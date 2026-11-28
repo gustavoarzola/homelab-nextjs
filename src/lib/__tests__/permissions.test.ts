@@ -20,6 +20,9 @@ describe('canAccessPath', () => {
     '/precios/visitas',
     '/reportes',
     '/api/reportes/visitas/export',
+    '/api/reportes/financiero/export',
+    '/categorias-costos',
+    '/grupos-costos',
   ]
 
   it('admin accede a todo', () => {
@@ -33,7 +36,7 @@ describe('canAccessPath', () => {
   })
 
   it('un rol no-admin accede al resto', () => {
-    for (const path of ['/dashboard', '/visitas', '/visitas/12/editar', '/pacientes', '/comunas', '/previsiones', '/api/visitas/export', '/api/upload']) {
+    for (const path of ['/dashboard', '/visitas', '/visitas/12/editar', '/pacientes', '/comunas', '/previsiones', '/api/visitas/export', '/api/upload', '/costos-mensuales']) {
       expect(canAccessPath('ejecutivo', path)).toBe(true)
     }
   })

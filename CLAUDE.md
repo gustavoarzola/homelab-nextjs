@@ -139,6 +139,9 @@ src/
 | `tipos_recargos` | `surchargeTypes` | Tipos de recargos excepcionales |
 | `comunas` | `comunas` | Comunas (usado por enfermeras, precios de visita y cotizaciones) |
 | `precios_visita_enfermeria` | `nursingVisitPrices` | Precio de visita por comuna (`id_comuna` null = base) |
+| `grupos_costos` | `costGroups` | Grupos de costos (bloques del Resumen: Facturas laboratorio, Sueldo Rinaldo, Gastos fijos…), con `orden` |
+| `categorias_costos` | `costCategories` | Categorías de costos, cada una en un grupo (`id_grupo`, `orden` dentro del grupo). Mantenidas por admin desde `/categorias-costos` (la migración 0026 solo crea los 3 grupos del informe de fin de mes, sin categorías) |
+| `costos_mensuales` | `monthlyCosts` | Monto de una categoría de costo en un mes (`anio`, `mes`, `monto`, `notas`; único por categoría+mes). No es por visita |
 
 ### Tablas pivote
 
@@ -203,7 +206,8 @@ src/
   `admin` queda restringido** — un rol desconocido nunca recibe más acceso.
 - Modelo simple: acceso sí/no a interfaces completas, definido en `src/lib/permissions.ts`
   (`ADMIN_ONLY_PREFIXES`, `canAccessPath()`, `isAdmin()`). Hoy solo-admin: exámenes,
-  procedimientos, talleres, tipos de recargos, precios de visita y reportes (`/reportes`, `/api/reportes`).
+  procedimientos, talleres, tipos de recargos, precios de visita, grupos y categorías de costos y reportes
+  (`/reportes`, `/api/reportes`). Los montos de `/costos-mensuales` los puede ingresar cualquier usuario.
 - Se aplica en 3 capas: `src/proxy.ts` (redirige a `/dashboard`, o 403 en `/api/*`), el sidebar
   (oculta ítems) y las server actions de mutación con `requireAdmin()` (`src/lib/auth-guard.ts`).
   En catálogos del factory basta con `adminOnly: true` en el `CatalogConfig`. Las lecturas
@@ -283,6 +287,13 @@ Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al in
 - Patrón: `search*`, `create*`, `update*`, `toggle*`
 - Helpers: `getProcedimientos()`, `getExamenes()`, `getTalleres()`, `getComunasForSelect()` — para selects
 
+### costos-mensuales.ts
+- `getCostosMensuales(anio, mes)` — Categorías activas (+ inactivas con monto ese mes) con su monto/notas
+- `guardarCostosMensuales({ anio, mes, items })` — Upsert por categoría; monto 0 sin notas borra el registro
+- `getCostosMensuales` devuelve las filas ordenadas por grupo → categoría (el form muestra subtotal por grupo)
+- El CRUD de `grupos_costos` y `categorias_costos` está en `catalogos.ts` (`searchGruposCostos`,
+  `searchCategoriasCostos`, etc., `adminOnly`; `getGruposCostosForSelect()` para el select de grupo)
+
 ### precios.ts
 - `searchPreciosExamenes(params)` / `searchPreciosVisita(params)` — Gestión de precios
 - `getCotizacionVisita(idVisita)` — Datos para generar HTML de cotización desde visita
@@ -315,6 +326,8 @@ Solo se usan cuando se necesita controlar headers HTTP o servir contenido no-JSO
 | `/api/cotizacion-standalone/[id]` | GET | HTML imprimible de cotización independiente |
 | `/api/upload` | POST | Subir archivo a Cloudflare R2 |
 | `/api/r2-file` | GET | Redirect a signed URL de R2 |
+| `/api/reportes/visitas/export` | GET | Reporte de visitas (formato anterior, configurable por columnas) |
+| `/api/reportes/financiero/export` | GET | Reporte financiero: hojas Resumen (estado de resultados mensual), Visitas (1:1 por concepto) y Costos mensuales |
 | `/api/visitas/export` | GET | Descarga .xlsx con visitas filtradas (acepta los mismos filtros que `searchVisitas` como query params) |
 
 ---
@@ -365,6 +378,58 @@ total = subtotalExámenes + subtotalProcedimientos + subtotalTalleres
   SQL — mismo resultado, distinta forma.
 
 ---
+
+## Reporte financiero
+
+`/reportes` ofrece dos reportes: **Financiero** (nuevo, por defecto) y **Visitas** (formato anterior,
+se mantiene por precaución). El financiero vive en `src/lib/reportes/financiero.ts` (cálculo puro +
+columnas + resumen) y `financiero-query.ts` (lecturas); el WHERE de filtros es `buildVisitasWhere()`
+(`src/lib/visitas-where.ts`), compartido con el listado de visitas.
+
+Mapa de montos de una visita (cada uno es una columna; los de ingreso suman el "Total boleta"):
+
+| Concepto | Origen | ¿Total? | ¿Base pago enfermera? |
+|---|---|---|---|
+| Visita enfermería (bruto) | `visitas.monto_visita_original` (0 si `cobra_visita=false`) | + | + |
+| Descuento visita | `visitas.monto_descuento` (de `descuento_tipo`/`descuento_valor`) | − | − solo si `descuento_afecta_pago_enfermera` |
+| Curaciones / Otros procedimientos (bruto) | Σ `procedimientos_visitas.precio` por `procedimientos.categoria` | + | + |
+| Descuento curaciones / otros procedimientos | Σ `procedimientos_visitas.descuento` (topado al precio) | − | − solo si `descuento_procedimientos_afecta_pago_enfermera` |
+| Recargos | Σ `recargos_visitas.precio` | + | + |
+| Talleres | Σ `talleres_visitas.precio` | + | no |
+| Exámenes por grupo (Imalab, Imalab Fonasa 3, Integramédica, otro) | Σ `examenes_visitas.precio` por `examenes.grupo_examen` | + | no |
+| Exámenes Imalab · Isapre (bono) | Σ `examenes_isapre_visitas.valor_pagar` | + | no |
+| Exámenes Imalab · Isapre valor completo | Σ `examenes_isapre_visitas.valor_completo` | **informativo, no suma** | no |
+| Insumos | `visitas.monto_insumos` | + | no |
+| Cobro visita no realizada | `visitas.costo_traslado` (+ `concepto_no_realizada`) | + | + (el % de la enfermera sobre ese cobro) |
+
+Reglas por estado: `no_realizada` → solo cuenta el cobro registrado al marcarla (los ítems no se
+hicieron); `cancelada` → todo $0; resto → montos registrados. Estados por defecto en la UI:
+realizada + completada + no realizada. La columna "Control: descuadre" = `visitas.costo` − total
+calculado (debe ser 0).
+
+Hoja **Resumen** (`buildResumenMensual`, una columna por mes según la fecha de la visita; replica el
+informe de fin de mes que se armaba a mano). Bloques:
+1. **PACIENTES** — conteo de visitas por tipo con la misma regla que "Ítems atendidos" del dashboard
+   (`conteo` en `computeMontosFinancieros`; solo realizadas/completadas; visita sin ítems → Otros
+   procedimientos; el test compara contra `getDashboardVisitsByDay`) + fila de no realizadas.
+2. **INGRESOS** — el detalle 1:1 (`CONCEPTOS_INGRESO`) y Total ingresos. "Exámenes (otro grupo)" solo
+   aparece si tiene montos.
+3. **UTILIDAD ANTES DE COSTOS** — Producción Exámenes (`produccionExamenes`: grupos de catálogo),
+   Producción IMED producción (isapre `valor_completo`), Producción de IMED a pagar (isapre
+   `valor_pagar`), Producción Visitas (`produccionVisitas`: visita + curaciones + otros procedimientos
+   + talleres + recargos + cobro no realizada, neto de descuentos; sin insumos) desglosada por
+   enfermera, Retención Visitas = Producción Visitas − pago enfermeras, y filas manuales.
+4. **COSTOS TOTALES** — pago por enfermera (con su % actual) y `costos_mensuales` por grupo con
+   subtotales (mes completo, sin filtrar por estado/enfermera).
+5. **UTILIDAD ANTES DE IMPUESTOS** — fila manual + Insumos recuperados (Σ `monto_insumos`); al final
+   "Utilidad antes de impuestos + materiales" (manual).
+
+Filas manuales (celda vacía, amarilla; aún sin fórmula): Total Facturado, Retención Exámenes,
+Retención Impuestos Visitas, Utilidad antes de los costos, Utilidad antes de impuestos y + materiales.
+Cuadre testeado: Total ingresos = Producción Exámenes + IMED a pagar + Producción Visitas + Insumos
+recuperados.
+Al agregar un concepto $ nuevo a la visita: sumarlo en `computeMontosFinancieros` y
+`CONCEPTOS_INGRESO` — el test de cuadre (`reporte-financiero.test.ts`) lo exige.
 
 ## Componente DataTable
 
@@ -543,6 +608,14 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
 7. **NextAuth en versión beta** — `next-auth@5.0.0-beta.30` puede tener breaking changes. Monitorear para actualizar a la versión estable cuando salga.
 
 8. **Los cuadros de pendientes del dashboard son un quickview, no un reporte.** "Cobros pendientes" y "Resultados pendientes" (`getDashboardFinanciero`) muestran solo las primeras 20 filas del mes seleccionado (el subtítulo indica el total real). Falta una página de reporte dedicada, con filtros propios (rango de fechas, enfermera, laboratorio, grupo de examen), paginación y export a Excel vía `src/lib/excel/build-excel.ts`, tanto para cobros pendientes como para exámenes con resultado por enviar.
+
+9. **Porcentaje de pago de la enfermera no es histórico.** `enfermeras.porcentaje_pago` se lee al
+   momento de calcular, así que cambiarlo recalcula el pago de visitas pasadas (en `/pagos-enfermeras`,
+   el correo y los reportes). Falta guardar un snapshot del porcentaje por visita (p.ej. al completarla).
+
+10. **`/pagos-enfermeras` no incluye visitas no realizadas.** Solo suma `completada`; la regla de negocio
+    es que en una `no_realizada` la enfermera recibe su % sobre el cobro (`costo_traslado`). El reporte
+    financiero ya lo calcula así (`computeMontosFinancieros`), falta llevarlo a pagos.
 
 ### Baja prioridad
 

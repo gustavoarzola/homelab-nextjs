@@ -42,11 +42,26 @@ function valueLength(v: unknown): number {
   return String(v).length
 }
 
-export async function buildExcel<T>(opts: BuildExcelOptions<T>): Promise<BuildExcelResult> {
-  const { columns, rows, sheetName } = opts
+export type ExcelSheet<T> = {
+  columns: ExcelColumn<T>[]
+  rows: T[]
+  sheetName: string
+  /** Estilo por fila (p.ej. subtotales/celdas a llenar a mano en un resumen). */
+  rowStyle?: (row: T) => ExcelRowStyle
+}
 
-  const workbook = new ExcelJS.Workbook()
-  workbook.created = new Date()
+export type ExcelRowStyle = {
+  bold?: boolean
+  /** Color ARGB de relleno de las celdas de la fila (p.ej. 'FFFFF2CC'). */
+  fill?: string
+  /** Sangría de la primera celda. */
+  indent?: number
+  /** Formato numérico que reemplaza al de la columna en esta fila (salvo la primera celda). */
+  numFmt?: ExcelCellFormat
+}
+
+function addSheet<T>(workbook: ExcelJS.Workbook, opts: ExcelSheet<T>): void {
+  const { columns, rows, sheetName, rowStyle } = opts
   const sheet = workbook.addWorksheet(sanitizeSheetName(sheetName))
 
   sheet.columns = columns.map((col) => {
@@ -69,7 +84,17 @@ export async function buildExcel<T>(opts: BuildExcelOptions<T>): Promise<BuildEx
       const v = col.accessor(row)
       return v ?? null
     })
-    sheet.addRow(values)
+    const added = sheet.addRow(values)
+    const st = rowStyle?.(row)
+    if (st) {
+      for (let i = 1; i <= columns.length; i++) {
+        const cell = added.getCell(i)
+        if (st.bold) cell.font = { bold: true }
+        if (st.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: st.fill } }
+        if (st.numFmt && i > 1) cell.numFmt = NUM_FORMATS[st.numFmt]
+        if (i === 1 && st.indent) cell.alignment = { indent: st.indent }
+      }
+    }
 
     if (columns.some((c) => c.width == null)) {
       values.forEach((v, i) => {
@@ -103,9 +128,29 @@ export async function buildExcel<T>(opts: BuildExcelOptions<T>): Promise<BuildEx
       to: { row: 1, column: columns.length },
     }
   }
+}
+
+export async function buildExcel<T>(opts: BuildExcelOptions<T>): Promise<BuildExcelResult> {
+  const workbook = new ExcelJS.Workbook()
+  workbook.created = new Date()
+  addSheet(workbook, opts)
 
   const buffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer
-  const fileName = opts.fileName ?? `${sheetName.toLowerCase()}-${todaySantiago()}.xlsx`
+  const fileName = opts.fileName ?? `${opts.sheetName.toLowerCase()}-${todaySantiago()}.xlsx`
 
   return { buffer, fileName }
+}
+
+/** Libro con varias hojas (mismas reglas de formato que `buildExcel`). */
+export async function buildExcelWorkbook(opts: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sheets: ExcelSheet<any>[]
+  fileName: string
+}): Promise<BuildExcelResult> {
+  const workbook = new ExcelJS.Workbook()
+  workbook.created = new Date()
+  for (const sheet of opts.sheets) addSheet(workbook, sheet)
+
+  const buffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer
+  return { buffer, fileName: opts.fileName }
 }

@@ -7,7 +7,11 @@ import { FormDatePicker } from '@/components/form-date-picker'
 import { SelectCombobox } from '@/components/select-combobox'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
+import { Callout } from '@/components/ui/callout'
+import { Segmented } from '@/components/form-servicios'
+import '@/components/form-shared.css'
 import { VISITA_REPORT_COLUMNS } from '@/lib/reportes/visitas-columns'
+import { ESTADOS_REPORTE_FINANCIERO_DEFAULT, REPORTE_FINANCIERO_COLUMNS } from '@/lib/reportes/financiero'
 
 const ESTADO_OPTIONS = [
   { value: 'programada', label: 'Programada' },
@@ -18,19 +22,71 @@ const ESTADO_OPTIONS = [
   { value: 'cancelada', label: 'Cancelada' },
 ]
 
-const DEFAULT_ESTADO_IDX = ESTADO_OPTIONS.findIndex((o) => o.value === 'realizada')
+type TipoReporte = 'financiero' | 'visitas'
+
+type ReporteDef = {
+  columns: { key: string; header: string }[]
+  endpoint: string
+  defaultEstados: readonly string[]
+}
+
+// Las columnas tienen accessors (funciones): se importan acá, del lado cliente,
+// en vez de pasarse como props desde el server component.
+const REPORTES: Record<TipoReporte, ReporteDef> = {
+  financiero: {
+    columns: REPORTE_FINANCIERO_COLUMNS,
+    endpoint: '/api/reportes/financiero/export',
+    defaultEstados: ESTADOS_REPORTE_FINANCIERO_DEFAULT,
+  },
+  visitas: {
+    columns: VISITA_REPORT_COLUMNS,
+    endpoint: '/api/reportes/visitas/export',
+    defaultEstados: ['realizada'],
+  },
+}
 
 type Props = {
   enfermeras: { id: number; nombre: string }[]
 }
 
 export function ReportesVisitas({ enfermeras }: Props) {
+  const [tipo, setTipo] = useState<TipoReporte>('financiero')
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <Segmented
+          options={[
+            { value: 'financiero', label: 'Financiero (ingresos y costos)' },
+            { value: 'visitas', label: 'Visitas (formato anterior)' },
+          ]}
+          value={tipo}
+          onChange={setTipo}
+        />
+      </div>
+      {tipo === 'financiero' ? (
+        <Callout tone="info">
+          Una columna por concepto real de la visita; las columnas de ingreso (descuentos en negativo) suman el Total
+          boleta. En visitas no realizadas solo cuenta el cobro registrado al marcarlas, y las canceladas van en $0.
+          El Excel trae además una hoja <b>Resumen</b> por mes (ingresos, pago a enfermeras y costos mensuales) y el
+          detalle de <b>Costos mensuales</b> del período.
+        </Callout>
+      ) : null}
+      <ReporteExcel key={tipo} reporte={REPORTES[tipo]} enfermeras={enfermeras} />
+    </div>
+  )
+}
+
+function ReporteExcel({ reporte, enfermeras }: Props & { reporte: ReporteDef }) {
+  const COLUMNS = reporte.columns
   const [fechaInicio, setFechaInicio] = useState<string | undefined>(undefined)
   const [fechaFin, setFechaFin] = useState<string | undefined>(undefined)
-  const [estadoIds, setEstadoIds] = useState<number[]>(DEFAULT_ESTADO_IDX >= 0 ? [DEFAULT_ESTADO_IDX] : [])
+  const [estadoIds, setEstadoIds] = useState<number[]>(() =>
+    ESTADO_OPTIONS.flatMap((o, idx) => (reporte.defaultEstados.includes(o.value) ? [idx] : [])),
+  )
   const [enfermeraIds, setEnfermeraIds] = useState<number[]>([])
   const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(VISITA_REPORT_COLUMNS.map((c) => [c.key, true])),
+    Object.fromEntries(COLUMNS.map((c) => [c.key, true])),
   )
 
   const estadoOptions = ESTADO_OPTIONS.map((opt, idx) => ({ id: idx, label: opt.label }))
@@ -38,10 +94,10 @@ export function ReportesVisitas({ enfermeras }: Props) {
   const enfermeraOptions = enfermeras.map((e) => ({ id: e.id, label: e.nombre }))
 
   const activeColumnKeys = useMemo(
-    () => VISITA_REPORT_COLUMNS.filter((c) => selectedColumns[c.key]).map((c) => c.key),
-    [selectedColumns],
+    () => COLUMNS.filter((c) => selectedColumns[c.key]).map((c) => c.key),
+    [COLUMNS, selectedColumns],
   )
-  const allSelected = activeColumnKeys.length === VISITA_REPORT_COLUMNS.length
+  const allSelected = activeColumnKeys.length === COLUMNS.length
   const noneSelected = activeColumnKeys.length === 0
 
   function toggleColumn(key: string) {
@@ -49,7 +105,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
   }
 
   function setAllColumns(value: boolean) {
-    setSelectedColumns(Object.fromEntries(VISITA_REPORT_COLUMNS.map((c) => [c.key, value])))
+    setSelectedColumns(Object.fromEntries(COLUMNS.map((c) => [c.key, value])))
   }
 
   function buildExportUrl(): string {
@@ -59,7 +115,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
     if (estadoValues.length > 0) params.set('estado', estadoValues.join(','))
     if (enfermeraIds.length > 0) params.set('enfermera', enfermeraIds.join(','))
     params.set('columns', activeColumnKeys.join(','))
-    return `/api/reportes/visitas/export?${params.toString()}`
+    return `${reporte.endpoint}?${params.toString()}`
   }
 
   return (
@@ -144,7 +200,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {VISITA_REPORT_COLUMNS.map((col) => (
+            {COLUMNS.map((col) => (
               <label key={col.key} className="flex items-center gap-2" style={{ fontSize: 'var(--text-base)' }}>
                 <Checkbox
                   checked={selectedColumns[col.key] ?? false}
@@ -159,7 +215,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
             <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-fg-muted)' }}>
               {noneSelected
                 ? 'Selecciona al menos una columna para descargar.'
-                : `${activeColumnKeys.length} de ${VISITA_REPORT_COLUMNS.length} columnas seleccionadas`}
+                : `${activeColumnKeys.length} de ${COLUMNS.length} columnas seleccionadas`}
             </p>
             <Button asChild>
               <a
