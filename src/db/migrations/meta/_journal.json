@@ -197,6 +197,13 @@
       "when": 1795839926193,
       "tag": "0027_costos_a_gastos",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795841934757,
+      "tag": "0028_drop_tasas_retencion_huerfana",
+      "breakpoints": true
     }
   ]
 }

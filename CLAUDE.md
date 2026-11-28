@@ -617,11 +617,10 @@ return <EntidadTable initialData={initialData} search={searchEntidad} ... />
     es que en una `no_realizada` la enfermera recibe su % sobre el cobro (`costo_traslado`). El reporte
     financiero ya lo calcula así (`computeMontosFinancieros`), falta llevarlo a pagos.
 
-11. **Restos de `feat/estado-resultados` en producción.** Un Preview de esa rama (abandonada) migró
-    producción antes de existir `db-guard`: dejó la fila `0024_estado_resultados` en
-    `drizzle.__drizzle_migrations` y la tabla `tasas_retencion_honorarios` (huérfana, sin uso). Su
-    `gastos_mensuales` vacía la elimina la migración 0027. Se puede borrar `tasas_retencion_honorarios`
-    cuando se confirme que no se usará.
+11. ~~Restos de `feat/estado-resultados` en producción~~ — **Resuelto.** Un Preview de esa rama
+    (abandonada) migró producción antes de existir `db-guard`. Sus tablas `gastos_mensuales` y
+    `tasas_retencion_honorarios` se eliminaron en las migraciones 0027 y 0028; solo queda su fila
+    `0024_estado_resultados` en `drizzle.__drizzle_migrations`, inocua (Drizzle solo mira la última).
 
 ### Baja prioridad
 
