@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { SelectCombobox } from '@/components/select-combobox'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
-import { guardarCostosMensuales, type CostoMensualFormRow } from '@/lib/actions/costos-mensuales'
+import { guardarGastosMensuales, type GastoMensualFormRow } from '@/lib/actions/gastos-mensuales'
 
 const MONTHS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -18,7 +18,7 @@ const MONTHS = [
 const CLP = (n: number) => '$' + (n || 0).toLocaleString('es-CL')
 
 type Props = {
-  rows: CostoMensualFormRow[]
+  rows: GastoMensualFormRow[]
   month: number
   year: number
   isAdmin: boolean
@@ -26,13 +26,13 @@ type Props = {
 
 type Draft = Record<number, { monto: string; notas: string }>
 
-function toDraft(rows: CostoMensualFormRow[]): Draft {
+function toDraft(rows: GastoMensualFormRow[]): Draft {
   return Object.fromEntries(
     rows.map((r) => [r.idCategoria, { monto: r.monto ? String(r.monto) : '', notas: r.notas }]),
   )
 }
 
-export function CostosMensualesForm({ rows, month, year, isAdmin }: Props) {
+export function GastosMensualesForm({ rows, month, year, isAdmin }: Props) {
   const router = useRouter()
   const [selectedMonth, setSelectedMonth] = React.useState<number | null>(month)
   const [selectedYear, setSelectedYear] = React.useState<number | null>(year)
@@ -48,8 +48,8 @@ export function CostosMensualesForm({ rows, month, year, isAdmin }: Props) {
   }, [year])
 
   const montoDe = (id: number) => Number((draft[id]?.monto ?? '').replace(/[^\d]/g, '')) || 0
-  // Las filas ya vienen ordenadas por grupo → categoría (getCostosMensuales).
-  const grupos = rows.reduce<{ grupo: string; items: CostoMensualFormRow[] }[]>((acc, r) => {
+  // Las filas ya vienen ordenadas por grupo → categoría (getGastosMensuales).
+  const grupos = rows.reduce<{ grupo: string; items: GastoMensualFormRow[] }[]>((acc, r) => {
     const last = acc[acc.length - 1]
     if (last && last.grupo === r.grupo) last.items.push(r)
     else acc.push({ grupo: r.grupo, items: [r] })
@@ -61,7 +61,7 @@ export function CostosMensualesForm({ rows, month, year, isAdmin }: Props) {
   function goTo() {
     if (!selectedMonth || !selectedYear) return
     if (dirty && !window.confirm('Hay cambios sin guardar. ¿Cambiar de mes igual?')) return
-    startNavigation(() => router.push(`/costos-mensuales?month=${selectedMonth}&year=${selectedYear}`))
+    startNavigation(() => router.push(`/gastos-mensuales?month=${selectedMonth}&year=${selectedYear}`))
   }
 
   function setField(id: number, field: 'monto' | 'notas', value: string) {
@@ -70,7 +70,7 @@ export function CostosMensualesForm({ rows, month, year, isAdmin }: Props) {
 
   function handleSave() {
     startSaving(async () => {
-      const result = await guardarCostosMensuales({
+      const result = await guardarGastosMensuales({
         anio: year,
         mes: month,
         items: rows.map((r) => ({
@@ -80,7 +80,7 @@ export function CostosMensualesForm({ rows, month, year, isAdmin }: Props) {
         })),
       })
       if (result.success) {
-        toast.success(`Costos de ${MONTHS[month - 1]!.label} ${year} guardados`)
+        toast.success(`Gastos de ${MONTHS[month - 1]!.label} ${year} guardados`)
         router.refresh()
       } else {
         toast.error(result.error)
@@ -127,11 +127,11 @@ export function CostosMensualesForm({ rows, month, year, isAdmin }: Props) {
                 <tr>
                   <td colSpan={3}>
                     <EmptyState
-                      title="No hay categorías de costo activas"
+                      title="No hay categorías de gasto activas"
                       description={
                         isAdmin
-                          ? <>Créalas en <Link href="/categorias-costos" style={{ color: 'var(--color-primary)' }}>Categorías de costos</Link>.</>
-                          : 'Pídele a un administrador que cree las categorías de costo.'
+                          ? <>Créalas en <Link href="/categorias-gastos" style={{ color: 'var(--color-primary)' }}>Categorías de gastos</Link>.</>
+                          : 'Pídele a un administrador que cree las categorías de gasto.'
                       }
                     />
                   </td>

@@ -57,7 +57,7 @@ export function ReportesVisitas({ enfermeras }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         <Segmented
           options={[
-            { value: 'financiero', label: 'Financiero (ingresos y costos)' },
+            { value: 'financiero', label: 'Financiero (ingresos y gastos)' },
             { value: 'visitas', label: 'Visitas (formato anterior)' },
           ]}
           value={tipo}
@@ -68,8 +68,8 @@ export function ReportesVisitas({ enfermeras }: Props) {
         <Callout tone="info">
           Una columna por concepto real de la visita; las columnas de ingreso (descuentos en negativo) suman el Total
           boleta. En visitas no realizadas solo cuenta el cobro registrado al marcarlas, y las canceladas van en $0.
-          El Excel trae además una hoja <b>Resumen</b> por mes (ingresos, pago a enfermeras y costos mensuales) y el
-          detalle de <b>Costos mensuales</b> del período.
+          El Excel trae además una hoja <b>Resumen</b> por mes (ingresos, pago a enfermeras y gastos mensuales) y el
+          detalle de <b>Gastos mensuales</b> del período.
         </Callout>
       ) : null}
       <ReporteExcel key={tipo} reporte={REPORTES[tipo]} enfermeras={enfermeras} />

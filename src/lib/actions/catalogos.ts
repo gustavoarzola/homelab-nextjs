@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops, comunas, contactOrigins, costCategories, costGroups } from '@/db/schema'
+import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops, comunas, contactOrigins, expenseCategories, expenseGroups } from '@/db/schema'
 import { eq, asc, and, ilike } from 'drizzle-orm'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { z } from 'zod'
@@ -55,15 +55,15 @@ const tipoRecargoUpdateSchema = tipoRecargoSchema.extend({ id: fields.id })
 
 const ordenField = z.coerce.number().int('Orden inválido').min(0, 'Orden inválido').optional().default(0)
 
-const grupoCostoSchema = z.object({ nombre: fields.nombre, orden: ordenField })
-const grupoCostoUpdateSchema = grupoCostoSchema.extend({ id: fields.id })
+const grupoGastoSchema = z.object({ nombre: fields.nombre, orden: ordenField })
+const grupoGastoUpdateSchema = grupoGastoSchema.extend({ id: fields.id })
 
-const categoriaCostoSchema = z.object({
+const categoriaGastoSchema = z.object({
   nombre: fields.nombre,
   idGrupo: z.coerce.number().int().positive('Grupo requerido'),
   orden: ordenField,
 })
-const categoriaCostoUpdateSchema = categoriaCostoSchema.extend({ id: fields.id })
+const categoriaGastoUpdateSchema = categoriaGastoSchema.extend({ id: fields.id })
 
 const tallerSchema = z.object({ nombre: fields.nombre, codigo: fields.codigo })
 const tallerUpdateSchema = tallerSchema.extend({ id: fields.id })
@@ -78,8 +78,8 @@ export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
 export type ComunaRow       = { id: number; nombre: string; activo: boolean }
 export type OrigenContactoRow = { id: number; nombre: string; activo: boolean }
 export type TipoRecargoRow  = { id: number; nombre: string; precio: number; activo: boolean }
-export type GrupoCostoRow = { id: number; nombre: string; orden: number; activo: boolean }
-export type CategoriaCostoRow = { id: number; nombre: string; idGrupo: number; orden: number; activo: boolean }
+export type GrupoGastoRow = { id: number; nombre: string; orden: number; activo: boolean }
+export type CategoriaGastoRow = { id: number; nombre: string; idGrupo: number; orden: number; activo: boolean }
 
 // ─── Catalog configs ──────────────────────────────────────────────────────────
 
@@ -151,27 +151,27 @@ const tipoRecargoCfg: CatalogConfig = {
   extraUpdateFields: () => ({ updatedAt: new Date() }),
 }
 
-const grupoCostoCfg: CatalogConfig = {
+const grupoGastoCfg: CatalogConfig = {
   adminOnly: true,
-  table: costGroups, idCol: costGroups.id, nombreCol: costGroups.nombre, activoCol: costGroups.activo,
-  sortCols: { orden: costGroups.orden },
-  createSchema: grupoCostoSchema,
-  updateSchema: grupoCostoUpdateSchema,
-  path: '/grupos-costos',
+  table: expenseGroups, idCol: expenseGroups.id, nombreCol: expenseGroups.nombre, activoCol: expenseGroups.activo,
+  sortCols: { orden: expenseGroups.orden },
+  createSchema: grupoGastoSchema,
+  updateSchema: grupoGastoUpdateSchema,
+  path: '/grupos-gastos',
   extraUpdateFields: () => ({ updatedAt: new Date() }),
 }
 
-const categoriaCostoCfg: CatalogConfig = {
+const categoriaGastoCfg: CatalogConfig = {
   adminOnly: true,
-  table: costCategories, idCol: costCategories.id, nombreCol: costCategories.nombre, activoCol: costCategories.activo,
-  sortCols: { orden: costCategories.orden },
+  table: expenseCategories, idCol: expenseCategories.id, nombreCol: expenseCategories.nombre, activoCol: expenseCategories.activo,
+  sortCols: { orden: expenseCategories.orden },
   extraFilters: (filters, conds) => {
     const grupo = Number(filters.grupo)
-    if (grupo > 0) conds.push(eq(costCategories.idGrupo, grupo))
+    if (grupo > 0) conds.push(eq(expenseCategories.idGrupo, grupo))
   },
-  createSchema: categoriaCostoSchema,
-  updateSchema: categoriaCostoUpdateSchema,
-  path: '/categorias-costos',
+  createSchema: categoriaGastoSchema,
+  updateSchema: categoriaGastoUpdateSchema,
+  path: '/categorias-gastos',
   extraUpdateFields: () => ({ updatedAt: new Date() }),
 }
 
@@ -296,32 +296,32 @@ export async function getTiposRecargosForSelect(): Promise<{ id: number; label: 
   return withQuery(() => _fetchTiposRecargos())
 }
 
-// ─── Grupos y categorías de costos ────────────────────────────────────────────
+// ─── Grupos y categorías de gastos ────────────────────────────────────────────
 
-export async function searchGruposCostos(params: SearchParams): Promise<{ rows: GrupoCostoRow[]; total: number }> {
-  return catalogSearch(grupoCostoCfg, params) as Promise<{ rows: GrupoCostoRow[]; total: number }>
+export async function searchGruposGastos(params: SearchParams): Promise<{ rows: GrupoGastoRow[]; total: number }> {
+  return catalogSearch(grupoGastoCfg, params) as Promise<{ rows: GrupoGastoRow[]; total: number }>
 }
-export async function createGrupoCosto(formData: FormData) { return catalogCreate(grupoCostoCfg, formData) }
-export async function updateGrupoCosto(formData: FormData) { return catalogUpdate(grupoCostoCfg, formData) }
-export async function toggleGrupoCosto(id: number, activo: boolean) { return catalogToggle(grupoCostoCfg, id, activo) }
+export async function createGrupoGasto(formData: FormData) { return catalogCreate(grupoGastoCfg, formData) }
+export async function updateGrupoGasto(formData: FormData) { return catalogUpdate(grupoGastoCfg, formData) }
+export async function toggleGrupoGasto(id: number, activo: boolean) { return catalogToggle(grupoGastoCfg, id, activo) }
 
 /** Todos los grupos (los inactivos marcados) — para el select de categorías y su columna "Grupo". */
-export async function getGruposCostosForSelect(): Promise<{ id: number; label: string; activo: boolean }[]> {
+export async function getGruposGastosForSelect(): Promise<{ id: number; label: string; activo: boolean }[]> {
   return withQuery(async () => {
     const rows = await db
-      .select({ id: costGroups.id, nombre: costGroups.nombre, activo: costGroups.activo })
-      .from(costGroups)
-      .orderBy(asc(costGroups.orden), asc(costGroups.nombre))
+      .select({ id: expenseGroups.id, nombre: expenseGroups.nombre, activo: expenseGroups.activo })
+      .from(expenseGroups)
+      .orderBy(asc(expenseGroups.orden), asc(expenseGroups.nombre))
     return rows.map((r) => ({ id: r.id, label: r.activo ? r.nombre : `${r.nombre} (inactivo)`, activo: r.activo }))
   })
 }
 
-export async function searchCategoriasCostos(params: SearchParams): Promise<{ rows: CategoriaCostoRow[]; total: number }> {
-  return catalogSearch(categoriaCostoCfg, params) as Promise<{ rows: CategoriaCostoRow[]; total: number }>
+export async function searchCategoriasGastos(params: SearchParams): Promise<{ rows: CategoriaGastoRow[]; total: number }> {
+  return catalogSearch(categoriaGastoCfg, params) as Promise<{ rows: CategoriaGastoRow[]; total: number }>
 }
-export async function createCategoriaCosto(formData: FormData) { return catalogCreate(categoriaCostoCfg, formData) }
-export async function updateCategoriaCosto(formData: FormData) { return catalogUpdate(categoriaCostoCfg, formData) }
-export async function toggleCategoriaCosto(id: number, activo: boolean) { return catalogToggle(categoriaCostoCfg, id, activo) }
+export async function createCategoriaGasto(formData: FormData) { return catalogCreate(categoriaGastoCfg, formData) }
+export async function updateCategoriaGasto(formData: FormData) { return catalogUpdate(categoriaGastoCfg, formData) }
+export async function toggleCategoriaGasto(id: number, activo: boolean) { return catalogToggle(categoriaGastoCfg, id, activo) }
 
 // ─── Talleres ─────────────────────────────────────────────────────────────────
 

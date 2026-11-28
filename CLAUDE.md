@@ -139,9 +139,9 @@ src/
 | `tipos_recargos` | `surchargeTypes` | Tipos de recargos excepcionales |
 | `comunas` | `comunas` | Comunas (usado por enfermeras, precios de visita y cotizaciones) |
 | `precios_visita_enfermeria` | `nursingVisitPrices` | Precio de visita por comuna (`id_comuna` null = base) |
-| `grupos_costos` | `costGroups` | Grupos de costos (bloques del Resumen: Facturas laboratorio, Sueldo Rinaldo, Gastos fijos…), con `orden` |
-| `categorias_costos` | `costCategories` | Categorías de costos, cada una en un grupo (`id_grupo`, `orden` dentro del grupo). Mantenidas por admin desde `/categorias-costos` (la migración 0026 solo crea los 3 grupos del informe de fin de mes, sin categorías) |
-| `costos_mensuales` | `monthlyCosts` | Monto de una categoría de costo en un mes (`anio`, `mes`, `monto`, `notas`; único por categoría+mes). No es por visita |
+| `grupos_gastos` | `expenseGroups` | Grupos de gastos (bloques del Resumen: Facturas laboratorio, Sueldo Rinaldo, Gastos fijos…), con `orden` |
+| `categorias_gastos` | `expenseCategories` | Categorías de gastos, cada una en un grupo (`id_grupo`, `orden` dentro del grupo). Mantenidas por admin desde `/categorias-gastos` (la migración 0026 solo crea los 3 grupos del informe de fin de mes, sin categorías; la 0027 renombró las tablas `*_costos` → `*_gastos`) |
+| `gastos_mensuales` | `monthlyExpenses` | Monto de una categoría de gasto en un mes (`anio`, `mes`, `monto`, `notas`; único por categoría+mes). No es por visita |
 
 ### Tablas pivote
 
@@ -206,8 +206,8 @@ src/
   `admin` queda restringido** — un rol desconocido nunca recibe más acceso.
 - Modelo simple: acceso sí/no a interfaces completas, definido en `src/lib/permissions.ts`
   (`ADMIN_ONLY_PREFIXES`, `canAccessPath()`, `isAdmin()`). Hoy solo-admin: exámenes,
-  procedimientos, talleres, tipos de recargos, precios de visita, grupos y categorías de costos y reportes
-  (`/reportes`, `/api/reportes`). Los montos de `/costos-mensuales` los puede ingresar cualquier usuario.
+  procedimientos, talleres, tipos de recargos, precios de visita, grupos y categorías de gastos y reportes
+  (`/reportes`, `/api/reportes`). Los montos de `/gastos-mensuales` los puede ingresar cualquier usuario.
 - Se aplica en 3 capas: `src/proxy.ts` (redirige a `/dashboard`, o 403 en `/api/*`), el sidebar
   (oculta ítems) y las server actions de mutación con `requireAdmin()` (`src/lib/auth-guard.ts`).
   En catálogos del factory basta con `adminOnly: true` en el `CatalogConfig`. Las lecturas
@@ -287,12 +287,12 @@ Todas en `src/lib/actions/`, todas con `'use server'` y `requireSession()` al in
 - Patrón: `search*`, `create*`, `update*`, `toggle*`
 - Helpers: `getProcedimientos()`, `getExamenes()`, `getTalleres()`, `getComunasForSelect()` — para selects
 
-### costos-mensuales.ts
-- `getCostosMensuales(anio, mes)` — Categorías activas (+ inactivas con monto ese mes) con su monto/notas
-- `guardarCostosMensuales({ anio, mes, items })` — Upsert por categoría; monto 0 sin notas borra el registro
-- `getCostosMensuales` devuelve las filas ordenadas por grupo → categoría (el form muestra subtotal por grupo)
-- El CRUD de `grupos_costos` y `categorias_costos` está en `catalogos.ts` (`searchGruposCostos`,
-  `searchCategoriasCostos`, etc., `adminOnly`; `getGruposCostosForSelect()` para el select de grupo)
+### gastos-mensuales.ts
+- `getGastosMensuales(anio, mes)` — Categorías activas (+ inactivas con monto ese mes) con su monto/notas
+- `guardarGastosMensuales({ anio, mes, items })` — Upsert por categoría; monto 0 sin notas borra el registro
+- `getGastosMensuales` devuelve las filas ordenadas por grupo → categoría (el form muestra subtotal por grupo)
+- El CRUD de `grupos_gastos` y `categorias_gastos` está en `catalogos.ts` (`searchGruposGastos`,
+  `searchCategoriasGastos`, etc., `adminOnly`; `getGruposGastosForSelect()` para el select de grupo)
 
 ### precios.ts
 - `searchPreciosExamenes(params)` / `searchPreciosVisita(params)` — Gestión de precios
@@ -327,7 +327,7 @@ Solo se usan cuando se necesita controlar headers HTTP o servir contenido no-JSO
 | `/api/upload` | POST | Subir archivo a Cloudflare R2 |
 | `/api/r2-file` | GET | Redirect a signed URL de R2 |
 | `/api/reportes/visitas/export` | GET | Reporte de visitas (formato anterior, configurable por columnas) |
-| `/api/reportes/financiero/export` | GET | Reporte financiero: hojas Resumen (estado de resultados mensual), Visitas (1:1 por concepto) y Costos mensuales |
+| `/api/reportes/financiero/export` | GET | Reporte financiero: hojas Resumen (estado de resultados mensual), Visitas (1:1 por concepto) y Gastos mensuales |
 | `/api/visitas/export` | GET | Descarga .xlsx con visitas filtradas (acepta los mismos filtros que `searchVisitas` como query params) |
 
 ---
@@ -414,18 +414,18 @@ informe de fin de mes que se armaba a mano). Bloques:
    procedimientos; el test compara contra `getDashboardVisitsByDay`) + fila de no realizadas.
 2. **INGRESOS** — el detalle 1:1 (`CONCEPTOS_INGRESO`) y Total ingresos. "Exámenes (otro grupo)" solo
    aparece si tiene montos.
-3. **UTILIDAD ANTES DE COSTOS** — Producción Exámenes (`produccionExamenes`: grupos de catálogo),
+3. **UTILIDAD ANTES DE GASTOS** — Producción Exámenes (`produccionExamenes`: grupos de catálogo),
    Producción IMED producción (isapre `valor_completo`), Producción de IMED a pagar (isapre
    `valor_pagar`), Producción Visitas (`produccionVisitas`: visita + curaciones + otros procedimientos
    + talleres + recargos + cobro no realizada, neto de descuentos; sin insumos) desglosada por
    enfermera, Retención Visitas = Producción Visitas − pago enfermeras, y filas manuales.
-4. **COSTOS TOTALES** — pago por enfermera (con su % actual) y `costos_mensuales` por grupo con
+4. **GASTOS TOTALES** — pago por enfermera (con su % actual) y `gastos_mensuales` por grupo con
    subtotales (mes completo, sin filtrar por estado/enfermera).
 5. **UTILIDAD ANTES DE IMPUESTOS** — fila manual + Insumos recuperados (Σ `monto_insumos`); al final
    "Utilidad antes de impuestos + materiales" (manual).
 
 Filas manuales (celda vacía, amarilla; aún sin fórmula): Total Facturado, Retención Exámenes,
-Retención Impuestos Visitas, Utilidad antes de los costos, Utilidad antes de impuestos y + materiales.
+Retención Impuestos Visitas, Utilidad antes de los gastos, Utilidad antes de impuestos y + materiales.
 Cuadre testeado: Total ingresos = Producción Exámenes + IMED a pagar + Producción Visitas + Insumos
 recuperados.
 Al agregar un concepto $ nuevo a la visita: sumarlo en `computeMontosFinancieros` y

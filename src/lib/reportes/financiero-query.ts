@@ -3,12 +3,12 @@ import { db } from '@/db'
 import {
   addresses,
   contactOrigins,
-  costCategories,
-  costGroups,
+  expenseCategories,
+  expenseGroups,
   elderlyResidences,
   exams,
   healthInsurances,
-  monthlyCosts,
+  monthlyExpenses,
   nurses,
   patients,
   procedures,
@@ -27,7 +27,7 @@ import { buildVisitasWhere } from '@/lib/visitas-where'
 import {
   computeMontosFinancieros,
   type CategoriaResumen,
-  type CostoMensualItem,
+  type GastoMensualItem,
   type ReporteFinancieroRow,
 } from './financiero'
 
@@ -205,35 +205,35 @@ export async function listVisitasReporteFinanciero(
 }
 
 /**
- * Costos mensuales que caen en el período del reporte (por mes, no por fecha:
- * un período que empieza a mitad de mes incluye el costo completo de ese mes).
+ * Gastos mensuales que caen en el período del reporte (por mes, no por fecha:
+ * un período que empieza a mitad de mes incluye el gasto completo de ese mes).
  * Sin fechas → todos los registrados.
  */
-export async function listCostosMensualesPeriodo(
+export async function listGastosMensualesPeriodo(
   fechaInicio: string | undefined,
   fechaFin: string | undefined,
-): Promise<(CostoMensualItem & { grupo: string; notas: string | null })[]> {
-  const periodo = sql`(${monthlyCosts.anio} * 100 + ${monthlyCosts.mes})`
+): Promise<(GastoMensualItem & { grupo: string; notas: string | null })[]> {
+  const periodo = sql`(${monthlyExpenses.anio} * 100 + ${monthlyExpenses.mes})`
   const conditions: SQL[] = []
   if (fechaInicio) conditions.push(gte(periodo, Number(fechaInicio.slice(0, 4)) * 100 + Number(fechaInicio.slice(5, 7))))
   if (fechaFin) conditions.push(lte(periodo, Number(fechaFin.slice(0, 4)) * 100 + Number(fechaFin.slice(5, 7))))
 
   return db
     .select({
-      anio: monthlyCosts.anio,
-      mes: monthlyCosts.mes,
-      categoria: costCategories.nombre,
-      grupo: costGroups.nombre,
-      monto: monthlyCosts.monto,
-      notas: monthlyCosts.notas,
+      anio: monthlyExpenses.anio,
+      mes: monthlyExpenses.mes,
+      categoria: expenseCategories.nombre,
+      grupo: expenseGroups.nombre,
+      monto: monthlyExpenses.monto,
+      notas: monthlyExpenses.notas,
     })
-    .from(monthlyCosts)
-    .innerJoin(costCategories, eq(monthlyCosts.idCategoria, costCategories.id))
-    .innerJoin(costGroups, eq(costCategories.idGrupo, costGroups.id))
+    .from(monthlyExpenses)
+    .innerJoin(expenseCategories, eq(monthlyExpenses.idCategoria, expenseCategories.id))
+    .innerJoin(expenseGroups, eq(expenseCategories.idGrupo, expenseGroups.id))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(
-      asc(monthlyCosts.anio), asc(monthlyCosts.mes),
-      asc(costGroups.orden), asc(costGroups.nombre), asc(costCategories.orden), asc(costCategories.nombre),
+      asc(monthlyExpenses.anio), asc(monthlyExpenses.mes),
+      asc(expenseGroups.orden), asc(expenseGroups.nombre), asc(expenseCategories.orden), asc(expenseCategories.nombre),
     )
 }
 
@@ -241,12 +241,12 @@ export async function listCostosMensualesPeriodo(
  * Categorías activas (de grupos activos) + las que igual tienen monto en el período,
  * en el orden del Resumen: grupo.orden → categoría.orden → nombre.
  */
-export async function listCategoriasCostoParaResumen(nombresConMonto: string[]): Promise<CategoriaResumen[]> {
-  const activa = and(eq(costCategories.activo, true), eq(costGroups.activo, true))!
+export async function listCategoriasGastoParaResumen(nombresConMonto: string[]): Promise<CategoriaResumen[]> {
+  const activa = and(eq(expenseCategories.activo, true), eq(expenseGroups.activo, true))!
   return db
-    .select({ categoria: costCategories.nombre, grupo: costGroups.nombre })
-    .from(costCategories)
-    .innerJoin(costGroups, eq(costCategories.idGrupo, costGroups.id))
-    .where(nombresConMonto.length ? or(activa, inArray(costCategories.nombre, nombresConMonto)) : activa)
-    .orderBy(asc(costGroups.orden), asc(costGroups.nombre), asc(costCategories.orden), asc(costCategories.nombre))
+    .select({ categoria: expenseCategories.nombre, grupo: expenseGroups.nombre })
+    .from(expenseCategories)
+    .innerJoin(expenseGroups, eq(expenseCategories.idGrupo, expenseGroups.id))
+    .where(nombresConMonto.length ? or(activa, inArray(expenseCategories.nombre, nombresConMonto)) : activa)
+    .orderBy(asc(expenseGroups.orden), asc(expenseGroups.nombre), asc(expenseCategories.orden), asc(expenseCategories.nombre))
 }
