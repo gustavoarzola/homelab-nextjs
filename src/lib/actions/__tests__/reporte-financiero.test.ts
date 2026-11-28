@@ -187,7 +187,7 @@ describe('GET /api/reportes/financiero/export', () => {
     expect(visitas.getRow(1).values.filter(Boolean)).toEqual(['ID', 'Estado', 'Total boleta'])
 
     const resumen = wb.getWorksheet('Resumen')!
-    expect(resumen.getRow(1).values.filter(Boolean)).toEqual(['Concepto', '2026-03', 'Total'])
+    expect(resumen.getRow(1).values.filter(Boolean)).toEqual(['Concepto', '2026-03'])
     const conceptos = resumen.getColumn(1).values as unknown[]
     const fila = (c: string) => conceptos.findIndex((v) => v === c)
     const filaCosto = fila(`${P}Excel`)

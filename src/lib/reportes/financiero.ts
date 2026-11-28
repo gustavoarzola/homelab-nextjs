@@ -561,6 +561,9 @@ export function resumenColumns(meses: string[]): ExcelColumn<ResumenRow>[] {
       width: 14,
       format: 'currency-clp' as const,
     })),
-    { header: 'Total', accessor: (r) => (sinValor(r) ? null : r.total), width: 16, format: 'currency-clp' },
+    // Con un solo mes la columna Total repetiría los mismos valores.
+    ...(meses.length > 1
+      ? [{ header: 'Total', accessor: (r: ResumenRow) => (sinValor(r) ? null : r.total), width: 16, format: 'currency-clp' as const }]
+      : []),
   ]
 }

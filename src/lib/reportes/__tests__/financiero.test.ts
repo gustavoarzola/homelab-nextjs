@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildResumenMensual,
+  resumenColumns,
   computeMontosFinancieros,
   CONCEPTOS_INGRESO,
   produccionExamenes,
@@ -280,5 +281,12 @@ describe('buildResumenMensual', () => {
     expect(by('Factura ELSA').total).toBe(0)
     expect(idx('Factura Imalab')).toBe(idx('Facturas laboratorio') + 1)
     expect(by('Costos totales').valores).toEqual({ '2026-01': 72900, '2026-02': 14500 })
+  })
+})
+
+describe('resumenColumns', () => {
+  it('sin columna Total cuando hay un solo mes', () => {
+    expect(resumenColumns(['2026-03']).map((c) => c.header)).toEqual(['Concepto', '2026-03'])
+    expect(resumenColumns(['2026-02', '2026-03']).map((c) => c.header)).toEqual(['Concepto', '2026-02', '2026-03', 'Total'])
   })
 })
