@@ -381,6 +381,9 @@ total = subtotalExámenes + subtotalProcedimientos + subtotalTalleres
 
 ## Reporte financiero
 
+> Aprendizajes y propuesta de rediseño (líneas financieras por visita, EERR calculado, cierre
+> mensual): `docs/reporte-financiero/` — leer antes de tocar este módulo.
+
 `/reportes` ofrece dos reportes: **Financiero** (nuevo, por defecto) y **Visitas** (formato anterior,
 se mantiene por precaución). El financiero vive en `src/lib/reportes/financiero.ts` (cálculo puro +
 columnas + resumen) y `financiero-query.ts` (lecturas); el WHERE de filtros es `buildVisitasWhere()`
