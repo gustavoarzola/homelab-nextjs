@@ -1,5 +1,17 @@
 -- "costos" → "gastos": renombra tablas, secuencias, constraints e índices del módulo de gastos
 -- mensuales (migraciones 0025/0026). Conserva los datos.
+-- Producción (y sus ramas de Preview) arrastran una tabla "gastos_mensuales" huérfana, creada por la
+-- migración 0024 de la rama abandonada feat/estado-resultados antes de existir db-guard. Bloquea el
+-- renombre, así que se elimina, pero solo si está vacía (si tuviera datos, la migración se detiene).
+DO $$
+BEGIN
+	IF to_regclass('public.gastos_mensuales') IS NOT NULL THEN
+		IF EXISTS (SELECT 1 FROM "gastos_mensuales") THEN
+			RAISE EXCEPTION 'gastos_mensuales (rama feat/estado-resultados) tiene datos: revisar antes de migrar';
+		END IF;
+		DROP TABLE "gastos_mensuales";
+	END IF;
+END $$;--> statement-breakpoint
 ALTER TABLE "grupos_costos" RENAME TO "grupos_gastos";--> statement-breakpoint
 ALTER TABLE "categorias_costos" RENAME TO "categorias_gastos";--> statement-breakpoint
 ALTER TABLE "costos_mensuales" RENAME TO "gastos_mensuales";--> statement-breakpoint
