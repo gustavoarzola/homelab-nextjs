@@ -25,6 +25,7 @@ import {
   Megaphone,
   Receipt,
   Layers,
+  FolderTree,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canAccessPath } from '@/lib/permissions'
@@ -51,6 +52,7 @@ const catalogItems = [
   { href: '/tipos-recargos', label: 'Tipos de Recargos', icon: AlertCircle },
   { href: '/origenes-contacto', label: 'Orígenes de contacto', icon: Megaphone },
   { href: '/precios/visitas', label: 'Precios visitas', icon: Tag },
+  { href: '/grupos-costos', label: 'Grupos de costos', icon: FolderTree },
   { href: '/categorias-costos', label: 'Categorías de costos', icon: Layers },
   { href: '/reportes', label: 'Reportes', icon: FileSpreadsheet },
 ]

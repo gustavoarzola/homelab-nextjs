@@ -183,6 +183,13 @@
       "when": 1795459021995,
       "tag": "0025_costos_mensuales",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795836301050,
+      "tag": "0026_grupos_costos",
+      "breakpoints": true
     }
   ]
 }

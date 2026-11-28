@@ -4,6 +4,7 @@ import {
   addresses,
   contactOrigins,
   costCategories,
+  costGroups,
   elderlyResidences,
   exams,
   healthInsurances,
@@ -25,6 +26,7 @@ import { formatNombre } from '@/lib/paciente'
 import { buildVisitasWhere } from '@/lib/visitas-where'
 import {
   computeMontosFinancieros,
+  type CategoriaResumen,
   type CostoMensualItem,
   type ReporteFinancieroRow,
 } from './financiero'
@@ -176,6 +178,7 @@ export async function listVisitasReporteFinanciero(
       }) || null,
       rut: r.rut,
       comuna: r.comuna,
+      idEnfermera: r.idEnfermera,
       enfermera: r.enfermeraNombres
         ? formatNombre({
             nombres: r.enfermeraNombres,
@@ -209,7 +212,7 @@ export async function listVisitasReporteFinanciero(
 export async function listCostosMensualesPeriodo(
   fechaInicio: string | undefined,
   fechaFin: string | undefined,
-): Promise<(CostoMensualItem & { notas: string | null })[]> {
+): Promise<(CostoMensualItem & { grupo: string; notas: string | null })[]> {
   const periodo = sql`(${monthlyCosts.anio} * 100 + ${monthlyCosts.mes})`
   const conditions: SQL[] = []
   if (fechaInicio) conditions.push(gte(periodo, Number(fechaInicio.slice(0, 4)) * 100 + Number(fechaInicio.slice(5, 7))))
@@ -220,25 +223,30 @@ export async function listCostosMensualesPeriodo(
       anio: monthlyCosts.anio,
       mes: monthlyCosts.mes,
       categoria: costCategories.nombre,
+      grupo: costGroups.nombre,
       monto: monthlyCosts.monto,
       notas: monthlyCosts.notas,
     })
     .from(monthlyCosts)
     .innerJoin(costCategories, eq(monthlyCosts.idCategoria, costCategories.id))
+    .innerJoin(costGroups, eq(costCategories.idGrupo, costGroups.id))
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(asc(monthlyCosts.anio), asc(monthlyCosts.mes), asc(costCategories.nombre))
+    .orderBy(
+      asc(monthlyCosts.anio), asc(monthlyCosts.mes),
+      asc(costGroups.orden), asc(costGroups.nombre), asc(costCategories.orden), asc(costCategories.nombre),
+    )
 }
 
-/** Categorías activas + las inactivas que igual tienen monto en el período. */
-export async function listCategoriasCostoParaResumen(nombresConMonto: string[]): Promise<string[]> {
-  const rows = await db
-    .select({ nombre: costCategories.nombre })
+/**
+ * Categorías activas (de grupos activos) + las que igual tienen monto en el período,
+ * en el orden del Resumen: grupo.orden → categoría.orden → nombre.
+ */
+export async function listCategoriasCostoParaResumen(nombresConMonto: string[]): Promise<CategoriaResumen[]> {
+  const activa = and(eq(costCategories.activo, true), eq(costGroups.activo, true))!
+  return db
+    .select({ categoria: costCategories.nombre, grupo: costGroups.nombre })
     .from(costCategories)
-    .where(
-      nombresConMonto.length
-        ? or(eq(costCategories.activo, true), inArray(costCategories.nombre, nombresConMonto))
-        : eq(costCategories.activo, true),
-    )
-    .orderBy(asc(costCategories.nombre))
-  return rows.map((r) => r.nombre)
+    .innerJoin(costGroups, eq(costCategories.idGrupo, costGroups.id))
+    .where(nombresConMonto.length ? or(activa, inArray(costCategories.nombre, nombresConMonto)) : activa)
+    .orderBy(asc(costGroups.orden), asc(costGroups.nombre), asc(costCategories.orden), asc(costCategories.nombre))
 }

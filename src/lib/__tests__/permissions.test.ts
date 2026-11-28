@@ -22,6 +22,7 @@ describe('canAccessPath', () => {
     '/api/reportes/visitas/export',
     '/api/reportes/financiero/export',
     '/categorias-costos',
+    '/grupos-costos',
   ]
 
   it('admin accede a todo', () => {

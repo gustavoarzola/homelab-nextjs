@@ -722,19 +722,42 @@ export const quotationWorkshops = pgTable(
 )
 
 // ============================================================================
-// 26. CategoriaCosto - Catálogo de categorías de costos (mantenido por admin)
+// 26a. GrupoCosto - Agrupa categorías de costo en el Resumen (mantenido por admin)
+// ============================================================================
+export const costGroups = pgTable(
+  'grupos_costos',
+  {
+    id: serial('id').primaryKey(),
+    nombre: varchar('nombre', { length: 200 }).notNull(),
+    orden: integer('orden').notNull().default(0),
+    activo: boolean('activo').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('grupos_costos_nombre_idx').on(table.nombre),
+  ]
+)
+
+// ============================================================================
+// 26b. CategoriaCosto - Catálogo de categorías de costos (mantenido por admin)
 // ============================================================================
 export const costCategories = pgTable(
   'categorias_costos',
   {
     id: serial('id').primaryKey(),
     nombre: varchar('nombre', { length: 200 }).notNull(),
+    idGrupo: integer('id_grupo').notNull(),
+    orden: integer('orden').notNull().default(0),
     activo: boolean('activo').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
+    foreignKey({ columns: [table.idGrupo], foreignColumns: [costGroups.id] })
+      .onDelete('restrict'),
     uniqueIndex('categorias_costos_nombre_idx').on(table.nombre),
+    index('categorias_costos_id_grupo_idx').on(table.idGrupo),
   ]
 )
 

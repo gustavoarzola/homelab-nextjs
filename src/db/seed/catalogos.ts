@@ -12,7 +12,6 @@ import {
   nurses,
   nursingVisitPrices,
   comunas,
-  costCategories,
 } from '../schema'
 import { previsionesData } from './data/previsiones'
 import { residenciasData } from './data/residencias'
@@ -93,14 +92,6 @@ export async function seedCatalogos(conn: SeedConn): Promise<void> {
   // ─── Tipos de recargos ───────────────────────────────────────────────────
   console.log(`   Insertando ${tiposRecargosData.length} tipos de recargos...`)
   await conn.insert(surchargeTypes).values(tiposRecargosData).onConflictDoNothing({ target: surchargeTypes.nombre })
-
-  // ─── Categorías de costos (ejemplos para desarrollo) ──────────────────────
-  const categoriasCostos = ['Laboratorio Imalab', 'Laboratorio Integramédica', 'Insumos', 'Arriendo', 'Remuneraciones administrativas']
-  console.log(`   Insertando ${categoriasCostos.length} categorías de costos...`)
-  await conn
-    .insert(costCategories)
-    .values(categoriasCostos.map((nombre) => ({ nombre })))
-    .onConflictDoNothing({ target: costCategories.nombre })
 
   // ─── Talleres ────────────────────────────────────────────────────────────
   console.log(`   Insertando ${talleresData.length} talleres...`)

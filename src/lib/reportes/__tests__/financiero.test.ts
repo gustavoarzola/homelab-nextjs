@@ -3,6 +3,8 @@ import {
   buildResumenMensual,
   computeMontosFinancieros,
   CONCEPTOS_INGRESO,
+  produccionExamenes,
+  produccionVisitas,
   GRUPO_EXAMEN_OTRO,
   mesesEntre,
   REPORTE_FINANCIERO_COLUMNS,
@@ -138,33 +140,145 @@ describe('mesesEntre', () => {
   })
 })
 
-describe('buildResumenMensual', () => {
-  const row = (fecha: string, input: Partial<VisitaFinancieraInput>): ReporteFinancieroRow => ({
-    id: 1, fecha, estado: input.estado ?? 'realizada', paciente: null, rut: null, comuna: null, enfermera: null,
-    origenContacto: null, prevision: null, hogar: null, procedimientos: '', examenes: '', talleres: '', recargos: '',
-    conceptoNoRealizada: null, tipoDocumento: null, numeroDocumento: null, pagado: false, fechaPago: null, metodoPago: null,
-    montos: computeMontosFinancieros({ ...base, ...input }),
+describe('producción', () => {
+  it('Producción Visitas = neto de visita + procedimientos + talleres + recargos (sin insumos ni exámenes)', () => {
+    const m = computeMontosFinancieros(base)
+    // 20000−5000 + 10000−2000 + 11000−4000 + talleres 15000 + recargos 4000
+    expect(produccionVisitas(m)).toBe(49000)
+    expect(produccionExamenes(m)).toBe(4000 + 6000 + 7000 + 500)
   })
 
-  it('arma ingresos, egresos (pago enfermeras + costos) y resultado por mes', () => {
-    const rows = [row('2026-01-10', {}), row('2026-02-05', { estado: 'no_realizada' })]
-    const resumen = buildResumenMensual({
-      rows,
-      costos: [
-        { anio: 2026, mes: 1, categoria: 'Laboratorio', monto: 30000 },
-        { anio: 2026, mes: 2, categoria: 'Arriendo', monto: 10000 },
-      ],
-      categorias: ['Arriendo', 'Laboratorio', 'Sin uso'],
-      meses: ['2026-01', '2026-02'],
-    })
-    const by = (c: string) => resumen.find((r) => r.concepto === c)!
-    const totalEne = rows[0]!.montos.totalBoleta
-    expect(by('Total ingresos').valores).toEqual({ '2026-01': totalEne, '2026-02': 9000 })
-    expect(by('Pago enfermeras').valores).toEqual({ '2026-01': 19500, '2026-02': 4500 })
-    expect(by('Laboratorio').valores).toEqual({ '2026-01': 30000, '2026-02': 0 })
-    expect(by('Sin uso').total).toBe(0)
-    expect(by('Total egresos').valores).toEqual({ '2026-01': 49500, '2026-02': 14500 })
-    expect(by('RESULTADO').valores).toEqual({ '2026-01': totalEne - 49500, '2026-02': 9000 - 14500 })
-    expect(by('RESULTADO').total).toBe(totalEne + 9000 - 49500 - 14500)
+  it('cuadre: Total boleta = Prod. exámenes + IMED a pagar + Prod. visitas + insumos', () => {
+    for (const estado of ['realizada', 'no_realizada', 'cancelada']) {
+      const m = computeMontosFinancieros({ ...base, estado })
+      expect(produccionExamenes(m) + m.examenesIsapreBono + produccionVisitas(m) + m.insumos).toBe(m.totalBoleta)
+    }
+  })
+
+  it('no realizada: la producción de visitas es el cobro', () => {
+    expect(produccionVisitas(computeMontosFinancieros({ ...base, estado: 'no_realizada' }))).toBe(9000)
+  })
+})
+
+describe('conteo (regla del dashboard)', () => {
+  const sinItems = { procedimientos: [], examenes: [], examenesIsapre: [], talleres: [] }
+
+  it('una visita puede sumar en varios tipos', () => {
+    const c = computeMontosFinancieros(base).conteo
+    expect(c).toEqual({ efectiva: true, noRealizada: false, examen: true, curacion: true, otroProcedimiento: true, taller: true })
+  })
+
+  it('visita sin ítems (convenio) cuenta como Otros procedimientos; recargos no cuentan como ítem', () => {
+    const c = computeMontosFinancieros({ ...base, ...sinItems }).conteo
+    expect(c).toMatchObject({ efectiva: true, examen: false, curacion: false, otroProcedimiento: true, taller: false })
+  })
+
+  it('solo isapre cuenta como Exámenes', () => {
+    const c = computeMontosFinancieros({ ...base, ...sinItems, examenesIsapre: [{ valorPagar: 1, valorCompleto: 2 }] }).conteo
+    expect(c).toMatchObject({ examen: true, otroProcedimiento: false })
+  })
+
+  it('no realizadas aparte; canceladas, programadas y confirmadas no cuentan', () => {
+    expect(computeMontosFinancieros({ ...base, estado: 'no_realizada' }).conteo).toMatchObject({ efectiva: false, noRealizada: true, examen: false })
+    for (const estado of ['cancelada', 'programada', 'confirmada']) {
+      expect(computeMontosFinancieros({ ...base, estado }).conteo).toMatchObject({ efectiva: false, noRealizada: false, examen: false, otroProcedimiento: false })
+    }
+    expect(computeMontosFinancieros({ ...base, estado: 'completada' }).conteo.efectiva).toBe(true)
+  })
+})
+
+describe('buildResumenMensual', () => {
+  const row = (fecha: string, input: Partial<VisitaFinancieraInput>, enf: { id: number | null; nombre?: string } = { id: 1, nombre: 'Ana Pérez' }): ReporteFinancieroRow => ({
+    id: 1, fecha, estado: input.estado ?? 'realizada', paciente: null, rut: null, comuna: null,
+    idEnfermera: enf.id, enfermera: enf.nombre ?? null,
+    origenContacto: null, prevision: null, hogar: null, procedimientos: '', examenes: '', talleres: '', recargos: '',
+    conceptoNoRealizada: null, tipoDocumento: null, numeroDocumento: null, pagado: false, fechaPago: null, metodoPago: null,
+    montos: computeMontosFinancieros({ ...base, ...input, tieneEnfermera: enf.id !== null }),
+  })
+
+  const sinOtro = { examenes: base.examenes.filter((e) => e.grupoExamen !== 'grupo-legacy') }
+  const rows = [
+    row('2026-01-10', sinOtro),
+    row('2026-01-20', { ...sinOtro, porcentajePago: 60 }, { id: 2, nombre: 'Bea Soto' }),
+    row('2026-02-05', { estado: 'no_realizada' }),
+    row('2026-02-06', { ...sinOtro, procedimientos: [], examenes: [], examenesIsapre: [], talleres: [] }, { id: null }),
+  ]
+  const resumen = buildResumenMensual({
+    rows,
+    costos: [
+      { anio: 2026, mes: 1, categoria: 'Factura Imalab', monto: 30000 },
+      { anio: 2026, mes: 2, categoria: 'Contador', monto: 10000 },
+    ],
+    categorias: [
+      { categoria: 'Factura Imalab', grupo: 'Facturas laboratorio' },
+      { categoria: 'Factura ELSA', grupo: 'Facturas laboratorio' },
+      { categoria: 'Contador', grupo: 'Gastos fijos' },
+    ],
+    meses: ['2026-01', '2026-02'],
+  })
+  const by = (c: string) => {
+    const r = resumen.find((x) => x.concepto === c)
+    if (!r) throw new Error(`fila no encontrada: ${c}`)
+    return r
+  }
+  const idx = (c: string) => resumen.findIndex((x) => x.concepto === c)
+
+  it('bloques en el orden del informe de fin de mes', () => {
+    const headings = resumen.filter((r) => r.kind === 'heading').map((r) => r.concepto)
+    expect(headings).toEqual(['PACIENTES', 'INGRESOS', 'UTILIDAD ANTES DE COSTOS', 'COSTOS TOTALES', 'UTILIDAD ANTES DE IMPUESTOS'])
+    expect(resumen.at(-1)).toMatchObject({ concepto: 'Utilidad antes de impuestos + materiales', kind: 'manual' })
+  })
+
+  it('conteos por mes', () => {
+    expect(by('Total de pacientes (realizadas + completadas)').valores).toEqual({ '2026-01': 2, '2026-02': 1 })
+    expect(by('Otros procedimientos (incluye visitas sin ítems)').valores).toEqual({ '2026-01': 2, '2026-02': 1 })
+    expect(by('Exámenes (incluye isapre)').valores).toEqual({ '2026-01': 2, '2026-02': 0 })
+    expect(by('Visitas no realizadas').valores).toEqual({ '2026-01': 0, '2026-02': 1 })
+    expect(by('Visitas no realizadas').kind).toBe('count')
+  })
+
+  it('"Exámenes (otro grupo)" no aparece si es 0, y sí si tiene montos', () => {
+    expect(resumen.some((r) => r.concepto === 'Exámenes (otro grupo)')).toBe(false)
+    const conOtro = buildResumenMensual({ rows: [row('2026-01-10', {})], costos: [], categorias: [], meses: ['2026-01'] })
+    expect(conOtro.find((r) => r.concepto === 'Exámenes (otro grupo)')?.total).toBe(500)
+  })
+
+  it('cuadre: Total ingresos = Prod. exámenes + IMED a pagar + Prod. visitas + insumos recuperados', () => {
+    for (const p of ['2026-01', '2026-02']) {
+      expect(by('Total ingresos').valores[p]).toBe(
+        by('Producción Exámenes').valores[p]! + by('Producción de IMED a pagar').valores[p]!
+        + by('Producción Visitas').valores[p]! + by('Insumos recuperados').valores[p]!,
+      )
+    }
+    expect(by('Producción IMED producción').valores['2026-01']).toBe(24000)
+  })
+
+  it('producción por enfermera suma Producción Visitas (con "Sin enfermera")', () => {
+    const a = idx('Producción Visitas')
+    const hijos = resumen.slice(a + 1, idx('Total Facturado'))
+    expect(hijos.map((h) => h.concepto)).toEqual(['Ana Pérez', 'Bea Soto', 'Sin enfermera'])
+    for (const p of ['2026-01', '2026-02']) {
+      expect(hijos.reduce((acc, h) => acc + h.valores[p]!, 0)).toBe(by('Producción Visitas').valores[p])
+    }
+  })
+
+  it('Retención Visitas = Producción Visitas − pago enfermeras; manuales vacías', () => {
+    const ret = by('Retención Visitas (Producción Visitas − pago enfermeras)')
+    for (const p of ['2026-01', '2026-02']) {
+      expect(ret.valores[p]).toBe(by('Producción Visitas').valores[p]! - by('Enfermeras visitas').valores[p]!)
+    }
+    for (const c of ['Total Facturado', 'Retención Exámenes', 'Retención Impuestos Visitas', 'Utilidad antes de los costos', 'Utilidad antes de impuestos']) {
+      expect(by(c)).toMatchObject({ kind: 'manual', valores: {} })
+    }
+  })
+
+  it('costos: pago por enfermera con su %, grupos con subtotal y Costos totales', () => {
+    expect(by('Ana Pérez (50%)').valores).toEqual({ '2026-01': 19500, '2026-02': 4500 })
+    expect(by('Bea Soto (60%)').valores['2026-01']).toBe(23400)
+    expect(by('Enfermeras visitas').valores).toEqual({ '2026-01': 42900, '2026-02': 4500 })
+    expect(by('Facturas laboratorio').valores).toEqual({ '2026-01': 30000, '2026-02': 0 })
+    expect(by('Factura ELSA').total).toBe(0)
+    expect(idx('Factura Imalab')).toBe(idx('Facturas laboratorio') + 1)
+    expect(by('Costos totales').valores).toEqual({ '2026-01': 72900, '2026-02': 14500 })
   })
 })

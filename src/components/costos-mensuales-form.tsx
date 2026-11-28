@@ -48,6 +48,13 @@ export function CostosMensualesForm({ rows, month, year, isAdmin }: Props) {
   }, [year])
 
   const montoDe = (id: number) => Number((draft[id]?.monto ?? '').replace(/[^\d]/g, '')) || 0
+  // Las filas ya vienen ordenadas por grupo → categoría (getCostosMensuales).
+  const grupos = rows.reduce<{ grupo: string; items: CostoMensualFormRow[] }[]>((acc, r) => {
+    const last = acc[acc.length - 1]
+    if (last && last.grupo === r.grupo) last.items.push(r)
+    else acc.push({ grupo: r.grupo, items: [r] })
+    return acc
+  }, [])
   const total = rows.reduce((acc, r) => acc + montoDe(r.idCategoria), 0)
   const dirty = rows.some((r) => montoDe(r.idCategoria) !== r.monto || (draft[r.idCategoria]?.notas ?? '') !== r.notas)
 
@@ -130,9 +137,17 @@ export function CostosMensualesForm({ rows, month, year, isAdmin }: Props) {
                   </td>
                 </tr>
               ) : (
-                rows.map((r) => (
+                grupos.flatMap(({ grupo, items }) => [
+                  <tr key={`g-${grupo}`} style={{ background: 'var(--color-surface-muted)' }}>
+                    <td style={{ fontWeight: 600 }}>{grupo}</td>
+                    <td className="hl-num hl-tnum" style={{ fontWeight: 600 }}>
+                      {CLP(items.reduce((acc, r) => acc + montoDe(r.idCategoria), 0))}
+                    </td>
+                    <td />
+                  </tr>,
+                  ...items.map((r) => (
                   <tr key={r.idCategoria}>
-                    <td style={{ fontWeight: 500 }}>
+                    <td style={{ fontWeight: 500, paddingLeft: 'calc(var(--cell-px) * 2)' }}>
                       {r.categoria}
                       {!r.activo && (
                         <span style={{ color: 'var(--color-fg-muted)', fontWeight: 400 }}> (inactiva)</span>
@@ -166,7 +181,8 @@ export function CostosMensualesForm({ rows, month, year, isAdmin }: Props) {
                       </div>
                     </td>
                   </tr>
-                ))
+                  )),
+                ])
               )}
             </tbody>
             {rows.length > 0 && (

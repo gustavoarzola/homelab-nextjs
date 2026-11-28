@@ -46,12 +46,22 @@ export type ExcelSheet<T> = {
   columns: ExcelColumn<T>[]
   rows: T[]
   sheetName: string
-  /** Filas en negrita (p.ej. subtotales de un resumen). */
-  isBold?: (row: T) => boolean
+  /** Estilo por fila (p.ej. subtotales/celdas a llenar a mano en un resumen). */
+  rowStyle?: (row: T) => ExcelRowStyle
+}
+
+export type ExcelRowStyle = {
+  bold?: boolean
+  /** Color ARGB de relleno de las celdas de la fila (p.ej. 'FFFFF2CC'). */
+  fill?: string
+  /** Sangría de la primera celda. */
+  indent?: number
+  /** Formato numérico que reemplaza al de la columna en esta fila (salvo la primera celda). */
+  numFmt?: ExcelCellFormat
 }
 
 function addSheet<T>(workbook: ExcelJS.Workbook, opts: ExcelSheet<T>): void {
-  const { columns, rows, sheetName, isBold } = opts
+  const { columns, rows, sheetName, rowStyle } = opts
   const sheet = workbook.addWorksheet(sanitizeSheetName(sheetName))
 
   sheet.columns = columns.map((col) => {
@@ -75,7 +85,16 @@ function addSheet<T>(workbook: ExcelJS.Workbook, opts: ExcelSheet<T>): void {
       return v ?? null
     })
     const added = sheet.addRow(values)
-    if (isBold?.(row)) added.font = { bold: true }
+    const st = rowStyle?.(row)
+    if (st) {
+      for (let i = 1; i <= columns.length; i++) {
+        const cell = added.getCell(i)
+        if (st.bold) cell.font = { bold: true }
+        if (st.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: st.fill } }
+        if (st.numFmt && i > 1) cell.numFmt = NUM_FORMATS[st.numFmt]
+        if (i === 1 && st.indent) cell.alignment = { indent: st.indent }
+      }
+    }
 
     if (columns.some((c) => c.width == null)) {
       values.forEach((v, i) => {

@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db'
-import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops, comunas, contactOrigins, costCategories } from '@/db/schema'
+import { procedures, exams, healthInsurances, elderlyResidences, surchargeTypes, workshops, comunas, contactOrigins, costCategories, costGroups } from '@/db/schema'
 import { eq, asc, and, ilike } from 'drizzle-orm'
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { z } from 'zod'
@@ -53,7 +53,16 @@ const origenContactoUpdateSchema = origenContactoSchema.extend({ id: fields.id }
 const tipoRecargoSchema = z.object({ nombre: fields.nombre, precio: fields.precio.optional().default(0) })
 const tipoRecargoUpdateSchema = tipoRecargoSchema.extend({ id: fields.id })
 
-const categoriaCostoSchema = z.object({ nombre: fields.nombre })
+const ordenField = z.coerce.number().int('Orden inválido').min(0, 'Orden inválido').optional().default(0)
+
+const grupoCostoSchema = z.object({ nombre: fields.nombre, orden: ordenField })
+const grupoCostoUpdateSchema = grupoCostoSchema.extend({ id: fields.id })
+
+const categoriaCostoSchema = z.object({
+  nombre: fields.nombre,
+  idGrupo: z.coerce.number().int().positive('Grupo requerido'),
+  orden: ordenField,
+})
 const categoriaCostoUpdateSchema = categoriaCostoSchema.extend({ id: fields.id })
 
 const tallerSchema = z.object({ nombre: fields.nombre, codigo: fields.codigo })
@@ -69,7 +78,8 @@ export type ResidenciaRow   = { id: number; nombre: string; activo: boolean }
 export type ComunaRow       = { id: number; nombre: string; activo: boolean }
 export type OrigenContactoRow = { id: number; nombre: string; activo: boolean }
 export type TipoRecargoRow  = { id: number; nombre: string; precio: number; activo: boolean }
-export type CategoriaCostoRow = { id: number; nombre: string; activo: boolean }
+export type GrupoCostoRow = { id: number; nombre: string; orden: number; activo: boolean }
+export type CategoriaCostoRow = { id: number; nombre: string; idGrupo: number; orden: number; activo: boolean }
 
 // ─── Catalog configs ──────────────────────────────────────────────────────────
 
@@ -141,9 +151,24 @@ const tipoRecargoCfg: CatalogConfig = {
   extraUpdateFields: () => ({ updatedAt: new Date() }),
 }
 
+const grupoCostoCfg: CatalogConfig = {
+  adminOnly: true,
+  table: costGroups, idCol: costGroups.id, nombreCol: costGroups.nombre, activoCol: costGroups.activo,
+  sortCols: { orden: costGroups.orden },
+  createSchema: grupoCostoSchema,
+  updateSchema: grupoCostoUpdateSchema,
+  path: '/grupos-costos',
+  extraUpdateFields: () => ({ updatedAt: new Date() }),
+}
+
 const categoriaCostoCfg: CatalogConfig = {
   adminOnly: true,
   table: costCategories, idCol: costCategories.id, nombreCol: costCategories.nombre, activoCol: costCategories.activo,
+  sortCols: { orden: costCategories.orden },
+  extraFilters: (filters, conds) => {
+    const grupo = Number(filters.grupo)
+    if (grupo > 0) conds.push(eq(costCategories.idGrupo, grupo))
+  },
   createSchema: categoriaCostoSchema,
   updateSchema: categoriaCostoUpdateSchema,
   path: '/categorias-costos',
@@ -271,7 +296,25 @@ export async function getTiposRecargosForSelect(): Promise<{ id: number; label: 
   return withQuery(() => _fetchTiposRecargos())
 }
 
-// ─── Categorías de costos ─────────────────────────────────────────────────────
+// ─── Grupos y categorías de costos ────────────────────────────────────────────
+
+export async function searchGruposCostos(params: SearchParams): Promise<{ rows: GrupoCostoRow[]; total: number }> {
+  return catalogSearch(grupoCostoCfg, params) as Promise<{ rows: GrupoCostoRow[]; total: number }>
+}
+export async function createGrupoCosto(formData: FormData) { return catalogCreate(grupoCostoCfg, formData) }
+export async function updateGrupoCosto(formData: FormData) { return catalogUpdate(grupoCostoCfg, formData) }
+export async function toggleGrupoCosto(id: number, activo: boolean) { return catalogToggle(grupoCostoCfg, id, activo) }
+
+/** Todos los grupos (los inactivos marcados) — para el select de categorías y su columna "Grupo". */
+export async function getGruposCostosForSelect(): Promise<{ id: number; label: string; activo: boolean }[]> {
+  return withQuery(async () => {
+    const rows = await db
+      .select({ id: costGroups.id, nombre: costGroups.nombre, activo: costGroups.activo })
+      .from(costGroups)
+      .orderBy(asc(costGroups.orden), asc(costGroups.nombre))
+    return rows.map((r) => ({ id: r.id, label: r.activo ? r.nombre : `${r.nombre} (inactivo)`, activo: r.activo }))
+  })
+}
 
 export async function searchCategoriasCostos(params: SearchParams): Promise<{ rows: CategoriaCostoRow[]; total: number }> {
   return catalogSearch(categoriaCostoCfg, params) as Promise<{ rows: CategoriaCostoRow[]; total: number }>
