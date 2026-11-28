@@ -15,6 +15,7 @@ vi.mock('next/cache', () => ({
   unstable_cache: (fn: any) => fn,
 }))
 
+import { auth } from '@/auth'
 import { CONCEPTOS_INGRESO } from '@/lib/reportes/financiero'
 import { listVisitasReporteFinanciero } from '@/lib/reportes/financiero-query'
 import { getCostosMensuales, guardarCostosMensuales } from '../costos-mensuales'
@@ -79,16 +80,15 @@ describe('listVisitasReporteFinanciero (BD sembrada)', () => {
 })
 
 describe('migración 0026', () => {
-  it('trae los grupos y categorías iniciales del informe de fin de mes, todas con grupo', async () => {
-    const rows = await db
-      .select({ categoria: costCategories.nombre, grupo: costGroups.nombre })
-      .from(costCategories)
-      .innerJoin(costGroups, eq(costCategories.idGrupo, costGroups.id))
-    const porNombre = new Map(rows.map((r) => [r.categoria, r.grupo]))
-    expect(porNombre.get('Factura Imalab')).toBe('Facturas laboratorio')
-    expect(porNombre.get('Rinaldo · Bono')).toBe('Sueldo Rinaldo')
-    expect(porNombre.get('Contador')).toBe('Gastos fijos y variables sin el personal')
-    expect([...porNombre.keys()].some((n) => /descuento/i.test(n))).toBe(false)
+  it('crea los grupos del informe de fin de mes en orden, sin categorías', async () => {
+    const grupos = await db.select({ nombre: costGroups.nombre, orden: costGroups.orden }).from(costGroups)
+    const porNombre = new Map(grupos.map((g) => [g.nombre, g.orden]))
+    expect(porNombre.get('Facturas laboratorio')).toBe(1)
+    expect(porNombre.get('Sueldo Rinaldo')).toBe(2)
+    expect(porNombre.get('Gastos fijos y variables sin el personal')).toBe(3)
+    // Las categorías las crea el admin: fuera de las de estos tests (prefijo _t…), no hay ninguna.
+    const categorias = await db.select({ nombre: costCategories.nombre }).from(costCategories)
+    expect(categorias.filter((c) => !c.nombre.startsWith('_t'))).toEqual([])
   })
 })
 
@@ -216,5 +216,14 @@ describe('GET /api/reportes/financiero/export', () => {
     const costosSheet = wb.getWorksheet('Costos mensuales')!
     const nombres = costosSheet.getColumn(3).values
     expect(nombres).toContain(`${P}Excel`)
+  })
+})
+
+describe('permisos del reporte financiero', () => {
+  it('un ejecutivo no puede descargarlo; un admin sí', async () => {
+    const url = 'http://localhost/api/reportes/financiero/export?fechaInicio=2026-03-01&fechaFin=2026-03-31&columns=id'
+    vi.mocked(auth).mockResolvedValueOnce({ user: { id: 'u2', role: 'ejecutivo' } })
+    await expect(GET(new Request(url))).rejects.toThrow(/permisos/)
+    expect((await GET(new Request(url))).status).toBe(200)
   })
 })

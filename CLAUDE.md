@@ -140,7 +140,7 @@ src/
 | `comunas` | `comunas` | Comunas (usado por enfermeras, precios de visita y cotizaciones) |
 | `precios_visita_enfermeria` | `nursingVisitPrices` | Precio de visita por comuna (`id_comuna` null = base) |
 | `grupos_costos` | `costGroups` | Grupos de costos (bloques del Resumen: Facturas laboratorio, Sueldo Rinaldo, Gastos fijos…), con `orden` |
-| `categorias_costos` | `costCategories` | Categorías de costos, cada una en un grupo (`id_grupo`, `orden` dentro del grupo). Mantenidas por admin; la migración 0026 trae las del informe de fin de mes |
+| `categorias_costos` | `costCategories` | Categorías de costos, cada una en un grupo (`id_grupo`, `orden` dentro del grupo). Mantenidas por admin desde `/categorias-costos` (la migración 0026 solo crea los 3 grupos del informe de fin de mes, sin categorías) |
 | `costos_mensuales` | `monthlyCosts` | Monto de una categoría de costo en un mes (`anio`, `mes`, `monto`, `notas`; único por categoría+mes). No es por visita |
 
 ### Tablas pivote
