@@ -4,15 +4,15 @@ import { and, asc, eq, inArray, or } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { db } from '@/db'
-import { costCategories, costGroups, monthlyCosts } from '@/db/schema'
+import { expenseCategories, expenseGroups, monthlyExpenses } from '@/db/schema'
 import { withAction, withQuery, ActionError, type ActionResult } from '@/lib/with-action'
 
-// Costos mensuales por categoría (laboratorio, insumos, arriendo, etc.). Se
+// Gastos mensuales por categoría (laboratorio, insumos, arriendo, etc.). Se
 // ingresan por mes, no por visita, y alimentan la hoja "Resumen" del reporte
 // financiero. Cualquier usuario puede ingresarlos; el catálogo de categorías
-// (`/categorias-costos`) es solo-admin.
+// (`/categorias-gastos`) es solo-admin.
 
-export type CostoMensualFormRow = {
+export type GastoMensualFormRow = {
   idCategoria: number
   categoria: string
   grupo: string
@@ -42,26 +42,26 @@ const guardarSchema = periodoSchema.extend({
  * Categorías activas + las inactivas que ya tienen un monto en ese mes (para
  * no perder datos históricos al desactivar una categoría).
  */
-export async function getCostosMensuales(anio: number, mes: number): Promise<CostoMensualFormRow[]> {
+export async function getGastosMensuales(anio: number, mes: number): Promise<GastoMensualFormRow[]> {
   return withQuery(async () => {
     const periodo = periodoSchema.parse({ anio, mes })
     const registrados = await db
-      .select({ idCategoria: monthlyCosts.idCategoria, monto: monthlyCosts.monto, notas: monthlyCosts.notas })
-      .from(monthlyCosts)
-      .where(and(eq(monthlyCosts.anio, periodo.anio), eq(monthlyCosts.mes, periodo.mes)))
+      .select({ idCategoria: monthlyExpenses.idCategoria, monto: monthlyExpenses.monto, notas: monthlyExpenses.notas })
+      .from(monthlyExpenses)
+      .where(and(eq(monthlyExpenses.anio, periodo.anio), eq(monthlyExpenses.mes, periodo.mes)))
     const porCategoria = new Map(registrados.map((r) => [r.idCategoria, r]))
     const idsConMonto = [...porCategoria.keys()]
 
     const categorias = await db
-      .select({ id: costCategories.id, nombre: costCategories.nombre, activo: costCategories.activo, grupo: costGroups.nombre })
-      .from(costCategories)
-      .innerJoin(costGroups, eq(costCategories.idGrupo, costGroups.id))
+      .select({ id: expenseCategories.id, nombre: expenseCategories.nombre, activo: expenseCategories.activo, grupo: expenseGroups.nombre })
+      .from(expenseCategories)
+      .innerJoin(expenseGroups, eq(expenseCategories.idGrupo, expenseGroups.id))
       .where(
         idsConMonto.length
-          ? or(eq(costCategories.activo, true), inArray(costCategories.id, idsConMonto))
-          : eq(costCategories.activo, true),
+          ? or(eq(expenseCategories.activo, true), inArray(expenseCategories.id, idsConMonto))
+          : eq(expenseCategories.activo, true),
       )
-      .orderBy(asc(costGroups.orden), asc(costGroups.nombre), asc(costCategories.orden), asc(costCategories.nombre))
+      .orderBy(asc(expenseGroups.orden), asc(expenseGroups.nombre), asc(expenseCategories.orden), asc(expenseCategories.nombre))
 
     return categorias.map((c) => ({
       idCategoria: c.id,
@@ -78,12 +78,12 @@ export async function getCostosMensuales(anio: number, mes: number): Promise<Cos
  * Guarda los montos del mes (upsert por categoría). Un ítem en 0 y sin notas
  * borra el registro, así "vacío" y "0" no conviven.
  */
-export async function guardarCostosMensuales(input: {
+export async function guardarGastosMensuales(input: {
   anio: number
   mes: number
   items: { idCategoria: number; monto: number; notas?: string }[]
 }): Promise<ActionResult> {
-  return withAction('Error al guardar los costos', async () => {
+  return withAction('Error al guardar los gastos', async () => {
     const parsed = guardarSchema.safeParse(input)
     if (!parsed.success) throw new ActionError(parsed.error.issues[0]?.message ?? 'Datos inválidos')
     const { anio, mes, items } = parsed.data
@@ -92,33 +92,33 @@ export async function guardarCostosMensuales(input: {
     if (ids.length !== items.length) throw new ActionError('Categoría repetida')
     if (ids.length > 0) {
       const existentes = await db
-        .select({ id: costCategories.id })
-        .from(costCategories)
-        .where(inArray(costCategories.id, ids))
+        .select({ id: expenseCategories.id })
+        .from(expenseCategories)
+        .where(inArray(expenseCategories.id, ids))
       if (existentes.length !== ids.length) throw new ActionError('Categoría no encontrada')
     }
 
     await db.transaction(async (tx) => {
       for (const item of items) {
         const where = and(
-          eq(monthlyCosts.idCategoria, item.idCategoria),
-          eq(monthlyCosts.anio, anio),
-          eq(monthlyCosts.mes, mes),
+          eq(monthlyExpenses.idCategoria, item.idCategoria),
+          eq(monthlyExpenses.anio, anio),
+          eq(monthlyExpenses.mes, mes),
         )
         if (item.monto === 0 && !item.notas) {
-          await tx.delete(monthlyCosts).where(where)
+          await tx.delete(monthlyExpenses).where(where)
           continue
         }
         await tx
-          .insert(monthlyCosts)
+          .insert(monthlyExpenses)
           .values({ idCategoria: item.idCategoria, anio, mes, monto: item.monto, notas: item.notas || null })
           .onConflictDoUpdate({
-            target: [monthlyCosts.idCategoria, monthlyCosts.anio, monthlyCosts.mes],
+            target: [monthlyExpenses.idCategoria, monthlyExpenses.anio, monthlyExpenses.mes],
             set: { monto: item.monto, notas: item.notas || null, updatedAt: new Date() },
           })
       }
     })
 
-    revalidatePath('/costos-mensuales')
+    revalidatePath('/gastos-mensuales')
   })
 }

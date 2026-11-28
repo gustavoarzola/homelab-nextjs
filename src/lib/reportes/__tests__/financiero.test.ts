@@ -206,7 +206,7 @@ describe('buildResumenMensual', () => {
   ]
   const resumen = buildResumenMensual({
     rows,
-    costos: [
+    gastos: [
       { anio: 2026, mes: 1, categoria: 'Factura Imalab', monto: 30000 },
       { anio: 2026, mes: 2, categoria: 'Contador', monto: 10000 },
     ],
@@ -226,7 +226,7 @@ describe('buildResumenMensual', () => {
 
   it('bloques en el orden del informe de fin de mes', () => {
     const headings = resumen.filter((r) => r.kind === 'heading').map((r) => r.concepto)
-    expect(headings).toEqual(['PACIENTES', 'INGRESOS', 'UTILIDAD ANTES DE COSTOS', 'COSTOS TOTALES', 'UTILIDAD ANTES DE IMPUESTOS'])
+    expect(headings).toEqual(['PACIENTES', 'INGRESOS', 'UTILIDAD ANTES DE GASTOS', 'GASTOS TOTALES', 'UTILIDAD ANTES DE IMPUESTOS'])
     expect(resumen.at(-1)).toMatchObject({ concepto: 'Utilidad antes de impuestos + materiales', kind: 'manual' })
   })
 
@@ -240,7 +240,7 @@ describe('buildResumenMensual', () => {
 
   it('"Exámenes (otro grupo)" no aparece si es 0, y sí si tiene montos', () => {
     expect(resumen.some((r) => r.concepto === 'Exámenes (otro grupo)')).toBe(false)
-    const conOtro = buildResumenMensual({ rows: [row('2026-01-10', {})], costos: [], categorias: [], meses: ['2026-01'] })
+    const conOtro = buildResumenMensual({ rows: [row('2026-01-10', {})], gastos: [], categorias: [], meses: ['2026-01'] })
     expect(conOtro.find((r) => r.concepto === 'Exámenes (otro grupo)')?.total).toBe(500)
   })
 
@@ -268,19 +268,19 @@ describe('buildResumenMensual', () => {
     for (const p of ['2026-01', '2026-02']) {
       expect(ret.valores[p]).toBe(by('Producción Visitas').valores[p]! - by('Enfermeras visitas').valores[p]!)
     }
-    for (const c of ['Total Facturado', 'Retención Exámenes', 'Retención Impuestos Visitas', 'Utilidad antes de los costos', 'Utilidad antes de impuestos']) {
+    for (const c of ['Total Facturado', 'Retención Exámenes', 'Retención Impuestos Visitas', 'Utilidad antes de los gastos', 'Utilidad antes de impuestos']) {
       expect(by(c)).toMatchObject({ kind: 'manual', valores: {} })
     }
   })
 
-  it('costos: pago por enfermera con su %, grupos con subtotal y Costos totales', () => {
+  it('gastos: pago por enfermera con su %, grupos con subtotal y Gastos totales', () => {
     expect(by('Ana Pérez (50%)').valores).toEqual({ '2026-01': 19500, '2026-02': 4500 })
     expect(by('Bea Soto (60%)').valores['2026-01']).toBe(23400)
     expect(by('Enfermeras visitas').valores).toEqual({ '2026-01': 42900, '2026-02': 4500 })
     expect(by('Facturas laboratorio').valores).toEqual({ '2026-01': 30000, '2026-02': 0 })
     expect(by('Factura ELSA').total).toBe(0)
     expect(idx('Factura Imalab')).toBe(idx('Facturas laboratorio') + 1)
-    expect(by('Costos totales').valores).toEqual({ '2026-01': 72900, '2026-02': 14500 })
+    expect(by('Gastos totales').valores).toEqual({ '2026-01': 72900, '2026-02': 14500 })
   })
 })
 

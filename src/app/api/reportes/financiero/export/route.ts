@@ -10,16 +10,16 @@ import {
   resumenRowStyle,
 } from '@/lib/reportes/financiero'
 import {
-  listCategoriasCostoParaResumen,
-  listCostosMensualesPeriodo,
+  listCategoriasGastoParaResumen,
+  listGastosMensualesPeriodo,
   listVisitasReporteFinanciero,
 } from '@/lib/reportes/financiero-query'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-type CostoRow = { periodo: string; grupo: string; categoria: string; monto: number; notas: string | null }
+type GastoRow = { periodo: string; grupo: string; categoria: string; monto: number; notas: string | null }
 
-const COSTO_COLUMNS: ExcelColumn<CostoRow>[] = [
+const GASTO_COLUMNS: ExcelColumn<GastoRow>[] = [
   { header: 'Mes', accessor: (r) => r.periodo, width: 10 },
   { header: 'Grupo', accessor: (r) => r.grupo, width: 32 },
   { header: 'Categoría', accessor: (r) => r.categoria, width: 32 },
@@ -47,19 +47,19 @@ export async function GET(request: Request) {
     ? REPORTE_FINANCIERO_COLUMNS.filter((c) => requestedKeys.includes(c.key))
     : REPORTE_FINANCIERO_COLUMNS
 
-  const [rows, costos] = await Promise.all([
+  const [rows, gastos] = await Promise.all([
     listVisitasReporteFinanciero(filters),
-    listCostosMensualesPeriodo(filters.fechaInicio || undefined, filters.fechaFin || undefined),
+    listGastosMensualesPeriodo(filters.fechaInicio || undefined, filters.fechaFin || undefined),
   ])
-  const categorias = await listCategoriasCostoParaResumen([...new Set(costos.map((c) => c.categoria))])
+  const categorias = await listCategoriasGastoParaResumen([...new Set(gastos.map((c) => c.categoria))])
 
   const meses = new Set<string>()
   if (filters.fechaInicio && filters.fechaFin) mesesEntre(filters.fechaInicio, filters.fechaFin).forEach((m) => meses.add(m))
   rows.forEach((r) => meses.add(r.fecha.slice(0, 7)))
-  costos.forEach((c) => meses.add(periodoKey(c.anio, c.mes)))
+  gastos.forEach((c) => meses.add(periodoKey(c.anio, c.mes)))
   const mesesOrdenados = [...meses].sort()
 
-  const resumen = buildResumenMensual({ rows, costos, categorias, meses: mesesOrdenados })
+  const resumen = buildResumenMensual({ rows, gastos, categorias, meses: mesesOrdenados })
 
   const { buffer, fileName } = await buildExcelWorkbook({
     fileName: `reporte-financiero-${todaySantiago()}.xlsx`,
@@ -72,9 +72,9 @@ export async function GET(request: Request) {
       },
       { sheetName: 'Visitas', columns, rows },
       {
-        sheetName: 'Costos mensuales',
-        columns: COSTO_COLUMNS,
-        rows: costos.map((c) => ({ periodo: periodoKey(c.anio, c.mes), grupo: c.grupo, categoria: c.categoria, monto: c.monto, notas: c.notas })),
+        sheetName: 'Gastos mensuales',
+        columns: GASTO_COLUMNS,
+        rows: gastos.map((c) => ({ periodo: periodoKey(c.anio, c.mes), grupo: c.grupo, categoria: c.categoria, monto: c.monto, notas: c.notas })),
       },
     ],
   })

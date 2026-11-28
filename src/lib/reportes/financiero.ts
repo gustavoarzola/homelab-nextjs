@@ -255,7 +255,7 @@ function sumIngresos(m: MontosFinancieros): number {
   return sum(CONCEPTOS_INGRESO.map((c) => c.get(m)))
 }
 
-// ─── Producción (bloque "Utilidad antes de costos" del Resumen) ──────────────
+// ─── Producción (bloque "Utilidad antes de gastos" del Resumen) ──────────────
 //
 // Cuadre: totalBoleta = produccionExamenes + IMED a pagar (examenesIsapreBono)
 //                      + produccionVisitas + insumos.
@@ -372,9 +372,9 @@ export const REPORTE_FINANCIERO_COLUMNS: ReporteColumn[] = [
 
 // ─── Resumen mensual (formato del informe de fin de mes) ─────────────────────
 
-export type CostoMensualItem = { anio: number; mes: number; categoria: string; monto: number }
+export type GastoMensualItem = { anio: number; mes: number; categoria: string; monto: number }
 
-/** Categoría de costo con su grupo, en el orden del Resumen (grupo.orden → orden → nombre). */
+/** Categoría de gasto con su grupo, en el orden del Resumen (grupo.orden → orden → nombre). */
 export type CategoriaResumen = { categoria: string; grupo: string }
 
 /**
@@ -413,12 +413,12 @@ export function mesesEntre(desde: string, hasta: string): string[] {
 
 export function buildResumenMensual(opts: {
   rows: ReporteFinancieroRow[]
-  costos: CostoMensualItem[]
+  gastos: GastoMensualItem[]
   /** Categorías a mostrar (aunque no tengan monto), ya ordenadas por grupo. */
   categorias: CategoriaResumen[]
   meses: string[]
 }): ResumenRow[] {
-  const { rows, costos, categorias, meses } = opts
+  const { rows, gastos, categorias, meses } = opts
 
   const fromMap = (map: Map<string, number>) => Object.fromEntries(meses.map((p) => [p, map.get(p) ?? 0]))
   const row = (
@@ -482,10 +482,10 @@ export function buildResumenMensual(opts: {
   out.push(row('Total ingresos', acumular((x) => x.montos.totalBoleta), { bold: true }))
   out.push(blank)
 
-  // ── Utilidad antes de costos
+  // ── Utilidad antes de gastos
   const prodVisitas = acumular((x) => produccionVisitas(x.montos))
   const pagos = acumular((x) => x.montos.pagoEnfermera)
-  out.push(heading('UTILIDAD ANTES DE COSTOS'))
+  out.push(heading('UTILIDAD ANTES DE GASTOS'))
   out.push(row('Producción Exámenes', acumular((x) => produccionExamenes(x.montos))))
   out.push(row('Producción IMED producción', acumular((x) => x.montos.examenesIsapreValorCompleto)))
   out.push(row('Producción de IMED a pagar', acumular((x) => x.montos.examenesIsapreBono)))
@@ -497,11 +497,11 @@ export function buildResumenMensual(opts: {
   out.push(row('Retención Visitas (Producción Visitas − pago enfermeras)', restar(prodVisitas, pagos)))
   out.push(manual('Retención Exámenes'))
   out.push(manual('Retención Impuestos Visitas'))
-  out.push(manual('Utilidad antes de los costos', true))
+  out.push(manual('Utilidad antes de los gastos', true))
   out.push(blank)
 
-  // ── Costos totales
-  out.push(heading('COSTOS TOTALES'))
+  // ── Gastos totales
+  out.push(heading('GASTOS TOTALES'))
   const subtotales: Record<string, number>[] = [pagos]
   out.push(row('Enfermeras visitas', pagos, { bold: true }))
   for (const [id, e] of listaEnfermeras) {
@@ -510,7 +510,7 @@ export function buildResumenMensual(opts: {
   }
   const montoCategoria = (categoria: string) => {
     const map = new Map<string, number>()
-    for (const c of costos) {
+    for (const c of gastos) {
       if (c.categoria !== categoria) continue
       const p = periodoKey(c.anio, c.mes)
       map.set(p, (map.get(p) ?? 0) + c.monto)
@@ -529,7 +529,7 @@ export function buildResumenMensual(opts: {
     subtotales.push(subtotal)
     out.push(row(g.grupo, subtotal, { bold: true }), ...hijos)
   }
-  out.push(row('Costos totales', sumar(subtotales), { bold: true }))
+  out.push(row('Gastos totales', sumar(subtotales), { bold: true }))
   out.push(blank)
 
   // ── Utilidad antes de impuestos
